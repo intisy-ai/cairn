@@ -4,6 +4,7 @@
   import Overview from "./lib/routes/Overview.svelte";
   import Providers from "./lib/routes/Providers.svelte";
   import Accounts from "./lib/routes/Accounts.svelte";
+  import Routing from "./lib/routes/Routing.svelte";
   import RoutePlaceholder from "./lib/routes/RoutePlaceholder.svelte";
   import { router, SCREENS } from "./lib/router.js";
 
@@ -21,6 +22,8 @@
         <Providers />
       {:else if $router.screen === "accounts"}
         <Accounts />
+      {:else if $router.screen === "routing"}
+        <Routing />
       {:else}
         <RoutePlaceholder label={activeLabel} />
       {/if}
