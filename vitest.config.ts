@@ -7,4 +7,7 @@ export default defineConfig({
       "@core": fileURLToPath(new URL("../../libs/core/dist", import.meta.url)),
     },
   },
+  test: {
+    include: ["src/**/*.test.ts"],
+  },
 });
