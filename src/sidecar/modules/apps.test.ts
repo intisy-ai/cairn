@@ -29,10 +29,10 @@ describe("apps sidecar module", () => {
     expect(result.data).toEqual({ claude: false, opencode: false });
   });
 
-  it("builds the claude-code npm install command without running it", async () => {
-    const calls: string[] = [];
-    const fakeSpawn = async (command: string) => {
-      calls.push(command);
+  it("installs the claude-code npm package as an arg-array spawn, not a shell string", async () => {
+    const calls: Array<{ file: string; args: string[] }> = [];
+    const fakeSpawn = async (file: string, args: string[]) => {
+      calls.push({ file, args });
       return { stdout: "installed", stderr: "" };
     };
     const result = await appsInstallCli("claude", fakeSpawn);
@@ -40,25 +40,27 @@ describe("apps sidecar module", () => {
     if (!result.ok) throw new Error("unreachable");
     expect(result.data).toEqual({ stdout: "installed", stderr: "" });
     expect(calls).toHaveLength(1);
-    expect(calls[0]).toContain("@anthropic-ai/claude-code");
+    expect(calls[0].file).toBe("npm");
+    expect(calls[0].args).toEqual(["install", "-g", "@anthropic-ai/claude-code"]);
   });
 
-  it("builds the opencode-ai npm install command without running it", async () => {
-    const calls: string[] = [];
-    const fakeSpawn = async (command: string) => {
-      calls.push(command);
+  it("installs the opencode-ai npm package as an arg-array spawn", async () => {
+    const calls: Array<{ file: string; args: string[] }> = [];
+    const fakeSpawn = async (file: string, args: string[]) => {
+      calls.push({ file, args });
       return { stdout: "", stderr: "" };
     };
     const result = await appsInstallCli("opencode", fakeSpawn);
     expect(result.ok).toBe(true);
     expect(calls).toHaveLength(1);
-    expect(calls[0]).toContain("opencode-ai");
+    expect(calls[0].file).toBe("npm");
+    expect(calls[0].args).toContain("opencode-ai");
   });
 
   it("returns an error for an unknown app instead of spawning", async () => {
-    const calls: string[] = [];
-    const fakeSpawn = async (command: string) => {
-      calls.push(command);
+    const calls: Array<{ file: string; args: string[] }> = [];
+    const fakeSpawn = async (file: string, args: string[]) => {
+      calls.push({ file, args });
       return { stdout: "", stderr: "" };
     };
     const result = await appsInstallCli("bogus" as never, fakeSpawn);
@@ -66,15 +68,27 @@ describe("apps sidecar module", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("shells plugin-updater init for the given app", async () => {
-    const calls: string[] = [];
-    const fakeSpawn = async (command: string) => {
-      calls.push(command);
+  it("runs plugin-updater init for the given app as an arg-array spawn", async () => {
+    const calls: Array<{ file: string; args: string[] }> = [];
+    const fakeSpawn = async (file: string, args: string[]) => {
+      calls.push({ file, args });
       return { stdout: "", stderr: "" };
     };
     const result = await appsInit("opencode", fakeSpawn);
     expect(result.ok).toBe(true);
-    expect(calls[0]).toContain("plugin-updater init");
-    expect(calls[0]).toContain("opencode");
+    expect(calls).toHaveLength(1);
+    expect(calls[0].file).toBe("npx");
+    expect(calls[0].args).toEqual(["plugin-updater", "init", "--app", "opencode"]);
+  });
+
+  it("returns an error for an unknown app on init instead of spawning", async () => {
+    const calls: Array<{ file: string; args: string[] }> = [];
+    const fakeSpawn = async (file: string, args: string[]) => {
+      calls.push({ file, args });
+      return { stdout: "", stderr: "" };
+    };
+    const result = await appsInit("bogus" as never, fakeSpawn);
+    expect(result.ok).toBe(false);
+    expect(calls).toHaveLength(0);
   });
 });

@@ -1,15 +1,21 @@
-import { exec } from "node:child_process";
+import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, delimiter } from "node:path";
 import { getAppConfigDir } from "@plugin-updater/env.js";
 import type { AppPresence, CliResult, Result } from "../../../packages/shared/src/domain.js";
-import { wrap } from "../result.js";
+import { wrap, err } from "../result.js";
 
 export type AppName = "claude" | "opencode";
 
 export type BinaryExistsFn = (name: string) => boolean;
 export type FsExistsFn = (path: string) => boolean;
-export type SpawnFn = (command: string) => Promise<CliResult>;
+export type SpawnFn = (file: string, args: string[]) => Promise<CliResult>;
+
+const APPS = ["claude", "opencode"] as const;
+
+function isAppName(x: unknown): x is AppName {
+  return typeof x === "string" && (APPS as readonly string[]).includes(x);
+}
 
 const CLI_PACKAGES: Record<AppName, string> = {
   claude: "@anthropic-ai/claude-code",
@@ -22,9 +28,15 @@ function realBinaryExists(name: string): boolean {
   return pathEnv.split(delimiter).some((dir) => exts.some((ext) => existsSync(join(dir, name + ext))));
 }
 
-function realSpawn(command: string): Promise<CliResult> {
+// On Windows, npm/npx are shell shims (npm.cmd/npx.cmd); execFile needs the .cmd
+// suffix to find them without shelling out to a command string.
+function resolveExecutable(file: string): string {
+  return process.platform === "win32" ? `${file}.cmd` : file;
+}
+
+function realSpawn(file: string, args: string[]): Promise<CliResult> {
   return new Promise((resolve, reject) => {
-    exec(command, (error, stdout, stderr) => {
+    execFile(resolveExecutable(file), args, (error, stdout, stderr) => {
       if (error) reject(error);
       else resolve({ stdout, stderr });
     });
@@ -50,13 +62,11 @@ export function appsDetect(deps: AppsDetectDeps = {}): Promise<Result<AppPresenc
 }
 
 export function appsInstallCli(app: AppName, spawn: SpawnFn = realSpawn): Promise<Result<CliResult>> {
-  return wrap(() => {
-    const pkg = CLI_PACKAGES[app];
-    if (!pkg) throw new Error(`unknown app: ${app}`);
-    return spawn(`npm install -g ${pkg}`);
-  });
+  if (!isAppName(app)) return Promise.resolve(err(`unknown app: ${app}`));
+  return wrap(() => spawn("npm", ["install", "-g", CLI_PACKAGES[app]]));
 }
 
 export function appsInit(app: AppName, spawn: SpawnFn = realSpawn): Promise<Result<CliResult>> {
-  return wrap(() => spawn(`npx plugin-updater init --app ${app}`));
+  if (!isAppName(app)) return Promise.resolve(err(`unknown app: ${app}`));
+  return wrap(() => spawn("npx", ["plugin-updater", "init", "--app", app]));
 }
