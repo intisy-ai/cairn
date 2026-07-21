@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "paths": {
+      "@core/*": ["../../libs/core/dist/*"],
+      "@core-auth/*": ["../../libs/core-auth/dist/*"],
+      "@core-proxy/*": ["../../libs/core-proxy/dist/*"],
+      "@claude-code-proxy/*": ["../../libs/claude-code-proxy/dist/*"]
+    }
+  }
+}
