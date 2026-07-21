@@ -1,8 +1,12 @@
 import { defineConfig } from "vitest/config";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { svelteTesting } from "@testing-library/svelte/vite";
 import { fileURLToPath } from "node:url";
 
 export default defineConfig({
+  plugins: [svelte(), svelteTesting()],
   resolve: {
+    conditions: process.env.VITEST ? ["browser"] : [],
     alias: {
       "@core": fileURLToPath(new URL("../../libs/core/dist", import.meta.url)),
       "@core-auth": fileURLToPath(new URL("../../libs/core-auth/dist", import.meta.url)),
@@ -14,5 +18,6 @@ export default defineConfig({
   },
   test: {
     include: ["src/**/*.test.ts"],
+    setupFiles: ["./vitest.setup.ts"],
   },
 });

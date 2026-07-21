@@ -10,7 +10,11 @@ import { resolveStoreDir } from "../lib/storeDir.js";
 const PORT = 34567;
 const PROBE_TIMEOUT_MS = 500;
 
+type Starter = (options: StartLoaderProxyOptions<RoutingProfile>) => Promise<StartedLoaderProxy>;
+
 let handle: StartedLoaderProxy | null = null;
+let startingPromise: Promise<void> | null = null;
+let stoppingPromise: Promise<void> | null = null;
 
 function dashboardStoreDir(): string {
   return resolveStoreDir(process.env, process.platform, homedir());
@@ -52,15 +56,31 @@ export async function status(probe: () => Promise<boolean> = defaultProbe): Prom
   return { running: await isRunning(probe), port: PORT };
 }
 
-export async function start(): Promise<void> {
+export async function start(starter: Starter = startLoaderProxy): Promise<void> {
   if (handle) return;
-  const configDir = dashboardStoreDir();
-  if (!process.env.HUB_CONFIG_DIR) process.env.HUB_CONFIG_DIR = configDir;
-  handle = await startLoaderProxy(buildStartOptions(configDir));
+  if (startingPromise) return startingPromise;
+  startingPromise = (async () => {
+    const configDir = dashboardStoreDir();
+    if (!process.env.HUB_CONFIG_DIR) process.env.HUB_CONFIG_DIR = configDir;
+    handle = await starter(buildStartOptions(configDir));
+  })();
+  try {
+    await startingPromise;
+  } finally {
+    startingPromise = null;
+  }
 }
 
 export async function stop(): Promise<void> {
   if (!handle) return;
-  await handle.server.close?.();
-  handle = null;
+  if (stoppingPromise) return stoppingPromise;
+  stoppingPromise = (async () => {
+    await handle?.server.close?.();
+    handle = null;
+  })();
+  try {
+    await stoppingPromise;
+  } finally {
+    stoppingPromise = null;
+  }
 }

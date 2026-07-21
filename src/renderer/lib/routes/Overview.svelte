@@ -33,7 +33,6 @@
       meta={`Port ${summary.serverPort}`}
       metaColor={summary.serverRunning ? "var(--good)" : "var(--faint)"}
     />
-    <StatCard label="Port" value={String(summary.serverPort)} meta="local proxy" />
   </section>
 {/if}
 
@@ -56,7 +55,7 @@
   }
   .summary {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 12px;
   }
   .error {

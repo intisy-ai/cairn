@@ -12,14 +12,19 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc -b",
+    "check:svelte": "svelte-check --tsconfig ./src/renderer/tsconfig.json",
+    "check": "tsc -b && npm run check:svelte",
     "test": "vitest"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^4.0.0",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/svelte": "^5.4.2",
     "electron": "^32.0.0",
     "electron-vite": "^2.3.0",
     "jsdom": "^29.1.1",
     "svelte": "^5.0.0",
+    "svelte-check": "^4.7.3",
     "typescript": "^5.6.0",
     "vite": "^5.4.0",
     "vitest": "^2.1.0"

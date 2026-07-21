@@ -24,6 +24,9 @@ export interface IntisyAPI {
   pluginsDowngrade(name: string, hash: string): Promise<Result<void>>;
   usageSnapshot(): Promise<Result<UsageSnapshot>>;
   minimize(): void;
+  maximize(): void;
+  close(): void;
+  onServerStatus(listener: (status: ProxyStatus) => void): () => void;
   isElectron: true;
   platform: NodeJS.Platform;
 }
