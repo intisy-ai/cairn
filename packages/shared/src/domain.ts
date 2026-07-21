@@ -33,3 +33,11 @@ export type CliResult = {
   stdout: string;
   stderr: string;
 };
+export type PluginRow = {
+  name: string;
+  kind: "git" | "npm";
+  enabled: boolean;
+  url?: string;
+  installedVersion?: string | null;
+  updateAvailable: boolean;
+};

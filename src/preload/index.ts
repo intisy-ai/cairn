@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import { IPC_CHANNELS } from "@dashboard/shared";
-import type { IntisyAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, Chain, AppPresence, CliResult } from "@dashboard/shared";
+import type { IntisyAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, Chain, AppPresence, CliResult, PluginRow } from "@dashboard/shared";
 
 const invokeChannels: readonly string[] = IPC_CHANNELS.invoke;
 const sendChannels: readonly string[] = IPC_CHANNELS.send;
@@ -45,6 +45,10 @@ const api: IntisyAPI = {
   appsDetect: () => safeInvoke("apps:detect") as Promise<Result<AppPresence>>,
   appsInstallCli: (app) => safeInvoke("apps:installCli", app) as Promise<Result<CliResult>>,
   appsInit: (app) => safeInvoke("apps:init", app) as Promise<Result<CliResult>>,
+  pluginsList: () => safeInvoke("plugins:list") as Promise<Result<PluginRow[]>>,
+  pluginsInstall: (name, url) => safeInvoke("plugins:install", name, url) as Promise<Result<void>>,
+  pluginsSetEnabled: (name, on) => safeInvoke("plugins:setEnabled", name, on) as Promise<Result<void>>,
+  pluginsDowngrade: (name, hash) => safeInvoke("plugins:downgrade", name, hash) as Promise<Result<void>>,
   minimize: () => safeSend("window:minimize"),
   isElectron: true,
   platform: process.platform,

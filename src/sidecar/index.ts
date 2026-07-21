@@ -7,6 +7,7 @@ import { providersList, providersSetActive, providersSetExposure } from "./modul
 import { routingGet, routingSetChain } from "./modules/routing.js";
 import { appsDetect, appsInstallCli, appsInit } from "./modules/apps.js";
 import type { AppName } from "./modules/apps.js";
+import { pluginsList, pluginsInstall, pluginsSetEnabled, pluginsDowngrade } from "./modules/plugins.js";
 
 type SidecarRequest = { id: number; channel: string; args: unknown[] };
 type SidecarResponse = { id: number; result: Result<unknown> };
@@ -44,6 +45,10 @@ registerHandler("routing:setChain", (slot, chain) => routingSetChain(slot as str
 registerHandler("apps:detect", () => appsDetect());
 registerHandler("apps:installCli", (app) => appsInstallCli(app as AppName));
 registerHandler("apps:init", (app) => appsInit(app as AppName));
+registerHandler("plugins:list", () => pluginsList());
+registerHandler("plugins:install", (name, url) => pluginsInstall(name as string, url as string));
+registerHandler("plugins:setEnabled", (name, on) => pluginsSetEnabled(name as string, on as boolean));
+registerHandler("plugins:downgrade", (name, hash) => pluginsDowngrade(name as string, hash as string));
 
 if (process.parentPort) {
   process.parentPort.on("message", (messageEvent) => {
