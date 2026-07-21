@@ -1,6 +1,6 @@
 import { pathToFileURL } from "node:url";
 import { readDeployedProviders } from "@core-loader/loader-runtime.js";
-import { reposDir, LockTimeoutError } from "@core-auth/index.js";
+import { reposDir } from "@core-auth/index.js";
 import type { AccountController } from "@core-auth/index.js";
 import type { AccountView, Result } from "../../../packages/shared/src/domain.js";
 import { ok, err } from "../result.js";
@@ -20,7 +20,7 @@ async function guarded<T>(fn: () => Promise<T> | T): Promise<Result<T>> {
   try {
     return ok(await fn());
   } catch (e) {
-    if (e instanceof LockTimeoutError) return err(`account store is locked: ${e.message}`);
+    if (e instanceof Error && e.name === "LockTimeoutError") return err(`account store is locked: ${e.message}`);
     return err(e instanceof Error ? e.message : String(e));
   }
 }

@@ -24,6 +24,36 @@ function seedStubProvider(): void {
   copyFileSync(stubHandlerPath, join(repoDir, "dist", "handler.js"));
 }
 
+// Simulates a provider bundled with its own copy of core-auth: the thrown error
+// is a plain Error with name "LockTimeoutError", not an instance of the
+// dashboard's own LockTimeoutError class, since esbuild gives each provider
+// bundle its own class identity for the same error type.
+function seedLockedProvider(): void {
+  const configDir = process.env.HUB_CONFIG_DIR as string;
+  const repoDir = join(configDir, "repos", "locked-auth");
+  mkdirSync(join(repoDir, "dist"), { recursive: true });
+  writeFileSync(
+    join(repoDir, "package.json"),
+    JSON.stringify({
+      name: "locked-auth",
+      claudeHub: { authProviders: [{ name: "locked", handler: "dist/handler.js" }] },
+    }),
+  );
+  writeFileSync(
+    join(repoDir, "dist", "handler.js"),
+    `export const accounts = {
+      list() {
+        const e = new Error("store busy");
+        e.name = "LockTimeoutError";
+        throw e;
+      },
+      enable() {},
+      remove() {},
+    };
+`,
+  );
+}
+
 describe("accounts sidecar module", () => {
   it("lists, enables, and removes accounts via the provider's controller", async () => {
     seedStubProvider();
@@ -57,5 +87,16 @@ describe("accounts sidecar module", () => {
     const { accountsList } = await import("./accounts.js");
     const result = await accountsList("nonexistent-provider");
     expect(result.ok).toBe(false);
+  });
+
+  it("maps a cross-bundle LockTimeoutError (matched by name, not class identity) to the locked-store message", async () => {
+    seedLockedProvider();
+    const { accountsList } = await import("./accounts.js");
+
+    const result = await accountsList("locked");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("account store is locked");
   });
 });
