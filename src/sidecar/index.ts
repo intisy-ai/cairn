@@ -6,11 +6,22 @@ type SidecarResponse = { id: number; result: Result<unknown> };
 
 export const hubConfigDir = process.env.HUB_CONFIG_DIR;
 
-const handlers: Record<string, (...args: unknown[]) => Promise<Result<unknown>>> = {};
+type SidecarHandler = (...args: unknown[]) => Promise<Result<unknown>>;
 
-async function dispatch(channel: string, args: unknown[]): Promise<Result<unknown>> {
+const handlers: Record<string, SidecarHandler> = {};
+
+export function registerHandler(channel: string, handler: SidecarHandler): void {
+  handlers[channel] = handler;
+}
+
+export async function dispatch(channel: string, args: unknown[]): Promise<Result<unknown>> {
   const handler = handlers[channel];
-  return handler ? handler(...args) : err(`no handler registered for channel: ${channel}`);
+  if (!handler) return err(`no handler registered for channel: ${channel}`);
+  try {
+    return await handler(...args);
+  } catch (e) {
+    return err(e instanceof Error ? e.message : String(e));
+  }
 }
 
 if (process.parentPort) {
