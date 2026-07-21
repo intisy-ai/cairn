@@ -44,7 +44,7 @@
     <StatCard label="Accounts tracked" value={String(snapshot.accounts.length)} />
     <StatCard label="Providers" value={String(providerCounts.length)} />
     <StatCard label="Last updated" value={formatUpdatedAt(snapshot.updatedAt)} />
-    <StatCard label="Activity" value="—" meta="No session data yet">
+    <StatCard label="Activity" value="n/a" meta="No session data yet">
       {#snippet spark()}<Sparkline data={[]} />{/snippet}
     </StatCard>
   </section>
