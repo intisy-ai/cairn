@@ -12,11 +12,21 @@ export function buildSidecarEnv(base: NodeJS.ProcessEnv, storeDir: string): Node
   return { ...base, HUB_CONFIG_DIR: storeDir };
 }
 
+export function computeBackoffMs(attempt: number): number {
+  return Math.min(200 * 2 ** attempt, 5000);
+}
+
+export function shouldGiveUp(attempt: number, cap = 5): boolean {
+  return attempt >= cap;
+}
+
 type SidecarResponse = { id: number; result: Result<unknown> };
 
 export interface SupervisorOptions {
   sidecarPath: string;
   storeDir: string;
+  rpcTimeoutMs?: number;
+  restartCap?: number;
 }
 
 export interface Supervisor {
@@ -24,24 +34,49 @@ export interface Supervisor {
   dispose(): void;
 }
 
+interface PendingEntry {
+  resolve: (result: Result<unknown>) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
 export function createSupervisor(opts: SupervisorOptions): Supervisor {
   const { utilityProcess } = require("electron") as typeof import("electron");
 
+  const rpcTimeoutMs = opts.rpcTimeoutMs ?? 15000;
+  const restartCap = opts.restartCap ?? 5;
+
   let nextId = 1;
-  const pending = new Map<number, (result: Result<unknown>) => void>();
+  let disposing = false;
+  let failed = false;
+  let restartAttempt = 0;
+  const pending = new Map<number, PendingEntry>();
+
+  function settle(id: number, result: Result<unknown>): void {
+    const entry = pending.get(id);
+    if (!entry) return;
+    clearTimeout(entry.timer);
+    pending.delete(id);
+    entry.resolve(result);
+  }
 
   function handleMessage(message: unknown): void {
     const { id, result } = message as SidecarResponse;
-    const resolve = pending.get(id);
-    if (!resolve) return;
-    pending.delete(id);
-    resolve(result);
+    restartAttempt = 0;
+    settle(id, result);
   }
 
   function handleExit(): void {
-    for (const resolve of pending.values()) resolve(err("sidecar process exited"));
-    pending.clear();
-    child = spawn();
+    for (const id of [...pending.keys()]) settle(id, err("sidecar process exited"));
+    if (disposing) return;
+    if (shouldGiveUp(restartAttempt, restartCap)) {
+      failed = true;
+      return;
+    }
+    const delay = computeBackoffMs(restartAttempt);
+    restartAttempt++;
+    setTimeout(() => {
+      if (!disposing) child = spawn();
+    }, delay);
   }
 
   function spawn(): UtilityProcess {
@@ -58,13 +93,19 @@ export function createSupervisor(opts: SupervisorOptions): Supervisor {
 
   return {
     rpc(channel, args) {
+      if (failed) return Promise.resolve(err("sidecar failed to stay up"));
       return new Promise((resolve) => {
         const id = nextId++;
-        pending.set(id, resolve);
+        const timer = setTimeout(() => {
+          settle(id, err("sidecar rpc timeout: " + channel));
+        }, rpcTimeoutMs);
+        pending.set(id, { resolve, timer });
         child.postMessage({ id, channel, args });
       });
     },
     dispose() {
+      disposing = true;
+      for (const id of [...pending.keys()]) settle(id, err("sidecar disposed"));
       child.off("exit", handleExit);
       child.kill();
     },
