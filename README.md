@@ -35,6 +35,24 @@ npm run test      # Run tests (vitest)
 
 Build outputs go to `dist/`. The project uses workspaces (see `workspaces` in `package.json`).
 
+### Troubleshooting
+
+If `npm run dev` fails with `Error: Electron uninstall`, the `electron` package's binary was not extracted during install (its extractor can fail partway on some Windows setups, leaving only `node_modules/electron/dist/locales`). Re-extract it from the already-downloaded cache zip:
+
+```bash
+node node_modules/electron/install.js
+```
+
+If that still leaves `node_modules/electron/dist/electron.exe` missing, extract the cached zip manually (PowerShell), then write the path marker:
+
+```powershell
+$zip  = Get-ChildItem "$env:LOCALAPPDATA\electron\Cache" -Recurse -Filter "electron-*-win32-x64.zip" | Select-Object -First 1
+$dist = ".\node_modules\electron\dist"
+Remove-Item -Recurse -Force $dist -ErrorAction SilentlyContinue
+Expand-Archive -Path $zip.FullName -DestinationPath $dist -Force
+"electron.exe" | Out-File .\node_modules\electron\path.txt -Encoding ascii -NoNewline
+```
+
 ## Supersedes metric-dashboard
 
 This dashboard's **Usage screen** replaces the metric-dashboard plugin's served `:3456` usage page. The snapshot logic is vendored into `vendor/usage/` and consumed by the sidecar's usage module at runtime. Users should migrate any bookmarks or dashboards pointing to `http://localhost:3456/usage` to the integrated Usage screen in this app. Archival of the metric-dashboard plugin repo is a separate cleanup follow-up in the base design.
