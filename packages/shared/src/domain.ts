@@ -1,4 +1,4 @@
-export type { AccountView } from "@core-auth/index.js";
+export type { AccountView, AccountQuota, AccountStatus } from "@core-auth/index.js";
 export type { Chain, ModelMap, CatalogEntry } from "@core-proxy/index.js";
 import type { ModelMap, CatalogEntry } from "@core-proxy/index.js";
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };

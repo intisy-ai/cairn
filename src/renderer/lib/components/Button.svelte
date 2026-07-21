@@ -4,17 +4,21 @@
   let {
     variant = "default",
     type = "button",
+    disabled = false,
+    title = "",
     onclick,
     children,
   }: {
     variant?: "default" | "primary";
     type?: "button" | "submit";
+    disabled?: boolean;
+    title?: string;
     onclick?: () => void;
     children?: Snippet;
   } = $props();
 </script>
 
-<button {type} class="btn" class:primary={variant === "primary"} {onclick}>
+<button {type} class="btn" class:primary={variant === "primary"} {disabled} {title} {onclick}>
   {#if children}{@render children()}{/if}
 </button>
 
@@ -48,5 +52,9 @@
   .btn:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
+  }
+  .btn:disabled {
+    opacity: .5;
+    cursor: not-allowed;
   }
 </style>
