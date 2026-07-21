@@ -1,0 +1,277 @@
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createRequire } from "node:module";
+import { buildSessionsWithCosts, buildModelSummary } from "./sessions.js";
+import type { Session } from "./types.js";
+
+// See db.test.ts for why node:sqlite is loaded via createRequire instead of a
+// static import.
+interface TestSqliteDatabase {
+  exec(sql: string): void;
+  prepare(sql: string): { run(...params: unknown[]): void; all(): unknown[] };
+  close(): void;
+}
+const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite") as {
+  DatabaseSync: new (path: string) => TestSqliteDatabase;
+};
+
+const ENV_KEYS = [
+  "OPENCODE_DIR",
+  "LOCALAPPDATA",
+  "HUB_OPENCODE_DIR",
+  "HUB_OPENCODE_DATA_DIR",
+  "OPENCODE_CONFIG_DIR",
+  "XDG_CONFIG_HOME",
+  "HUB_CLAUDE_DIR",
+  "CLAUDE_CONFIG_DIR",
+] as const;
+const savedEnv: Record<string, string | undefined> = {};
+
+let tempDir: string;
+
+// buildSessionsWithCosts() always reads all three sources together, so every
+// test must pin BOTH the OpenCode home and the Claude home to empty temp
+// directories, even when only one source is under test, otherwise a source
+// nobody set up here falls back to this machine's real ~/.config/opencode or
+// ~/.claude and the test silently asserts on real user data.
+beforeEach(() => {
+  tempDir = mkdtempSync(join(tmpdir(), "vendor-usage-sessions-"));
+  for (const key of ENV_KEYS) {
+    savedEnv[key] = process.env[key];
+    delete process.env[key];
+  }
+  process.env.HUB_OPENCODE_DIR = join(tempDir, "opencode-home");
+  process.env.HUB_OPENCODE_DATA_DIR = join(tempDir, "opencode-data-home");
+  process.env.HUB_CLAUDE_DIR = join(tempDir, "claude-home");
+});
+
+afterEach(() => {
+  rmSync(tempDir, { recursive: true, force: true });
+  for (const key of ENV_KEYS) {
+    if (savedEnv[key] === undefined) delete process.env[key];
+    else process.env[key] = savedEnv[key];
+  }
+});
+
+describe("buildSessionsWithCosts: opencode sqlite db", () => {
+  it("aggregates tokens and model usage from db sessions and messages", () => {
+    const dbHome = join(tempDir, "db-home");
+    mkdirSync(dbHome, { recursive: true });
+    process.env.OPENCODE_DIR = dbHome;
+    const db = new DatabaseSync(join(dbHome, "opencode.db"));
+    db.exec(
+      "CREATE TABLE session (id TEXT PRIMARY KEY, parent_id TEXT, title TEXT, time_created INTEGER, time_updated INTEGER)",
+    );
+    db.exec("CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, data TEXT)");
+    db.prepare("INSERT INTO session (id, parent_id, title, time_created, time_updated) VALUES (?, NULL, ?, ?, ?)").run(
+      "sess1",
+      "My Session",
+      1700000000000,
+      1700000100000,
+    );
+    const msg1 = {
+      role: "assistant",
+      modelID: "gpt-4",
+      providerID: "openai",
+      tokens: { input: 100, output: 50, reasoning: 0, cache: { read: 10, write: 5 } },
+    };
+    const msg2 = {
+      role: "assistant",
+      modelID: "gpt-4",
+      providerID: "openai",
+      tokens: { input: 20, output: 10, reasoning: 0, cache: { read: 0, write: 0 } },
+    };
+    db.prepare("INSERT INTO message (id, session_id, time_created, data) VALUES (?, ?, ?, ?)").run(
+      "m1",
+      "sess1",
+      1700000050000,
+      JSON.stringify(msg1),
+    );
+    db.prepare("INSERT INTO message (id, session_id, time_created, data) VALUES (?, ?, ?, ?)").run(
+      "m2",
+      "sess1",
+      1700000060000,
+      JSON.stringify(msg2),
+    );
+    db.close();
+
+    const sessions = buildSessionsWithCosts();
+    expect(sessions).toHaveLength(1);
+    const session = sessions[0];
+    expect(session.id).toBe("sess1");
+    expect(session.title).toBe("My Session");
+    expect(session.source).toBe("opencode");
+    expect(session.messageCount).toBe(2);
+    expect(session.tokens).toEqual({ input: 120, output: 60, reasoning: 0, cacheRead: 10, cacheWrite: 5 });
+    expect(session.modelUsage["gpt-4"]).toEqual({
+      tokens: { input: 120, output: 60, reasoning: 0 },
+      provider: "openai",
+      count: 2,
+    });
+  });
+});
+
+describe("buildSessionsWithCosts: legacy opencode file storage", () => {
+  it("reads session + message JSON files when no db is present", () => {
+    const opencodeHome = process.env.HUB_OPENCODE_DIR as string;
+    const sessionDir = join(opencodeHome, "data", "storage", "session", "proj1");
+    const messageDir = join(opencodeHome, "data", "storage", "message", "sess-legacy");
+    mkdirSync(sessionDir, { recursive: true });
+    mkdirSync(messageDir, { recursive: true });
+
+    writeFileSync(
+      join(sessionDir, "sess-legacy.json"),
+      JSON.stringify({ id: "sess-legacy", title: "Legacy Session", time: { created: 1000, updated: 2000 } }),
+    );
+    writeFileSync(
+      join(messageDir, "m1.json"),
+      JSON.stringify({
+        id: "m1",
+        role: "assistant",
+        modelID: "claude-3",
+        providerID: "anthropic",
+        tokens: { input: 40, output: 15, reasoning: 0, cache: { read: 1, write: 2 } },
+        time: { created: 1500 },
+      }),
+    );
+
+    const sessions = buildSessionsWithCosts();
+    expect(sessions).toHaveLength(1);
+    const session = sessions[0];
+    expect(session.id).toBe("sess-legacy");
+    expect(session.title).toBe("Legacy Session");
+    expect(session.source).toBe("opencode");
+    expect(session.messageCount).toBe(1);
+    expect(session.tokens).toEqual({ input: 40, output: 15, reasoning: 0, cacheRead: 1, cacheWrite: 2 });
+  });
+});
+
+describe("buildSessionsWithCosts: Claude Code JSONL wire-to-neutral token mapping", () => {
+  it("maps Anthropic-wire usage fields onto the neutral tokens shape", () => {
+    const claudeHome = process.env.HUB_CLAUDE_DIR as string;
+    const projectDir = join(claudeHome, "projects", "-my-project");
+    mkdirSync(projectDir, { recursive: true });
+
+    const lines = [
+      JSON.stringify({
+        type: "assistant",
+        timestamp: "2026-01-01T00:00:00.000Z",
+        message: {
+          model: "claude-sonnet-5",
+          usage: {
+            input_tokens: 1000,
+            output_tokens: 200,
+            cache_read_input_tokens: 300,
+            cache_creation_input_tokens: 50,
+          },
+        },
+      }),
+      JSON.stringify({
+        type: "assistant",
+        timestamp: "2026-01-01T00:01:00.000Z",
+        message: {
+          model: "claude-sonnet-5",
+          usage: {
+            input_tokens: 10,
+            output_tokens: 5,
+          },
+        },
+      }),
+    ];
+    writeFileSync(join(projectDir, "session-abc.jsonl"), lines.join("\n"), "utf-8");
+
+    const sessions = buildSessionsWithCosts();
+    expect(sessions).toHaveLength(1);
+    const session = sessions[0];
+    expect(session.id).toBe("session-abc");
+    expect(session.source).toBe("claude-code");
+    expect(session.messageCount).toBe(2);
+    // Anthropic wire names (input_tokens/output_tokens/cache_read_input_tokens/
+    // cache_creation_input_tokens) must map onto the neutral internal shape.
+    expect(session.tokens).toEqual({ input: 1010, output: 205, reasoning: 0, cacheRead: 300, cacheWrite: 50 });
+    expect(session.modelUsage["claude-sonnet-5"]).toEqual({
+      tokens: { input: 1010, output: 205, reasoning: 0 },
+      provider: "anthropic",
+      count: 2,
+    });
+  });
+
+  it("derives a friendly title from the project directory name", () => {
+    const claudeHome = process.env.HUB_CLAUDE_DIR as string;
+    const projectDir = join(claudeHome, "projects", "C--Users-jane-myapp");
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(
+      join(projectDir, "session-titled.jsonl"),
+      JSON.stringify({
+        type: "assistant",
+        timestamp: "2026-01-01T00:00:00.000Z",
+        message: { model: "claude-sonnet-5", usage: { input_tokens: 5, output_tokens: 1 } },
+      }),
+      "utf-8",
+    );
+
+    const sessions = buildSessionsWithCosts();
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].title).toBe("Users jane myapp");
+  });
+
+  it("ignores sessions with no assistant usage entries", () => {
+    const claudeHome = process.env.HUB_CLAUDE_DIR as string;
+    const projectDir = join(claudeHome, "projects", "-empty-project");
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(join(projectDir, "session-empty.jsonl"), JSON.stringify({ type: "user" }), "utf-8");
+
+    const sessions = buildSessionsWithCosts();
+    expect(sessions).toHaveLength(0);
+  });
+});
+
+describe("buildModelSummary", () => {
+  it("aggregates model usage across sessions", () => {
+    const sessions: Session[] = [
+      {
+        id: "s1",
+        title: "a",
+        created: 1,
+        updated: 2,
+        tokens: { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0 },
+        modelUsage: {
+          "model-a": { tokens: { input: 10, output: 5, reasoning: 0 }, provider: "p1", count: 2 },
+        },
+        costByDay: {},
+        messageCount: 2,
+        source: "opencode",
+      },
+      {
+        id: "s2",
+        title: "b",
+        created: 3,
+        updated: 4,
+        tokens: { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0 },
+        modelUsage: {
+          "model-a": { tokens: { input: 3, output: 1, reasoning: 0 }, provider: "p1", count: 1 },
+          "model-b": { tokens: { input: 7, output: 2, reasoning: 1 }, provider: "p2", count: 1 },
+        },
+        costByDay: {},
+        messageCount: 1,
+        source: "claude-code",
+      },
+    ];
+
+    const summary = buildModelSummary(sessions);
+    expect(summary["model-a"]).toEqual({
+      tokens: { input: 13, output: 6, reasoning: 0 },
+      provider: "p1",
+      sessionCount: 2,
+      messageCount: 3,
+    });
+    expect(summary["model-b"]).toEqual({
+      tokens: { input: 7, output: 2, reasoning: 1 },
+      provider: "p2",
+      sessionCount: 1,
+      messageCount: 1,
+    });
+  });
+});
