@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import { IPC_CHANNELS } from "@dashboard/shared";
-import type { IntisyAPI, Result, OverviewSummary, AccountView } from "@dashboard/shared";
+import type { IntisyAPI, Result, OverviewSummary, AccountView, ProviderRow } from "@dashboard/shared";
 
 const invokeChannels: readonly string[] = IPC_CHANNELS.invoke;
 const sendChannels: readonly string[] = IPC_CHANNELS.send;
@@ -34,6 +34,9 @@ const api: IntisyAPI = {
   accountsEnable: (provider, id, on) => safeInvoke("accounts:enable", provider, id, on) as Promise<Result<void>>,
   accountsRemove: (provider, id) => safeInvoke("accounts:remove", provider, id) as Promise<Result<void>>,
   accountsRefreshQuota: (provider) => safeInvoke("accounts:refreshQuota", provider) as Promise<Result<AccountView[]>>,
+  providersList: () => safeInvoke("providers:list") as Promise<Result<ProviderRow[]>>,
+  providersSetActive: (id) => safeInvoke("providers:setActive", id) as Promise<Result<void>>,
+  providersSetExposure: (id, app, on) => safeInvoke("providers:setExposure", id, app, on) as Promise<Result<void>>,
   minimize: () => safeSend("window:minimize"),
   isElectron: true,
   platform: process.platform,

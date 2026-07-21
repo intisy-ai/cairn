@@ -6,3 +6,11 @@ export type OverviewSummary = {
   serverRunning: boolean;
   serverPort: number;
 };
+export type ProviderRow = {
+  id: string;
+  label: string;
+  hasOAuth: boolean;
+  accountCount: number;
+  active: boolean;
+  exposure: { cc: boolean; oc: boolean };
+};
