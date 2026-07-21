@@ -249,6 +249,15 @@ interface ClaudeJsonlEntry {
   message?: { model?: string; usage?: ClaudeJsonlUsage };
 }
 
+// Derives a friendly title from the Claude Code project directory name (e.g.
+// "C--Users-jane-myapp" -> "Users jane myapp"), matching the original
+// metric-dashboard behavior. Falls back to a generic title when the derived
+// name is empty.
+function projectTitle(projectDir: string): string {
+  const cleaned = projectDir.replace(/^[A-Z]--/, "").replace(/-/g, " ").trim();
+  return cleaned || "Claude Code Session";
+}
+
 function buildClaudeCodeSessions(knownIds: Set<string>): Session[] {
   const projectsDir = claudeProjectsDir();
   if (!existsSync(projectsDir)) return [];
@@ -319,7 +328,7 @@ function buildClaudeCodeSessions(knownIds: Set<string>): Session[] {
         if (messageCount > 0) {
           result.push({
             id: sessionId,
-            title: "Claude Code Session",
+            title: projectTitle(projectDir),
             created: firstTimestamp,
             updated: lastTimestamp,
             tokens,

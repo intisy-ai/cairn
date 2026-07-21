@@ -198,6 +198,25 @@ describe("buildSessionsWithCosts: Claude Code JSONL wire-to-neutral token mappin
     });
   });
 
+  it("derives a friendly title from the project directory name", () => {
+    const claudeHome = process.env.HUB_CLAUDE_DIR as string;
+    const projectDir = join(claudeHome, "projects", "C--Users-jane-myapp");
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(
+      join(projectDir, "session-titled.jsonl"),
+      JSON.stringify({
+        type: "assistant",
+        timestamp: "2026-01-01T00:00:00.000Z",
+        message: { model: "claude-sonnet-5", usage: { input_tokens: 5, output_tokens: 1 } },
+      }),
+      "utf-8",
+    );
+
+    const sessions = buildSessionsWithCosts();
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].title).toBe("Users jane myapp");
+  });
+
   it("ignores sessions with no assistant usage entries", () => {
     const claudeHome = process.env.HUB_CLAUDE_DIR as string;
     const projectDir = join(claudeHome, "projects", "-empty-project");

@@ -1,9 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { UsageSnapshot } from "@dashboard/shared";
+  import type { UsageSnapshot, UsageSession, UsageModel } from "@dashboard/shared";
   import { intisy } from "../ipc.js";
   import StatCard from "../components/StatCard.svelte";
-  import Sparkline from "../components/Sparkline.svelte";
   import Card from "../components/Card.svelte";
 
   let snapshot = $state<UsageSnapshot | null>(null);
@@ -17,10 +16,36 @@
     return [...counts.entries()];
   });
 
+  const sessions = $derived(snapshot?.sessions ?? []);
+  const modelEntries = $derived(Object.entries(snapshot?.models ?? {}));
+  const totalTokens = $derived(sessions.reduce((sum, session) => sum + sessionTokens(session), 0));
+
+  function sessionTokens(session: UsageSession): number {
+    return session.tokens.input + session.tokens.output + session.tokens.reasoning;
+  }
+
+  function modelTokens(model: UsageModel): number {
+    return model.tokens.input + model.tokens.output + model.tokens.reasoning;
+  }
+
+  function sourceLabel(source: UsageSession["source"]): string {
+    return source === "claude-code" ? "Claude Code" : "OpenCode";
+  }
+
   function formatUpdatedAt(value: string): string {
     if (!value) return "Never";
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? "Never" : date.toLocaleString();
+  }
+
+  function formatSessionUpdated(value: number): string {
+    if (!value) return "n/a";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "n/a" : date.toISOString().slice(0, 10);
+  }
+
+  function formatTokens(value: number): string {
+    return value.toLocaleString("en-US");
   }
 
   onMount(async () => {
@@ -33,7 +58,7 @@
 <div class="head">
   <div>
     <h1>Usage</h1>
-    <p>Account coverage across providers. Session and cost analytics land once the metrics backend is migrated off metric-dashboard.</p>
+    <p>Account coverage, session activity, and per-model token totals across providers.</p>
   </div>
 </div>
 
@@ -42,11 +67,9 @@
 {:else if snapshot}
   <section class="summary">
     <StatCard label="Accounts tracked" value={String(snapshot.accounts.length)} />
-    <StatCard label="Providers" value={String(providerCounts.length)} />
+    <StatCard label="Sessions" value={String(sessions.length)} />
+    <StatCard label="Total tokens" value={formatTokens(totalTokens)} />
     <StatCard label="Last updated" value={formatUpdatedAt(snapshot.updatedAt)} />
-    <StatCard label="Activity" value="n/a" meta="No session data yet">
-      {#snippet spark()}<Sparkline data={[]} />{/snippet}
-    </StatCard>
   </section>
 
   <section class="group">
@@ -58,9 +81,9 @@
     <Card>
       <div class="list">
         {#each providerCounts as [provider, count] (provider)}
-          <div class="provider-row">
-            <span class="provider">{provider}</span>
-            <span class="num">{count} account{count === 1 ? "" : "s"}</span>
+          <div class="row-line">
+            <span class="primary">{provider}</span>
+            <span class="meta">{count} account{count === 1 ? "" : "s"}</span>
           </div>
         {:else}
           <p class="empty">No accounts yet</p>
@@ -72,12 +95,50 @@
   <section class="group">
     <div class="grouphead">
       <p class="label">Sessions</p>
+      <span class="count">{sessions.length}</span>
       <span class="line"></span>
     </div>
     <Card>
-      <p class="empty">
-        Detailed session and cost data arrives once the metrics backend is migrated off metric-dashboard.
-      </p>
+      <div class="list">
+        {#each sessions as session (session.id)}
+          <div class="row-line">
+            <span class="primary">{session.title}</span>
+            <span class="meta"
+              >{sourceLabel(session.source)} &middot; {formatTokens(sessionTokens(session))} tokens &middot; {session.messageCount} message{session.messageCount ===
+              1
+                ? ""
+                : "s"} &middot; {formatSessionUpdated(session.updated)}</span
+            >
+          </div>
+        {:else}
+          <p class="empty">No sessions found</p>
+        {/each}
+      </div>
+    </Card>
+  </section>
+
+  <section class="group">
+    <div class="grouphead">
+      <p class="label">Models</p>
+      <span class="count">{modelEntries.length}</span>
+      <span class="line"></span>
+    </div>
+    <Card>
+      <div class="list">
+        {#each modelEntries as [modelId, model] (modelId)}
+          <div class="row-line">
+            <span class="primary">{modelId}</span>
+            <span class="meta"
+              >{model.provider} &middot; {formatTokens(modelTokens(model))} tokens &middot; {model.sessionCount} session{model.sessionCount ===
+              1
+                ? ""
+                : "s"}</span
+            >
+          </div>
+        {:else}
+          <p class="empty">No model usage yet</p>
+        {/each}
+      </div>
     </Card>
   </section>
 {/if}
@@ -137,25 +198,31 @@
   .list {
     padding: 4px 16px;
   }
-  .provider-row {
+  .row-line {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
     padding: 8px 0;
     border-top: 1px solid var(--border);
   }
-  .provider-row:first-child {
+  .row-line:first-child {
     border-top: 0;
   }
-  .provider-row .provider {
+  .row-line .primary {
     font-weight: 600;
     font-size: 13px;
-    text-transform: capitalize;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .provider-row .num {
+  .row-line .meta {
     color: var(--faint);
     font-size: 11.5px;
     font-family: var(--mono);
+    white-space: nowrap;
+    flex: none;
   }
   .empty {
     color: var(--faint);

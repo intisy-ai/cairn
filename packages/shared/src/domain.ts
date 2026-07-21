@@ -45,9 +45,31 @@ export type UsageAccount = {
   provider: string;
   id: string;
 };
+export type UsageSessionSource = "opencode" | "claude-code";
+export type UsageTokens = {
+  input: number;
+  output: number;
+  reasoning: number;
+  cacheRead: number;
+  cacheWrite: number;
+};
+export type UsageSession = {
+  id: string;
+  title: string;
+  tokens: UsageTokens;
+  messageCount: number;
+  source: UsageSessionSource;
+  updated: number;
+};
+export type UsageModel = {
+  provider: string;
+  tokens: { input: number; output: number; reasoning: number };
+  sessionCount: number;
+  messageCount: number;
+};
 export type UsageSnapshot = {
   accounts: UsageAccount[];
-  sessions: unknown[];
-  models: Record<string, unknown>;
+  sessions: UsageSession[];
+  models: Record<string, UsageModel>;
   updatedAt: string;
 };
