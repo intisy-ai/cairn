@@ -1,29 +1,22 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
-
   let {
     label,
     value,
     unit = "",
     meta = "",
     metaColor = "",
-    spark,
   }: {
     label: string;
     value: string;
     unit?: string;
     meta?: string;
     metaColor?: string;
-    spark?: Snippet;
   } = $props();
 </script>
 
 <div class="stat">
   <p class="label">{label}</p>
   <div class="v num">{value}{#if unit}<small>{unit}</small>{/if}</div>
-  {#if spark}
-    <div class="spark">{@render spark()}</div>
-  {/if}
   {#if meta}
     <div class="meta" style={metaColor ? `color:${metaColor}` : ""}><span class="dot"></span> {meta}</div>
   {/if}
@@ -50,12 +43,6 @@
     font-size: 12px;
     color: var(--faint);
     font-weight: 500;
-  }
-  .stat .spark {
-    margin-top: 8px;
-    height: 26px;
-    display: block;
-    width: 100%;
   }
   .stat .meta {
     margin-top: 7px;

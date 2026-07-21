@@ -74,7 +74,6 @@ export interface AccountSummary {
 }
 
 export interface UsageSnapshotData {
-  device?: string;
   updatedAt: number;
   accounts: AccountSummary[];
   sessions: Session[];
