@@ -5,6 +5,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@core": fileURLToPath(new URL("../../libs/core/dist", import.meta.url)),
+      "@core-auth": fileURLToPath(new URL("../../libs/core-auth/dist", import.meta.url)),
+      "@core-loader": fileURLToPath(new URL("../../libs/core-loader/dist", import.meta.url)),
     },
   },
   test: {

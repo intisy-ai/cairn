@@ -12,6 +12,7 @@
     "paths": {
       "@core/*": ["../../libs/core/dist/*"],
       "@core-auth/*": ["../../libs/core-auth/dist/*"],
+      "@core-loader/*": ["../../libs/core-loader/dist/*"],
       "@core-proxy/*": ["../../libs/core-proxy/dist/*"],
       "@claude-code-proxy/*": ["../../libs/claude-code-proxy/dist/*"]
     }

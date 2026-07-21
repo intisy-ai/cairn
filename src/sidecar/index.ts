@@ -1,6 +1,7 @@
 import type { Result } from "../../packages/shared/src/domain.js";
 import { err } from "./result.js";
 import { configGet, configSet } from "./modules/config.js";
+import { overviewSummary } from "./modules/overview.js";
 
 type SidecarRequest = { id: number; channel: string; args: unknown[] };
 type SidecarResponse = { id: number; result: Result<unknown> };
@@ -27,6 +28,7 @@ export async function dispatch(channel: string, args: unknown[]): Promise<Result
 
 registerHandler("config:get", (name, key) => configGet(name as string, key as string));
 registerHandler("config:set", (name, key, value) => configSet(name as string, key as string, value));
+registerHandler("overview:summary", () => overviewSummary());
 
 if (process.parentPort) {
   process.parentPort.on("message", (messageEvent) => {
