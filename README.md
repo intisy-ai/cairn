@@ -4,21 +4,21 @@ A Node-only Electron desktop control plane for the intisy AI-tooling ecosystem. 
 
 ## Screens
 
-- **Overview** — summary of configured providers, active accounts, and routing state
-- **Providers** — list and configure AI provider integrations (Anthropic, Google, etc.)
-- **Accounts** — manage provider authentication and per-account quota limits
-- **Routing** — configure model routing chains and fallback rules
-- **Usage** — view snapshot data: sessions, models, and usage metrics (replaces metric-dashboard's served page)
-- **Local API** — introspect the dashboard's local `:34567` proxy server
-- **Apps and Plugins** — discover and manage Claude Code and OpenCode plugins
+- **Overview**: summary of configured providers, active accounts, and routing state
+- **Providers**: list and configure AI provider integrations (Anthropic, Google, etc.)
+- **Accounts**: manage provider authentication and per-account quota limits
+- **Routing**: configure model routing chains and fallback rules
+- **Usage**: view snapshot data: sessions, models, and usage metrics (replaces metric-dashboard's served page)
+- **Local API**: introspect the dashboard's local `:34567` proxy server
+- **Apps and Plugins**: discover and manage Claude Code and OpenCode plugins
 
 ## Architecture
 
 The dashboard is built as:
 
-1. **Electron main process** — manages the window lifecycle, system tray, and daemon supervision
-2. **utilityProcess sidecar** — scoped by `HUB_CONFIG_DIR`, runs modules that are thin adapters over core-auth, core-proxy, core-loader, and plugin-updater
-3. **Vite + Svelte renderer** — implements the UI, communicates with the sidecar and main process through a typed contextBridge IPC bridge
+1. **Electron main process**: manages the window lifecycle, system tray, and daemon supervision
+2. **utilityProcess sidecar**: scoped by `HUB_CONFIG_DIR`, runs modules that are thin adapters over core-auth, core-proxy, core-loader, and plugin-updater
+3. **Vite + Svelte renderer**: implements the UI, communicates with the sidecar and main process through a typed contextBridge IPC bridge
 
 The sidecar exposes handlers for config, overview, accounts, providers, routing, apps, plugins, and usage; all operations are fully asynchronous and return a standardized Result type (ok or error). The main process spawns the sidecar as a child utilityProcess, passing the configured `HUB_CONFIG_DIR` to scope the sidecar's file access.
 
