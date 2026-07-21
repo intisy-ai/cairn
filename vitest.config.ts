@@ -9,6 +9,7 @@ export default defineConfig({
       "@core-loader": fileURLToPath(new URL("../../libs/core-loader/dist", import.meta.url)),
       "@core-proxy": fileURLToPath(new URL("../../libs/core-proxy/dist", import.meta.url)),
       "@claude-code-proxy": fileURLToPath(new URL("../../libs/claude-code-proxy/dist", import.meta.url)),
+      "@plugin-updater": fileURLToPath(new URL("../../tools/plugin-updater/dist", import.meta.url)),
     },
   },
   test: {

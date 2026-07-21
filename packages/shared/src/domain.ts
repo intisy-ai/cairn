@@ -25,3 +25,11 @@ export type RoutingState = {
   map: ModelMap;
   catalog: CatalogEntry[];
 };
+export type AppPresence = {
+  claude: boolean;
+  opencode: boolean;
+};
+export type CliResult = {
+  stdout: string;
+  stderr: string;
+};

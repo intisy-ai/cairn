@@ -1,4 +1,4 @@
-import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, Chain } from "./domain.js";
+import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, Chain, AppPresence, CliResult } from "./domain.js";
 export interface IntisyAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -15,6 +15,9 @@ export interface IntisyAPI {
   proxyStatus(): Promise<Result<ProxyStatus>>;
   proxyStart(): Promise<Result<void>>;
   proxyStop(): Promise<Result<void>>;
+  appsDetect(): Promise<Result<AppPresence>>;
+  appsInstallCli(app: "claude" | "opencode"): Promise<Result<CliResult>>;
+  appsInit(app: "claude" | "opencode"): Promise<Result<CliResult>>;
   minimize(): void;
   isElectron: true;
   platform: NodeJS.Platform;
