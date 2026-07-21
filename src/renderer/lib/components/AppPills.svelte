@@ -1,10 +1,28 @@
 <script lang="ts">
-  let { cc, oc }: { cc: boolean; oc: boolean } = $props();
+  let {
+    cc,
+    oc,
+    onToggleCc,
+    onToggleOc,
+  }: {
+    cc: boolean;
+    oc: boolean;
+    onToggleCc?: (on: boolean) => void;
+    onToggleOc?: (on: boolean) => void;
+  } = $props();
 </script>
 
 <div class="apps">
-  <span class="app" class:on={cc} class:na={!cc}>CC</span>
-  <span class="app" class:on={oc} class:na={!oc}>OC</span>
+  {#if onToggleCc}
+    <button type="button" class="app" class:on={cc} class:na={!cc} onclick={() => onToggleCc(!cc)}>CC</button>
+  {:else}
+    <span class="app" class:on={cc} class:na={!cc}>CC</span>
+  {/if}
+  {#if onToggleOc}
+    <button type="button" class="app" class:on={oc} class:na={!oc} onclick={() => onToggleOc(!oc)}>OC</button>
+  {:else}
+    <span class="app" class:on={oc} class:na={!oc}>OC</span>
+  {/if}
 </div>
 
 <style>
@@ -21,6 +39,11 @@
     border-radius: 5px;
     border: 1px solid var(--border);
     color: var(--muted);
+    background: transparent;
+    cursor: default;
+  }
+  button.app {
+    cursor: pointer;
   }
   .app.on {
     color: var(--text);

@@ -2,6 +2,7 @@
   import Titlebar from "./lib/components/Titlebar.svelte";
   import Sidebar from "./lib/components/Sidebar.svelte";
   import Overview from "./lib/routes/Overview.svelte";
+  import Providers from "./lib/routes/Providers.svelte";
   import RoutePlaceholder from "./lib/routes/RoutePlaceholder.svelte";
   import { router, SCREENS } from "./lib/router.js";
 
@@ -15,6 +16,8 @@
     <main class="main">
       {#if $router.screen === "overview"}
         <Overview />
+      {:else if $router.screen === "providers"}
+        <Providers />
       {:else}
         <RoutePlaceholder label={activeLabel} />
       {/if}

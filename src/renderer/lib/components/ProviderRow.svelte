@@ -17,6 +17,8 @@
     quotaNote = "",
     enabled,
     onToggle,
+    onToggleCc,
+    onToggleOc,
   }: {
     avatar: string;
     name: string;
@@ -29,6 +31,8 @@
     quotaNote?: string;
     enabled: boolean;
     onToggle?: (on: boolean) => void;
+    onToggleCc?: (on: boolean) => void;
+    onToggleOc?: (on: boolean) => void;
   } = $props();
 </script>
 
@@ -39,7 +43,7 @@
     <span>{subtitle}</span>
   </div>
   <div><StatusPill variant={status.variant} label={status.label} /></div>
-  <AppPills {cc} {oc} />
+  <AppPills {cc} {oc} {onToggleCc} {onToggleOc} />
   <div class="acct">{accountLabel}</div>
   <div class="quota-cell">
     {#if quota}
