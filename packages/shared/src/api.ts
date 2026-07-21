@@ -1,4 +1,4 @@
-import type { Result, OverviewSummary, AccountView, ProviderRow } from "./domain.js";
+import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus } from "./domain.js";
 export interface IntisyAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -10,6 +10,9 @@ export interface IntisyAPI {
   providersList(): Promise<Result<ProviderRow[]>>;
   providersSetActive(id: string): Promise<Result<void>>;
   providersSetExposure(id: string, app: "cc" | "oc", on: boolean): Promise<Result<void>>;
+  proxyStatus(): Promise<Result<ProxyStatus>>;
+  proxyStart(): Promise<Result<void>>;
+  proxyStop(): Promise<Result<void>>;
   minimize(): void;
   isElectron: true;
   platform: NodeJS.Platform;

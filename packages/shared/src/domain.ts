@@ -6,6 +6,10 @@ export type OverviewSummary = {
   serverRunning: boolean;
   serverPort: number;
 };
+export type ProxyStatus = {
+  running: boolean;
+  port: number;
+};
 export type ProviderRow = {
   id: string;
   label: string;
