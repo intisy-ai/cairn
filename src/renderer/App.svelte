@@ -7,6 +7,7 @@
   import Routing from "./lib/routes/Routing.svelte";
   import Usage from "./lib/routes/Usage.svelte";
   import LocalApi from "./lib/routes/LocalApi.svelte";
+  import AppsPlugins from "./lib/routes/AppsPlugins.svelte";
   import RoutePlaceholder from "./lib/routes/RoutePlaceholder.svelte";
   import { router, SCREENS } from "./lib/router.js";
 
@@ -30,6 +31,8 @@
         <Usage />
       {:else if $router.screen === "localApi"}
         <LocalApi />
+      {:else if $router.screen === "appsPlugins"}
+        <AppsPlugins />
       {:else}
         <RoutePlaceholder label={activeLabel} />
       {/if}
