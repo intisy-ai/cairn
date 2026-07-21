@@ -1,19 +1,28 @@
 <script lang="ts">
-  export type NavItem = { label: string; icon: string; href: string; active?: boolean };
+  import { onMount } from "svelte";
+  import { router, navigate, SCREENS } from "../router.js";
+  import { serverStatus, watchServerStatus } from "../serverStatus.js";
 
   let {
     brandName = "intisy",
     brandTag = "Claude Code · OpenCode",
-    navItems = [] as NavItem[],
-    networkItems = [] as NavItem[],
     apiPort = 34567,
-  }: {
-    brandName?: string;
-    brandTag?: string;
-    navItems?: NavItem[];
-    networkItems?: NavItem[];
-    apiPort?: number;
-  } = $props();
+  }: { brandName?: string; brandTag?: string; apiPort?: number } = $props();
+
+  const mainScreens = SCREENS.filter((screen) => screen.section === "main");
+  const networkScreens = SCREENS.filter((screen) => screen.section === "network");
+
+  const running = $derived($serverStatus ? $serverStatus.running : true);
+  const port = $derived($serverStatus?.port ?? apiPort);
+
+  onMount(() => watchServerStatus());
+
+  function go(id: (typeof SCREENS)[number]["id"]): (event: MouseEvent) => void {
+    return (event: MouseEvent) => {
+      event.preventDefault();
+      navigate(id);
+    };
+  }
 </script>
 
 <aside class="side">
@@ -22,19 +31,21 @@
     <div><b>{brandName}</b><small>{brandTag}</small></div>
   </div>
   <nav class="nav">
-    {#each navItems as item (item.label)}
-      <a href={item.href} class={item.active ? "active" : ""}><span class="ic">{item.icon}</span> {item.label}</a>
+    {#each mainScreens as screen (screen.id)}
+      <button type="button" class={$router.screen === screen.id ? "active" : ""} onclick={go(screen.id)}>
+        <span class="ic">{screen.glyph}</span> {screen.label}
+      </button>
     {/each}
   </nav>
-  {#if networkItems.length}
-    <div class="navsec"><p class="label">Network</p></div>
-    <nav class="nav">
-      {#each networkItems as item (item.label)}
-        <a href={item.href} class={item.active ? "active" : ""}><span class="ic">{item.icon}</span> {item.label}</a>
-      {/each}
-    </nav>
-  {/if}
-  <div class="foot"><span class="dot"></span> Local API · <span class="num">:{apiPort}</span></div>
+  <div class="navsec"><p class="label">Network</p></div>
+  <nav class="nav">
+    {#each networkScreens as screen (screen.id)}
+      <button type="button" class={$router.screen === screen.id ? "active" : ""} onclick={go(screen.id)}>
+        <span class="ic">{screen.glyph}</span> {screen.label}
+      </button>
+    {/each}
+  </nav>
+  <div class="foot"><span class="dot" class:off={!running}></span> Local API · <span class="num">:{port}</span></div>
 </aside>
 
 <style>
@@ -77,35 +88,40 @@
   .navsec {
     margin: 12px 8px 4px;
   }
-  .nav a {
+  .nav button {
+    width: 100%;
     display: flex;
     align-items: center;
     gap: 10px;
     padding: 7px 8px;
     border-radius: 7px;
+    border: none;
+    background: transparent;
     color: var(--muted);
-    text-decoration: none;
+    font-family: var(--ui);
+    text-align: left;
+    cursor: pointer;
     font-size: 13px;
     font-weight: 500;
   }
-  .nav a .ic {
+  .nav button .ic {
     width: 16px;
     text-align: center;
     opacity: .8;
   }
-  .nav a:hover {
+  .nav button:hover {
     background: var(--surface);
     color: var(--text);
   }
-  .nav a.active {
+  .nav button.active {
     background: var(--accent-weak);
     color: var(--accent);
     font-weight: 600;
   }
-  .nav a.active .ic {
+  .nav button.active .ic {
     opacity: 1;
   }
-  .nav a:focus-visible {
+  .nav button:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
   }
@@ -125,5 +141,9 @@
     background: var(--good);
     box-shadow: 0 0 0 3px var(--good-weak);
     flex: none;
+  }
+  .dot.off {
+    background: var(--faint);
+    box-shadow: 0 0 0 3px var(--surface-2);
   }
 </style>

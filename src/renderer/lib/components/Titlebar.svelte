@@ -1,5 +1,6 @@
 <script lang="ts">
   import { theme, setTheme } from "../theme.js";
+  import { intisy } from "../ipc.js";
 
   let { title = "intisy", subtitle = "" }: { title?: string; subtitle?: string } = $props();
 
@@ -9,7 +10,11 @@
 </script>
 
 <div class="titlebar">
-  <div class="lights"><i></i><i></i><i></i></div>
+  <div class="lights">
+    <button class="light close" aria-label="Close window" onclick={() => intisy.close()}></button>
+    <button class="light minimize" aria-label="Minimize window" onclick={() => intisy.minimize()}></button>
+    <button class="light maximize" aria-label="Maximize window" onclick={() => intisy.maximize()}></button>
+  </div>
   <div class="wm">{title}{#if subtitle}<span> · {subtitle}</span>{/if}</div>
   <div class="spacer"></div>
   <button class="iconbtn" title="Toggle theme" aria-label="Toggle light or dark theme" onclick={toggleTheme}>◐</button>
@@ -30,20 +35,27 @@
     display: flex;
     gap: 8px;
   }
-  .lights i {
+  .light {
     width: 12px;
     height: 12px;
     border-radius: 50%;
     display: block;
+    border: none;
+    padding: 0;
+    cursor: pointer;
   }
-  .lights i:nth-child(1) {
+  .light.close {
     background: #e0655b;
   }
-  .lights i:nth-child(2) {
+  .light.minimize {
     background: #e3b341;
   }
-  .lights i:nth-child(3) {
+  .light.maximize {
     background: #57a860;
+  }
+  .light:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
   }
   .wm {
     font-weight: 650;

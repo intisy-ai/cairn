@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { anthropicProfile } from "@claude-code-proxy/index.js";
 import { createProxyServer, makeDynamicResolver } from "@core-proxy/index.js";
-import { buildStartOptions, isRunning } from "./proxyDaemon.js";
+import type { StartedLoaderProxy } from "@core-loader/proxy-runner.js";
+import { buildStartOptions, isRunning, start, stop } from "./proxyDaemon.js";
 
 describe("buildStartOptions", () => {
   it("assembles the startLoaderProxy options for the given configDir", () => {
@@ -22,5 +23,22 @@ describe("isRunning", () => {
 
   it("resolves false when the probe fails", async () => {
     expect(await isRunning(async () => false)).toBe(false);
+  });
+});
+
+describe("start", () => {
+  it("concurrent calls invoke the injected starter only once", async () => {
+    let calls = 0;
+    const fakeHandle = { server: { close: async () => {} } } as unknown as StartedLoaderProxy;
+    const starter = async (): Promise<StartedLoaderProxy> => {
+      calls++;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      return fakeHandle;
+    };
+
+    await Promise.all([start(starter), start(starter)]);
+
+    expect(calls).toBe(1);
+    await stop();
   });
 });

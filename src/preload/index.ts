@@ -51,6 +51,9 @@ const api: IntisyAPI = {
   pluginsDowngrade: (name, hash) => safeInvoke("plugins:downgrade", name, hash) as Promise<Result<void>>,
   usageSnapshot: () => safeInvoke("usage:snapshot") as Promise<Result<UsageSnapshot>>,
   minimize: () => safeSend("window:minimize"),
+  maximize: () => safeSend("window:maximize"),
+  close: () => safeSend("window:close"),
+  onServerStatus: (listener) => safeOn("server:status", (status) => listener(status as ProxyStatus)),
   isElectron: true,
   platform: process.platform,
 };

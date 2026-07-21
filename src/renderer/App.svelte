@@ -1,30 +1,23 @@
 <script lang="ts">
   import Titlebar from "./lib/components/Titlebar.svelte";
   import Sidebar from "./lib/components/Sidebar.svelte";
-  import type { NavItem } from "./lib/components/Sidebar.svelte";
   import Overview from "./lib/routes/Overview.svelte";
+  import RoutePlaceholder from "./lib/routes/RoutePlaceholder.svelte";
+  import { router, SCREENS } from "./lib/router.js";
 
-  const navItems: NavItem[] = [
-    { label: "Overview", icon: "▤", href: "#", active: true },
-    { label: "Providers", icon: "◈", href: "#" },
-    { label: "Accounts", icon: "◍", href: "#" },
-    { label: "Routing", icon: "⇄", href: "#" },
-    { label: "Usage", icon: "◷", href: "#" },
-  ];
-
-  const networkItems: NavItem[] = [
-    { label: "Local API", icon: "⇢", href: "#" },
-    { label: "Share & teams", icon: "◎", href: "#" },
-    { label: "Apps & plugins", icon: "⊞", href: "#" },
-  ];
+  const activeLabel = $derived(SCREENS.find((screen) => screen.id === $router.screen)?.label ?? "");
 </script>
 
 <div class="window">
-  <Titlebar title="intisy" subtitle="Overview" />
+  <Titlebar title="intisy" subtitle={activeLabel} />
   <div class="shell">
-    <Sidebar {navItems} {networkItems} />
+    <Sidebar />
     <main class="main">
-      <Overview />
+      {#if $router.screen === "overview"}
+        <Overview />
+      {:else}
+        <RoutePlaceholder label={activeLabel} />
+      {/if}
     </main>
   </div>
 </div>

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Tray, nativeImage, session, shell } from "electron";
+import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, session, shell } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
@@ -39,6 +39,16 @@ function createWindow(): void {
   }
 }
 
+function registerWindowControls(): void {
+  ipcMain.on("window:minimize", () => mainWindow?.minimize());
+  ipcMain.on("window:maximize", () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    else mainWindow.maximize();
+  });
+  ipcMain.on("window:close", () => mainWindow?.close());
+}
+
 function createTray(): void {
   tray = new Tray(nativeImage.createEmpty());
   tray.setToolTip("Intisy Dashboard");
@@ -73,6 +83,7 @@ if (!app.requestSingleInstanceLock()) {
     const storeDir = resolveStoreDir(process.env, process.platform, homedir());
     supervisor = createSupervisor({ sidecarPath: join(dirName, "sidecar.js"), storeDir });
     registerHandlers(supervisor);
+    registerWindowControls();
 
     createWindow();
     createTray();
