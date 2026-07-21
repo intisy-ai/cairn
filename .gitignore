@@ -1,0 +1,8 @@
+node_modules/
+dist/
+out/
+dist-electron/
+.DS_Store
+docs/superpowers/
+.superpowers/
+graphify-out/
