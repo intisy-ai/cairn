@@ -41,3 +41,13 @@ export type PluginRow = {
   installedVersion?: string | null;
   updateAvailable: boolean;
 };
+export type UsageAccount = {
+  provider: string;
+  id: string;
+};
+export type UsageSnapshot = {
+  accounts: UsageAccount[];
+  sessions: unknown[];
+  models: Record<string, unknown>;
+  updatedAt: string;
+};

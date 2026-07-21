@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import { IPC_CHANNELS } from "@dashboard/shared";
-import type { IntisyAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, Chain, AppPresence, CliResult, PluginRow } from "@dashboard/shared";
+import type { IntisyAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, Chain, AppPresence, CliResult, PluginRow, UsageSnapshot } from "@dashboard/shared";
 
 const invokeChannels: readonly string[] = IPC_CHANNELS.invoke;
 const sendChannels: readonly string[] = IPC_CHANNELS.send;
@@ -49,6 +49,7 @@ const api: IntisyAPI = {
   pluginsInstall: (name, url) => safeInvoke("plugins:install", name, url) as Promise<Result<void>>,
   pluginsSetEnabled: (name, on) => safeInvoke("plugins:setEnabled", name, on) as Promise<Result<void>>,
   pluginsDowngrade: (name, hash) => safeInvoke("plugins:downgrade", name, hash) as Promise<Result<void>>,
+  usageSnapshot: () => safeInvoke("usage:snapshot") as Promise<Result<UsageSnapshot>>,
   minimize: () => safeSend("window:minimize"),
   isElectron: true,
   platform: process.platform,

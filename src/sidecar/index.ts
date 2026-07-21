@@ -8,6 +8,7 @@ import { routingGet, routingSetChain } from "./modules/routing.js";
 import { appsDetect, appsInstallCli, appsInit } from "./modules/apps.js";
 import type { AppName } from "./modules/apps.js";
 import { pluginsList, pluginsInstall, pluginsSetEnabled, pluginsDowngrade } from "./modules/plugins.js";
+import { usageSnapshot } from "./modules/usage.js";
 
 type SidecarRequest = { id: number; channel: string; args: unknown[] };
 type SidecarResponse = { id: number; result: Result<unknown> };
@@ -49,6 +50,7 @@ registerHandler("plugins:list", () => pluginsList());
 registerHandler("plugins:install", (name, url) => pluginsInstall(name as string, url as string));
 registerHandler("plugins:setEnabled", (name, on) => pluginsSetEnabled(name as string, on as boolean));
 registerHandler("plugins:downgrade", (name, hash) => pluginsDowngrade(name as string, hash as string));
+registerHandler("usage:snapshot", () => usageSnapshot());
 
 if (process.parentPort) {
   process.parentPort.on("message", (messageEvent) => {

@@ -22,6 +22,7 @@ export const IPC_CHANNELS = {
     "plugins:install",
     "plugins:setEnabled",
     "plugins:downgrade",
+    "usage:snapshot",
   ] as const,
   send: ["window:minimize", "window:maximize", "window:close"] as const,
   receive: ["server:status", "provider:updated"] as const,
