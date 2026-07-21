@@ -5,6 +5,7 @@
   "private": true,
   "type": "module",
   "license": "MIT",
+  "main": "./out/main/index.js",
   "workspaces": [
     "packages/*"
   ],
