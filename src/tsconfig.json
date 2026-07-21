@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "../out/tsc",
+    "rootDir": ".",
+    "composite": true
+  },
+  "include": ["main/**/*.ts", "preload/**/*.ts", "sidecar/**/*.ts"],
+  "exclude": ["main/**/*.test.ts", "preload/**/*.test.ts", "sidecar/**/*.test.ts"],
+  "references": [{ "path": "../packages/shared" }]
+}

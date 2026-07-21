@@ -2,6 +2,7 @@ node_modules/
 dist/
 out/
 dist-electron/
+*.tsbuildinfo
 .DS_Store
 docs/superpowers/
 .superpowers/
