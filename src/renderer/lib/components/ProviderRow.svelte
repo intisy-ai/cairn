@@ -2,7 +2,6 @@
   import StatusPill from "./StatusPill.svelte";
   import type { StatusVariant } from "./StatusPill.svelte";
   import AppPills from "./AppPills.svelte";
-  import QuotaBar from "./QuotaBar.svelte";
   import ToggleSwitch from "./ToggleSwitch.svelte";
 
   let {
@@ -13,8 +12,6 @@
     cc,
     oc,
     accountLabel,
-    quota = null,
-    quotaNote = "",
     enabled,
     onToggle,
     onToggleCc,
@@ -27,8 +24,6 @@
     cc: boolean;
     oc: boolean;
     accountLabel: string;
-    quota?: { label: string; remainingFraction: number } | null;
-    quotaNote?: string;
     enabled: boolean;
     onToggle?: (on: boolean) => void;
     onToggleCc?: (on: boolean) => void;
@@ -45,20 +40,13 @@
   <div><StatusPill variant={status.variant} label={status.label} /></div>
   <AppPills {cc} {oc} {onToggleCc} {onToggleOc} />
   <div class="acct">{accountLabel}</div>
-  <div class="quota-cell">
-    {#if quota}
-      <QuotaBar label={quota.label} remainingFraction={quota.remainingFraction} />
-    {:else if quotaNote}
-      <span class="none">{quotaNote}</span>
-    {/if}
-  </div>
   <ToggleSwitch checked={enabled} label={`${name} enabled`} onchange={onToggle} />
 </div>
 
 <style>
   .row {
     display: grid;
-    grid-template-columns: 34px minmax(150px, 1.4fr) 118px 96px 110px 150px 46px;
+    grid-template-columns: 34px minmax(150px, 1.4fr) 118px 96px 110px 46px;
     align-items: center;
     gap: 14px;
     padding: 12px 16px;
@@ -102,12 +90,5 @@
   .acct {
     color: var(--muted);
     font-size: 12px;
-  }
-  .quota-cell {
-    min-width: 0;
-  }
-  .none {
-    font-size: 11.5px;
-    color: var(--faint);
   }
 </style>
