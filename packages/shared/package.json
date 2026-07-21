@@ -3,6 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "main": "./src/domain.ts",
-  "types": "./src/domain.ts"
+  "main": "./index.ts",
+  "types": "./index.ts"
 }
