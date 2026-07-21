@@ -1,4 +1,6 @@
 export type { AccountView } from "@core-auth/index.js";
+export type { Chain, ModelMap, CatalogEntry } from "@core-proxy/index.js";
+import type { ModelMap, CatalogEntry } from "@core-proxy/index.js";
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 export type OverviewSummary = {
   providersConnected: number;
@@ -17,4 +19,9 @@ export type ProviderRow = {
   accountCount: number;
   active: boolean;
   exposure: { cc: boolean; oc: boolean };
+};
+export type RoutingState = {
+  tiers: string[];
+  map: ModelMap;
+  catalog: CatalogEntry[];
 };

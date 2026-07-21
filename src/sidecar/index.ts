@@ -4,6 +4,7 @@ import { configGet, configSet } from "./modules/config.js";
 import { overviewSummary } from "./modules/overview.js";
 import { accountsList, accountsEnable, accountsRemove, accountsRefreshQuota } from "./modules/accounts.js";
 import { providersList, providersSetActive, providersSetExposure } from "./modules/providers.js";
+import { routingGet, routingSetChain } from "./modules/routing.js";
 
 type SidecarRequest = { id: number; channel: string; args: unknown[] };
 type SidecarResponse = { id: number; result: Result<unknown> };
@@ -36,6 +37,8 @@ registerHandler("accounts:refreshQuota", (provider) => accountsRefreshQuota(prov
 registerHandler("providers:list", () => providersList());
 registerHandler("providers:setActive", (id) => providersSetActive(id as string));
 registerHandler("providers:setExposure", (id, app, on) => providersSetExposure(id as string, app as "cc" | "oc", on as boolean));
+registerHandler("routing:get", () => routingGet());
+registerHandler("routing:setChain", (slot, chain) => routingSetChain(slot as string, chain));
 
 if (process.parentPort) {
   process.parentPort.on("message", (messageEvent) => {

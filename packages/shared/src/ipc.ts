@@ -10,6 +10,8 @@ export const IPC_CHANNELS = {
     "providers:list",
     "providers:setActive",
     "providers:setExposure",
+    "routing:get",
+    "routing:setChain",
     "proxy:status",
     "proxy:start",
     "proxy:stop",
