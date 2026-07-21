@@ -6,8 +6,6 @@ import { overviewSummary } from "./modules/overview.js";
 type SidecarRequest = { id: number; channel: string; args: unknown[] };
 type SidecarResponse = { id: number; result: Result<unknown> };
 
-export const hubConfigDir = process.env.HUB_CONFIG_DIR;
-
 type SidecarHandler = (...args: unknown[]) => Promise<Result<unknown>>;
 
 const handlers: Record<string, SidecarHandler> = {};
