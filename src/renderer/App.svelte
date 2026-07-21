@@ -6,6 +6,7 @@
   import Accounts from "./lib/routes/Accounts.svelte";
   import Routing from "./lib/routes/Routing.svelte";
   import Usage from "./lib/routes/Usage.svelte";
+  import LocalApi from "./lib/routes/LocalApi.svelte";
   import RoutePlaceholder from "./lib/routes/RoutePlaceholder.svelte";
   import { router, SCREENS } from "./lib/router.js";
 
@@ -27,6 +28,8 @@
         <Routing />
       {:else if $router.screen === "usage"}
         <Usage />
+      {:else if $router.screen === "localApi"}
+        <LocalApi />
       {:else}
         <RoutePlaceholder label={activeLabel} />
       {/if}
