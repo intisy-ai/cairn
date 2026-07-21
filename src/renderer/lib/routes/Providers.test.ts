@@ -39,4 +39,68 @@ describe("Providers screen", () => {
     const { getByText } = render(Providers);
     await waitFor(() => expect(getByText(/boom/i)).toBeTruthy());
   });
+
+  it("offers only the All/Connected/OAuth filter chips", async () => {
+    stubIntisy({
+      providersList: async () => ({
+        ok: true,
+        data: [
+          { id: "oauth-only", label: "OAuthOnly", hasOAuth: true, accountCount: 0, active: false, exposure: { cc: false, oc: false } },
+          { id: "key-connected", label: "KeyConnected", hasOAuth: false, accountCount: 1, active: false, exposure: { cc: false, oc: false } },
+          { id: "key-unconnected", label: "KeyUnconnected", hasOAuth: false, accountCount: 0, active: false, exposure: { cc: false, oc: false } },
+        ],
+      }),
+    });
+
+    const { getByRole, getByText, queryByRole } = render(Providers);
+    await waitFor(() => expect(getByText("OAuthOnly")).toBeTruthy());
+
+    expect(getByRole("button", { name: "All" })).toBeTruthy();
+    expect(getByRole("button", { name: "Connected" })).toBeTruthy();
+    expect(getByRole("button", { name: "OAuth" })).toBeTruthy();
+    expect(queryByRole("button", { name: "API key" })).toBeNull();
+    expect(queryByRole("button", { name: "Local" })).toBeNull();
+  });
+
+  it("filters to hasOAuth rows when the OAuth chip is active", async () => {
+    stubIntisy({
+      providersList: async () => ({
+        ok: true,
+        data: [
+          { id: "oauth-only", label: "OAuthOnly", hasOAuth: true, accountCount: 0, active: false, exposure: { cc: false, oc: false } },
+          { id: "key-unconnected", label: "KeyUnconnected", hasOAuth: false, accountCount: 0, active: false, exposure: { cc: false, oc: false } },
+        ],
+      }),
+    });
+
+    const { getByRole, getByText, queryByText } = render(Providers);
+    await waitFor(() => expect(getByText("OAuthOnly")).toBeTruthy());
+    expect(getByText("KeyUnconnected")).toBeTruthy();
+
+    await fireEvent.click(getByRole("button", { name: "OAuth" }));
+
+    await waitFor(() => expect(queryByText("KeyUnconnected")).toBeNull());
+    expect(getByText("OAuthOnly")).toBeTruthy();
+  });
+
+  it("filters to accountCount>0 rows when the Connected chip is active", async () => {
+    stubIntisy({
+      providersList: async () => ({
+        ok: true,
+        data: [
+          { id: "key-connected", label: "KeyConnected", hasOAuth: false, accountCount: 1, active: false, exposure: { cc: false, oc: false } },
+          { id: "key-unconnected", label: "KeyUnconnected", hasOAuth: false, accountCount: 0, active: false, exposure: { cc: false, oc: false } },
+        ],
+      }),
+    });
+
+    const { getByRole, getByText, queryByText } = render(Providers);
+    await waitFor(() => expect(getByText("KeyConnected")).toBeTruthy());
+    expect(getByText("KeyUnconnected")).toBeTruthy();
+
+    await fireEvent.click(getByRole("button", { name: "Connected" }));
+
+    await waitFor(() => expect(queryByText("KeyUnconnected")).toBeNull());
+    expect(getByText("KeyConnected")).toBeTruthy();
+  });
 });

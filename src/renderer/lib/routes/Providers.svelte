@@ -10,14 +10,13 @@
   import Button from "../components/Button.svelte";
   import Card from "../components/Card.svelte";
 
-  type Filter = "all" | "connected" | "oauth" | "apikey" | "local";
+  // API key / Local chips can return once ProviderRow carries a real connection-kind field.
+  type Filter = "all" | "connected" | "oauth";
 
   const FILTERS: { id: Filter; label: string }[] = [
     { id: "all", label: "All" },
     { id: "connected", label: "Connected" },
     { id: "oauth", label: "OAuth" },
-    { id: "apikey", label: "API key" },
-    { id: "local", label: "Local" },
   ];
 
   let rows = $state<ProviderRowData[]>([]);
@@ -29,20 +28,12 @@
     return row.active || row.accountCount > 0;
   }
 
-  function isLocal(row: ProviderRowData): boolean {
-    return !row.hasOAuth && row.accountCount === 0;
-  }
-
   function matchesFilter(row: ProviderRowData): boolean {
     switch (filter) {
       case "connected":
         return isConnected(row);
       case "oauth":
         return row.hasOAuth;
-      case "apikey":
-        return !row.hasOAuth && !isLocal(row);
-      case "local":
-        return isLocal(row);
       default:
         return true;
     }
