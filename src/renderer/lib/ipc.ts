@@ -6,4 +6,8 @@ declare global {
   }
 }
 
-export const intisy: IntisyAPI = window.intisy;
+export const intisy: IntisyAPI = new Proxy({} as IntisyAPI, {
+  get(_target, property) {
+    return (window.intisy as unknown as Record<string | symbol, unknown>)[property];
+  },
+});

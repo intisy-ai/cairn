@@ -59,6 +59,12 @@
     ctx.lineWidth = 1.5;
     ctx.lineJoin = "round";
     ctx.stroke();
+
+    const [endX, endY] = point(n - 1);
+    ctx.beginPath();
+    ctx.arc(endX, endY, 2.4, 0, Math.PI * 2);
+    ctx.fillStyle = accent;
+    ctx.fill();
   }
 
   onMount(() => {

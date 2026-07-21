@@ -41,4 +41,45 @@ describe("start", () => {
     expect(calls).toBe(1);
     await stop();
   });
+
+  it("clears the in-flight promise after a rejected starter, so a later start retries", async () => {
+    let calls = 0;
+    const failingStarter = async (): Promise<StartedLoaderProxy> => {
+      calls++;
+      throw new Error("boom");
+    };
+
+    await expect(start(failingStarter)).rejects.toThrow("boom");
+    expect(calls).toBe(1);
+
+    const fakeHandle = { server: { close: async () => {} } } as unknown as StartedLoaderProxy;
+    const succeedingStarter = async (): Promise<StartedLoaderProxy> => {
+      calls++;
+      return fakeHandle;
+    };
+
+    await start(succeedingStarter);
+
+    expect(calls).toBe(2);
+    await stop();
+  });
+});
+
+describe("stop", () => {
+  it("concurrent calls invoke the injected stopper only once", async () => {
+    let closeCalls = 0;
+    const fakeHandle = {
+      server: {
+        close: async () => {
+          closeCalls++;
+          await new Promise((resolve) => setTimeout(resolve, 5));
+        },
+      },
+    } as unknown as StartedLoaderProxy;
+
+    await start(async () => fakeHandle);
+    await Promise.all([stop(), stop()]);
+
+    expect(closeCalls).toBe(1);
+  });
 });
