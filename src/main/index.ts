@@ -21,6 +21,8 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: true,
+      // The ESM preload cannot load in a sandboxed renderer; contextIsolation still isolates the renderer.
+      sandbox: false,
       preload: join(dirName, "../preload/index.mjs"),
     },
   });
