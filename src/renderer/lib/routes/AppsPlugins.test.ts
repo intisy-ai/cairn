@@ -54,4 +54,41 @@ describe("AppsPlugins screen", () => {
     const { getByText } = render(AppsPlugins);
     await waitFor(() => expect(getByText(/list boom/i)).toBeTruthy());
   });
+
+  it("shows an Import config control for an importable app and runs the import", async () => {
+    const importApps = vi.fn(async () => ({
+      ok: true,
+      data: [{ app: "claude", label: "Claude Code", hasConfig: true }],
+    }) as const);
+    const importRun = vi.fn(async () => ({
+      ok: true,
+      data: { accounts: 1, providers: 3, routingImported: false, notes: ["exposed 3 provider(s) for Claude Code"] },
+    }) as const);
+    stubIntisy({
+      appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
+      pluginsList: async () => ({ ok: true, data: [] }),
+      importApps,
+      importRun,
+    });
+
+    const { getByText } = render(AppsPlugins);
+
+    await waitFor(() => expect(getByText("Import config")).toBeTruthy());
+    await fireEvent.click(getByText("Import config"));
+
+    await waitFor(() => expect(importRun).toHaveBeenCalledWith("claude"));
+    await waitFor(() => expect(getByText(/exposed 3 provider\(s\) for Claude Code/i)).toBeTruthy());
+  });
+
+  it("does not show an Import config control when no app is importable", async () => {
+    stubIntisy({
+      appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
+      pluginsList: async () => ({ ok: true, data: [] }),
+      importApps: async () => ({ ok: true, data: [{ app: "claude", label: "Claude Code", hasConfig: false }] }),
+    });
+
+    const { getByText, queryByText } = render(AppsPlugins);
+    await waitFor(() => expect(getByText("Claude Code")).toBeTruthy());
+    expect(queryByText("Import config")).toBeNull();
+  });
 });

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Titlebar from "./lib/components/Titlebar.svelte";
   import Sidebar from "./lib/components/Sidebar.svelte";
   import Overview from "./lib/routes/Overview.svelte";
@@ -9,14 +10,22 @@
   import LocalApi from "./lib/routes/LocalApi.svelte";
   import AppsPlugins from "./lib/routes/AppsPlugins.svelte";
   import { router, SCREENS } from "./lib/router.js";
+  import { intisy } from "./lib/ipc.js";
 
   const activeLabel = $derived(SCREENS.find((screen) => screen.id === $router.screen)?.label ?? "");
+
+  let hasRouting = $state(true);
+
+  onMount(async () => {
+    const result = await intisy.routingApps();
+    hasRouting = result.ok && result.data.length > 0;
+  });
 </script>
 
 <div class="window">
   <Titlebar title="Cairn" subtitle={activeLabel} />
   <div class="shell">
-    <Sidebar />
+    <Sidebar {hasRouting} />
     <main class="main">
       {#if $router.screen === "overview"}
         <Overview />

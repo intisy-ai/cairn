@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { AppPresence, PluginRow as PluginRowData } from "@dashboard/shared";
+  import type { AppPresence, ImportableApp, PluginRow as PluginRowData } from "@dashboard/shared";
   import { intisy } from "../ipc.js";
   import StatusPill from "../components/StatusPill.svelte";
   import PluginRow from "../components/PluginRow.svelte";
@@ -21,8 +21,17 @@
   let plugins = $state<PluginRowData[]>([]);
   let pluginsError = $state("");
 
+  let importable = $state<ImportableApp[]>([]);
+  let importBusy = $state<Record<AppId, boolean>>({ claude: false, opencode: false });
+  let importNotes = $state<Record<AppId, string[]>>({ claude: [], opencode: [] });
+  let importErrors = $state<Record<AppId, string>>({ claude: "", opencode: "" });
+
   function isInstalled(app: AppId): boolean {
     return presence?.[app] ?? false;
+  }
+
+  function canImport(app: AppId): boolean {
+    return importable.some((a) => a.app === app && a.hasConfig);
   }
 
   async function loadApps(): Promise<void> {
@@ -42,6 +51,27 @@
       pluginsError = "";
     } else {
       pluginsError = result.error;
+    }
+  }
+
+  async function loadImportable(): Promise<void> {
+    const result = await intisy.importApps();
+    if (result.ok) importable = result.data;
+  }
+
+  async function handleImportConfig(app: AppId): Promise<void> {
+    if (importBusy[app]) return;
+    importBusy = { ...importBusy, [app]: true };
+    importErrors = { ...importErrors, [app]: "" };
+    try {
+      const result = await intisy.importRun(app);
+      if (result.ok) {
+        importNotes = { ...importNotes, [app]: result.data.notes };
+      } else {
+        importErrors = { ...importErrors, [app]: result.error };
+      }
+    } finally {
+      importBusy = { ...importBusy, [app]: false };
     }
   }
 
@@ -72,6 +102,7 @@
   onMount(() => {
     loadApps();
     loadPlugins();
+    loadImportable();
   });
 </script>
 
@@ -106,8 +137,19 @@
             {:else}
               <Button variant="primary" disabled={busyApps[app.id]} onclick={() => handleInstall(app.id)}>Install</Button>
             {/if}
+            {#if canImport(app.id)}
+              <Button disabled={importBusy[app.id]} onclick={() => handleImportConfig(app.id)}>Import config</Button>
+            {/if}
           </div>
         </div>
+        {#if importErrors[app.id]}
+          <p class="error import-row-error">{importErrors[app.id]}</p>
+        {/if}
+        {#if importNotes[app.id].length > 0}
+          <ul class="import-notes">
+            {#each importNotes[app.id] as note}<li>{note}</li>{/each}
+          </ul>
+        {/if}
       {/each}
     </Card>
   {/if}
@@ -215,5 +257,14 @@
   .error {
     color: var(--crit);
     font-size: 13px;
+  }
+  .import-row-error {
+    padding: 0 18px 10px;
+  }
+  .import-notes {
+    margin: 0;
+    padding: 0 18px 12px 34px;
+    color: var(--muted);
+    font-size: 12.5px;
   }
 </style>

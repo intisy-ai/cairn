@@ -8,9 +8,12 @@
     brandName = "Cairn",
     brandTag = "Claude Code · OpenCode",
     apiPort = 34567,
-  }: { brandName?: string; brandTag?: string; apiPort?: number } = $props();
+    hasRouting = true,
+  }: { brandName?: string; brandTag?: string; apiPort?: number; hasRouting?: boolean } = $props();
 
-  const mainScreens = SCREENS.filter((screen) => screen.section === "main");
+  const mainScreens = $derived(
+    SCREENS.filter((screen) => screen.section === "main" && (hasRouting || screen.id !== "routing")),
+  );
   const networkScreens = SCREENS.filter((screen) => screen.section === "network");
 
   const running = $derived($serverStatus ? $serverStatus.running : true);

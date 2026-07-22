@@ -3,6 +3,7 @@
   import type { ProviderRow as ProviderRowData } from "@dashboard/shared";
   import type { StatusVariant } from "../components/StatusPill.svelte";
   import { intisy } from "../ipc.js";
+  import { navigate } from "../router.js";
   import StatCard from "../components/StatCard.svelte";
   import SearchField from "../components/SearchField.svelte";
   import Chip from "../components/Chip.svelte";
@@ -23,6 +24,8 @@
   let loadError = $state("");
   let search = $state("");
   let filter = $state<Filter>("all");
+  let importNotes = $state<string[]>([]);
+  let importError = $state("");
 
   function isConnected(row: ProviderRowData): boolean {
     return row.active || row.accountCount > 0;
@@ -85,6 +88,36 @@
     await load();
   }
 
+  async function handleImport(): Promise<void> {
+    importError = "";
+    importNotes = [];
+    const result = await intisy.importApps();
+    if (!result.ok) {
+      importError = result.error;
+      return;
+    }
+    const importable = result.data.filter((a) => a.hasConfig);
+    if (importable.length === 0) {
+      importError = "No app config found to import.";
+      return;
+    }
+    if (importable.length > 1) {
+      navigate("appsPlugins");
+      return;
+    }
+    const run = await intisy.importRun(importable[0].app);
+    if (run.ok) {
+      importNotes = run.data.notes;
+      await load();
+    } else {
+      importError = run.error;
+    }
+  }
+
+  function handleAddProvider(): void {
+    navigate("appsPlugins");
+  }
+
   onMount(load);
 </script>
 
@@ -93,9 +126,18 @@
     <h1>Providers</h1>
     <p>Connect AI backends once, routed to Claude Code and OpenCode alike.</p>
   </div>
-  <Button>Import</Button>
-  <Button variant="primary">+ Add provider</Button>
+  <Button onclick={handleImport}>Import</Button>
+  <Button variant="primary" onclick={handleAddProvider}>+ Add provider</Button>
 </div>
+
+{#if importError}
+  <p class="error">{importError}</p>
+{/if}
+{#if importNotes.length > 0}
+  <ul class="import-notes">
+    {#each importNotes as note}<li>{note}</li>{/each}
+  </ul>
+{/if}
 
 {#if loadError}
   <p class="error">Could not load providers: {loadError}</p>
@@ -218,5 +260,11 @@
   .error {
     color: var(--crit);
     font-size: 13px;
+  }
+  .import-notes {
+    margin: 0 0 18px;
+    padding: 0 0 0 18px;
+    color: var(--muted);
+    font-size: 12.5px;
   }
 </style>
