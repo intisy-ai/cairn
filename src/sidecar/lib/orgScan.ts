@@ -17,12 +17,17 @@ interface RepoJson { name?: string; html_url?: string; description?: string | nu
 let cache: { at: number; result: CatalogResult } | null = null;
 export function resetOrgScanCacheForTests(): void { cache = null; }
 
-function realExec(file: string, args: string[]): Promise<string> {
-  const exe = process.platform === "win32" ? `${file}.cmd` : file;
+function tryExec(exe: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = execFile(exe, args, { timeout: 5000 }, (error, stdout) => (error ? reject(error) : resolve(stdout)));
-    void child;
+    execFile(exe, args, { timeout: 5000 }, (error, stdout) => (error ? reject(error) : resolve(stdout)));
   });
+}
+
+// On win32 a binary may be a native .exe (gh) or an npm shim (.cmd); try the
+// bare name first and only fall back to the .cmd suffix if that spawn fails.
+function realExec(file: string, args: string[]): Promise<string> {
+  if (process.platform !== "win32") return tryExec(file, args);
+  return tryExec(file, args).catch(() => tryExec(`${file}.cmd`, args));
 }
 
 export interface OrgScanDeps { fetchFn?: typeof fetch; execFn?: (file: string, args: string[]) => Promise<string>; env?: NodeJS.ProcessEnv; now?: () => number }

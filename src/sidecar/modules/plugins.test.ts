@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getAppConfigDir, getAppName } from "@plugin-updater/env.js";
@@ -198,6 +198,48 @@ describe("plugins sidecar module", () => {
     const { pluginsDowngrade } = await import("./plugins.js");
     const result = await pluginsDowngrade("claude", "plugin-a", "deadbeef", { downgrade, homes: fakeHomes });
     expect(result.ok).toBe(false);
+  });
+
+  it("install registers a new plugin in plugins.json when none exists yet", async () => {
+    const { pluginsInstall } = await import("./plugins.js");
+    const result = await pluginsInstall("claude", "plugin-new", "https://github.com/intisy-ai/plugin-new", {
+      updatePluginPublic: async () => {},
+      homes: fakeHomes,
+      syncPluginsAcrossApps: async () => {},
+    });
+    expect(result.ok).toBe(true);
+
+    const entries = JSON.parse(readFileSync(join(claudeDir, "config", "plugins.json"), "utf8")) as Plugin[];
+    expect(entries).toEqual([
+      { name: "plugin-new", url: "https://github.com/intisy-ai/plugin-new", enabled: true, autoUpdate: true },
+    ]);
+  });
+
+  it("install does not duplicate an existing entry and preserves its other fields", async () => {
+    seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: false, autoUpdate: false }]);
+
+    const { pluginsInstall } = await import("./plugins.js");
+    const result = await pluginsInstall("claude", "plugin-a", "https://github.com/intisy-ai/plugin-a-fork", {
+      updatePluginPublic: async () => {},
+      homes: fakeHomes,
+      syncPluginsAcrossApps: async () => {},
+    });
+    expect(result.ok).toBe(true);
+
+    const entries = JSON.parse(readFileSync(join(claudeDir, "config", "plugins.json"), "utf8")) as Plugin[];
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toEqual({ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a-fork", enabled: false, autoUpdate: false });
+  });
+
+  it("install leaves plugins.json unwritten when updatePluginPublic fails", async () => {
+    const { pluginsInstall } = await import("./plugins.js");
+    const result = await pluginsInstall("claude", "plugin-fail", "https://github.com/intisy-ai/plugin-fail", {
+      updatePluginPublic: async () => { throw new Error("clone failed"); },
+      homes: fakeHomes,
+      syncPluginsAcrossApps: async () => {},
+    });
+    expect(result.ok).toBe(false);
+    expect(existsSync(join(claudeDir, "config", "plugins.json"))).toBe(false);
   });
 
   it("rejects an unknown home id on install, setEnabled, and downgrade", async () => {

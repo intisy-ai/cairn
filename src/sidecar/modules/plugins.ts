@@ -4,7 +4,8 @@
 // the lazy dynamic import() of index.js later in this module runs it.
 process.env.PLUGIN_UPDATER_LIBRARY_MODE = "1";
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
 import { getPlugins, getPluginsPath } from "@plugin-updater/config.js";
 import { readUpdateCache } from "@plugin-updater/cache.js";
@@ -86,12 +87,30 @@ export function pluginsList(deps: PluginsDeps = {}): Promise<Result<HomePlugins[
   });
 }
 
+// plugin-updater only clones+builds the repo; registering it in plugins.json
+// (so getPlugins/pluginsList and proxy discovery pick it up) is the caller's job.
+function registerPlugin(dir: string, name: string, url: string): void {
+  const file = getPluginsPath(dir);
+  const entries = existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Plugin[]) : [];
+  const entry = entries.find((e) => e.name === name);
+  if (entry) {
+    entry.url = url;
+  } else {
+    entries.push({ name, url, enabled: true, autoUpdate: true });
+  }
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify(entries, null, 2), "utf8");
+}
+
 export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, deps: PluginsDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
     const homes = await resolveHomes(deps);
     const dir = homeDir(homeId, homes);
     const updatePluginPublic = deps.updatePluginPublic ?? (await import("@plugin-updater/index.js")).updatePluginPublic;
-    await withHome(dir, () => updatePluginPublic(name, url));
+    await withHome(dir, async () => {
+      await updatePluginPublic(name, url);
+      registerPlugin(dir, name, url);
+    });
     if (homeId !== "cairn") {
       const syncPluginsAcrossApps = deps.syncPluginsAcrossApps ?? realSyncPluginsAcrossApps;
       await syncPluginsAcrossApps(dir);
