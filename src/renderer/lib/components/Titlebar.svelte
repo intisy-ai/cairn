@@ -15,7 +15,10 @@
 <div class="titlebar" class:mac={isMac}>
   {#if isMac}<div class="mac-space"></div>{/if}
   <CairnMark size={18} />
-  <div class="wm">{title}{#if subtitle}<span> · {subtitle}</span>{/if}</div>
+  <div class="wm">
+    <span class="bname">{title}</span>
+    {#if subtitle}<span class="bsep">·</span><span class="bsub">{subtitle}</span>{/if}
+  </div>
   <div class="spacer"></div>
   <button class="iconbtn" title="Toggle theme" aria-label="Toggle light or dark theme" onclick={toggleTheme}>◐</button>
   {#if !isMac}
@@ -51,13 +54,26 @@
     flex: none;
   }
   .wm {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 13px;
+    white-space: nowrap;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .bname {
     font-weight: 650;
     letter-spacing: -.01em;
-    font-size: 13px;
   }
-  .wm span {
+  .bsep,
+  .bsub {
     color: var(--faint);
     font-weight: 500;
+  }
+  .bsub {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .spacer {
     flex: 1;
