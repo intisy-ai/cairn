@@ -9,9 +9,11 @@ import { getConfigDir } from "@core-auth/index.js";
 import { getPlugins, getPluginsPath } from "@plugin-updater/config.js";
 import { readUpdateCache } from "@plugin-updater/cache.js";
 import { syncPluginsAcrossApps as realSyncPluginsAcrossApps } from "@plugin-updater/syncbridge.js";
+import { setEarlyLaunchConfigDir } from "@plugin-updater/env.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
 import type { Plugin, NpmPlugin } from "@plugin-updater/types.js";
-import type { PluginRow, Result } from "../../../packages/shared/src/domain.js";
+import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, Result } from "../../../packages/shared/src/domain.js";
+import { pluginHomes, homeDir } from "../lib/pluginHomes.js";
 import { wrap } from "../result.js";
 
 type UpdatePluginPublicFn = (name: string, url: string, branch?: string, commitHash?: string) => Promise<void | object>;
@@ -23,6 +25,24 @@ type DowngradeFn = (plugin: { name: string; url?: string; branch?: string }, com
 async function getNpmPlugins(configDir: string): Promise<NpmPlugin[]> {
   const mod = await import("@plugin-updater/npm.js");
   return mod.getNpmPlugins(configDir);
+}
+
+// Sidecar RPCs run concurrently, but plugin-updater resolves its write target
+// ambiently via getAppConfigDir(getAppName()). This chain serializes writes so
+// each one sees only its own home's dir, then restores the Cairn scope.
+let writeChain: Promise<unknown> = Promise.resolve();
+
+function withHome<T>(dir: string, fn: () => Promise<T>): Promise<T> {
+  const run = writeChain.then(async () => {
+    setEarlyLaunchConfigDir(dir);
+    try {
+      return await fn();
+    } finally {
+      setEarlyLaunchConfigDir(getConfigDir());
+    }
+  });
+  writeChain = run.catch(() => undefined);
+  return run;
 }
 
 function rowFor(name: string, kind: "git" | "npm", enabled: boolean, url: string | undefined, cache: UpdateCache): PluginRow {
@@ -37,21 +57,53 @@ function rowFor(name: string, kind: "git" | "npm", enabled: boolean, url: string
   };
 }
 
-export function pluginsList(): Promise<Result<PluginRow[]>> {
+export interface PluginsDeps {
+  homes?: PluginHome[];
+  updatePluginPublic?: UpdatePluginPublicFn;
+  syncPluginsAcrossApps?: SyncPluginsAcrossAppsFn;
+  downgrade?: DowngradeFn;
+}
+
+async function resolveHomes(deps: PluginsDeps): Promise<PluginHome[]> {
+  return deps.homes ?? (await pluginHomes());
+}
+
+export function pluginsList(deps: PluginsDeps = {}): Promise<Result<HomePlugins[]>> {
   return wrap(async () => {
-    const configDir = getConfigDir();
-    const cache = readUpdateCache(configDir);
-    const gitRows = getPlugins(configDir).map((p) => rowFor(p.name, "git", p.enabled !== false, p.url, cache));
-    const npmPlugins = await getNpmPlugins(configDir);
-    const npmRows = npmPlugins.map((p) => rowFor(p.name, "npm", true, undefined, cache));
-    return [...gitRows, ...npmRows];
+    const homes = await resolveHomes(deps);
+    const sections: HomePlugins[] = [];
+    for (const home of homes) {
+      if (!home.present) {
+        sections.push({ home, rows: [] });
+        continue;
+      }
+      const cache = readUpdateCache(home.dir);
+      const gitRows = getPlugins(home.dir).map((p) => rowFor(p.name, "git", p.enabled !== false, p.url, cache));
+      const npmRows = (await getNpmPlugins(home.dir)).map((p) => rowFor(p.name, "npm", true, undefined, cache));
+      sections.push({ home, rows: [...gitRows, ...npmRows] });
+    }
+    return sections;
   });
 }
 
-export function pluginsSetEnabled(name: string, on: boolean): Promise<Result<void>> {
-  return wrap(() => {
-    const configDir = getConfigDir();
-    const file = getPluginsPath(configDir);
+export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, deps: PluginsDeps = {}): Promise<Result<void>> {
+  return wrap(async () => {
+    const homes = await resolveHomes(deps);
+    const dir = homeDir(homeId, homes);
+    const updatePluginPublic = deps.updatePluginPublic ?? (await import("@plugin-updater/index.js")).updatePluginPublic;
+    await withHome(dir, () => updatePluginPublic(name, url));
+    if (homeId !== "cairn") {
+      const syncPluginsAcrossApps = deps.syncPluginsAcrossApps ?? realSyncPluginsAcrossApps;
+      await syncPluginsAcrossApps(dir);
+    }
+  });
+}
+
+export function pluginsSetEnabled(homeId: PluginHomeId, name: string, on: boolean, deps: PluginsDeps = {}): Promise<Result<void>> {
+  return wrap(async () => {
+    const homes = await resolveHomes(deps);
+    const dir = homeDir(homeId, homes);
+    const file = getPluginsPath(dir);
     const entries = existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Plugin[]) : [];
     const entry = entries.find((e) => e.name === name);
     if (!entry) throw new Error(`plugin not found: ${name}`);
@@ -60,33 +112,14 @@ export function pluginsSetEnabled(name: string, on: boolean): Promise<Result<voi
   });
 }
 
-export interface PluginsInstallDeps {
-  updatePluginPublic?: UpdatePluginPublicFn;
-  syncPluginsAcrossApps?: SyncPluginsAcrossAppsFn;
-}
-
-export function pluginsInstall(name: string, url: string, deps: PluginsInstallDeps = {}): Promise<Result<void>> {
+export function pluginsDowngrade(homeId: PluginHomeId, name: string, hash: string, deps: PluginsDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
-    const updatePluginPublic = deps.updatePluginPublic ?? (await import("@plugin-updater/index.js")).updatePluginPublic;
-    const syncPluginsAcrossApps = deps.syncPluginsAcrossApps ?? realSyncPluginsAcrossApps;
-    await updatePluginPublic(name, url);
-    await syncPluginsAcrossApps(getConfigDir());
-  });
-}
-
-export interface PluginsDowngradeDeps {
-  downgrade?: DowngradeFn;
-  getPlugins?: typeof getPlugins;
-}
-
-export function pluginsDowngrade(name: string, hash: string, deps: PluginsDowngradeDeps = {}): Promise<Result<void>> {
-  return wrap(async () => {
-    const configDir = getConfigDir();
-    const listPlugins = deps.getPlugins ?? getPlugins;
-    const plugin = listPlugins(configDir).find((p) => p.name === name);
+    const homes = await resolveHomes(deps);
+    const dir = homeDir(homeId, homes);
+    const plugin = getPlugins(dir).find((p) => p.name === name);
     if (!plugin) throw new Error(`plugin not found: ${name}`);
     const downgrade = deps.downgrade ?? (await import("@plugin-updater/index.js")).downgrade;
-    const result = downgrade({ name: plugin.name, url: plugin.url, branch: plugin.branch }, hash);
+    const result = await withHome(dir, async () => downgrade({ name: plugin.name, url: plugin.url, branch: plugin.branch }, hash));
     if (result) throw new Error(result);
   });
 }

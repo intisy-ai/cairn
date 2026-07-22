@@ -2,38 +2,81 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { getAppConfigDir, getAppName } from "@plugin-updater/env.js";
 import type { Plugin } from "@plugin-updater/types.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
+import type { PluginHome } from "../../../packages/shared/src/domain.js";
 
-let configDir: string;
+let cairnDir: string;
+let claudeDir: string;
+let opencodeDir: string;
+let fakeHomes: PluginHome[];
 
 beforeEach(() => {
-  configDir = mkdtempSync(join(tmpdir(), "dash-plugins-"));
-  process.env.HUB_CONFIG_DIR = configDir;
-  mkdirSync(join(configDir, "config"), { recursive: true });
+  cairnDir = mkdtempSync(join(tmpdir(), "dash-plugins-cairn-"));
+  claudeDir = mkdtempSync(join(tmpdir(), "dash-plugins-claude-"));
+  opencodeDir = mkdtempSync(join(tmpdir(), "dash-plugins-opencode-"));
+  mkdirSync(join(cairnDir, "config"), { recursive: true });
+  mkdirSync(join(claudeDir, "config"), { recursive: true });
+  mkdirSync(join(opencodeDir, "config"), { recursive: true });
+  process.env.HUB_CONFIG_DIR = cairnDir;
+  fakeHomes = [
+    { id: "cairn", label: "Cairn", dir: cairnDir, present: true, hasUpdater: true },
+    { id: "claude", label: "Claude Code", dir: claudeDir, present: true, hasUpdater: true },
+    { id: "opencode", label: "OpenCode", dir: opencodeDir, present: true, hasUpdater: false },
+  ];
 });
 
-function seedPlugins(entries: Plugin[]): void {
-  writeFileSync(join(configDir, "config", "plugins.json"), JSON.stringify(entries, null, 2), "utf8");
+function seedPlugins(dir: string, entries: Plugin[]): void {
+  writeFileSync(join(dir, "config", "plugins.json"), JSON.stringify(entries, null, 2), "utf8");
 }
 
-function seedNpmPlugins(names: string[]): void {
-  writeFileSync(join(configDir, "opencode.json"), JSON.stringify({ plugin: names }, null, 2), "utf8");
+function seedNpmPlugins(dir: string, names: string[]): void {
+  writeFileSync(join(dir, "opencode.json"), JSON.stringify({ plugin: names }, null, 2), "utf8");
 }
 
-function seedCache(cache: UpdateCache): void {
-  mkdirSync(join(configDir, "cache"), { recursive: true });
-  writeFileSync(join(configDir, "cache", "plugin-updates.json"), JSON.stringify(cache, null, 2), "utf8");
+function seedCache(dir: string, cache: UpdateCache): void {
+  mkdirSync(join(dir, "cache"), { recursive: true });
+  writeFileSync(join(dir, "cache", "plugin-updates.json"), JSON.stringify(cache, null, 2), "utf8");
 }
 
 describe("plugins sidecar module", () => {
-  it("merges git + npm plugins with the update-state cache", async () => {
-    seedPlugins([
+  it("lists plugins per home, tagging each section with its home", async () => {
+    seedPlugins(cairnDir, [{ name: "claude-code-proxy", url: "https://github.com/intisy-ai/claude-code-proxy", enabled: true }]);
+    seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
+
+    const { pluginsList } = await import("./plugins.js");
+    const result = await pluginsList({ homes: fakeHomes });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+
+    const sections = result.data;
+    expect(sections.map((s) => s.home.id)).toEqual(["cairn", "claude", "opencode"]);
+    expect(sections[0].rows.map((r) => r.name)).toContain("claude-code-proxy");
+    expect(sections[1].rows.map((r) => r.name)).toContain("plugin-a");
+    expect(sections[2].rows).toEqual([]);
+  });
+
+  it("skips a home entirely when it is not present, without reading its dir", async () => {
+    const homesWithAbsentOpencode: PluginHome[] = [
+      fakeHomes[0],
+      fakeHomes[1],
+      { id: "opencode", label: "OpenCode", dir: join(opencodeDir, "does-not-exist"), present: false, hasUpdater: false },
+    ];
+    const { pluginsList } = await import("./plugins.js");
+    const result = await pluginsList({ homes: homesWithAbsentOpencode });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data[2]).toEqual({ home: homesWithAbsentOpencode[2], rows: [] });
+  });
+
+  it("merges git + npm plugins with the update-state cache for a given home", async () => {
+    seedPlugins(claudeDir, [
       { name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true },
       { name: "plugin-b", url: "https://github.com/intisy-ai/plugin-b", enabled: false },
     ]);
-    seedNpmPlugins(["npm-plugin-x"]);
-    seedCache({
+    seedNpmPlugins(claudeDir, ["npm-plugin-x"]);
+    seedCache(claudeDir, {
       checkedAt: "2026-07-21T00:00:00.000Z",
       plugins: {
         "plugin-a": {
@@ -48,11 +91,12 @@ describe("plugins sidecar module", () => {
     });
 
     const { pluginsList } = await import("./plugins.js");
-    const result = await pluginsList();
+    const result = await pluginsList({ homes: fakeHomes });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
 
-    const byName = new Map(result.data.map((row) => [row.name, row]));
+    const claudeSection = result.data.find((s) => s.home.id === "claude")!;
+    const byName = new Map(claudeSection.rows.map((row) => [row.name, row]));
     expect(byName.get("plugin-a")).toEqual({
       name: "plugin-a", kind: "git", enabled: true, url: "https://github.com/intisy-ai/plugin-a",
       installedVersion: null, updateAvailable: true,
@@ -67,59 +111,71 @@ describe("plugins sidecar module", () => {
     });
   });
 
-  it("returns an empty list on a bare store", async () => {
-    const { pluginsList } = await import("./plugins.js");
-    const result = await pluginsList();
+  it("install targets the requested home's dir via the write scope", async () => {
+    const scopes: string[] = [];
+    const fakeUpdate = async () => {
+      scopes.push(getAppConfigDir(getAppName()));
+    };
+
+    const { pluginsInstall } = await import("./plugins.js");
+    const result = await pluginsInstall("claude", "plugin-b", "https://github.com/intisy-ai/plugin-b", {
+      updatePluginPublic: fakeUpdate,
+      homes: fakeHomes,
+      syncPluginsAcrossApps: async () => {},
+    });
+
     expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("unreachable");
-    expect(result.data).toEqual([]);
+    expect(scopes[0]).toBe(fakeHomes[1].dir);
   });
 
-  it("setEnabled flips one plugin's enabled flag and preserves the rest", async () => {
-    seedPlugins([
-      { name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true },
-      { name: "plugin-b", url: "https://github.com/intisy-ai/plugin-b", enabled: true, autoUpdate: false },
-    ]);
+  it("install syncs across apps for an app home, but never for the cairn home", async () => {
+    const syncPluginsAcrossApps = vi.fn().mockResolvedValue(undefined);
+    const { pluginsInstall } = await import("./plugins.js");
+
+    await pluginsInstall("claude", "plugin-b", "https://github.com/intisy-ai/plugin-b", {
+      updatePluginPublic: async () => {},
+      homes: fakeHomes,
+      syncPluginsAcrossApps,
+    });
+    expect(syncPluginsAcrossApps).toHaveBeenCalledWith(claudeDir);
+
+    syncPluginsAcrossApps.mockClear();
+    await pluginsInstall("cairn", "plugin-c", "https://github.com/intisy-ai/plugin-c", {
+      updatePluginPublic: async () => {},
+      homes: fakeHomes,
+      syncPluginsAcrossApps,
+    });
+    expect(syncPluginsAcrossApps).not.toHaveBeenCalled();
+  });
+
+  it("setEnabled writes the target home's plugins.json, not another home's", async () => {
+    seedPlugins(cairnDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
+    seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
 
     const { pluginsSetEnabled } = await import("./plugins.js");
-    const result = await pluginsSetEnabled("plugin-a", false);
+    const result = await pluginsSetEnabled("claude", "plugin-a", false, { homes: fakeHomes });
     expect(result.ok).toBe(true);
 
-    const onDisk = JSON.parse(readFileSync(join(configDir, "config", "plugins.json"), "utf8")) as Plugin[];
-    expect(onDisk.find((p) => p.name === "plugin-a")?.enabled).toBe(false);
-    expect(onDisk.find((p) => p.name === "plugin-b")).toEqual({
-      name: "plugin-b", url: "https://github.com/intisy-ai/plugin-b", enabled: true, autoUpdate: false,
-    });
+    const claudeOnDisk = JSON.parse(readFileSync(join(claudeDir, "config", "plugins.json"), "utf8")) as Plugin[];
+    expect(claudeOnDisk.find((p) => p.name === "plugin-a")?.enabled).toBe(false);
+
+    const cairnOnDisk = JSON.parse(readFileSync(join(cairnDir, "config", "plugins.json"), "utf8")) as Plugin[];
+    expect(cairnOnDisk.find((p) => p.name === "plugin-a")?.enabled).toBe(true);
   });
 
   it("setEnabled returns ok:false for an unknown plugin", async () => {
-    seedPlugins([{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
+    seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
     const { pluginsSetEnabled } = await import("./plugins.js");
-    const result = await pluginsSetEnabled("nonexistent", true);
+    const result = await pluginsSetEnabled("claude", "nonexistent", true, { homes: fakeHomes });
     expect(result.ok).toBe(false);
   });
 
-  it("install calls updatePluginPublic then syncPluginsAcrossApps via injected deps, no network", async () => {
-    const updatePluginPublic = vi.fn().mockResolvedValue(undefined);
-    const syncPluginsAcrossApps = vi.fn().mockResolvedValue(undefined);
-
-    const { pluginsInstall } = await import("./plugins.js");
-    const result = await pluginsInstall("new-plugin", "https://github.com/intisy-ai/new-plugin", {
-      updatePluginPublic,
-      syncPluginsAcrossApps,
-    });
-
-    expect(result.ok).toBe(true);
-    expect(updatePluginPublic).toHaveBeenCalledWith("new-plugin", "https://github.com/intisy-ai/new-plugin");
-    expect(syncPluginsAcrossApps).toHaveBeenCalledWith(configDir);
-  });
-
-  it("downgrade looks up the plugin and calls the injected downgrade fn, no network", async () => {
-    seedPlugins([{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", branch: "main", enabled: true }]);
+  it("downgrade looks up the plugin in the requested home and calls the injected downgrade fn, no network", async () => {
+    seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", branch: "main", enabled: true }]);
     const downgrade = vi.fn().mockReturnValue("");
 
     const { pluginsDowngrade } = await import("./plugins.js");
-    const result = await pluginsDowngrade("plugin-a", "deadbeef", { downgrade });
+    const result = await pluginsDowngrade("claude", "plugin-a", "deadbeef", { downgrade, homes: fakeHomes });
 
     expect(result.ok).toBe(true);
     expect(downgrade).toHaveBeenCalledWith(
@@ -131,16 +187,29 @@ describe("plugins sidecar module", () => {
   it("downgrade returns ok:false for an unknown plugin without calling downgrade", async () => {
     const downgrade = vi.fn().mockReturnValue("");
     const { pluginsDowngrade } = await import("./plugins.js");
-    const result = await pluginsDowngrade("nonexistent", "deadbeef", { downgrade });
+    const result = await pluginsDowngrade("claude", "nonexistent", "deadbeef", { downgrade, homes: fakeHomes });
     expect(result.ok).toBe(false);
     expect(downgrade).not.toHaveBeenCalled();
   });
 
   it("downgrade returns ok:false when the injected downgrade fn reports an error", async () => {
-    seedPlugins([{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
+    seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
     const downgrade = vi.fn().mockReturnValue("checkout failed");
     const { pluginsDowngrade } = await import("./plugins.js");
-    const result = await pluginsDowngrade("plugin-a", "deadbeef", { downgrade });
+    const result = await pluginsDowngrade("claude", "plugin-a", "deadbeef", { downgrade, homes: fakeHomes });
     expect(result.ok).toBe(false);
+  });
+
+  it("rejects an unknown home id on install, setEnabled, and downgrade", async () => {
+    const { pluginsInstall, pluginsSetEnabled, pluginsDowngrade } = await import("./plugins.js");
+
+    const installResult = await pluginsInstall("nope" as never, "x", "y", { homes: fakeHomes });
+    expect(installResult.ok).toBe(false);
+
+    const setEnabledResult = await pluginsSetEnabled("nope" as never, "x", true, { homes: fakeHomes });
+    expect(setEnabledResult.ok).toBe(false);
+
+    const downgradeResult = await pluginsDowngrade("nope" as never, "x", "deadbeef", { homes: fakeHomes });
+    expect(downgradeResult.ok).toBe(false);
   });
 });

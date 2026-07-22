@@ -1,4 +1,4 @@
-import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, PluginRow, UsageSnapshot, ImportableApp, ImportSummary } from "./domain.js";
+import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -19,10 +19,10 @@ export interface CairnAPI {
   appsDetect(): Promise<Result<AppPresence>>;
   appsInstallCli(app: "claude" | "opencode"): Promise<Result<CliResult>>;
   appsInit(app: "claude" | "opencode"): Promise<Result<CliResult>>;
-  pluginsList(): Promise<Result<PluginRow[]>>;
-  pluginsInstall(name: string, url: string): Promise<Result<void>>;
-  pluginsSetEnabled(name: string, on: boolean): Promise<Result<void>>;
-  pluginsDowngrade(name: string, hash: string): Promise<Result<void>>;
+  pluginsList(): Promise<Result<HomePlugins[]>>;
+  pluginsInstall(home: string, name: string, url: string): Promise<Result<void>>;
+  pluginsSetEnabled(home: string, name: string, on: boolean): Promise<Result<void>>;
+  pluginsDowngrade(home: string, name: string, hash: string): Promise<Result<void>>;
   usageSnapshot(): Promise<Result<UsageSnapshot>>;
   importApps(): Promise<Result<ImportableApp[]>>;
   importRun(app: string): Promise<Result<ImportSummary>>;

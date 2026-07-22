@@ -84,3 +84,4 @@ export type PluginHome = {
   present: boolean;
   hasUpdater: boolean;
 };
+export type HomePlugins = { home: PluginHome; rows: PluginRow[] };

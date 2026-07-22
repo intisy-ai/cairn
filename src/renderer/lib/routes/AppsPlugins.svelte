@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { AppPresence, ImportableApp, PluginRow as PluginRowData } from "@cairn/shared";
+  import type { AppPresence, ImportableApp, HomePlugins, PluginRow as PluginRowData } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import StatusPill from "../components/StatusPill.svelte";
   import PluginRow from "../components/PluginRow.svelte";
@@ -18,6 +18,7 @@
   let appsError = $state("");
   let busyApps = $state<Record<AppId, boolean>>({ claude: false, opencode: false });
 
+  let sections = $state<HomePlugins[]>([]);
   let plugins = $state<PluginRowData[]>([]);
   let pluginsError = $state("");
 
@@ -47,11 +48,16 @@
   async function loadPlugins(): Promise<void> {
     const result = await cairn.pluginsList();
     if (result.ok) {
-      plugins = result.data;
+      sections = result.data;
+      plugins = result.data.flatMap((s) => s.rows);
       pluginsError = "";
     } else {
       pluginsError = result.error;
     }
+  }
+
+  function homeFor(name: string): string {
+    return sections.find((s) => s.rows.some((r) => r.name === name))?.home.id ?? "cairn";
   }
 
   async function loadImportable(): Promise<void> {
@@ -95,7 +101,7 @@
   }
 
   async function handleToggle(name: string, on: boolean): Promise<void> {
-    await cairn.pluginsSetEnabled(name, on);
+    await cairn.pluginsSetEnabled(homeFor(name), name, on);
     await loadPlugins();
   }
 
