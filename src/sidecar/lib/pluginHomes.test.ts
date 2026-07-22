@@ -1,28 +1,24 @@
-import { describe, it, expect, vi } from "vitest";
-import type { AppPresence } from "../../../packages/shared/src/domain.js";
-
-const mockFs = vi.hoisted(() => ({
-  existsSync: vi.fn((p: string) => p.replaceAll("\\", "/").endsWith("/.claude")),
-  writeFileSync: vi.fn(),
-  readFileSync: vi.fn(),
-}));
-
-vi.mock("node:fs", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("node:fs")>();
-  return {
-    ...actual,
-    existsSync: mockFs.existsSync,
-    writeFileSync: mockFs.writeFileSync,
-    readFileSync: mockFs.readFileSync,
-  };
-});
-
-const { appRealHome, pluginHomes } = await import("./pluginHomes.js");
+import { describe, it, expect, afterEach } from "vitest";
+import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { appRealHome, pluginHomes } from "./pluginHomes.js";
 
 describe("appRealHome", () => {
+  let tempDir: string;
+
+  afterEach(() => {
+    if (tempDir) {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it("prefers ~/.claude and XDG opencode", () => {
-    expect(appRealHome("claude", {}, "/home/u").replaceAll("\\", "/")).toContain("/home/u/.claude");
-    expect(appRealHome("opencode", { XDG_CONFIG_HOME: "/cfg" }, "/home/u").replaceAll("\\", "/")).toBe("/cfg/opencode");
+    tempDir = mkdtempSync(join(tmpdir(), "plugin-homes-"));
+    mkdirSync(join(tempDir, ".claude"));
+
+    expect(appRealHome("claude", {}, tempDir).replaceAll("\\", "/")).toContain("/.claude");
+    expect(appRealHome("opencode", { XDG_CONFIG_HOME: "/cfg" }, tempDir).replaceAll("\\", "/")).toBe("/cfg/opencode");
   });
 });
 
@@ -31,6 +27,7 @@ describe("pluginHomes", () => {
     const homes = await pluginHomes({
       detect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
       cairnDir: "/store",
+      appHome: (app) => (app === "claude" ? "/home/claude" : "/home/opencode"),
       exists: () => true,
     });
     expect(homes[0]).toMatchObject({ id: "cairn", present: true, hasUpdater: true, dir: "/store" });
@@ -42,6 +39,7 @@ describe("pluginHomes", () => {
     const homes = await pluginHomes({
       detect: async () => ({ ok: true, data: { claude: true, opencode: true } }),
       cairnDir: "/store",
+      appHome: (app) => (app === "claude" ? "/home/claude/.claude" : "/home/opencode"),
       exists: (p) => p.replaceAll("\\", "/").includes("/.claude/"),
     });
     expect(homes.find((h) => h.id === "claude")?.hasUpdater).toBe(true);

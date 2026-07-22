@@ -6,6 +6,7 @@ import { getPluginsPath } from "@plugin-updater/config.js";
 import { appsDetect } from "../modules/apps.js";
 import type { AppPresence, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
 
+// Mirrors libs/core-auth/src/env.ts's getConfigDir, resolving the app's REAL home independent of HUB_CONFIG_DIR (which the dashboard sidecar sets to its own store).
 export function appRealHome(app: "claude" | "opencode", env: NodeJS.ProcessEnv = process.env, home: string = homedir()): string {
   if (app === "claude") {
     return existsSync(join(home, ".claude")) ? join(home, ".claude") : join(home, ".config", "claude");
@@ -19,16 +20,18 @@ export interface PluginHomesDeps {
   detect?: () => Promise<Result<AppPresence>>;
   cairnDir?: string;
   exists?: (path: string) => boolean;
+  appHome?: (app: "claude" | "opencode") => string;
 }
 
 export async function pluginHomes(deps: PluginHomesDeps = {}): Promise<PluginHome[]> {
   const detect = deps.detect ?? appsDetect;
   const exists = deps.exists ?? existsSync;
   const cairnDir = deps.cairnDir ?? getConfigDir();
+  const appHomeForId = deps.appHome ?? appRealHome;
   const detected = await detect();
   const present = detected.ok ? detected.data : { claude: false, opencode: false };
   const app = (id: "claude" | "opencode", label: string): PluginHome => {
-    const dir = appRealHome(id);
+    const dir = appHomeForId(id);
     return { id, label, dir, present: present[id], hasUpdater: exists(getPluginsPath(dir)) };
   };
   return [
