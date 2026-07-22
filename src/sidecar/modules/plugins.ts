@@ -10,18 +10,17 @@ import { getPlugins, getPluginsPath } from "@plugin-updater/config.js";
 import { readUpdateCache } from "@plugin-updater/cache.js";
 import { syncPluginsAcrossApps as realSyncPluginsAcrossApps } from "@plugin-updater/syncbridge.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
-import type { Plugin } from "@plugin-updater/types.js";
+import type { Plugin, NpmPlugin } from "@plugin-updater/types.js";
 import type { PluginRow, Result } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
 
 type UpdatePluginPublicFn = (name: string, url: string, branch?: string, commitHash?: string) => Promise<void | object>;
 type SyncPluginsAcrossAppsFn = (configDir: string) => Promise<void>;
 type DowngradeFn = (plugin: { name: string; url?: string; branch?: string }, commitHash: string) => string;
-type GetNpmPluginsFn = (configDir: string) => Array<{ name: string; version: string; installed: boolean; raw: string }>;
 
 // Loaded dynamically (not statically bundled) because npm.js's require.resolve
 // fallback trips a Rollup CommonJS-interop bug when inlined into this chunk.
-async function getNpmPlugins(configDir: string): Promise<ReturnType<GetNpmPluginsFn>> {
+async function getNpmPlugins(configDir: string): Promise<NpmPlugin[]> {
   const mod = await import("@plugin-updater/npm.js");
   return mod.getNpmPlugins(configDir);
 }
