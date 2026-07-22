@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { Chain, CatalogEntry, RoutingApp } from "@dashboard/shared";
-  import { intisy } from "../ipc.js";
+  import { cairn } from "../ipc.js";
   import Card from "../components/Card.svelte";
   import Button from "../components/Button.svelte";
 
@@ -26,7 +26,7 @@
   }
 
   async function load(): Promise<void> {
-    const result = await intisy.routingGet(app);
+    const result = await cairn.routingGet(app);
     if (result.ok) {
       tiers = result.data.tiers;
       map = result.data.map;
@@ -44,7 +44,7 @@
   }
 
   async function setChain(slot: string, chain: { provider: string; model: string }[]): Promise<void> {
-    const result = await intisy.routingSetChain(app, slot, chain);
+    const result = await cairn.routingSetChain(app, slot, chain);
     warnings = result.ok ? result.data.warnings : [];
     await load();
   }
@@ -65,7 +65,7 @@
   }
 
   onMount(async () => {
-    const result = await intisy.routingApps();
+    const result = await cairn.routingApps();
     if (result.ok) {
       apps = result.data;
       app = result.data[0]?.app ?? "";

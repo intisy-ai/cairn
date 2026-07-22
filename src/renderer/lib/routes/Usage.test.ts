@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { render, waitFor, within } from "@testing-library/svelte";
-import { stubIntisy } from "../testing.js";
+import { stubCairn } from "../testing.js";
 import Usage from "./Usage.svelte";
 
 describe("Usage screen", () => {
   it("renders real session and model rows with correct token totals, never fabricating cost", async () => {
-    stubIntisy({
+    stubCairn({
       usageSnapshot: async () => ({
         ok: true,
         data: {
@@ -60,7 +60,7 @@ describe("Usage screen", () => {
   });
 
   it("shows honest empty states when no sessions or models are present", async () => {
-    stubIntisy({
+    stubCairn({
       usageSnapshot: async () => ({
         ok: true,
         data: { accounts: [], sessions: [], models: {}, updatedAt: "2026-07-21T00:00:00.000Z" },
@@ -74,7 +74,7 @@ describe("Usage screen", () => {
   });
 
   it("shows an inline error when usageSnapshot fails", async () => {
-    stubIntisy({ usageSnapshot: async () => ({ ok: false, error: "boom" }) });
+    stubCairn({ usageSnapshot: async () => ({ ok: false, error: "boom" }) });
     const { getByText } = render(Usage);
     await waitFor(() => expect(getByText(/boom/i)).toBeTruthy());
   });

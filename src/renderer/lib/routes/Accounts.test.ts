@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, waitFor } from "@testing-library/svelte";
-import { stubIntisy } from "../testing.js";
+import { stubCairn } from "../testing.js";
 import Accounts from "./Accounts.svelte";
 
 const PROVIDERS = [
@@ -29,7 +29,7 @@ describe("Accounts screen", () => {
   it("renders account rows per provider, toggles enable, and removes an account", async () => {
     const accountsEnable = vi.fn(async () => ({ ok: true, data: undefined }) as const);
     const accountsRemove = vi.fn(async () => ({ ok: true, data: undefined }) as const);
-    stubIntisy({
+    stubCairn({
       providersList: async () => ({ ok: true, data: PROVIDERS }),
       accountsList: async (provider) => (provider === "stub" ? { ok: true, data: ACCOUNTS } : { ok: true, data: [] }),
       accountsEnable,
@@ -52,13 +52,13 @@ describe("Accounts screen", () => {
   });
 
   it("shows an inline error when providersList fails", async () => {
-    stubIntisy({ providersList: async () => ({ ok: false, error: "boom" }) });
+    stubCairn({ providersList: async () => ({ ok: false, error: "boom" }) });
     const { getByText } = render(Accounts);
     await waitFor(() => expect(getByText(/boom/i)).toBeTruthy());
   });
 
   it("shows an inline error when accountsList fails for a provider", async () => {
-    stubIntisy({
+    stubCairn({
       providersList: async () => ({ ok: true, data: PROVIDERS }),
       accountsList: async () => ({ ok: false, error: "no accounts" }),
     });

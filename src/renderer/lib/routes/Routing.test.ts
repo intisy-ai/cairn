@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, waitFor, within } from "@testing-library/svelte";
-import { stubIntisy } from "../testing.js";
+import { stubCairn } from "../testing.js";
 import Routing from "./Routing.svelte";
 
 const CATALOG = [
@@ -17,7 +17,7 @@ const TWO_APPS = [
 
 describe("Routing screen", () => {
   it("renders a tier with its current chain", async () => {
-    stubIntisy({
+    stubCairn({
       routingApps: async () => ({ ok: true, data: ONE_APP }),
       routingGet: async () => ({
         ok: true,
@@ -38,7 +38,7 @@ describe("Routing screen", () => {
 
   it("calls routingSetChain with the current app when adding a model to an empty tier", async () => {
     const routingSetChain = vi.fn(async () => ({ ok: true, data: { warnings: [] } }) as const);
-    stubIntisy({
+    stubCairn({
       routingApps: async () => ({ ok: true, data: ONE_APP }),
       routingGet: async () => ({
         ok: true,
@@ -66,7 +66,7 @@ describe("Routing screen", () => {
   });
 
   it("shows an inline error when routingGet fails", async () => {
-    stubIntisy({
+    stubCairn({
       routingApps: async () => ({ ok: true, data: ONE_APP }),
       routingGet: async () => ({ ok: false, error: "boom" }),
     });
@@ -75,7 +75,7 @@ describe("Routing screen", () => {
   });
 
   it("surfaces warnings returned from routingSetChain", async () => {
-    stubIntisy({
+    stubCairn({
       routingApps: async () => ({ ok: true, data: ONE_APP }),
       routingGet: async () => ({
         ok: true,
@@ -96,7 +96,7 @@ describe("Routing screen", () => {
   });
 
   it("renders a switcher with all app labels when more than one app is available", async () => {
-    stubIntisy({
+    stubCairn({
       routingApps: async () => ({ ok: true, data: TWO_APPS }),
       routingGet: async () => ({
         ok: true,
@@ -117,9 +117,9 @@ describe("Routing screen", () => {
       ok: true,
       data: { tiers: [`${app}-tier`], map: { default: [] }, catalog: CATALOG },
     }));
-    stubIntisy({
+    stubCairn({
       routingApps: async () => ({ ok: true, data: TWO_APPS }),
-      routingGet: routingGet as unknown as Parameters<typeof stubIntisy>[0]["routingGet"],
+      routingGet: routingGet as unknown as Parameters<typeof stubCairn>[0]["routingGet"],
     });
 
     const { getByText } = render(Routing);
@@ -133,7 +133,7 @@ describe("Routing screen", () => {
   });
 
   it("shows an empty state when no app has a proxy plugin installed", async () => {
-    stubIntisy({ routingApps: async () => ({ ok: true, data: [] }) });
+    stubCairn({ routingApps: async () => ({ ok: true, data: [] }) });
 
     const { getByText } = render(Routing);
 

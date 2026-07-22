@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, waitFor } from "@testing-library/svelte";
-import { stubIntisy } from "../testing.js";
+import { stubCairn } from "../testing.js";
 import LocalApi from "./LocalApi.svelte";
 
 describe("LocalApi screen", () => {
   it("shows a start affordance when stopped and calls proxyStart on click", async () => {
     const proxyStart = vi.fn(async () => ({ ok: true, data: undefined }) as const);
-    stubIntisy({
+    stubCairn({
       proxyStatus: async () => ({ ok: true, data: { running: false, port: 34567 } }),
       proxyStart,
     });
@@ -23,7 +23,7 @@ describe("LocalApi screen", () => {
 
   it("shows the running state and calls proxyStop on click", async () => {
     const proxyStop = vi.fn(async () => ({ ok: true, data: undefined }) as const);
-    stubIntisy({
+    stubCairn({
       proxyStatus: async () => ({ ok: true, data: { running: true, port: 34567 } }),
       proxyStop,
     });
@@ -45,7 +45,7 @@ describe("LocalApi screen", () => {
           resolveStart = () => resolve({ ok: true, data: undefined });
         }),
     );
-    stubIntisy({
+    stubCairn({
       proxyStatus: async () => ({ ok: true, data: { running: false, port: 34567 } }),
       proxyStart: proxyStart as unknown as () => Promise<{ ok: true; data: undefined }>,
     });
@@ -62,7 +62,7 @@ describe("LocalApi screen", () => {
   });
 
   it("shows an inline error when proxyStatus fails", async () => {
-    stubIntisy({ proxyStatus: async () => ({ ok: false, error: "boom" }) });
+    stubCairn({ proxyStatus: async () => ({ ok: false, error: "boom" }) });
     const { getByText } = render(LocalApi);
     await waitFor(() => expect(getByText(/boom/i)).toBeTruthy());
   });

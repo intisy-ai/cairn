@@ -1,13 +1,13 @@
-import type { IntisyAPI } from "@dashboard/shared";
+import type { CairnAPI } from "@dashboard/shared";
 
 declare global {
   interface Window {
-    intisy: IntisyAPI;
+    cairn: CairnAPI;
   }
 }
 
-export const intisy: IntisyAPI = new Proxy({} as IntisyAPI, {
+export const cairn: CairnAPI = new Proxy({} as CairnAPI, {
   get(_target, property) {
-    return (window.intisy as unknown as Record<string | symbol, unknown>)[property];
+    return (window.cairn as unknown as Record<string | symbol, unknown>)[property];
   },
 });

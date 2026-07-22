@@ -1,5 +1,5 @@
 import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, PluginRow, UsageSnapshot, ImportableApp, ImportSummary } from "./domain.js";
-export interface IntisyAPI {
+export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
   overviewSummary(): Promise<Result<OverviewSummary>>;

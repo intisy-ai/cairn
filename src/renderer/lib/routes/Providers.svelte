@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import type { ProviderRow as ProviderRowData } from "@dashboard/shared";
   import type { StatusVariant } from "../components/StatusPill.svelte";
-  import { intisy } from "../ipc.js";
+  import { cairn } from "../ipc.js";
   import { navigate } from "../router.js";
   import StatCard from "../components/StatCard.svelte";
   import SearchField from "../components/SearchField.svelte";
@@ -56,7 +56,7 @@
   const oauthCount = $derived(rows.filter((row) => row.hasOAuth).length);
 
   async function load(): Promise<void> {
-    const result = await intisy.providersList();
+    const result = await cairn.providersList();
     if (result.ok) {
       rows = result.data;
       loadError = "";
@@ -79,19 +79,19 @@
   }
 
   async function handleSetActive(id: string): Promise<void> {
-    await intisy.providersSetActive(id);
+    await cairn.providersSetActive(id);
     await load();
   }
 
   async function handleSetExposure(id: string, app: "cc" | "oc", on: boolean): Promise<void> {
-    await intisy.providersSetExposure(id, app, on);
+    await cairn.providersSetExposure(id, app, on);
     await load();
   }
 
   async function handleImport(): Promise<void> {
     importError = "";
     importNotes = [];
-    const result = await intisy.importApps();
+    const result = await cairn.importApps();
     if (!result.ok) {
       importError = result.error;
       return;
@@ -105,7 +105,7 @@
       navigate("appsPlugins");
       return;
     }
-    const run = await intisy.importRun(importable[0].app);
+    const run = await cairn.importRun(importable[0].app);
     if (run.ok) {
       importNotes = run.data.notes;
       await load();

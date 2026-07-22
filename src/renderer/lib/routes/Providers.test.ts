@@ -2,14 +2,14 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, waitFor } from "@testing-library/svelte";
 import { get } from "svelte/store";
-import { stubIntisy } from "../testing.js";
+import { stubCairn } from "../testing.js";
 import { router } from "../router.js";
 import Providers from "./Providers.svelte";
 
 describe("Providers screen", () => {
   it("renders a provider row from providersList and toggles exposure", async () => {
     const providersSetExposure = vi.fn(async () => ({ ok: true, data: undefined }) as const);
-    stubIntisy({
+    stubCairn({
       providersList: async () => ({
         ok: true,
         data: [
@@ -37,13 +37,13 @@ describe("Providers screen", () => {
   });
 
   it("shows an inline error when providersList fails", async () => {
-    stubIntisy({ providersList: async () => ({ ok: false, error: "boom" }) });
+    stubCairn({ providersList: async () => ({ ok: false, error: "boom" }) });
     const { getByText } = render(Providers);
     await waitFor(() => expect(getByText(/boom/i)).toBeTruthy());
   });
 
   it("offers only the All/Connected/OAuth filter chips", async () => {
-    stubIntisy({
+    stubCairn({
       providersList: async () => ({
         ok: true,
         data: [
@@ -65,7 +65,7 @@ describe("Providers screen", () => {
   });
 
   it("filters to hasOAuth rows when the OAuth chip is active", async () => {
-    stubIntisy({
+    stubCairn({
       providersList: async () => ({
         ok: true,
         data: [
@@ -86,7 +86,7 @@ describe("Providers screen", () => {
   });
 
   it("filters to accountCount>0 rows when the Connected chip is active", async () => {
-    stubIntisy({
+    stubCairn({
       providersList: async () => ({
         ok: true,
         data: [
@@ -115,7 +115,7 @@ describe("Providers screen", () => {
       ok: true,
       data: { accounts: 1, providers: 2, routingImported: true, notes: ["exposed 2 provider(s) for Claude Code"] },
     }) as const);
-    stubIntisy({ providersList: async () => ({ ok: true, data: [] }), importApps, importRun });
+    stubCairn({ providersList: async () => ({ ok: true, data: [] }), importApps, importRun });
 
     const { getByText } = render(Providers);
     await waitFor(() => expect(getByText("Import")).toBeTruthy());
@@ -128,7 +128,7 @@ describe("Providers screen", () => {
   });
 
   it("Import navigates to Apps & plugins when more than one app is importable", async () => {
-    stubIntisy({
+    stubCairn({
       providersList: async () => ({ ok: true, data: [] }),
       importApps: async () => ({
         ok: true,
@@ -148,7 +148,7 @@ describe("Providers screen", () => {
   });
 
   it("+ Add provider navigates to Apps & plugins", async () => {
-    stubIntisy({ providersList: async () => ({ ok: true, data: [] }) });
+    stubCairn({ providersList: async () => ({ ok: true, data: [] }) });
     router.set({ screen: "providers" });
 
     const { getByText } = render(Providers);

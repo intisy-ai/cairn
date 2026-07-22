@@ -10,14 +10,14 @@
   import LocalApi from "./lib/routes/LocalApi.svelte";
   import AppsPlugins from "./lib/routes/AppsPlugins.svelte";
   import { router, SCREENS } from "./lib/router.js";
-  import { intisy } from "./lib/ipc.js";
+  import { cairn } from "./lib/ipc.js";
 
   const activeLabel = $derived(SCREENS.find((screen) => screen.id === $router.screen)?.label ?? "");
 
   let hasRouting = $state(true);
 
   onMount(async () => {
-    const result = await intisy.routingApps();
+    const result = await cairn.routingApps();
     hasRouting = result.ok && result.data.length > 0;
   });
 </script>

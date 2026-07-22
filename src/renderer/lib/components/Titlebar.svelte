@@ -1,11 +1,11 @@
 <script lang="ts">
   import { theme, setTheme } from "../theme.js";
-  import { intisy } from "../ipc.js";
+  import { cairn } from "../ipc.js";
   import CairnMark from "./CairnMark.svelte";
 
   let { title = "Cairn", subtitle = "" }: { title?: string; subtitle?: string } = $props();
 
-  const isMac = typeof window !== "undefined" && window.intisy?.platform === "darwin";
+  const isMac = typeof window !== "undefined" && window.cairn?.platform === "darwin";
 
   function toggleTheme(): void {
     setTheme($theme === "dark" ? "light" : "dark");
@@ -20,13 +20,13 @@
   <button class="iconbtn" title="Toggle theme" aria-label="Toggle light or dark theme" onclick={toggleTheme}>◐</button>
   {#if !isMac}
     <div class="winctl">
-      <button class="wc" aria-label="Minimize window" onclick={() => intisy.minimize()}>
+      <button class="wc" aria-label="Minimize window" onclick={() => cairn.minimize()}>
         <svg width="10" height="10" viewBox="0 0 10 10"><line x1="1" y1="5" x2="9" y2="5" stroke="currentColor" stroke-width="1" /></svg>
       </button>
-      <button class="wc" aria-label="Maximize window" onclick={() => intisy.maximize()}>
+      <button class="wc" aria-label="Maximize window" onclick={() => cairn.maximize()}>
         <svg width="10" height="10" viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1" /></svg>
       </button>
-      <button class="wc close" aria-label="Close window" onclick={() => intisy.close()}>
+      <button class="wc close" aria-label="Close window" onclick={() => cairn.close()}>
         <svg width="10" height="10" viewBox="0 0 10 10"><line x1="1.5" y1="1.5" x2="8.5" y2="8.5" stroke="currentColor" stroke-width="1" /><line x1="8.5" y1="1.5" x2="1.5" y2="8.5" stroke="currentColor" stroke-width="1" /></svg>
       </button>
     </div>

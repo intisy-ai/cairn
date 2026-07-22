@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { ProxyStatus } from "@dashboard/shared";
-  import { intisy } from "../ipc.js";
+  import { cairn } from "../ipc.js";
   import Card from "../components/Card.svelte";
   import Button from "../components/Button.svelte";
   import StatusPill from "../components/StatusPill.svelte";
@@ -11,7 +11,7 @@
   let busy = $state(false);
 
   async function load(): Promise<void> {
-    const result = await intisy.proxyStatus();
+    const result = await cairn.proxyStatus();
     if (result.ok) {
       status = result.data;
       loadError = "";
@@ -24,8 +24,8 @@
     if (busy || !status) return;
     busy = true;
     try {
-      if (status.running) await intisy.proxyStop();
-      else await intisy.proxyStart();
+      if (status.running) await cairn.proxyStop();
+      else await cairn.proxyStart();
       await load();
     } finally {
       busy = false;

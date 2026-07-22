@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { UsageSnapshot, UsageSession, UsageModel } from "@dashboard/shared";
-  import { intisy } from "../ipc.js";
+  import { cairn } from "../ipc.js";
   import StatCard from "../components/StatCard.svelte";
   import Card from "../components/Card.svelte";
 
@@ -49,7 +49,7 @@
   }
 
   onMount(async () => {
-    const result = await intisy.usageSnapshot();
+    const result = await cairn.usageSnapshot();
     if (result.ok) snapshot = result.data;
     else loadError = result.error;
   });

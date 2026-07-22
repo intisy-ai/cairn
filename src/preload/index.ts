@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import { IPC_CHANNELS } from "@dashboard/shared";
-import type { IntisyAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, PluginRow, UsageSnapshot, ImportableApp, ImportSummary } from "@dashboard/shared";
+import type { CairnAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, PluginRow, UsageSnapshot, ImportableApp, ImportSummary } from "@dashboard/shared";
 
 const invokeChannels: readonly string[] = IPC_CHANNELS.invoke;
 const sendChannels: readonly string[] = IPC_CHANNELS.send;
@@ -26,7 +26,7 @@ export function safeOn(channel: string, listener: (...args: unknown[]) => void):
   return () => ipcRenderer.removeListener(channel, wrapped);
 }
 
-const api: IntisyAPI = {
+const api: CairnAPI = {
   getConfig: (name, key) => safeInvoke("config:get", name, key) as Promise<Result<unknown>>,
   setConfig: (name, key, value) => safeInvoke("config:set", name, key, value) as Promise<Result<void>>,
   overviewSummary: () => safeInvoke("overview:summary") as Promise<Result<OverviewSummary>>,
@@ -61,4 +61,4 @@ const api: IntisyAPI = {
   platform: process.platform,
 };
 
-contextBridge.exposeInMainWorld("intisy", api);
+contextBridge.exposeInMainWorld("cairn", api);

@@ -1,14 +1,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { OverviewSummary } from "@dashboard/shared";
-  import { intisy } from "../ipc.js";
+  import { cairn } from "../ipc.js";
   import StatCard from "../components/StatCard.svelte";
 
   let summary = $state<OverviewSummary | null>(null);
   let loadError = $state("");
 
   onMount(async () => {
-    const result = await intisy.overviewSummary();
+    const result = await cairn.overviewSummary();
     if (result.ok) summary = result.data;
     else loadError = result.error;
   });

@@ -1,6 +1,6 @@
-import type { IntisyAPI } from "@dashboard/shared";
+import type { CairnAPI } from "@dashboard/shared";
 
-function defaultIntisy(): IntisyAPI {
+function defaultCairn(): CairnAPI {
   return {
     getConfig: async () => ({ ok: true, data: undefined }),
     setConfig: async () => ({ ok: true, data: undefined }),
@@ -40,6 +40,6 @@ function defaultIntisy(): IntisyAPI {
   };
 }
 
-export function stubIntisy(overrides: Partial<IntisyAPI> = {}): void {
-  (globalThis as { window: Window }).window.intisy = { ...defaultIntisy(), ...overrides };
+export function stubCairn(overrides: Partial<CairnAPI> = {}): void {
+  (globalThis as { window: Window }).window.cairn = { ...defaultCairn(), ...overrides };
 }

@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import type { ProviderRow as ProviderRowData, AccountView, AccountStatus } from "@dashboard/shared";
   import type { StatusVariant } from "../components/StatusPill.svelte";
-  import { intisy } from "../ipc.js";
+  import { cairn } from "../ipc.js";
   import AccountRow from "../components/AccountRow.svelte";
   import Button from "../components/Button.svelte";
   import Card from "../components/Card.svelte";
@@ -25,7 +25,7 @@
   }
 
   async function loadAccounts(providerId: string): Promise<void> {
-    const result = await intisy.accountsList(providerId);
+    const result = await cairn.accountsList(providerId);
     if (result.ok) {
       accountsByProvider[providerId] = result.data;
       accountErrors[providerId] = "";
@@ -35,7 +35,7 @@
   }
 
   async function load(): Promise<void> {
-    const result = await intisy.providersList();
+    const result = await cairn.providersList();
     if (!result.ok) {
       providersError = result.error;
       providers = [];
@@ -47,12 +47,12 @@
   }
 
   async function handleToggle(providerId: string, id: string, on: boolean): Promise<void> {
-    await intisy.accountsEnable(providerId, id, on);
+    await cairn.accountsEnable(providerId, id, on);
     await loadAccounts(providerId);
   }
 
   async function handleRemove(providerId: string, id: string): Promise<void> {
-    await intisy.accountsRemove(providerId, id);
+    await cairn.accountsRemove(providerId, id);
     await loadAccounts(providerId);
   }
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { AppPresence, ImportableApp, PluginRow as PluginRowData } from "@dashboard/shared";
-  import { intisy } from "../ipc.js";
+  import { cairn } from "../ipc.js";
   import StatusPill from "../components/StatusPill.svelte";
   import PluginRow from "../components/PluginRow.svelte";
   import Button from "../components/Button.svelte";
@@ -35,7 +35,7 @@
   }
 
   async function loadApps(): Promise<void> {
-    const result = await intisy.appsDetect();
+    const result = await cairn.appsDetect();
     if (result.ok) {
       presence = result.data;
       appsError = "";
@@ -45,7 +45,7 @@
   }
 
   async function loadPlugins(): Promise<void> {
-    const result = await intisy.pluginsList();
+    const result = await cairn.pluginsList();
     if (result.ok) {
       plugins = result.data;
       pluginsError = "";
@@ -55,7 +55,7 @@
   }
 
   async function loadImportable(): Promise<void> {
-    const result = await intisy.importApps();
+    const result = await cairn.importApps();
     if (result.ok) importable = result.data;
   }
 
@@ -64,7 +64,7 @@
     importBusy = { ...importBusy, [app]: true };
     importErrors = { ...importErrors, [app]: "" };
     try {
-      const result = await intisy.importRun(app);
+      const result = await cairn.importRun(app);
       if (result.ok) {
         importNotes = { ...importNotes, [app]: result.data.notes };
       } else {
@@ -87,15 +87,15 @@
   }
 
   async function handleInstall(app: AppId): Promise<void> {
-    await withAppBusy(app, () => intisy.appsInstallCli(app));
+    await withAppBusy(app, () => cairn.appsInstallCli(app));
   }
 
   async function handleInit(app: AppId): Promise<void> {
-    await withAppBusy(app, () => intisy.appsInit(app));
+    await withAppBusy(app, () => cairn.appsInit(app));
   }
 
   async function handleToggle(name: string, on: boolean): Promise<void> {
-    await intisy.pluginsSetEnabled(name, on);
+    await cairn.pluginsSetEnabled(name, on);
     await loadPlugins();
   }
 

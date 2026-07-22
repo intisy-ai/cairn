@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, waitFor } from "@testing-library/svelte";
-import { stubIntisy } from "../testing.js";
+import { stubCairn } from "../testing.js";
 import AppsPlugins from "./AppsPlugins.svelte";
 
 const PLUGINS = [
@@ -18,7 +18,7 @@ describe("AppsPlugins screen", () => {
   it("shows the opencode install affordance, the plugin update badge, and toggles enable", async () => {
     const appsInstallCli = vi.fn(async () => ({ ok: true, data: { stdout: "", stderr: "" } }) as const);
     const pluginsSetEnabled = vi.fn(async () => ({ ok: true, data: undefined }) as const);
-    stubIntisy({
+    stubCairn({
       appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
       pluginsList: async () => ({ ok: true, data: PLUGINS }),
       appsInstallCli,
@@ -44,13 +44,13 @@ describe("AppsPlugins screen", () => {
   });
 
   it("shows an inline error when appsDetect fails", async () => {
-    stubIntisy({ appsDetect: async () => ({ ok: false, error: "detect boom" }) });
+    stubCairn({ appsDetect: async () => ({ ok: false, error: "detect boom" }) });
     const { getByText } = render(AppsPlugins);
     await waitFor(() => expect(getByText(/detect boom/i)).toBeTruthy());
   });
 
   it("shows an inline error when pluginsList fails", async () => {
-    stubIntisy({ pluginsList: async () => ({ ok: false, error: "list boom" }) });
+    stubCairn({ pluginsList: async () => ({ ok: false, error: "list boom" }) });
     const { getByText } = render(AppsPlugins);
     await waitFor(() => expect(getByText(/list boom/i)).toBeTruthy());
   });
@@ -64,7 +64,7 @@ describe("AppsPlugins screen", () => {
       ok: true,
       data: { accounts: 1, providers: 3, routingImported: false, notes: ["exposed 3 provider(s) for Claude Code"] },
     }) as const);
-    stubIntisy({
+    stubCairn({
       appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
       pluginsList: async () => ({ ok: true, data: [] }),
       importApps,
@@ -81,7 +81,7 @@ describe("AppsPlugins screen", () => {
   });
 
   it("does not show an Import config control when no app is importable", async () => {
-    stubIntisy({
+    stubCairn({
       appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
       pluginsList: async () => ({ ok: true, data: [] }),
       importApps: async () => ({ ok: true, data: [{ app: "claude", label: "Claude Code", hasConfig: false }] }),
