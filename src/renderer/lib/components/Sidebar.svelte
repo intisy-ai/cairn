@@ -141,7 +141,7 @@
   }
 
   /* Narrow window: collapse to an icon rail */
-  @media (max-width: 900px) {
+  @media (max-width: 899px) {
     .side {
       padding: 16px 8px;
       align-items: stretch;

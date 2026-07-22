@@ -61,7 +61,7 @@
     flex: 1;
     min-height: 0;
   }
-  @media (max-width: 900px) {
+  @media (max-width: 899px) {
     .shell {
       grid-template-columns: 64px 1fr;
     }
