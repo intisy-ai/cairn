@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { UsageSnapshot, UsageSession, UsageModel } from "@dashboard/shared";
+  import type { UsageSnapshot, UsageSession, UsageModel } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import StatCard from "../components/StatCard.svelte";
   import Card from "../components/Card.svelte";

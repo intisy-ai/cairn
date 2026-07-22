@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { ProviderRow as ProviderRowData, AccountView, AccountStatus } from "@dashboard/shared";
+  import type { ProviderRow as ProviderRowData, AccountView, AccountStatus } from "@cairn/shared";
   import type { StatusVariant } from "../components/StatusPill.svelte";
   import { cairn } from "../ipc.js";
   import AccountRow from "../components/AccountRow.svelte";

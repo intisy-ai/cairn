@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { AppPresence, ImportableApp, PluginRow as PluginRowData } from "@dashboard/shared";
+  import type { AppPresence, ImportableApp, PluginRow as PluginRowData } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import StatusPill from "../components/StatusPill.svelte";
   import PluginRow from "../components/PluginRow.svelte";

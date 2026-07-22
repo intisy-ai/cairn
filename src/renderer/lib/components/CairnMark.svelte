@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { renderCairnMark, CAIRN_ON_ACCENT } from "@dashboard/shared";
+  import { renderCairnMark, CAIRN_ON_ACCENT } from "@cairn/shared";
 
   let { size = 24, onAccent = false }: { size?: number; onAccent?: boolean } = $props();
 

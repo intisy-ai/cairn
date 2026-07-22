@@ -1,6 +1,6 @@
 import { ipcMain } from "electron";
-import { IPC_CHANNELS } from "@dashboard/shared";
-import type { Result } from "@dashboard/shared";
+import { IPC_CHANNELS } from "@cairn/shared";
+import type { Result } from "@cairn/shared";
 import * as proxyDaemon from "../daemon/proxyDaemon.js";
 import { wrap } from "../../sidecar/result.js";
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { AccountQuota } from "@dashboard/shared";
+  import type { AccountQuota } from "@cairn/shared";
   import StatusPill from "./StatusPill.svelte";
   import type { StatusVariant } from "./StatusPill.svelte";
   import QuotaBar from "./QuotaBar.svelte";

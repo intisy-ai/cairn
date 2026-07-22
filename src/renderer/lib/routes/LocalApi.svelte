@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { ProxyStatus } from "@dashboard/shared";
+  import type { ProxyStatus } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import Card from "../components/Card.svelte";
   import Button from "../components/Button.svelte";

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { OverviewSummary } from "@dashboard/shared";
+  import type { OverviewSummary } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import StatCard from "../components/StatCard.svelte";
 

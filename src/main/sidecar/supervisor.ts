@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import type { UtilityProcess } from "electron";
-import type { Result } from "@dashboard/shared";
+import type { Result } from "@cairn/shared";
 import { err } from "../../sidecar/result.js";
 
 // Loaded lazily inside createSupervisor: requiring "electron" at module top

@@ -1,5 +1,5 @@
 import { mount } from "svelte";
-import { cairnMarkDataUri } from "@dashboard/shared";
+import { cairnMarkDataUri } from "@cairn/shared";
 import "../app.css";
 import App from "../App.svelte";
 import { initTheme } from "../lib/theme.js";

@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
-import { IPC_CHANNELS } from "@dashboard/shared";
-import type { CairnAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, PluginRow, UsageSnapshot, ImportableApp, ImportSummary } from "@dashboard/shared";
+import { IPC_CHANNELS } from "@cairn/shared";
+import type { CairnAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, PluginRow, UsageSnapshot, ImportableApp, ImportSummary } from "@cairn/shared";
 
 const invokeChannels: readonly string[] = IPC_CHANNELS.invoke;
 const sendChannels: readonly string[] = IPC_CHANNELS.send;

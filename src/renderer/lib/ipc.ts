@@ -1,4 +1,4 @@
-import type { CairnAPI } from "@dashboard/shared";
+import type { CairnAPI } from "@cairn/shared";
 
 declare global {
   interface Window {
