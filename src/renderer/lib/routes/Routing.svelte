@@ -82,7 +82,7 @@
 </div>
 
 {#if apps.length === 0}
-  <p class="empty">Install a proxy plugin (Claude Code or OpenCode) to configure routing.</p>
+  <p class="empty">Install a proxy plugin to configure routing.</p>
 {:else}
   {#if apps.length > 1}
     <div class="apptabs">

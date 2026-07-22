@@ -59,4 +59,22 @@ describe("routing sidecar module", () => {
     const r = await routingSetChain("claude", "default", [{ provider: "does-not-exist", model: "x" }]);
     expect(r.ok).toBe(false);
   });
+
+  it("routingSetChain warns (but still persists) on a known provider with a model missing from its catalog", async () => {
+    const { routingGet, routingSetChain } = await import("./routing.js");
+    deployStubProvider(process.env.HUB_CONFIG_DIR!);
+
+    const catalog = await routingGet("claude");
+    if (!catalog.ok) throw new Error("unreachable");
+    expect(catalog.data.catalog).toEqual([]);
+
+    const set = await routingSetChain("claude", "opus", [{ provider: "stub", model: "not-in-catalog" }]);
+    expect(set.ok).toBe(true);
+    if (!set.ok) throw new Error("unreachable");
+    expect(set.data.warnings).toEqual([`unknown model "not-in-catalog" for provider "stub"`]);
+
+    const after = await routingGet("claude");
+    if (!after.ok) throw new Error("unreachable");
+    expect(after.data.map.opus).toEqual([{ provider: "stub", model: "not-in-catalog", name: "not-in-catalog", derived: false }]);
+  });
 });

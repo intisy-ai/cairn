@@ -39,13 +39,18 @@ export async function routingSetChain(app: string, slot: string, chain: unknown)
   const profile = profileFor(app);
   if (!profile) return err(`no routing available for app: ${app}`);
   return wrap(() => {
+    const configDir = getConfigDir();
     const known = new Set(readDeployedProviders(reposDir()).map((p) => p.provider));
+    const knownModels = new Set(catalogEntries(configDir).map((e) => `${e.provider}::${e.model}`));
     const sane = sanitizeChain(chain);
     const warnings: string[] = [];
     for (const entry of sane) {
       if (!known.has(entry.provider)) throw new Error(`unknown provider: ${entry.provider}`);
+      if (!knownModels.has(`${entry.provider}::${entry.model}`)) {
+        warnings.push(`unknown model "${entry.model}" for provider "${entry.provider}"`);
+      }
     }
-    modelMapWrite(getConfigDir(), profile, slot, sane);
+    modelMapWrite(configDir, profile, slot, sane);
     return { warnings };
   });
 }
