@@ -31,6 +31,7 @@ function defaultCairn(): CairnAPI {
     usageSnapshot: async () => ({ ok: true, data: { accounts: [], sessions: [], models: {}, updatedAt: "" } }),
     importApps: async () => ({ ok: true, data: [] }),
     importRun: async () => ({ ok: true, data: { accounts: 0, providers: 0, routingImported: false, notes: [] } }),
+    catalogList: async () => ({ ok: true, data: { entries: [], source: "anonymous" } }),
     minimize: () => {},
     maximize: () => {},
     close: () => {},

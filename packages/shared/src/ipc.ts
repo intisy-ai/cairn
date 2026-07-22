@@ -26,6 +26,7 @@ export const IPC_CHANNELS = {
     "usage:snapshot",
     "import:apps",
     "import:run",
+    "catalog:list",
   ] as const,
   send: ["window:minimize", "window:maximize", "window:close"] as const,
   receive: ["server:status", "provider:updated"] as const,

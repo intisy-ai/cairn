@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { Chain, CatalogEntry, RoutingApp } from "@cairn/shared";
+  import type { Chain, ModelCatalogEntry, RoutingApp } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import Card from "../components/Card.svelte";
   import Button from "../components/Button.svelte";
@@ -9,14 +9,14 @@
   let app = $state("");
   let tiers = $state<string[]>([]);
   let map = $state<Record<string, Chain>>({ default: [] });
-  let catalog = $state<CatalogEntry[]>([]);
+  let catalog = $state<ModelCatalogEntry[]>([]);
   let loadError = $state("");
   let warnings = $state<string[]>([]);
   let pending = $state<Record<string, string>>({});
 
   const slots = $derived(["default", ...tiers]);
 
-  function catalogKey(entry: CatalogEntry): string {
+  function catalogKey(entry: ModelCatalogEntry): string {
     return `${entry.provider}|${entry.model}`;
   }
 

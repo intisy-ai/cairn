@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import { IPC_CHANNELS } from "@cairn/shared";
-import type { CairnAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary } from "@cairn/shared";
+import type { CairnAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, CatalogResult } from "@cairn/shared";
 
 const invokeChannels: readonly string[] = IPC_CHANNELS.invoke;
 const sendChannels: readonly string[] = IPC_CHANNELS.send;
@@ -53,6 +53,7 @@ const api: CairnAPI = {
   usageSnapshot: () => safeInvoke("usage:snapshot") as Promise<Result<UsageSnapshot>>,
   importApps: () => safeInvoke("import:apps") as Promise<Result<ImportableApp[]>>,
   importRun: (app) => safeInvoke("import:run", app) as Promise<Result<ImportSummary>>,
+  catalogList: () => safeInvoke("catalog:list") as Promise<Result<CatalogResult>>,
   minimize: () => safeSend("window:minimize"),
   maximize: () => safeSend("window:maximize"),
   close: () => safeSend("window:close"),

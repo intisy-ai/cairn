@@ -1,6 +1,9 @@
 export type { AccountView, AccountQuota, AccountStatus } from "@core-auth/index.js";
-export type { Chain, ModelMap, CatalogEntry } from "@core-proxy/index.js";
-import type { ModelMap, CatalogEntry } from "@core-proxy/index.js";
+export type { Chain, ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/index.js";
+import type { ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/index.js";
+export type CatalogKind = "provider" | "proxy" | "plugin";
+export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string };
+export type CatalogResult = { entries: CatalogEntry[]; source: "env" | "gh" | "anonymous" };
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 export type OverviewSummary = {
   providersConnected: number;
@@ -23,7 +26,7 @@ export type ProviderRow = {
 export type RoutingState = {
   tiers: string[];
   map: ModelMap;
-  catalog: CatalogEntry[];
+  catalog: ModelCatalogEntry[];
 };
 export type AppPresence = {
   claude: boolean;

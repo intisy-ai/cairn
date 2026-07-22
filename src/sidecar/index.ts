@@ -11,6 +11,7 @@ import { pluginsList, pluginsInstall, pluginsSetEnabled, pluginsDowngrade } from
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
 import { usageSnapshot } from "./modules/usage.js";
 import { importApps, importRun } from "./modules/import.js";
+import { catalogList } from "./modules/catalog.js";
 
 type SidecarRequest = { id: number; channel: string; args: unknown[] };
 type SidecarResponse = { id: number; result: Result<unknown> };
@@ -56,6 +57,7 @@ registerHandler("plugins:downgrade", (home, name, hash) => pluginsDowngrade(home
 registerHandler("usage:snapshot", () => usageSnapshot());
 registerHandler("import:apps", () => importApps());
 registerHandler("import:run", (app) => importRun(app as string));
+registerHandler("catalog:list", () => catalogList());
 
 if (process.parentPort) {
   process.parentPort.on("message", (messageEvent) => {
