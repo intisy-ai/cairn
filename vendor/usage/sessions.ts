@@ -1,7 +1,8 @@
 // Session token aggregation across three sources: the OpenCode SQLite db,
 // legacy file-based OpenCode storage, and Claude Code project JSONL transcripts.
-import { existsSync, readFileSync, readdirSync } from "fs";
+import { createReadStream, existsSync, readdirSync, statSync } from "fs";
 import { join } from "path";
+import { createInterface } from "readline";
 import { openDB, readJSON } from "./db.js";
 import { opencodeStorageDir, claudeProjectsDir } from "./settings.js";
 import type { DayUsage, ModelSummary, ModelUsage, Session, TokenUsage } from "./types.js";
@@ -258,7 +259,77 @@ function projectTitle(projectDir: string): string {
   return cleaned || "Claude Code Session";
 }
 
-function buildClaudeCodeSessions(knownIds: Set<string>): Session[] {
+// Transcripts are streamed line-by-line, never read whole: files can exceed
+// V8's maximum string length (real ones reach 1GB+), and in Electron's
+// utility process that allocation is a native crash, not a catchable error.
+// Per-file aggregates are cached on (mtime, size) because a full scan of a
+// large history costs many seconds and transcripts are append-only.
+const transcriptCache = new Map<string, { mtimeMs: number; size: number; session: Session | null }>();
+
+async function readTranscriptSession(path: string, sessionId: string, projectDir: string): Promise<Session | null> {
+  const tokens = emptyTokens();
+  const modelUsage: Record<string, ModelUsage> = {};
+  const costByDay: Record<string, DayUsage> = {};
+  let messageCount = 0;
+  let firstTimestamp = 0;
+  let lastTimestamp = 0;
+
+  const stream = createReadStream(path, { encoding: "utf-8" });
+  const lines = createInterface({ input: stream, crlfDelay: Infinity });
+  try {
+    for await (const line of lines) {
+      if (!line) continue;
+      let entry: ClaudeJsonlEntry;
+      try {
+        entry = JSON.parse(line) as ClaudeJsonlEntry;
+      } catch {
+        continue;
+      }
+      if (entry.type !== "assistant" || !entry.message?.usage) continue;
+
+      // Anthropic-wire usage names, mapped onto the neutral internal tokens
+      // shape. This is the only place that reads these wire field names.
+      const usage = entry.message.usage;
+      const input = usage.input_tokens ?? 0;
+      const output = usage.output_tokens ?? 0;
+      const cacheRead = usage.cache_read_input_tokens ?? 0;
+      const cacheWrite = usage.cache_creation_input_tokens ?? 0;
+
+      tokens.input += input;
+      tokens.output += output;
+      tokens.cacheRead += cacheRead;
+      tokens.cacheWrite += cacheWrite;
+      messageCount++;
+
+      addModelUsage(modelUsage, entry.message.model || "unknown", "anthropic", input, output, 0);
+
+      if (entry.timestamp) {
+        const timestampMs = new Date(entry.timestamp).getTime();
+        if (!firstTimestamp || timestampMs < firstTimestamp) firstTimestamp = timestampMs;
+        if (timestampMs > lastTimestamp) lastTimestamp = timestampMs;
+        addToDay(costByDay, timestampMs, input, output, 0);
+      }
+    }
+  } finally {
+    lines.close();
+    stream.destroy();
+  }
+
+  if (messageCount === 0) return null;
+  return {
+    id: sessionId,
+    title: projectTitle(projectDir),
+    created: firstTimestamp,
+    updated: lastTimestamp,
+    tokens,
+    modelUsage,
+    costByDay,
+    messageCount,
+    source: "claude-code",
+  };
+}
+
+async function buildClaudeCodeSessions(knownIds: Set<string>): Promise<Session[]> {
   const projectsDir = claudeProjectsDir();
   if (!existsSync(projectsDir)) return [];
 
@@ -278,66 +349,22 @@ function buildClaudeCodeSessions(knownIds: Set<string>): Session[] {
         const sessionId = file.replace(/\.jsonl$/, "");
         if (knownIds.has(sessionId) || result.some((s) => s.id === sessionId)) continue;
 
-        let lines: string[];
+        const path = join(fullProjectDir, file);
+        let session: Session | null;
         try {
-          lines = readFileSync(join(fullProjectDir, file), "utf-8").split("\n").filter(Boolean);
+          const stat = statSync(path);
+          const cached = transcriptCache.get(path);
+          if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+            session = cached.session;
+          } else {
+            session = await readTranscriptSession(path, sessionId, projectDir);
+            transcriptCache.set(path, { mtimeMs: stat.mtimeMs, size: stat.size, session });
+          }
         } catch {
           continue;
         }
 
-        const tokens = emptyTokens();
-        const modelUsage: Record<string, ModelUsage> = {};
-        const costByDay: Record<string, DayUsage> = {};
-        let messageCount = 0;
-        let firstTimestamp = 0;
-        let lastTimestamp = 0;
-
-        for (const line of lines) {
-          let entry: ClaudeJsonlEntry;
-          try {
-            entry = JSON.parse(line) as ClaudeJsonlEntry;
-          } catch {
-            continue;
-          }
-          if (entry.type !== "assistant" || !entry.message?.usage) continue;
-
-          // Anthropic-wire usage names, mapped onto the neutral internal tokens
-          // shape. This is the only place that reads these wire field names.
-          const usage = entry.message.usage;
-          const input = usage.input_tokens ?? 0;
-          const output = usage.output_tokens ?? 0;
-          const cacheRead = usage.cache_read_input_tokens ?? 0;
-          const cacheWrite = usage.cache_creation_input_tokens ?? 0;
-
-          tokens.input += input;
-          tokens.output += output;
-          tokens.cacheRead += cacheRead;
-          tokens.cacheWrite += cacheWrite;
-          messageCount++;
-
-          addModelUsage(modelUsage, entry.message.model || "unknown", "anthropic", input, output, 0);
-
-          if (entry.timestamp) {
-            const timestampMs = new Date(entry.timestamp).getTime();
-            if (!firstTimestamp || timestampMs < firstTimestamp) firstTimestamp = timestampMs;
-            if (timestampMs > lastTimestamp) lastTimestamp = timestampMs;
-            addToDay(costByDay, timestampMs, input, output, 0);
-          }
-        }
-
-        if (messageCount > 0) {
-          result.push({
-            id: sessionId,
-            title: projectTitle(projectDir),
-            created: firstTimestamp,
-            updated: lastTimestamp,
-            tokens,
-            modelUsage,
-            costByDay,
-            messageCount,
-            source: "claude-code",
-          });
-        }
+        if (session) result.push(session);
       }
     }
   } catch {
@@ -346,14 +373,14 @@ function buildClaudeCodeSessions(knownIds: Set<string>): Session[] {
   return result;
 }
 
-export function buildSessionsWithCosts(): Session[] {
+export async function buildSessionsWithCosts(): Promise<Session[]> {
   const dbSessions = buildDbSessions();
   const knownIds = new Set(dbSessions.map((s) => s.id));
 
   const legacySessions = buildLegacyFileSessions(knownIds);
   for (const session of legacySessions) knownIds.add(session.id);
 
-  const claudeCodeSessions = buildClaudeCodeSessions(knownIds);
+  const claudeCodeSessions = await buildClaudeCodeSessions(knownIds);
 
   return [...dbSessions, ...legacySessions, ...claudeCodeSessions].sort((a, b) => b.updated - a.updated);
 }

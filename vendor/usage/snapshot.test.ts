@@ -124,7 +124,7 @@ describe("getAccountsData", () => {
 });
 
 describe("buildSnapshot", () => {
-  it("assembles accounts, sessions, models, and costByDay into one snapshot", () => {
+  it("assembles accounts, sessions, models, and costByDay into one snapshot", async () => {
     process.env.HUB_CONFIG_DIR = tempDir;
     process.env.HUB_CLAUDE_DIR = tempDir;
     writeAccountsStore(tempDir, {
@@ -144,7 +144,7 @@ describe("buildSnapshot", () => {
       "utf-8",
     );
 
-    const snapshot = buildSnapshot();
+    const snapshot = await buildSnapshot();
     expect(typeof snapshot.updatedAt).toBe("number");
     expect(snapshot.accounts).toHaveLength(1);
     expect(snapshot.sessions).toHaveLength(1);
@@ -159,10 +159,10 @@ describe("buildSnapshot", () => {
     });
   });
 
-  it("returns an empty-but-well-shaped snapshot when no sources are present", () => {
+  it("returns an empty-but-well-shaped snapshot when no sources are present", async () => {
     process.env.HUB_CONFIG_DIR = tempDir;
     process.env.HUB_CLAUDE_DIR = tempDir;
-    const snapshot = buildSnapshot();
+    const snapshot = await buildSnapshot();
     expect(snapshot.accounts).toEqual([]);
     expect(snapshot.sessions).toEqual([]);
     expect(snapshot.models).toEqual({});

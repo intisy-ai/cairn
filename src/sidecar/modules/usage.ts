@@ -39,8 +39,8 @@ function mapModels(models: ModelSummary): Record<string, UsageModel> {
 }
 
 export function usageSnapshot(): Promise<Result<UsageSnapshot>> {
-  return wrap(() => {
-    const snapshot = buildSnapshot();
+  return wrap(async () => {
+    const snapshot = await buildSnapshot();
     return {
       accounts: deployedAccounts(),
       sessions: snapshot.sessions.map(mapSession),

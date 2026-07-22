@@ -123,9 +123,9 @@ export function getAccountsData(): AccountSummary[] {
   return accounts;
 }
 
-export function buildSnapshot(): UsageSnapshotData {
+export async function buildSnapshot(): Promise<UsageSnapshotData> {
   const accounts = getAccountsData();
-  const sessions = buildSessionsWithCosts();
+  const sessions = await buildSessionsWithCosts();
   const models = buildModelSummary(sessions);
 
   const costByDay: Record<string, DayUsage> = {};

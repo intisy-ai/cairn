@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
@@ -56,7 +56,7 @@ afterEach(() => {
 });
 
 describe("buildSessionsWithCosts: opencode sqlite db", () => {
-  it("aggregates tokens and model usage from db sessions and messages", () => {
+  it("aggregates tokens and model usage from db sessions and messages", async () => {
     const dbHome = join(tempDir, "db-home");
     mkdirSync(dbHome, { recursive: true });
     process.env.OPENCODE_DIR = dbHome;
@@ -97,7 +97,7 @@ describe("buildSessionsWithCosts: opencode sqlite db", () => {
     );
     db.close();
 
-    const sessions = buildSessionsWithCosts();
+    const sessions = await buildSessionsWithCosts();
     expect(sessions).toHaveLength(1);
     const session = sessions[0];
     expect(session.id).toBe("sess1");
@@ -114,7 +114,7 @@ describe("buildSessionsWithCosts: opencode sqlite db", () => {
 });
 
 describe("buildSessionsWithCosts: legacy opencode file storage", () => {
-  it("reads session + message JSON files when no db is present", () => {
+  it("reads session + message JSON files when no db is present", async () => {
     const opencodeHome = process.env.HUB_OPENCODE_DIR as string;
     const sessionDir = join(opencodeHome, "data", "storage", "session", "proj1");
     const messageDir = join(opencodeHome, "data", "storage", "message", "sess-legacy");
@@ -137,7 +137,7 @@ describe("buildSessionsWithCosts: legacy opencode file storage", () => {
       }),
     );
 
-    const sessions = buildSessionsWithCosts();
+    const sessions = await buildSessionsWithCosts();
     expect(sessions).toHaveLength(1);
     const session = sessions[0];
     expect(session.id).toBe("sess-legacy");
@@ -149,7 +149,7 @@ describe("buildSessionsWithCosts: legacy opencode file storage", () => {
 });
 
 describe("buildSessionsWithCosts: Claude Code JSONL wire-to-neutral token mapping", () => {
-  it("maps Anthropic-wire usage fields onto the neutral tokens shape", () => {
+  it("maps Anthropic-wire usage fields onto the neutral tokens shape", async () => {
     const claudeHome = process.env.HUB_CLAUDE_DIR as string;
     const projectDir = join(claudeHome, "projects", "-my-project");
     mkdirSync(projectDir, { recursive: true });
@@ -182,7 +182,7 @@ describe("buildSessionsWithCosts: Claude Code JSONL wire-to-neutral token mappin
     ];
     writeFileSync(join(projectDir, "session-abc.jsonl"), lines.join("\n"), "utf-8");
 
-    const sessions = buildSessionsWithCosts();
+    const sessions = await buildSessionsWithCosts();
     expect(sessions).toHaveLength(1);
     const session = sessions[0];
     expect(session.id).toBe("session-abc");
@@ -198,7 +198,7 @@ describe("buildSessionsWithCosts: Claude Code JSONL wire-to-neutral token mappin
     });
   });
 
-  it("derives a friendly title from the project directory name", () => {
+  it("derives a friendly title from the project directory name", async () => {
     const claudeHome = process.env.HUB_CLAUDE_DIR as string;
     const projectDir = join(claudeHome, "projects", "C--Users-jane-myapp");
     mkdirSync(projectDir, { recursive: true });
@@ -212,19 +212,95 @@ describe("buildSessionsWithCosts: Claude Code JSONL wire-to-neutral token mappin
       "utf-8",
     );
 
-    const sessions = buildSessionsWithCosts();
+    const sessions = await buildSessionsWithCosts();
     expect(sessions).toHaveLength(1);
     expect(sessions[0].title).toBe("Users jane myapp");
   });
 
-  it("ignores sessions with no assistant usage entries", () => {
+  it("ignores sessions with no assistant usage entries", async () => {
     const claudeHome = process.env.HUB_CLAUDE_DIR as string;
     const projectDir = join(claudeHome, "projects", "-empty-project");
     mkdirSync(projectDir, { recursive: true });
     writeFileSync(join(projectDir, "session-empty.jsonl"), JSON.stringify({ type: "user" }), "utf-8");
 
-    const sessions = buildSessionsWithCosts();
+    const sessions = await buildSessionsWithCosts();
     expect(sessions).toHaveLength(0);
+  });
+});
+
+describe("buildSessionsWithCosts: Claude Code transcript caching", () => {
+  it("serves an unchanged transcript from the per-file cache instead of re-reading", async () => {
+    const claudeHome = process.env.HUB_CLAUDE_DIR as string;
+    const projectDir = join(claudeHome, "projects", "-cache-project");
+    mkdirSync(projectDir, { recursive: true });
+    const file = join(projectDir, "session-cached.jsonl");
+    const entry = (input: number) =>
+      JSON.stringify({
+        type: "assistant",
+        timestamp: "2026-01-01T00:00:00.000Z",
+        message: { model: "claude-sonnet-5", usage: { input_tokens: input, output_tokens: 1 } },
+      });
+
+    // Pin an explicit mtime so both writes carry an identical (mtime, size)
+    // key; sub-millisecond stat precision would defeat a save-and-restore.
+    const pinned = new Date("2026-01-02T03:04:05.000Z");
+    writeFileSync(file, entry(1000), "utf-8");
+    utimesSync(file, pinned, pinned);
+    const first = await buildSessionsWithCosts();
+    expect(first[0].tokens.input).toBe(1000);
+
+    // Same byte length, different numbers, same mtime: an unchanged
+    // (path, mtime, size) key must be served from the cache.
+    writeFileSync(file, entry(2000), "utf-8");
+    utimesSync(file, pinned, pinned);
+    const second = await buildSessionsWithCosts();
+    expect(second[0].tokens.input).toBe(1000);
+  });
+
+  it("re-reads a transcript whose mtime changed", async () => {
+    const claudeHome = process.env.HUB_CLAUDE_DIR as string;
+    const projectDir = join(claudeHome, "projects", "-recheck-project");
+    mkdirSync(projectDir, { recursive: true });
+    const file = join(projectDir, "session-fresh.jsonl");
+    const entry = (input: number) =>
+      JSON.stringify({
+        type: "assistant",
+        timestamp: "2026-01-01T00:00:00.000Z",
+        message: { model: "claude-sonnet-5", usage: { input_tokens: input, output_tokens: 1 } },
+      });
+
+    writeFileSync(file, entry(1000), "utf-8");
+    const first = await buildSessionsWithCosts();
+    expect(first[0].tokens.input).toBe(1000);
+
+    writeFileSync(file, entry(9999), "utf-8");
+    utimesSync(file, new Date(), new Date(Date.now() + 5000));
+    const second = await buildSessionsWithCosts();
+    expect(second[0].tokens.input).toBe(9999);
+  });
+
+  it("parses CRLF transcripts via the streaming reader", async () => {
+    const claudeHome = process.env.HUB_CLAUDE_DIR as string;
+    const projectDir = join(claudeHome, "projects", "-crlf-project");
+    mkdirSync(projectDir, { recursive: true });
+    const lines = [
+      JSON.stringify({
+        type: "assistant",
+        timestamp: "2026-01-01T00:00:00.000Z",
+        message: { model: "claude-sonnet-5", usage: { input_tokens: 7, output_tokens: 3 } },
+      }),
+      JSON.stringify({
+        type: "assistant",
+        timestamp: "2026-01-01T00:01:00.000Z",
+        message: { model: "claude-sonnet-5", usage: { input_tokens: 5, output_tokens: 2 } },
+      }),
+    ];
+    writeFileSync(join(projectDir, "session-crlf.jsonl"), lines.join("\r\n") + "\r\n", "utf-8");
+
+    const sessions = await buildSessionsWithCosts();
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].tokens).toEqual({ input: 12, output: 5, reasoning: 0, cacheRead: 0, cacheWrite: 0 });
+    expect(sessions[0].messageCount).toBe(2);
   });
 });
 

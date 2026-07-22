@@ -30,7 +30,7 @@ export interface SupervisorOptions {
 }
 
 export interface Supervisor {
-  rpc(channel: string, args: unknown[]): Promise<Result<unknown>>;
+  rpc(channel: string, args: unknown[], timeoutMs?: number): Promise<Result<unknown>>;
   dispose(): void;
 }
 
@@ -84,21 +84,30 @@ export function createSupervisor(opts: SupervisorOptions): Supervisor {
       env: buildSidecarEnv(process.env, opts.storeDir),
       stdio: "pipe",
     });
+    // Piped stdio must be consumed: an unread pipe eventually blocks the
+    // child, and without these logs a sidecar crash is undiagnosable.
+    proc.stdout?.on("data", (chunk) => console.log("[sidecar]", String(chunk).trimEnd()));
+    proc.stderr?.on("data", (chunk) => console.error("[sidecar]", String(chunk).trimEnd()));
     proc.on("message", handleMessage);
-    proc.on("exit", handleExit);
+    proc.on("exit", onExit);
     return proc;
+  }
+
+  function onExit(code: number): void {
+    if (code !== 0) console.error(`[sidecar] exited with code ${code}`);
+    handleExit();
   }
 
   let child = spawn();
 
   return {
-    rpc(channel, args) {
+    rpc(channel, args, timeoutMs) {
       if (failed) return Promise.resolve(err("sidecar failed to stay up"));
       return new Promise((resolve) => {
         const id = nextId++;
         const timer = setTimeout(() => {
           settle(id, err("sidecar rpc timeout: " + channel));
-        }, rpcTimeoutMs);
+        }, timeoutMs ?? rpcTimeoutMs);
         pending.set(id, { resolve, timer });
         child.postMessage({ id, channel, args });
       });
@@ -106,7 +115,7 @@ export function createSupervisor(opts: SupervisorOptions): Supervisor {
     dispose() {
       disposing = true;
       for (const id of [...pending.keys()]) settle(id, err("sidecar disposed"));
-      child.off("exit", handleExit);
+      child.off("exit", onExit);
       child.kill();
     },
   };
