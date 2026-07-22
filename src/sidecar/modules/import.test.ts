@@ -2,6 +2,13 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { LoadedProxyDef } from "../lib/proxyPlugins.js";
+
+async function fakeDefs(): Promise<LoadedProxyDef[]> {
+  const { anthropicProfile } = await import("@claude-code-proxy/index.js");
+  return [{ app: "claude", label: "Claude Code", profile: anthropicProfile }];
+}
+const proxyDeps = { defs: fakeDefs };
 
 function deployStubProvider(configDir: string): void {
   const repo = join(configDir, "repos", "stub-auth");
@@ -62,7 +69,7 @@ describe("import", () => {
     seedAppHome(appHomeDir);
 
     const { importRun } = await import("./import.js");
-    const result = await importRun("claude", { appHome: () => appHomeDir });
+    const result = await importRun("claude", { appHome: () => appHomeDir, proxyDeps });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
@@ -76,7 +83,7 @@ describe("import", () => {
 
     const { resolveModelMap } = await import("@core-proxy/model-map.js");
     const { profileFor } = await import("../lib/proxyRegistry.js");
-    const profile = profileFor("claude");
+    const profile = await profileFor("claude", proxyDeps);
     if (!profile) throw new Error("unreachable");
     const map = resolveModelMap(getConfigDir(), profile);
     expect(map.opus).toEqual([{ provider: "stub", model: "m-opus", name: "m-opus", derived: false }]);

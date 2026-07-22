@@ -7,6 +7,7 @@ import { getConfigValue, setConfigValue } from "@core/index.js";
 import type { ImportableApp, ImportSummary, Result } from "../../../packages/shared/src/domain.js";
 import { appRealHome } from "../lib/pluginHomes.js";
 import { profileFor } from "../lib/proxyRegistry.js";
+import type { ProxyRegistryDeps } from "../lib/proxyRegistry.js";
 import { modelMapWrite } from "../lib/modelMapWrite.js";
 import { appsDetect } from "./apps.js";
 import { wrap } from "../result.js";
@@ -22,6 +23,7 @@ function isAppName(x: string): x is AppName {
 
 export interface ImportDeps {
   appHome?: (app: string) => string;
+  proxyDeps?: ProxyRegistryDeps;
 }
 
 export async function importApps(deps: ImportDeps = {}): Promise<Result<ImportableApp[]>> {
@@ -54,7 +56,7 @@ export async function importRun(app: string, deps: ImportDeps = {}): Promise<Res
     notes.push(accounts > 0 ? `imported ${accounts} account(s)` : "no accounts to import");
 
     let routingImported = false;
-    const profile = profileFor(app);
+    const profile = await profileFor(app, deps.proxyDeps);
     if (profile) {
       const map = resolveModelMap(home, profile);
       let tiersWritten = 0;

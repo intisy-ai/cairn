@@ -2,6 +2,13 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { LoadedProxyDef } from "../lib/proxyPlugins.js";
+
+async function fakeDefs(): Promise<LoadedProxyDef[]> {
+  const { anthropicProfile } = await import("@claude-code-proxy/index.js");
+  return [{ app: "claude", label: "Claude Code", profile: anthropicProfile }];
+}
+const proxyDeps = { defs: fakeDefs };
 
 function deployStubProvider(configDir: string): void {
   const repo = join(configDir, "repos", "stub-auth");
@@ -21,7 +28,7 @@ describe("routing sidecar module", () => {
     const { routingGet } = await import("./routing.js");
     const { anthropicProfile } = await import("@claude-code-proxy/index.js");
 
-    const result = await routingGet("claude");
+    const result = await routingGet("claude", proxyDeps);
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data.tiers).toEqual(anthropicProfile().tierFallback);
@@ -33,17 +40,17 @@ describe("routing sidecar module", () => {
     const { routingGet, routingSetChain } = await import("./routing.js");
     deployStubProvider(process.env.HUB_CONFIG_DIR!);
 
-    const set = await routingSetChain("claude", "opus", [{ provider: "stub", model: "m" }]);
+    const set = await routingSetChain("claude", "opus", [{ provider: "stub", model: "m" }], proxyDeps);
     expect(set.ok).toBe(true);
 
-    const afterSet = await routingGet("claude");
+    const afterSet = await routingGet("claude", proxyDeps);
     if (!afterSet.ok) throw new Error("unreachable");
     expect(afterSet.data.map.opus).toEqual([{ provider: "stub", model: "m", name: "m", derived: false }]);
 
-    const cleared = await routingSetChain("claude", "opus", []);
+    const cleared = await routingSetChain("claude", "opus", [], proxyDeps);
     expect(cleared.ok).toBe(true);
 
-    const afterClear = await routingGet("claude");
+    const afterClear = await routingGet("claude", proxyDeps);
     if (!afterClear.ok) throw new Error("unreachable");
     expect(afterClear.data.map.opus).toEqual([]);
   });
@@ -56,7 +63,7 @@ describe("routing sidecar module", () => {
 
   it("routingSetChain rejects an unknown provider with ok:false", async () => {
     const { routingSetChain } = await import("./routing.js");
-    const r = await routingSetChain("claude", "default", [{ provider: "does-not-exist", model: "x" }]);
+    const r = await routingSetChain("claude", "default", [{ provider: "does-not-exist", model: "x" }], proxyDeps);
     expect(r.ok).toBe(false);
   });
 
@@ -64,16 +71,16 @@ describe("routing sidecar module", () => {
     const { routingGet, routingSetChain } = await import("./routing.js");
     deployStubProvider(process.env.HUB_CONFIG_DIR!);
 
-    const catalog = await routingGet("claude");
+    const catalog = await routingGet("claude", proxyDeps);
     if (!catalog.ok) throw new Error("unreachable");
     expect(catalog.data.catalog).toEqual([]);
 
-    const set = await routingSetChain("claude", "opus", [{ provider: "stub", model: "not-in-catalog" }]);
+    const set = await routingSetChain("claude", "opus", [{ provider: "stub", model: "not-in-catalog" }], proxyDeps);
     expect(set.ok).toBe(true);
     if (!set.ok) throw new Error("unreachable");
     expect(set.data.warnings).toEqual([`unknown model "not-in-catalog" for provider "stub"`]);
 
-    const after = await routingGet("claude");
+    const after = await routingGet("claude", proxyDeps);
     if (!after.ok) throw new Error("unreachable");
     expect(after.data.map.opus).toEqual([{ provider: "stub", model: "not-in-catalog", name: "not-in-catalog", derived: false }]);
   });

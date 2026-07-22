@@ -5,6 +5,7 @@ import type { Chain } from "@core-proxy/index.js";
 import type { RoutingState, Result } from "../../../packages/shared/src/domain.js";
 import type { RoutingApp } from "../lib/proxyRegistry.js";
 import { availableRoutingApps, profileFor } from "../lib/proxyRegistry.js";
+import type { ProxyRegistryDeps } from "../lib/proxyRegistry.js";
 import { appsDetect } from "./apps.js";
 import { wrap, err } from "../result.js";
 import { modelMapWrite } from "../lib/modelMapWrite.js";
@@ -18,12 +19,12 @@ async function presentApps(): Promise<{ claude: boolean; opencode: boolean }> {
   return detected.ok ? detected.data : { claude: false, opencode: false };
 }
 
-export async function routingApps(): Promise<Result<RoutingApp[]>> {
-  return wrap(async () => availableRoutingApps(await presentApps()));
+export async function routingApps(deps: ProxyRegistryDeps = {}): Promise<Result<RoutingApp[]>> {
+  return wrap(async () => availableRoutingApps(await presentApps(), deps));
 }
 
-export async function routingGet(app: string): Promise<Result<RoutingState>> {
-  const profile = profileFor(app);
+export async function routingGet(app: string, deps: ProxyRegistryDeps = {}): Promise<Result<RoutingState>> {
+  const profile = await profileFor(app, deps);
   if (!profile) return err(`no routing available for app: ${app}`);
   return wrap(() => {
     const configDir = getConfigDir();
@@ -35,8 +36,13 @@ export async function routingGet(app: string): Promise<Result<RoutingState>> {
   });
 }
 
-export async function routingSetChain(app: string, slot: string, chain: unknown): Promise<Result<{ warnings: string[] }>> {
-  const profile = profileFor(app);
+export async function routingSetChain(
+  app: string,
+  slot: string,
+  chain: unknown,
+  deps: ProxyRegistryDeps = {},
+): Promise<Result<{ warnings: string[] }>> {
+  const profile = await profileFor(app, deps);
   if (!profile) return err(`no routing available for app: ${app}`);
   return wrap(() => {
     const configDir = getConfigDir();
