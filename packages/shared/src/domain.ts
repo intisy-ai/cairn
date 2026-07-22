@@ -73,3 +73,5 @@ export type UsageSnapshot = {
   models: Record<string, UsageModel>;
   updatedAt: string;
 };
+export type ImportableApp = { app: string; label: string; hasConfig: boolean };
+export type ImportSummary = { accounts: number; providers: number; routingImported: boolean; notes: string[] };
