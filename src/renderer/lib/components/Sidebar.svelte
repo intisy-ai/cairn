@@ -2,9 +2,10 @@
   import { onMount } from "svelte";
   import { router, navigate, SCREENS } from "../router.js";
   import { serverStatus, watchServerStatus } from "../serverStatus.js";
+  import CairnMark from "./CairnMark.svelte";
 
   let {
-    brandName = "intisy",
+    brandName = "Cairn",
     brandTag = "Claude Code · OpenCode",
     apiPort = 34567,
   }: { brandName?: string; brandTag?: string; apiPort?: number } = $props();
@@ -27,25 +28,25 @@
 
 <aside class="side">
   <div class="brand">
-    <div class="mark">{brandName.charAt(0)}</div>
-    <div><b>{brandName}</b><small>{brandTag}</small></div>
+    <CairnMark size={28} />
+    <div class="bname"><b>{brandName}</b><small>{brandTag}</small></div>
   </div>
   <nav class="nav">
     {#each mainScreens as screen (screen.id)}
-      <button type="button" class={$router.screen === screen.id ? "active" : ""} onclick={go(screen.id)}>
-        <span class="ic">{screen.glyph}</span> {screen.label}
+      <button type="button" class={$router.screen === screen.id ? "active" : ""} title={screen.label} onclick={go(screen.id)}>
+        <span class="ic">{screen.glyph}</span> <span class="lbl">{screen.label}</span>
       </button>
     {/each}
   </nav>
   <div class="navsec"><p class="label">Network</p></div>
   <nav class="nav">
     {#each networkScreens as screen (screen.id)}
-      <button type="button" class={$router.screen === screen.id ? "active" : ""} onclick={go(screen.id)}>
-        <span class="ic">{screen.glyph}</span> {screen.label}
+      <button type="button" class={$router.screen === screen.id ? "active" : ""} title={screen.label} onclick={go(screen.id)}>
+        <span class="ic">{screen.glyph}</span> <span class="lbl">{screen.label}</span>
       </button>
     {/each}
   </nav>
-  <div class="foot"><span class="dot" class:off={!running}></span> Local API · <span class="num">:{port}</span></div>
+  <div class="foot" title="Local API :{port}"><span class="dot" class:off={!running}></span> <span class="foottext">Local API · <span class="num">:{port}</span></span></div>
 </aside>
 
 <style>
@@ -62,17 +63,6 @@
     align-items: center;
     gap: 10px;
     padding: 6px 8px 14px;
-  }
-  .brand .mark {
-    width: 26px;
-    height: 26px;
-    border-radius: 7px;
-    background: var(--accent);
-    color: #fff;
-    display: grid;
-    place-items: center;
-    font-weight: 700;
-    font-size: 14px;
   }
   .brand b {
     font-size: 14.5px;
@@ -145,5 +135,36 @@
   .dot.off {
     background: var(--faint);
     box-shadow: 0 0 0 3px var(--surface-2);
+  }
+
+  /* Narrow window: collapse to an icon rail */
+  @media (max-width: 900px) {
+    .side {
+      padding: 16px 8px;
+      align-items: stretch;
+    }
+    .brand {
+      justify-content: center;
+      padding: 6px 0 14px;
+    }
+    .brand .bname {
+      display: none;
+    }
+    .nav button {
+      justify-content: center;
+      padding: 9px 0;
+    }
+    .nav button .lbl {
+      display: none;
+    }
+    .navsec {
+      display: none;
+    }
+    .side .foot {
+      justify-content: center;
+    }
+    .side .foot .foottext {
+      display: none;
+    }
   }
 </style>

@@ -14,9 +14,16 @@ let tray: Tray | null = null;
 let supervisor: Supervisor | null = null;
 
 function createWindow(): void {
+  const isMac = process.platform === "darwin";
   mainWindow = new BrowserWindow({
     width: 1100,
     height: 720,
+    minWidth: 720,
+    minHeight: 480,
+    show: false,
+    backgroundColor: "#08090b",
+    // macOS keeps native traffic lights inset into our bar; other platforms are fully frameless with custom controls.
+    ...(isMac ? { titleBarStyle: "hiddenInset" as const, trafficLightPosition: { x: 14, y: 14 } } : { frame: false }),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -26,6 +33,8 @@ function createWindow(): void {
       preload: join(dirName, "../preload/index.mjs"),
     },
   });
+
+  mainWindow.once("ready-to-show", () => mainWindow?.show());
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("http://") || url.startsWith("https://")) {
@@ -53,7 +62,7 @@ function registerWindowControls(): void {
 
 function createTray(): void {
   tray = new Tray(nativeImage.createEmpty());
-  tray.setToolTip("Intisy Dashboard");
+  tray.setToolTip("Cairn");
   tray.setContextMenu(Menu.buildFromTemplate([{ label: "Quit", click: () => app.quit() }]));
 }
 

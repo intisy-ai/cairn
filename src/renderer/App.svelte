@@ -14,7 +14,7 @@
 </script>
 
 <div class="window">
-  <Titlebar title="intisy" subtitle={activeLabel} />
+  <Titlebar title="Cairn" subtitle={activeLabel} />
   <div class="shell">
     <Sidebar />
     <main class="main">
@@ -52,8 +52,18 @@
     flex: 1;
     min-height: 0;
   }
+  @media (max-width: 900px) {
+    .shell {
+      grid-template-columns: 64px 1fr;
+    }
+  }
   .main {
     padding: 22px 26px;
     overflow: auto;
+  }
+  @media (max-width: 640px) {
+    .main {
+      padding: 18px 16px;
+    }
   }
 </style>

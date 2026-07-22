@@ -1,23 +1,36 @@
 <script lang="ts">
   import { theme, setTheme } from "../theme.js";
   import { intisy } from "../ipc.js";
+  import CairnMark from "./CairnMark.svelte";
 
-  let { title = "intisy", subtitle = "" }: { title?: string; subtitle?: string } = $props();
+  let { title = "Cairn", subtitle = "" }: { title?: string; subtitle?: string } = $props();
+
+  const isMac = typeof window !== "undefined" && window.intisy?.platform === "darwin";
 
   function toggleTheme(): void {
     setTheme($theme === "dark" ? "light" : "dark");
   }
 </script>
 
-<div class="titlebar">
-  <div class="lights">
-    <button class="light close" aria-label="Close window" onclick={() => intisy.close()}></button>
-    <button class="light minimize" aria-label="Minimize window" onclick={() => intisy.minimize()}></button>
-    <button class="light maximize" aria-label="Maximize window" onclick={() => intisy.maximize()}></button>
-  </div>
+<div class="titlebar" class:mac={isMac}>
+  {#if isMac}<div class="mac-space"></div>{/if}
+  <CairnMark size={18} />
   <div class="wm">{title}{#if subtitle}<span> · {subtitle}</span>{/if}</div>
   <div class="spacer"></div>
   <button class="iconbtn" title="Toggle theme" aria-label="Toggle light or dark theme" onclick={toggleTheme}>◐</button>
+  {#if !isMac}
+    <div class="winctl">
+      <button class="wc" aria-label="Minimize window" onclick={() => intisy.minimize()}>
+        <svg width="10" height="10" viewBox="0 0 10 10"><line x1="1" y1="5" x2="9" y2="5" stroke="currentColor" stroke-width="1" /></svg>
+      </button>
+      <button class="wc" aria-label="Maximize window" onclick={() => intisy.maximize()}>
+        <svg width="10" height="10" viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1" /></svg>
+      </button>
+      <button class="wc close" aria-label="Close window" onclick={() => intisy.close()}>
+        <svg width="10" height="10" viewBox="0 0 10 10"><line x1="1.5" y1="1.5" x2="8.5" y2="8.5" stroke="currentColor" stroke-width="1" /><line x1="8.5" y1="1.5" x2="1.5" y2="8.5" stroke="currentColor" stroke-width="1" /></svg>
+      </button>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -26,36 +39,16 @@
     flex: none;
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 0 14px;
+    gap: 10px;
+    padding: 0 6px 0 14px;
     background: var(--surface-2);
     border-bottom: 1px solid var(--border);
+    -webkit-app-region: drag;
+    user-select: none;
   }
-  .lights {
-    display: flex;
-    gap: 8px;
-  }
-  .light {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    display: block;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-  }
-  .light.close {
-    background: #e0655b;
-  }
-  .light.minimize {
-    background: #e3b341;
-  }
-  .light.maximize {
-    background: #57a860;
-  }
-  .light:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
+  .mac-space {
+    width: 54px;
+    flex: none;
   }
   .wm {
     font-weight: 650;
@@ -80,14 +73,39 @@
     display: grid;
     place-items: center;
     font-size: 14px;
+    -webkit-app-region: no-drag;
   }
   .iconbtn:hover {
     background: var(--surface);
     border-color: var(--border);
     color: var(--text);
   }
-  .iconbtn:focus-visible {
+  .iconbtn:focus-visible,
+  .wc:focus-visible {
     outline: 2px solid var(--accent);
-    outline-offset: 1px;
+    outline-offset: -2px;
+  }
+  .winctl {
+    display: flex;
+    margin-left: 4px;
+    -webkit-app-region: no-drag;
+  }
+  .wc {
+    width: 44px;
+    height: 40px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+  }
+  .wc:hover {
+    background: var(--surface);
+    color: var(--text);
+  }
+  .wc.close:hover {
+    background: #c0392b;
+    color: #fff;
   }
 </style>

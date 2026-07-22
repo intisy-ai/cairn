@@ -1,6 +1,6 @@
-# intisy Dashboard
+# Cairn
 
-A Node-only Electron desktop control plane for the intisy AI-tooling ecosystem. Manages providers, accounts, routing, usage, the local API, and apps or plugins across Claude Code and OpenCode, reusing the existing core-* and plugin-updater libraries rather than reimplementing them.
+A Node-only Electron desktop control plane for the AI-tooling ecosystem. Manages providers, accounts, routing, usage, the local API, and apps or plugins across Claude Code and OpenCode, reusing the existing core-* and plugin-updater libraries rather than reimplementing them.
 
 ## Screens
 

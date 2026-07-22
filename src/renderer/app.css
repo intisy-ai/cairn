@@ -1,23 +1,23 @@
 :root {
-  --bg: #eef1f5;
-  --canvas: #f7f8fa;
+  --bg: #ededef;
+  --canvas: #f6f6f7;
   --surface: #ffffff;
-  --surface-2: #f1f3f6;
-  --border: #e3e7ed;
-  --border-strong: #d3d9e2;
-  --text: #1b232f;
-  --muted: #5b6672;
-  --faint: #8b95a3;
-  --accent: #4358c7;
-  --accent-weak: #eaedfb;
-  --accent-border: #c9d1f6;
+  --surface-2: #f2f2f4;
+  --border: #e5e5e8;
+  --border-strong: #d6d6da;
+  --text: #1a1c20;
+  --muted: #5d6067;
+  --faint: #8b8e95;
+  --accent: #4b53b8;
+  --accent-weak: #ededf5;
+  --accent-border: #cdcfe8;
   --good: #2f8f5b;
-  --good-weak: #e6f2ec;
+  --good-weak: #e7f1ec;
   --warn: #b27a1e;
-  --warn-weak: #f6eede;
+  --warn-weak: #f4eede;
   --crit: #c0503f;
-  --crit-weak: #f7e8e5;
-  --shadow: 0 1px 2px rgba(20, 28, 40, .06), 0 12px 40px rgba(20, 28, 40, .10);
+  --crit-weak: #f6e8e5;
+  --shadow: 0 1px 2px rgba(15, 16, 20, .06), 0 12px 40px rgba(15, 16, 20, .10);
   --radius: 10px;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
   --ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -25,71 +25,77 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #090c11;
-    --canvas: #0f1319;
-    --surface: #161b23;
-    --surface-2: #12161d;
-    --border: #242c37;
-    --border-strong: #313b48;
-    --text: #e6eaf0;
-    --muted: #9aa5b3;
-    --faint: #6c7784;
-    --accent: #7c8cf0;
-    --accent-weak: #1a2136;
-    --accent-border: #2c3860;
+    --bg: #08090b;
+    --canvas: #0c0d10;
+    --surface: #131519;
+    --surface-2: #0f1013;
+    --border: #212429;
+    --border-strong: #2f333a;
+    --text: #e7e8ec;
+    --muted: #969aa2;
+    --faint: #676b73;
+    --accent: #7b83e6;
+    --accent-weak: #181a22;
+    --accent-border: #2a2d3e;
     --good: #4fb07a;
-    --good-weak: #13251c;
+    --good-weak: #122019;
     --warn: #d6a24a;
-    --warn-weak: #2a2213;
+    --warn-weak: #241f13;
     --crit: #e0705e;
-    --crit-weak: #2c1815;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 18px 50px rgba(0, 0, 0, .5);
+    --crit-weak: #271614;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 18px 50px rgba(0, 0, 0, .6);
   }
 }
 
 :root[data-theme="light"] {
-  --bg: #eef1f5;
-  --canvas: #f7f8fa;
+  --bg: #ededef;
+  --canvas: #f6f6f7;
   --surface: #ffffff;
-  --surface-2: #f1f3f6;
-  --border: #e3e7ed;
-  --border-strong: #d3d9e2;
-  --text: #1b232f;
-  --muted: #5b6672;
-  --faint: #8b95a3;
-  --accent: #4358c7;
-  --accent-weak: #eaedfb;
-  --accent-border: #c9d1f6;
+  --surface-2: #f2f2f4;
+  --border: #e5e5e8;
+  --border-strong: #d6d6da;
+  --text: #1a1c20;
+  --muted: #5d6067;
+  --faint: #8b8e95;
+  --accent: #4b53b8;
+  --accent-weak: #ededf5;
+  --accent-border: #cdcfe8;
   --good: #2f8f5b;
-  --good-weak: #e6f2ec;
+  --good-weak: #e7f1ec;
   --warn: #b27a1e;
-  --warn-weak: #f6eede;
+  --warn-weak: #f4eede;
   --crit: #c0503f;
-  --crit-weak: #f7e8e5;
-  --shadow: 0 1px 2px rgba(20, 28, 40, .06), 0 12px 40px rgba(20, 28, 40, .10);
+  --crit-weak: #f6e8e5;
+  --shadow: 0 1px 2px rgba(15, 16, 20, .06), 0 12px 40px rgba(15, 16, 20, .10);
 }
 
 :root[data-theme="dark"] {
-  --bg: #090c11;
-  --canvas: #0f1319;
-  --surface: #161b23;
-  --surface-2: #12161d;
-  --border: #242c37;
-  --border-strong: #313b48;
-  --text: #e6eaf0;
-  --muted: #9aa5b3;
-  --faint: #6c7784;
-  --accent: #7c8cf0;
-  --accent-weak: #1a2136;
-  --accent-border: #2c3860;
+  --bg: #08090b;
+  --canvas: #0c0d10;
+  --surface: #131519;
+  --surface-2: #0f1013;
+  --border: #212429;
+  --border-strong: #2f333a;
+  --text: #e7e8ec;
+  --muted: #969aa2;
+  --faint: #676b73;
+  --accent: #7b83e6;
+  --accent-weak: #181a22;
+  --accent-border: #2a2d3e;
   --good: #4fb07a;
-  --good-weak: #13251c;
+  --good-weak: #122019;
   --warn: #d6a24a;
-  --warn-weak: #2a2213;
+  --warn-weak: #241f13;
   --crit: #e0705e;
-  --crit-weak: #2c1815;
-  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 18px 50px rgba(0, 0, 0, .5);
+  --crit-weak: #271614;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 18px 50px rgba(0, 0, 0, .6);
 }
+
+/* Cairn logo tokens: edit here to recolor the mark everywhere (geometry lives in packages/shared/src/logo.ts) */
+:root { --cairn-c1: #9a9ea6; --cairn-c2: #7d818a; --cairn-c3: #62666e; --cairn-ring: #2a2c31; --cairn-node: #2a2c31; }
+@media (prefers-color-scheme: dark) { :root { --cairn-c1: #b0b4bc; --cairn-c2: #8d919a; --cairn-c3: #6d717a; --cairn-ring: #eef0f2; --cairn-node: #eef0f2; } }
+:root[data-theme="light"] { --cairn-c1: #9a9ea6; --cairn-c2: #7d818a; --cairn-c3: #62666e; --cairn-ring: #2a2c31; --cairn-node: #2a2c31; }
+:root[data-theme="dark"] { --cairn-c1: #b0b4bc; --cairn-c2: #8d919a; --cairn-c3: #6d717a; --cairn-ring: #eef0f2; --cairn-node: #eef0f2; }
 
 * {
   box-sizing: border-box;

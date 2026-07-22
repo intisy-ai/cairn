@@ -1,7 +1,8 @@
 {
-  "name": "intisy-dashboard",
+  "name": "cairn",
+  "productName": "Cairn",
   "version": "0.1.0",
-  "description": "Intisy Dashboard, an Electron desktop app for managing providers, accounts, and proxies.",
+  "description": "Cairn, an Electron desktop control plane for managing AI providers, accounts, routing, and the local API across Claude Code and OpenCode.",
   "private": true,
   "type": "module",
   "license": "MIT",
