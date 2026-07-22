@@ -8,6 +8,7 @@
 
   let status = $state<ProxyStatus | null>(null);
   let loadError = $state("");
+  let actionError = $state("");
   let busy = $state(false);
 
   async function load(): Promise<void> {
@@ -26,9 +27,10 @@
     try {
       const result = status.running ? await cairn.proxyStop() : await cairn.proxyStart();
       if (!result.ok) {
-        loadError = result.error;
+        actionError = result.error;
         return;
       }
+      actionError = "";
       await load();
     } finally {
       busy = false;
@@ -61,6 +63,9 @@
         {status.running ? "Stop" : "Start local API"}
       </Button>
     </div>
+    {#if actionError}
+      <p class="error">{actionError}</p>
+    {/if}
   </Card>
 {/if}
 

@@ -78,6 +78,9 @@ describe("LocalApi screen", () => {
     await waitFor(() => expect(getByText("Stopped")).toBeTruthy());
 
     await fireEvent.click(getByText("Start local API"));
-    await waitFor(() => expect(getByText(/claude proxy plugin not installed/i)).toBeTruthy());
+    await waitFor(() => {
+      expect(getByText(/claude proxy plugin not installed/i)).toBeTruthy();
+      expect(getByText("Start local API")).toBeTruthy();
+    });
   });
 });
