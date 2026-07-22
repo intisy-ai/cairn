@@ -20,6 +20,7 @@
 
   let sections = $state<HomePlugins[]>([]);
   let pluginsError = $state("");
+  const presentSections = $derived(sections.filter((s) => s.home.present));
 
   let catalog = $state<CatalogEntry[]>([]);
   let catalogSource = $state<"env" | "gh" | "anonymous">("gh");
@@ -197,7 +198,7 @@
     <p class="error">Could not load plugins: {pluginsError}</p>
   </section>
 {:else}
-  {#each sections.filter((s) => s.home.present) as section, i (section.home.id)}
+  {#each presentSections as section, i (section.home.id)}
     <section class="group" data-testid={"home-" + section.home.id}>
       <div class="grouphead">
         <p class="label">{section.home.label}</p>
@@ -238,7 +239,7 @@
           {/each}
         {/if}
       </Card>
-      {#if i === sections.filter((s) => s.home.present).length - 1 && catalogSource === "anonymous"}
+      {#if i === presentSections.length - 1 && catalogSource === "anonymous"}
         <p class="hint">Marketplace unauthenticated: sign in with the gh CLI or set GITHUB_TOKEN for reliable listings.</p>
       {/if}
     </section>
@@ -311,13 +312,7 @@
     font-weight: 600;
     letter-spacing: -.01em;
   }
-  .empty {
-    margin: 0;
-    padding: 16px 18px;
-    color: var(--faint);
-    font-size: 12.5px;
-  }
-  .hint {
+  .empty, .hint {
     margin: 0;
     padding: 16px 18px;
     color: var(--faint);

@@ -50,7 +50,9 @@ describe("loadInstalledProxyDefs", () => {
     tempDir = mkdtempSync(join(tmpdir(), "proxy-plugins-"));
     seedStore(tempDir, ["fake-proxy"]);
     let hits = 0;
-    const importFn = async () => {
+    const urls: string[] = [];
+    const importFn = async (url: string) => {
+      urls.push(url);
       hits++;
       return { proxyDef: { app: "claude", label: "C", profile: () => ({}) } };
     };
@@ -61,5 +63,6 @@ describe("loadInstalledProxyDefs", () => {
     bumpMtime(join(tempDir, "repos", "fake-proxy", "dist", "index.js"));
     await loadInstalledProxyDefs(tempDir, { importFn });
     expect(hits).toBe(2);
+    expect(urls[1]).not.toBe(urls[0]);
   });
 });

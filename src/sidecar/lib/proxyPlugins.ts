@@ -40,7 +40,7 @@ export async function loadInstalledProxyDefs(storeDir: string = getConfigDir(), 
     }
     let def: LoadedProxyDef | null = null;
     try {
-      const mod = (await importFn(pathToFileURL(distPath).href)) as { proxyDef?: unknown };
+      const mod = (await importFn(pathToFileURL(distPath).href + "?v=" + mtimeMs)) as { proxyDef?: unknown };
       if (isProxyDef(mod.proxyDef)) def = mod.proxyDef;
     } catch {
       def = null;
