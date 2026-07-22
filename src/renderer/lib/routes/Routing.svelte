@@ -1,14 +1,17 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { Chain, CatalogEntry } from "@dashboard/shared";
+  import type { Chain, CatalogEntry, RoutingApp } from "@dashboard/shared";
   import { intisy } from "../ipc.js";
   import Card from "../components/Card.svelte";
   import Button from "../components/Button.svelte";
 
+  let apps = $state<RoutingApp[]>([]);
+  let app = $state("");
   let tiers = $state<string[]>([]);
   let map = $state<Record<string, Chain>>({ default: [] });
   let catalog = $state<CatalogEntry[]>([]);
   let loadError = $state("");
+  let warnings = $state<string[]>([]);
   let pending = $state<Record<string, string>>({});
 
   const slots = $derived(["default", ...tiers]);
@@ -23,7 +26,7 @@
   }
 
   async function load(): Promise<void> {
-    const result = await intisy.routingGet();
+    const result = await intisy.routingGet(app);
     if (result.ok) {
       tiers = result.data.tiers;
       map = result.data.map;
@@ -34,8 +37,15 @@
     }
   }
 
+  async function switchApp(next: string): Promise<void> {
+    app = next;
+    warnings = [];
+    await load();
+  }
+
   async function setChain(slot: string, chain: { provider: string; model: string }[]): Promise<void> {
-    await intisy.routingSetChain(slot, chain);
+    const result = await intisy.routingSetChain(app, slot, chain);
+    warnings = result.ok ? result.data.warnings : [];
     await load();
   }
 
@@ -54,7 +64,14 @@
     await setChain(slot, chain);
   }
 
-  onMount(load);
+  onMount(async () => {
+    const result = await intisy.routingApps();
+    if (result.ok) {
+      apps = result.data;
+      app = result.data[0]?.app ?? "";
+      if (app) await load();
+    }
+  });
 </script>
 
 <div class="head">
@@ -64,10 +81,28 @@
   </div>
 </div>
 
-{#if loadError}
-  <p class="error">Could not load routing: {loadError}</p>
+{#if apps.length === 0}
+  <p class="empty">Install a proxy plugin (Claude Code or OpenCode) to configure routing.</p>
 {:else}
-  {#each slots as slot (slot)}
+  {#if apps.length > 1}
+    <div class="apptabs">
+      {#each apps as a (a.app)}
+        <button class:active={a.app === app} onclick={() => switchApp(a.app)}>{a.label}</button>
+      {/each}
+    </div>
+  {/if}
+
+  {#if loadError}
+    <p class="error">Could not load routing: {loadError}</p>
+  {:else}
+    {#if warnings.length > 0}
+      <div class="warnings">
+        {#each warnings as warning}
+          <p>{warning}</p>
+        {/each}
+      </div>
+    {/if}
+    {#each slots as slot (slot)}
     <section class="group">
       <div class="grouphead">
         <p class="label">{slot}</p>
@@ -98,7 +133,8 @@
         </div>
       </Card>
     </section>
-  {/each}
+    {/each}
+  {/if}
 {/if}
 
 <style>
@@ -206,5 +242,33 @@
   .error {
     color: var(--crit);
     font-size: 13px;
+  }
+  .apptabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 18px;
+  }
+  .apptabs button {
+    font-family: var(--ui);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 8px;
+    padding: 7px 12px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--faint);
+  }
+  .apptabs button.active {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  .warnings {
+    margin-bottom: 16px;
+  }
+  .warnings p {
+    color: var(--crit);
+    font-size: 12.5px;
+    margin: 0 0 4px;
   }
 </style>
