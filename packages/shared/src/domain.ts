@@ -76,3 +76,11 @@ export type UsageSnapshot = {
 export type ImportableApp = { app: string; label: string; hasConfig: boolean };
 export type ImportSummary = { accounts: number; providers: number; routingImported: boolean; notes: string[] };
 export type RoutingApp = { app: "claude" | "opencode"; label: string };
+export type PluginHomeId = "cairn" | "claude" | "opencode";
+export type PluginHome = {
+  id: PluginHomeId;
+  label: string;
+  dir: string;
+  present: boolean;
+  hasUpdater: boolean;
+};

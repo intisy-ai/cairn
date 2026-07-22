@@ -1,11 +1,11 @@
 import { existsSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { addAccount, getConfigDir, listAccounts, reposDir } from "@core-auth/index.js";
 import { readDeployedProviders } from "@core-loader/loader-runtime.js";
 import { resolveModelMap } from "@core-proxy/model-map.js";
 import { getConfigValue, setConfigValue } from "@core/index.js";
 import type { ImportableApp, ImportSummary, Result } from "../../../packages/shared/src/domain.js";
+import { appRealHome } from "../lib/pluginHomes.js";
 import { profileFor } from "../lib/proxyRegistry.js";
 import { modelMapWrite } from "../lib/modelMapWrite.js";
 import { appsDetect } from "./apps.js";
@@ -18,18 +18,6 @@ const EXPOSURE_CONFIG_KEY = "map";
 
 function isAppName(x: string): x is AppName {
   return x === "claude" || x === "opencode";
-}
-
-// Mirrors libs/core-auth/src/env.ts's getConfigDir, resolving the app's REAL home
-// independent of HUB_CONFIG_DIR (which the dashboard sidecar sets to its own store).
-function appRealHome(app: string): string {
-  const home = homedir();
-  if (app === "claude") {
-    return existsSync(join(home, ".claude")) ? join(home, ".claude") : join(home, ".config", "claude");
-  }
-  const xdg = process.env.XDG_CONFIG_HOME;
-  if (xdg && xdg.trim()) return join(xdg.trim(), "opencode");
-  return existsSync(join(home, ".config", "opencode")) ? join(home, ".config", "opencode") : join(home, ".opencode");
 }
 
 export interface ImportDeps {
