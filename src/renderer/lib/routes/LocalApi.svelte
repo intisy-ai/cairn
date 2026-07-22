@@ -24,8 +24,11 @@
     if (busy || !status) return;
     busy = true;
     try {
-      if (status.running) await cairn.proxyStop();
-      else await cairn.proxyStart();
+      const result = status.running ? await cairn.proxyStop() : await cairn.proxyStart();
+      if (!result.ok) {
+        loadError = result.error;
+        return;
+      }
       await load();
     } finally {
       busy = false;

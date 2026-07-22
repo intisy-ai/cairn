@@ -66,4 +66,18 @@ describe("LocalApi screen", () => {
     const { getByText } = render(LocalApi);
     await waitFor(() => expect(getByText(/boom/i)).toBeTruthy());
   });
+
+  it("shows the start error when proxyStart fails", async () => {
+    const proxyStart = vi.fn(async () => ({ ok: false, error: "claude proxy plugin not installed" }) as const);
+    stubCairn({
+      proxyStatus: async () => ({ ok: true, data: { running: false, port: 34567 } }),
+      proxyStart,
+    });
+
+    const { getByText } = render(LocalApi);
+    await waitFor(() => expect(getByText("Stopped")).toBeTruthy());
+
+    await fireEvent.click(getByText("Start local API"));
+    await waitFor(() => expect(getByText(/claude proxy plugin not installed/i)).toBeTruthy());
+  });
 });

@@ -137,6 +137,6 @@ describe("Routing screen", () => {
 
     const { getByText } = render(Routing);
 
-    await waitFor(() => expect(getByText(/Install a proxy plugin/i)).toBeTruthy());
+    await waitFor(() => expect(getByText(/install a proxy in apps & plugins to configure routing/i)).toBeTruthy());
   });
 });

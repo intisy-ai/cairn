@@ -3,7 +3,8 @@ import { startLoaderProxy } from "@core-loader/proxy-runner.js";
 import type { StartLoaderProxyOptions, StartedLoaderProxy } from "@core-loader/proxy-runner.js";
 import { createProxyServer, makeDynamicResolver } from "@core-proxy/index.js";
 import type { RoutingProfile } from "@core-proxy/index.js";
-import { anthropicProfile } from "@claude-code-proxy/index.js";
+import { loadInstalledProxyDefs } from "../../sidecar/lib/proxyPlugins.js";
+import type { LoadedProxyDef } from "../../sidecar/lib/proxyPlugins.js";
 import type { ProxyStatus } from "../../../packages/shared/src/domain.js";
 import { resolveStoreDir } from "../lib/storeDir.js";
 
@@ -33,7 +34,14 @@ async function defaultProbe(): Promise<boolean> {
   }
 }
 
-export function buildStartOptions(configDir: string): StartLoaderProxyOptions<RoutingProfile> {
+export async function resolveClaudeProfile(deps: { defs?: () => Promise<LoadedProxyDef[]> } = {}): Promise<RoutingProfile> {
+  const defs = await (deps.defs ?? (() => loadInstalledProxyDefs(dashboardStoreDir())))();
+  const def = defs.find((d) => d.app === "claude");
+  if (!def) throw new Error("claude proxy plugin not installed");
+  return def.profile();
+}
+
+export function buildStartOptions(configDir: string, profile: RoutingProfile): StartLoaderProxyOptions<RoutingProfile> {
   return {
     // core-loader's generic StartLoaderProxyOptions type-erases the handler-resolution
     // pipeline to `unknown` (it never depends on core-proxy's concrete ProxyHandler type,
@@ -42,7 +50,7 @@ export function buildStartOptions(configDir: string): StartLoaderProxyOptions<Ro
     // resolveHandler) is exact since both come from core-proxy itself.
     createProxyServer: createProxyServer as StartLoaderProxyOptions<RoutingProfile>["createProxyServer"],
     makeDynamicResolver,
-    profile: anthropicProfile(),
+    profile,
     configDir,
     port: PORT,
   };
@@ -56,13 +64,17 @@ export async function status(probe: () => Promise<boolean> = defaultProbe): Prom
   return { running: await isRunning(probe), port: PORT };
 }
 
-export async function start(starter: Starter = startLoaderProxy): Promise<void> {
+export async function start(
+  starter: Starter = startLoaderProxy,
+  resolveProfile: () => Promise<RoutingProfile> = () => resolveClaudeProfile(),
+): Promise<void> {
   if (handle) return;
   if (startingPromise) return startingPromise;
   startingPromise = (async () => {
     const configDir = dashboardStoreDir();
     if (!process.env.HUB_CONFIG_DIR) process.env.HUB_CONFIG_DIR = configDir;
-    handle = await starter(buildStartOptions(configDir));
+    const profile = await resolveProfile();
+    handle = await starter(buildStartOptions(configDir, profile));
   })();
   try {
     await startingPromise;

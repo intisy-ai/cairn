@@ -82,7 +82,7 @@
 </div>
 
 {#if apps.length === 0}
-  <p class="empty">Install a proxy plugin to configure routing.</p>
+  <p class="hint">Install a proxy in Apps &amp; plugins to configure routing.</p>
 {:else}
   {#if apps.length > 1}
     <div class="apptabs">
@@ -221,6 +221,12 @@
     font-size: 12.5px;
     padding: 8px 0;
     margin: 0;
+  }
+  .hint {
+    margin: 0;
+    padding: 16px 18px;
+    color: var(--faint);
+    font-size: 12.5px;
   }
   .add-row {
     display: flex;
