@@ -38,7 +38,19 @@ function mapModels(models: ModelSummary): Record<string, UsageModel> {
   return mapped;
 }
 
+// A cold scan streams the full transcript history and takes many seconds;
+// concurrent callers (the startup prewarm plus a Usage view) share one scan.
+let inFlight: Promise<Result<UsageSnapshot>> | null = null;
+
 export function usageSnapshot(): Promise<Result<UsageSnapshot>> {
+  if (inFlight) return inFlight;
+  inFlight = usageSnapshotOnce().finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
+}
+
+function usageSnapshotOnce(): Promise<Result<UsageSnapshot>> {
   return wrap(async () => {
     const snapshot = await buildSnapshot();
     return {

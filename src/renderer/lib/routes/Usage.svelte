@@ -64,7 +64,9 @@
 
 {#if loadError}
   <p class="error">Could not load usage: {loadError}</p>
-{:else if snapshot}
+{:else if !snapshot}
+  <p class="loading">Scanning session history, this can take a while on first load…</p>
+{:else}
   <section class="summary">
     <StatCard label="Accounts tracked" value={String(snapshot.accounts.length)} />
     <StatCard label="Sessions" value={String(sessions.length)} />
@@ -232,6 +234,10 @@
   }
   .error {
     color: var(--crit);
+    font-size: 13px;
+  }
+  .loading {
+    color: var(--faint);
     font-size: 13px;
   }
 </style>

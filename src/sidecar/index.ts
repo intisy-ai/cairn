@@ -64,4 +64,7 @@ if (process.parentPort) {
       process.parentPort.postMessage(response);
     });
   });
+  // Prewarm the transcript cache so the first Usage view doesn't sit on a
+  // multi-second cold scan of the full session history.
+  void usageSnapshot();
 }
