@@ -7,7 +7,6 @@ process.env.PLUGIN_UPDATER_LIBRARY_MODE = "1";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { getConfigDir } from "@core-auth/index.js";
 import { getPlugins, getPluginsPath } from "@plugin-updater/config.js";
-import { getNpmPlugins } from "@plugin-updater/npm.js";
 import { readUpdateCache } from "@plugin-updater/cache.js";
 import { syncPluginsAcrossApps as realSyncPluginsAcrossApps } from "@plugin-updater/syncbridge.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
@@ -18,6 +17,14 @@ import { wrap } from "../result.js";
 type UpdatePluginPublicFn = (name: string, url: string, branch?: string, commitHash?: string) => Promise<void | object>;
 type SyncPluginsAcrossAppsFn = (configDir: string) => Promise<void>;
 type DowngradeFn = (plugin: { name: string; url?: string; branch?: string }, commitHash: string) => string;
+type GetNpmPluginsFn = (configDir: string) => Array<{ name: string; version: string; installed: boolean; raw: string }>;
+
+// Loaded dynamically (not statically bundled) because npm.js's require.resolve
+// fallback trips a Rollup CommonJS-interop bug when inlined into this chunk.
+async function getNpmPlugins(configDir: string): Promise<ReturnType<GetNpmPluginsFn>> {
+  const mod = await import("@plugin-updater/npm.js");
+  return mod.getNpmPlugins(configDir);
+}
 
 function rowFor(name: string, kind: "git" | "npm", enabled: boolean, url: string | undefined, cache: UpdateCache): PluginRow {
   const entry = cache.plugins[name];
@@ -32,11 +39,12 @@ function rowFor(name: string, kind: "git" | "npm", enabled: boolean, url: string
 }
 
 export function pluginsList(): Promise<Result<PluginRow[]>> {
-  return wrap(() => {
+  return wrap(async () => {
     const configDir = getConfigDir();
     const cache = readUpdateCache(configDir);
     const gitRows = getPlugins(configDir).map((p) => rowFor(p.name, "git", p.enabled !== false, p.url, cache));
-    const npmRows = getNpmPlugins(configDir).map((p) => rowFor(p.name, "npm", true, undefined, cache));
+    const npmPlugins = await getNpmPlugins(configDir);
+    const npmRows = npmPlugins.map((p) => rowFor(p.name, "npm", true, undefined, cache));
     return [...gitRows, ...npmRows];
   });
 }
