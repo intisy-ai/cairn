@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { AppPresence, ImportableApp, HomePlugins, PluginRow as PluginRowData } from "@cairn/shared";
+  import type { AppPresence, ImportableApp, HomePlugins, CatalogEntry, CatalogKind } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import StatusPill from "../components/StatusPill.svelte";
   import PluginRow from "../components/PluginRow.svelte";
@@ -19,8 +19,11 @@
   let busyApps = $state<Record<AppId, boolean>>({ claude: false, opencode: false });
 
   let sections = $state<HomePlugins[]>([]);
-  let plugins = $state<PluginRowData[]>([]);
   let pluginsError = $state("");
+
+  let catalog = $state<CatalogEntry[]>([]);
+  let catalogSource = $state<"env" | "gh" | "anonymous">("gh");
+  let installBusy = $state<string>("");
 
   let importable = $state<ImportableApp[]>([]);
   let importBusy = $state<Record<AppId, boolean>>({ claude: false, opencode: false });
@@ -49,15 +52,38 @@
     const result = await cairn.pluginsList();
     if (result.ok) {
       sections = result.data;
-      plugins = result.data.flatMap((s) => s.rows);
       pluginsError = "";
     } else {
       pluginsError = result.error;
     }
   }
 
-  function homeFor(name: string): string {
-    return sections.find((s) => s.rows.some((r) => r.name === name))?.home.id ?? "cairn";
+  async function loadCatalog(): Promise<void> {
+    const result = await cairn.catalogList();
+    if (result.ok) {
+      catalog = result.data.entries;
+      catalogSource = result.data.source;
+    }
+  }
+
+  function availableFor(section: HomePlugins): CatalogEntry[] {
+    if (!section.home.hasUpdater) return [];
+    const installed = new Set(section.rows.map((r) => r.name));
+    const allowed: (k: CatalogKind) => boolean =
+      section.home.id === "cairn" ? (k) => k !== "plugin" : (k) => k !== "proxy";
+    return catalog.filter((e) => allowed(e.kind) && !installed.has(e.name));
+  }
+
+  async function handleInstallPlugin(home: string, entry: CatalogEntry): Promise<void> {
+    const key = `${home}/${entry.name}`;
+    if (installBusy === key) return;
+    installBusy = key;
+    try {
+      await cairn.pluginsInstall(home, entry.name, entry.url);
+      await loadPlugins();
+    } finally {
+      installBusy = "";
+    }
   }
 
   async function loadImportable(): Promise<void> {
@@ -100,14 +126,15 @@
     await withAppBusy(app, () => cairn.appsInit(app));
   }
 
-  async function handleToggle(name: string, on: boolean): Promise<void> {
-    await cairn.pluginsSetEnabled(homeFor(name), name, on);
+  async function handleToggle(home: string, name: string, on: boolean): Promise<void> {
+    await cairn.pluginsSetEnabled(home, name, on);
     await loadPlugins();
   }
 
   onMount(() => {
     loadApps();
     loadPlugins();
+    loadCatalog();
     loadImportable();
   });
 </script>
@@ -161,32 +188,62 @@
   {/if}
 </section>
 
-<section class="group">
-  <div class="grouphead">
-    <p class="label">Plugins</p>
-    <span class="count">{plugins.length}</span>
-    <span class="line"></span>
-  </div>
-  {#if pluginsError}
+{#if pluginsError}
+  <section class="group">
+    <div class="grouphead">
+      <p class="label">Plugins</p>
+      <span class="line"></span>
+    </div>
     <p class="error">Could not load plugins: {pluginsError}</p>
-  {:else}
-    <Card>
-      {#each plugins as plugin (plugin.name)}
-        <PluginRow
-          name={plugin.name}
-          kind={plugin.kind}
-          installedVersion={plugin.installedVersion}
-          updateAvailable={plugin.updateAvailable}
-          enabled={plugin.enabled}
-          onToggle={(on) => handleToggle(plugin.name, on)}
-        />
-      {/each}
-      {#if plugins.length === 0}
-        <p class="empty">No plugins installed.</p>
+  </section>
+{:else}
+  {#each sections.filter((s) => s.home.present) as section, i (section.home.id)}
+    <section class="group" data-testid={"home-" + section.home.id}>
+      <div class="grouphead">
+        <p class="label">{section.home.label}</p>
+        <span class="count">{section.rows.length}</span>
+        <span class="line"></span>
+      </div>
+      <Card>
+        {#each section.rows as plugin (plugin.name)}
+          <PluginRow
+            name={plugin.name}
+            kind={plugin.kind}
+            installedVersion={plugin.installedVersion}
+            updateAvailable={plugin.updateAvailable}
+            enabled={plugin.enabled}
+            onToggle={(on) => handleToggle(section.home.id, plugin.name, on)}
+          />
+        {/each}
+        {#if section.rows.length === 0}
+          <p class="empty">No plugins installed.</p>
+        {/if}
+        {#if !section.home.hasUpdater}
+          <p class="hint">Install plugin-updater to manage plugins here.</p>
+        {:else}
+          {#each availableFor(section) as entry (entry.name)}
+            <div class="row">
+              <div class="info">
+                <b>{entry.name}</b>
+                <span class="chip">{entry.kind}</span>
+                <span class="desc">{entry.description}</span>
+              </div>
+              <div class="actions">
+                <Button
+                  disabled={installBusy === section.home.id + "/" + entry.name}
+                  onclick={() => handleInstallPlugin(section.home.id, entry)}
+                >Install</Button>
+              </div>
+            </div>
+          {/each}
+        {/if}
+      </Card>
+      {#if i === sections.filter((s) => s.home.present).length - 1 && catalogSource === "anonymous"}
+        <p class="hint">Marketplace unauthenticated: sign in with the gh CLI or set GITHUB_TOKEN for reliable listings.</p>
       {/if}
-    </Card>
-  {/if}
-</section>
+    </section>
+  {/each}
+{/if}
 
 <style>
   .head {
@@ -259,6 +316,25 @@
     padding: 16px 18px;
     color: var(--faint);
     font-size: 12.5px;
+  }
+  .hint {
+    margin: 0;
+    padding: 16px 18px;
+    color: var(--faint);
+    font-size: 12.5px;
+  }
+  .chip {
+    font-size: 10.5px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--faint);
+    background: var(--surface-2);
+    padding: 2px 7px;
+    border-radius: 20px;
+  }
+  .desc {
+    color: var(--muted);
+    font-size: 12px;
   }
   .error {
     color: var(--crit);
