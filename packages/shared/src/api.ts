@@ -1,4 +1,4 @@
-import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, Chain, AppPresence, CliResult, PluginRow, UsageSnapshot } from "./domain.js";
+import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, PluginRow, UsageSnapshot, ImportableApp, ImportSummary } from "./domain.js";
 export interface IntisyAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -10,8 +10,9 @@ export interface IntisyAPI {
   providersList(): Promise<Result<ProviderRow[]>>;
   providersSetActive(id: string): Promise<Result<void>>;
   providersSetExposure(id: string, app: "cc" | "oc", on: boolean): Promise<Result<void>>;
-  routingGet(): Promise<Result<RoutingState>>;
-  routingSetChain(slot: string, chain: Chain): Promise<Result<void>>;
+  routingApps(): Promise<Result<RoutingApp[]>>;
+  routingGet(app: string): Promise<Result<RoutingState>>;
+  routingSetChain(app: string, slot: string, chain: Chain): Promise<Result<{ warnings: string[] }>>;
   proxyStatus(): Promise<Result<ProxyStatus>>;
   proxyStart(): Promise<Result<void>>;
   proxyStop(): Promise<Result<void>>;
@@ -23,6 +24,8 @@ export interface IntisyAPI {
   pluginsSetEnabled(name: string, on: boolean): Promise<Result<void>>;
   pluginsDowngrade(name: string, hash: string): Promise<Result<void>>;
   usageSnapshot(): Promise<Result<UsageSnapshot>>;
+  importApps(): Promise<Result<ImportableApp[]>>;
+  importRun(app: string): Promise<Result<ImportSummary>>;
   minimize(): void;
   maximize(): void;
   close(): void;

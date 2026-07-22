@@ -1,8 +1,9 @@
 import { anthropicProfile } from "@claude-code-proxy/index.js";
 import { opencodeProfile } from "@opencode-proxy/index.js";
 import type { RoutingProfile } from "@core-proxy/index.js";
+import type { RoutingApp } from "../../../packages/shared/src/domain.js";
 
-export type RoutingApp = { app: "claude" | "opencode"; label: string };
+export type { RoutingApp };
 
 type Entry = { app: "claude" | "opencode"; label: string; profile: () => RoutingProfile };
 

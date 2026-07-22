@@ -4,11 +4,12 @@ import { configGet, configSet } from "./modules/config.js";
 import { overviewSummary } from "./modules/overview.js";
 import { accountsList, accountsEnable, accountsRemove, accountsRefreshQuota } from "./modules/accounts.js";
 import { providersList, providersSetActive, providersSetExposure } from "./modules/providers.js";
-import { routingGet, routingSetChain } from "./modules/routing.js";
+import { routingApps, routingGet, routingSetChain } from "./modules/routing.js";
 import { appsDetect, appsInstallCli, appsInit } from "./modules/apps.js";
 import type { AppName } from "./modules/apps.js";
 import { pluginsList, pluginsInstall, pluginsSetEnabled, pluginsDowngrade } from "./modules/plugins.js";
 import { usageSnapshot } from "./modules/usage.js";
+import { importApps, importRun } from "./modules/import.js";
 
 type SidecarRequest = { id: number; channel: string; args: unknown[] };
 type SidecarResponse = { id: number; result: Result<unknown> };
@@ -41,6 +42,7 @@ registerHandler("accounts:refreshQuota", (provider) => accountsRefreshQuota(prov
 registerHandler("providers:list", () => providersList());
 registerHandler("providers:setActive", (id) => providersSetActive(id as string));
 registerHandler("providers:setExposure", (id, app, on) => providersSetExposure(id as string, app as "cc" | "oc", on as boolean));
+registerHandler("routing:apps", () => routingApps());
 registerHandler("routing:get", (app) => routingGet(app as string));
 registerHandler("routing:setChain", (app, slot, chain) => routingSetChain(app as string, slot as string, chain));
 registerHandler("apps:detect", () => appsDetect());
@@ -51,6 +53,8 @@ registerHandler("plugins:install", (name, url) => pluginsInstall(name as string,
 registerHandler("plugins:setEnabled", (name, on) => pluginsSetEnabled(name as string, on as boolean));
 registerHandler("plugins:downgrade", (name, hash) => pluginsDowngrade(name as string, hash as string));
 registerHandler("usage:snapshot", () => usageSnapshot());
+registerHandler("import:apps", () => importApps());
+registerHandler("import:run", (app) => importRun(app as string));
 
 if (process.parentPort) {
   process.parentPort.on("message", (messageEvent) => {

@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import { IPC_CHANNELS } from "@dashboard/shared";
-import type { IntisyAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, Chain, AppPresence, CliResult, PluginRow, UsageSnapshot } from "@dashboard/shared";
+import type { IntisyAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, PluginRow, UsageSnapshot, ImportableApp, ImportSummary } from "@dashboard/shared";
 
 const invokeChannels: readonly string[] = IPC_CHANNELS.invoke;
 const sendChannels: readonly string[] = IPC_CHANNELS.send;
@@ -37,8 +37,9 @@ const api: IntisyAPI = {
   providersList: () => safeInvoke("providers:list") as Promise<Result<ProviderRow[]>>,
   providersSetActive: (id) => safeInvoke("providers:setActive", id) as Promise<Result<void>>,
   providersSetExposure: (id, app, on) => safeInvoke("providers:setExposure", id, app, on) as Promise<Result<void>>,
-  routingGet: () => safeInvoke("routing:get") as Promise<Result<RoutingState>>,
-  routingSetChain: (slot, chain) => safeInvoke("routing:setChain", slot, chain) as Promise<Result<void>>,
+  routingApps: () => safeInvoke("routing:apps") as Promise<Result<RoutingApp[]>>,
+  routingGet: (app) => safeInvoke("routing:get", app) as Promise<Result<RoutingState>>,
+  routingSetChain: (app, slot, chain) => safeInvoke("routing:setChain", app, slot, chain) as Promise<Result<{ warnings: string[] }>>,
   proxyStatus: () => safeInvoke("proxy:status") as Promise<Result<ProxyStatus>>,
   proxyStart: () => safeInvoke("proxy:start") as Promise<Result<void>>,
   proxyStop: () => safeInvoke("proxy:stop") as Promise<Result<void>>,
@@ -50,6 +51,8 @@ const api: IntisyAPI = {
   pluginsSetEnabled: (name, on) => safeInvoke("plugins:setEnabled", name, on) as Promise<Result<void>>,
   pluginsDowngrade: (name, hash) => safeInvoke("plugins:downgrade", name, hash) as Promise<Result<void>>,
   usageSnapshot: () => safeInvoke("usage:snapshot") as Promise<Result<UsageSnapshot>>,
+  importApps: () => safeInvoke("import:apps") as Promise<Result<ImportableApp[]>>,
+  importRun: (app) => safeInvoke("import:run", app) as Promise<Result<ImportSummary>>,
   minimize: () => safeSend("window:minimize"),
   maximize: () => safeSend("window:maximize"),
   close: () => safeSend("window:close"),
