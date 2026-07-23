@@ -122,6 +122,7 @@ describe("plugins sidecar module", () => {
       updatePluginPublic: fakeUpdate,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
+      hasUpdater: () => true,
     });
 
     expect(result.ok).toBe(true);
@@ -136,6 +137,7 @@ describe("plugins sidecar module", () => {
       updatePluginPublic: async () => {},
       homes: fakeHomes,
       syncPluginsAcrossApps,
+      hasUpdater: () => true,
     });
     expect(syncPluginsAcrossApps).toHaveBeenCalledWith(claudeDir);
 
@@ -144,6 +146,7 @@ describe("plugins sidecar module", () => {
       updatePluginPublic: async () => {},
       homes: fakeHomes,
       syncPluginsAcrossApps,
+      hasUpdater: () => true,
     });
     expect(syncPluginsAcrossApps).not.toHaveBeenCalled();
   });
@@ -206,6 +209,7 @@ describe("plugins sidecar module", () => {
       updatePluginPublic: async () => {},
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
+      hasUpdater: () => true,
     });
     expect(result.ok).toBe(true);
 
@@ -289,5 +293,60 @@ describe("plugins sidecar module", () => {
     const { pluginsUninstall } = await import("./plugins.js");
     const result = await pluginsUninstall("nope", "plugin-a", { homes: fakeHomes });
     expect(result.ok).toBe(false);
+  });
+
+  it("auto-inits an app home missing the updater before installing", async () => {
+    const order: string[] = [];
+    const { pluginsInstall } = await import("./plugins.js");
+    const result = await pluginsInstall("claude", "plugin-a", "https://github.com/intisy-ai/plugin-a", {
+      homes: fakeHomes,
+      hasUpdater: () => false,
+      initApp: async (app) => { order.push("init:" + app); return { ok: true, data: { stdout: "", stderr: "" } }; },
+      updatePluginPublic: async () => { order.push("install"); },
+      syncPluginsAcrossApps: async () => {},
+    });
+    expect(result.ok).toBe(true);
+    expect(order).toEqual(["init:claude", "install"]);
+  });
+
+  it("does not init the cairn home or an app home that already has the updater", async () => {
+    const inits: string[] = [];
+    const { pluginsInstall } = await import("./plugins.js");
+    const deps = {
+      homes: fakeHomes,
+      initApp: async (a: string) => { inits.push(a); return { ok: true, data: { stdout: "", stderr: "" } }; },
+      updatePluginPublic: async () => {},
+      syncPluginsAcrossApps: async () => {},
+    };
+
+    await pluginsInstall("cairn", "x", "u", { ...deps, hasUpdater: () => false });
+    await pluginsInstall("claude", "x", "u", { ...deps, hasUpdater: () => true });
+
+    expect(inits).toEqual([]);
+  });
+
+  it("new installs honor the autoUpdateDefault setting", async () => {
+    const { pluginsInstall } = await import("./plugins.js");
+
+    mkdirSync(join(cairnDir, "config"), { recursive: true });
+    writeFileSync(join(cairnDir, "config", "cairn.json"), JSON.stringify({ autoUpdateDefault: false }, null, 2), "utf8");
+    process.env.HUB_CONFIG_DIR = cairnDir;
+
+    const result = await pluginsInstall("claude", "plugin-new", "https://github.com/intisy-ai/plugin-new", {
+      updatePluginPublic: async () => {},
+      homes: fakeHomes,
+      syncPluginsAcrossApps: async () => {},
+      hasUpdater: () => true,
+    });
+    expect(result.ok).toBe(true);
+
+    const entries = JSON.parse(readFileSync(join(claudeDir, "config", "plugins.json"), "utf8")) as Plugin[];
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toEqual({
+      name: "plugin-new",
+      url: "https://github.com/intisy-ai/plugin-new",
+      enabled: true,
+      autoUpdate: false,
+    });
   });
 });

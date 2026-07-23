@@ -7,19 +7,22 @@ process.env.PLUGIN_UPDATER_LIBRARY_MODE = "1";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
+import { getConfigValue } from "@core/index.js";
 import { getPlugins, getPluginsPath } from "@plugin-updater/config.js";
 import { readUpdateCache } from "@plugin-updater/cache.js";
 import { syncPluginsAcrossApps as realSyncPluginsAcrossApps } from "@plugin-updater/syncbridge.js";
 import { setEarlyLaunchConfigDir } from "@plugin-updater/env.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
 import type { Plugin, NpmPlugin } from "@plugin-updater/types.js";
-import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, Result } from "../../../packages/shared/src/domain.js";
+import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, Result, CliResult } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir } from "../lib/pluginHomes.js";
-import { wrap } from "../result.js";
+import { wrap, err } from "../result.js";
 
 type UpdatePluginPublicFn = (name: string, url: string, branch?: string, commitHash?: string) => Promise<void | object>;
 type SyncPluginsAcrossAppsFn = (configDir: string) => Promise<void>;
 type DowngradeFn = (plugin: { name: string; url?: string; branch?: string }, commitHash: string) => string;
+type HasUpdaterFn = (dir: string) => boolean;
+type InitAppFn = (app: "claude" | "opencode") => Promise<Result<CliResult>>;
 
 // Loaded dynamically (not statically bundled) because npm.js's require.resolve
 // fallback trips a Rollup CommonJS-interop bug when inlined into this chunk.
@@ -66,6 +69,8 @@ export interface PluginsDeps {
   npmPlugins?: (dir: string) => Promise<NpmPlugin[]>;
   uninstallPlugin?: (dir: string, name: string) => void;
   uninstallNpmPlugin?: (name: string, dir: string) => string;
+  hasUpdater?: HasUpdaterFn;
+  initApp?: InitAppFn;
 }
 
 async function resolveHomes(deps: PluginsDeps): Promise<PluginHome[]> {
@@ -92,14 +97,14 @@ export function pluginsList(deps: PluginsDeps = {}): Promise<Result<HomePlugins[
 
 // plugin-updater only clones+builds the repo; registering it in plugins.json
 // (so getPlugins/pluginsList and proxy discovery pick it up) is the caller's job.
-function registerPlugin(dir: string, name: string, url: string): void {
+function registerPlugin(dir: string, name: string, url: string, autoUpdateDefault: boolean = true): void {
   const file = getPluginsPath(dir);
   const entries = existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Plugin[]) : [];
   const entry = entries.find((e) => e.name === name);
   if (entry) {
     entry.url = url;
   } else {
-    entries.push({ name, url, enabled: true, autoUpdate: true });
+    entries.push({ name, url, enabled: true, autoUpdate: autoUpdateDefault });
   }
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, JSON.stringify(entries, null, 2), "utf8");
@@ -109,10 +114,27 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
   return wrap(async () => {
     const homes = await resolveHomes(deps);
     const dir = homeDir(homeId, homes);
+
+    if (homeId !== "cairn") {
+      const hasUpdater = deps.hasUpdater ?? ((d: string) => existsSync(getPluginsPath(d)));
+      if (!hasUpdater(dir)) {
+        const initApp = deps.initApp ?? (await import("./apps.js")).appsInit;
+        const result = await initApp(homeId);
+        if (!result.ok) throw new Error(result.error);
+      }
+    }
+
     const updatePluginPublic = deps.updatePluginPublic ?? (await import("@plugin-updater/index.js")).updatePluginPublic;
+    let autoUpdateDefault = true;
+    try {
+      const val = getConfigValue("cairn", "autoUpdateDefault");
+      if (typeof val === "boolean") autoUpdateDefault = val;
+    } catch {
+      // config not found, use default true
+    }
     await withHome(dir, async () => {
       await updatePluginPublic(name, url);
-      registerPlugin(dir, name, url);
+      registerPlugin(dir, name, url, autoUpdateDefault);
     });
     if (homeId !== "cairn") {
       const syncPluginsAcrossApps = deps.syncPluginsAcrossApps ?? realSyncPluginsAcrossApps;
