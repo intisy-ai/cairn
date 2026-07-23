@@ -241,6 +241,7 @@ describe("plugins sidecar module", () => {
       updatePluginPublic: async () => { throw new Error("clone failed"); },
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
+      hasUpdater: () => true,
     });
     expect(result.ok).toBe(false);
     expect(existsSync(join(claudeDir, "config", "plugins.json"))).toBe(false);

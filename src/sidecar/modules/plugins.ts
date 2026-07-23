@@ -16,7 +16,7 @@ import type { UpdateCache } from "@plugin-updater/cache.js";
 import type { Plugin, NpmPlugin } from "@plugin-updater/types.js";
 import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, Result, CliResult } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir } from "../lib/pluginHomes.js";
-import { wrap, err } from "../result.js";
+import { wrap } from "../result.js";
 
 type UpdatePluginPublicFn = (name: string, url: string, branch?: string, commitHash?: string) => Promise<void | object>;
 type SyncPluginsAcrossAppsFn = (configDir: string) => Promise<void>;
@@ -126,12 +126,8 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
 
     const updatePluginPublic = deps.updatePluginPublic ?? (await import("@plugin-updater/index.js")).updatePluginPublic;
     let autoUpdateDefault = true;
-    try {
-      const val = getConfigValue("cairn", "autoUpdateDefault");
-      if (typeof val === "boolean") autoUpdateDefault = val;
-    } catch {
-      // config not found, use default true
-    }
+    const val = getConfigValue("cairn", "autoUpdateDefault");
+    if (typeof val === "boolean") autoUpdateDefault = val;
     await withHome(dir, async () => {
       await updatePluginPublic(name, url);
       registerPlugin(dir, name, url, autoUpdateDefault);
