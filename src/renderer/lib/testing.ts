@@ -31,6 +31,8 @@ function defaultCairn(): CairnAPI {
     pluginsSetEnabled: async (_home, _name, _on) => ({ ok: true, data: undefined }),
     pluginsDowngrade: async (_home, _name, _hash) => ({ ok: true, data: undefined }),
     pluginsUninstall: async (_home, _name) => ({ ok: true, data: undefined }),
+    configSchemas: async () => ({ ok: true, data: [] }),
+    configWrite: async (_home, _plugin, _key, _value) => ({ ok: true, data: undefined }),
     usageSnapshot: async () => ({ ok: true, data: { accounts: [], sessions: [], models: {}, updatedAt: "" } }),
     importApps: async () => ({ ok: true, data: [] }),
     importRun: async () => ({ ok: true, data: { accounts: 0, providers: 0, routingImported: false, notes: [] } }),
