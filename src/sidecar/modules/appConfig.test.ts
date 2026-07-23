@@ -61,6 +61,8 @@ describe("appConfig sidecar module", () => {
 
   it("configWrite creates config/<plugin>.json when it does not exist yet", async () => {
     const { dir, home } = makeHome("claude", "Claude Code");
+    seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
+
     const { configWrite } = await import("./appConfig.js");
     const result = await configWrite("claude", "plugin-a", "logging", false, { homes: [home] });
 
@@ -71,6 +73,7 @@ describe("appConfig sidecar module", () => {
 
   it("configWrite merges into an existing file, preserving unrelated keys", async () => {
     const { dir, home } = makeHome("claude", "Claude Code");
+    seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
     writeFileSync(join(dir, "config", "plugin-a.json"), JSON.stringify({ logging: true, otherKey: "keep-me" }, null, 2), "utf8");
 
     const { configWrite } = await import("./appConfig.js");
@@ -87,5 +90,30 @@ describe("appConfig sidecar module", () => {
     const result = await configWrite("nope", "plugin-a", "logging", false, { homes: [] });
     expect(result.ok).toBe(false);
     expect(existsSync(join(dir, "config", "plugin-a.json"))).toBe(false);
+  });
+
+  it("configWrite rejects path traversal attempts and does not create files outside the home", async () => {
+    const { dir, home } = makeHome("claude", "Claude Code");
+    seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
+
+    const { configWrite } = await import("./appConfig.js");
+    const result = await configWrite("claude", "../escape", "logging", false, { homes: [home] });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("plugin not found");
+    expect(existsSync(join(dir, "..", "escape.json"))).toBe(false);
+  });
+
+  it("configWrite rejects prototype pollution keys", async () => {
+    const { dir, home } = makeHome("claude", "Claude Code");
+    seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
+
+    const { configWrite } = await import("./appConfig.js");
+    const result = await configWrite("claude", "plugin-a", "__proto__", { malicious: true }, { homes: [home] });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("invalid config key");
   });
 });

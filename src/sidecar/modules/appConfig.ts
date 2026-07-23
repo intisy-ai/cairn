@@ -58,6 +58,12 @@ export function configWrite(homeId: string, plugin: string, key: string, value: 
   return wrap(async () => {
     const homes = deps.homes ?? (await pluginHomes());
     const dir = homeDir(homeId as PluginHomeId, homes);
+    if (!getPlugins(dir).some((p) => p.name === plugin)) {
+      throw new Error(`plugin not found: ${plugin}`);
+    }
+    if (key === "__proto__" || key === "constructor" || key === "prototype") {
+      throw new Error(`invalid config key: ${key}`);
+    }
     const file = join(dir, "config", `${plugin}.json`);
     const existing = existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>) : {};
     existing[key] = value;
