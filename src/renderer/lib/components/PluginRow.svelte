@@ -1,6 +1,7 @@
 <script lang="ts">
   import StatusPill from "./StatusPill.svelte";
   import ToggleSwitch from "./ToggleSwitch.svelte";
+  import Button from "./Button.svelte";
 
   let {
     name,
@@ -9,6 +10,8 @@
     updateAvailable,
     enabled,
     onToggle,
+    onUninstall,
+    uninstallState = "idle",
   }: {
     name: string;
     kind: "git" | "npm";
@@ -16,12 +19,14 @@
     updateAvailable: boolean;
     enabled: boolean;
     onToggle?: (on: boolean) => void;
+    onUninstall?: () => void;
+    uninstallState?: "idle" | "confirm";
   } = $props();
 
   const detail = $derived(installedVersion ? `${kind} · v${installedVersion}` : kind);
 </script>
 
-<div class="row">
+<div class="row" class:has-uninstall={!!onUninstall}>
   <div class="pname">
     <b>{name}</b>
     <span>{detail}</span>
@@ -34,6 +39,9 @@
     {/if}
   </div>
   <ToggleSwitch checked={enabled} label={`${name} enabled`} onchange={onToggle} />
+  {#if onUninstall}
+    <Button onclick={onUninstall}>{uninstallState === "confirm" ? "Confirm?" : "Uninstall"}</Button>
+  {/if}
 </div>
 
 <style>
@@ -44,6 +52,9 @@
     gap: 14px;
     padding: 12px 16px;
     border-top: 1px solid var(--border);
+  }
+  .row.has-uninstall {
+    grid-template-columns: minmax(150px, 1.4fr) 140px auto 46px;
   }
   .row:first-child {
     border-top: 0;
