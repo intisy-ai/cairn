@@ -30,6 +30,11 @@
 
   const selectedSection = $derived(sections.find((s) => s.home.id === selectedHome) ?? null);
 
+  $effect(() => {
+    selectedHome;
+    uninstallArm = "";
+  });
+
   function canImport(app: AppId): boolean {
     return importable.some((a) => a.app === app && a.hasConfig);
   }

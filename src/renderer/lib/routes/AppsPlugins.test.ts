@@ -135,6 +135,33 @@ describe("AppsPlugins screen", () => {
     expect(screen.getAllByRole("button", { name: /uninstall/i })).toHaveLength(1);
   });
 
+  it("clears uninstall confirm when navigating away and back", async () => {
+    const calls: unknown[][] = [];
+    stubCairn({
+      appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
+      pluginsList: async () => ({
+        ok: true,
+        data: [cairnSection([]), claudeSection([row("plugin-a")])],
+      }),
+      pluginsUninstall: async (...args: unknown[]) => {
+        calls.push(args);
+        return { ok: true, data: undefined };
+      },
+    });
+    render(AppsPlugins);
+    await fireEvent.click(await screen.findByRole("button", { name: /open claude code plugins/i }));
+    const uninstallButton = await screen.findByRole("button", { name: /uninstall/i });
+    await fireEvent.click(uninstallButton);
+    expect(screen.getByRole("button", { name: /confirm\?/i })).toBeInTheDocument();
+    await fireEvent.click(screen.getByRole("button", { name: /back to apps/i }));
+    expect(screen.queryByRole("button", { name: /confirm\?/i })).toBeNull();
+    await fireEvent.click(await screen.findByRole("button", { name: /open claude code plugins/i }));
+    expect(screen.getByRole("button", { name: /uninstall/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /confirm\?/i })).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: /uninstall/i }));
+    expect(calls).toHaveLength(0);
+  });
+
   it("shows an inline error when appsDetect fails", async () => {
     stubCairn({ appsDetect: async () => ({ ok: false, error: "detect boom" }) });
     render(AppsPlugins);
