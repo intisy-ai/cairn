@@ -5,7 +5,7 @@ import { overviewSummary } from "./modules/overview.js";
 import { accountsList, accountsEnable, accountsRemove, accountsRefreshQuota } from "./modules/accounts.js";
 import { providersList, providersSetActive, providersSetExposure } from "./modules/providers.js";
 import { routingApps, routingGet, routingSetChain } from "./modules/routing.js";
-import { appsDetect, appsInstallCli, appsInit } from "./modules/apps.js";
+import { appsDetect, appsInstallCli, appsInit, appsUninstallCli, appsSummary } from "./modules/apps.js";
 import type { AppName } from "./modules/apps.js";
 import { pluginsList, pluginsInstall, pluginsSetEnabled, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
@@ -50,6 +50,8 @@ registerHandler("routing:setChain", (app, slot, chain) => routingSetChain(app as
 registerHandler("apps:detect", () => appsDetect());
 registerHandler("apps:installCli", (app) => appsInstallCli(app as AppName));
 registerHandler("apps:init", (app) => appsInit(app as AppName));
+registerHandler("apps:uninstallCli", (app, wipeData) => appsUninstallCli(app as AppName, wipeData as boolean));
+registerHandler("apps:summary", (app) => appsSummary(app as AppName));
 registerHandler("plugins:list", () => pluginsList());
 registerHandler("plugins:install", (home, name, url) => pluginsInstall(home as PluginHomeId, name as string, url as string));
 registerHandler("plugins:setEnabled", (home, name, on) => pluginsSetEnabled(home as PluginHomeId, name as string, on as boolean));

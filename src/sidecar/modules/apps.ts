@@ -1,8 +1,13 @@
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join, delimiter } from "node:path";
 import { getAppConfigDir } from "@plugin-updater/env.js";
-import type { AppPresence, CliResult, Result } from "../../../packages/shared/src/domain.js";
+import { getPlugins } from "@plugin-updater/config.js";
+import { resolveModelMap } from "@core-proxy/model-map.js";
+import { normalizeQuotas } from "../../../vendor/usage/snapshot.js";
+import { appRealHome } from "../lib/pluginHomes.js";
+import { profileFor } from "../lib/proxyRegistry.js";
+import type { AppAccountSummary, AppPresence, AppSummary, CliResult, Result } from "../../../packages/shared/src/domain.js";
 import { wrap, err } from "../result.js";
 
 export type AppName = "claude" | "opencode";
@@ -69,4 +74,86 @@ export function appsInstallCli(app: AppName, spawn: SpawnFn = realSpawn): Promis
 export function appsInit(app: AppName, spawn: SpawnFn = realSpawn): Promise<Result<CliResult>> {
   if (!isAppName(app)) return Promise.resolve(err(`unknown app: ${app}`));
   return wrap(() => spawn("npx", ["plugin-updater", "init", "--app", app]));
+}
+
+function safeReadJson(path: string): unknown | null {
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function accountLabel(account: Record<string, unknown>, provider: string): string {
+  const email = account["email"];
+  if (typeof email === "string" && email) return email;
+  const username = account["username"];
+  if (typeof username === "string" && username) return username;
+  const id = account["id"];
+  if (typeof id === "string" && id) return id;
+  return provider;
+}
+
+function accountQuotaPct(account: Record<string, unknown>): number | null {
+  const quotas = normalizeQuotas(account);
+  const first = Object.values(quotas)[0];
+  return first && typeof first.remaining === "number" ? Math.round(first.remaining * 100) : null;
+}
+
+export interface AppsUninstallDeps {
+  spawn?: SpawnFn;
+  rm?: (path: string) => void;
+  appHome?: (app: AppName) => string;
+}
+
+export function appsUninstallCli(app: AppName, wipeData: boolean, deps: AppsUninstallDeps = {}): Promise<Result<CliResult>> {
+  if (!isAppName(app)) return Promise.resolve(err(`unknown app: ${app}`));
+  const spawn = deps.spawn ?? realSpawn;
+  const rm = deps.rm ?? ((p: string) => rmSync(p, { recursive: true, force: true }));
+  const appHome = deps.appHome ?? appRealHome;
+  return wrap(async () => {
+    const result = await spawn("npm", ["uninstall", "-g", CLI_PACKAGES[app]]);
+    if (wipeData) rm(appHome(app));
+    return result;
+  });
+}
+
+interface AccountsStoreShape {
+  providers?: Record<string, { accounts?: Record<string, unknown>[] }>;
+}
+
+export interface AppsSummaryDeps {
+  appHome?: (app: AppName) => string;
+  readJson?: (path: string) => unknown | null;
+}
+
+export function appsSummary(app: AppName, deps: AppsSummaryDeps = {}): Promise<Result<AppSummary>> {
+  if (!isAppName(app)) return Promise.resolve(err(`unknown app: ${app}`));
+  const appHome = deps.appHome ?? appRealHome;
+  const readJson = deps.readJson ?? safeReadJson;
+  return wrap(async () => {
+    const home = appHome(app);
+    const store = readJson(join(home, "config", "accounts.json")) as AccountsStoreShape | null;
+    const accounts: AppAccountSummary[] = [];
+    for (const [provider, pool] of Object.entries(store?.providers ?? {})) {
+      for (const account of pool.accounts ?? []) {
+        accounts.push({
+          provider,
+          label: accountLabel(account, provider),
+          enabled: account["enabled"] !== false,
+          quotaPct: accountQuotaPct(account),
+        });
+      }
+    }
+    const pluginCount = getPlugins(home).length;
+
+    let routingSlots: number | null = null;
+    const profile = await profileFor(app);
+    if (profile) {
+      const map = resolveModelMap(home, profile);
+      routingSlots = Object.values(map).filter((chain) => chain.length > 0).length;
+    }
+
+    return { accounts, configDir: home, pluginCount, routingSlots };
+  });
 }

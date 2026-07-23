@@ -24,6 +24,8 @@ function defaultCairn(): CairnAPI {
     appsDetect: async () => ({ ok: true, data: { claude: false, opencode: false } }),
     appsInstallCli: async () => ({ ok: true, data: { stdout: "", stderr: "" } }),
     appsInit: async () => ({ ok: true, data: { stdout: "", stderr: "" } }),
+    appsUninstallCli: async () => ({ ok: true, data: { stdout: "", stderr: "" } }),
+    appsSummary: async () => ({ ok: true, data: { accounts: [], configDir: "", pluginCount: 0, routingSlots: null } }),
     pluginsList: async () => ({ ok: true, data: [] }),
     pluginsInstall: async (_home, _name, _url) => ({ ok: true, data: undefined }),
     pluginsSetEnabled: async (_home, _name, _on) => ({ ok: true, data: undefined }),

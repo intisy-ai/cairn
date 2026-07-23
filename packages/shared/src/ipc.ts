@@ -19,6 +19,8 @@ export const IPC_CHANNELS = {
     "apps:detect",
     "apps:installCli",
     "apps:init",
+    "apps:uninstallCli",
+    "apps:summary",
     "plugins:list",
     "plugins:install",
     "plugins:setEnabled",

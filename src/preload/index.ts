@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import { IPC_CHANNELS } from "@cairn/shared";
-import type { CairnAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, CatalogResult } from "@cairn/shared";
+import type { CairnAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, CatalogResult, AppSummary } from "@cairn/shared";
 
 const invokeChannels: readonly string[] = IPC_CHANNELS.invoke;
 const sendChannels: readonly string[] = IPC_CHANNELS.send;
@@ -46,6 +46,8 @@ const api: CairnAPI = {
   appsDetect: () => safeInvoke("apps:detect") as Promise<Result<AppPresence>>,
   appsInstallCli: (app) => safeInvoke("apps:installCli", app) as Promise<Result<CliResult>>,
   appsInit: (app) => safeInvoke("apps:init", app) as Promise<Result<CliResult>>,
+  appsUninstallCli: (app, wipeData) => safeInvoke("apps:uninstallCli", app, wipeData) as Promise<Result<CliResult>>,
+  appsSummary: (app) => safeInvoke("apps:summary", app) as Promise<Result<AppSummary>>,
   pluginsList: () => safeInvoke("plugins:list") as Promise<Result<HomePlugins[]>>,
   pluginsInstall: (home, name, url) => safeInvoke("plugins:install", home, name, url) as Promise<Result<void>>,
   pluginsSetEnabled: (home, name, on) => safeInvoke("plugins:setEnabled", home, name, on) as Promise<Result<void>>,

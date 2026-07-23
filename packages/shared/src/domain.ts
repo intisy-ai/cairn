@@ -88,3 +88,5 @@ export type PluginHome = {
   hasUpdater: boolean;
 };
 export type HomePlugins = { home: PluginHome; rows: PluginRow[] };
+export type AppAccountSummary = { provider: string; label: string; enabled: boolean; quotaPct: number | null };
+export type AppSummary = { accounts: AppAccountSummary[]; configDir: string; pluginCount: number; routingSlots: number | null };
