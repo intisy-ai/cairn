@@ -62,7 +62,7 @@
     const installed = new Set(section.rows.map((r) => r.name));
     const allowed: (k: CatalogKind) => boolean =
       section.home.id === "cairn" ? (k) => k !== "plugin" : (k) => k !== "proxy";
-    return catalog.filter((e) => allowed(e.kind) && !installed.has(e.name));
+    return catalog.filter((e) => allowed(e.kind) && e.name !== "plugin-updater" && !installed.has(e.name));
   }
 
   async function handleInstallPlugin(home: string, entry: CatalogEntry): Promise<void> {
@@ -155,6 +155,8 @@
 
 {#if pluginsError}
   <p class="error">Could not load plugins: {pluginsError}</p>
+{:else if sections.length === 0}
+  <p class="loading">Loading plugin homes…</p>
 {:else if selectedSection}
   {@const detail = selectedSection}
   <section class="group" data-testid={"home-" + detail.home.id}>
@@ -370,6 +372,10 @@
   }
   .error {
     color: var(--crit);
+    font-size: 13px;
+  }
+  .loading {
+    color: var(--faint);
     font-size: 13px;
   }
   .import-row-error {

@@ -207,6 +207,26 @@ describe("AppsPlugins screen", () => {
     expect(screen.getAllByRole("button", { name: /^install$/i })).toHaveLength(2);
   });
 
+  it("never offers plugin-updater as an installable entry in any section", async () => {
+    stubCairn({
+      appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
+      pluginsList: async () => ({ ok: true, data: [cairnSection([]), claudeSection([]), opencodeSection([])] }),
+      catalogList: async () => ({
+        ok: true,
+        data: { entries: [{ name: "plugin-updater", url: "u", kind: "plugin", description: "" }], source: "gh" },
+      }),
+    });
+    render(AppsPlugins);
+    await openHome("cairn");
+    expect(screen.queryByRole("button", { name: /^install$/i })).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: /back to apps/i }));
+    await openHome("claude code");
+    expect(screen.queryByRole("button", { name: /^install$/i })).toBeNull();
+    await fireEvent.click(screen.getByRole("button", { name: /back to apps/i }));
+    await openHome("opencode");
+    expect(screen.queryByRole("button", { name: /^install$/i })).toBeNull();
+  });
+
   it("gates the marketplace on hasUpdater", async () => {
     stubCairn({
       appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),

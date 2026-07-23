@@ -54,7 +54,7 @@
     border-top: 1px solid var(--border);
   }
   .row.has-uninstall {
-    grid-template-columns: minmax(150px, 1.4fr) 140px auto 46px;
+    grid-template-columns: minmax(150px, 1.4fr) 140px 46px auto;
   }
   .row:first-child {
     border-top: 0;
