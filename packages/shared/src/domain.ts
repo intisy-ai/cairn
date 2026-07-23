@@ -2,7 +2,7 @@ export type { AccountView, AccountQuota, AccountStatus } from "@core-auth/index.
 export type { Chain, ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/index.js";
 import type { ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/index.js";
 export type CatalogKind = "provider" | "proxy" | "plugin";
-export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string };
+export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string; deprecated: boolean };
 export type CatalogResult = { entries: CatalogEntry[]; source: "env" | "gh" | "anonymous" };
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 export type OverviewSummary = {

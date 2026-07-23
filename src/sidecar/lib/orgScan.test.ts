@@ -14,7 +14,7 @@ describe("classifyRepo", () => {
   });
 });
 
-const repo = (name: string) => ({ name, html_url: `https://github.com/intisy-ai/${name}`, description: `${name} desc` });
+const repo = (name: string, archived = false) => ({ name, html_url: `https://github.com/intisy-ai/${name}`, description: `${name} desc`, archived });
 const okFetch = (repos: unknown[]) => (async () => ({ ok: true, status: 200, json: async () => repos })) as unknown as typeof fetch;
 
 describe("scanOrg", () => {
@@ -22,8 +22,8 @@ describe("scanOrg", () => {
     const result = await scanOrg({ fetchFn: okFetch([repo("stub-auth"), repo("core-ir"), repo("opencode-proxy")]), env: { GITHUB_TOKEN: "t" }, execFn: async () => "" });
     expect(result.source).toBe("env");
     expect(result.entries).toEqual([
-      { name: "stub-auth", url: "https://github.com/intisy-ai/stub-auth", kind: "provider", description: "stub-auth desc" },
-      { name: "opencode-proxy", url: "https://github.com/intisy-ai/opencode-proxy", kind: "proxy", description: "opencode-proxy desc" },
+      { name: "stub-auth", url: "https://github.com/intisy-ai/stub-auth", kind: "provider", description: "stub-auth desc", deprecated: false },
+      { name: "opencode-proxy", url: "https://github.com/intisy-ai/opencode-proxy", kind: "proxy", description: "opencode-proxy desc", deprecated: false },
     ]);
   });
 
@@ -43,5 +43,12 @@ describe("scanOrg", () => {
     resetOrgScanCacheForTests();
     const anon = await scanOrg({ fetchFn: okFetch([]), env: {}, execFn: async () => { throw new Error("no gh"); } });
     expect(anon.source).toBe("anonymous");
+  });
+
+  it("maps archived repos to deprecated entries instead of skipping them", async () => {
+    const archived = { name: "metric-dashboard", html_url: "https://github.com/intisy-ai/metric-dashboard", description: "", archived: true };
+    const result = await scanOrg({ fetchFn: okFetch([repo("stub-auth"), archived]), env: { GITHUB_TOKEN: "t" }, execFn: async () => "" });
+    expect(result.entries.find((e) => e.name === "metric-dashboard")?.deprecated).toBe(true);
+    expect(result.entries.find((e) => e.name === "stub-auth")?.deprecated).toBe(false);
   });
 });

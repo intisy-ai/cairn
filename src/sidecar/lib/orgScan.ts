@@ -58,10 +58,10 @@ export async function scanOrg(deps: OrgScanDeps = {}): Promise<CatalogResult> {
       if (!response.ok) throw new Error(`org scan http ${response.status}`);
       const repos = (await response.json()) as RepoJson[];
       for (const repo of repos) {
-        if (!repo.name || repo.archived) continue;
+        if (!repo.name) continue;
         const kind = classifyRepo(repo.name);
         if (!kind) continue;
-        entries.push({ name: repo.name, url: repo.html_url ?? `https://github.com/${ORG}/${repo.name}`, kind, description: repo.description ?? "" });
+        entries.push({ name: repo.name, url: repo.html_url ?? `https://github.com/${ORG}/${repo.name}`, kind, description: repo.description ?? "", deprecated: repo.archived === true });
       }
       if (repos.length < 100) break;
     }

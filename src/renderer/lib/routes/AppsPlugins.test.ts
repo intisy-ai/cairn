@@ -217,10 +217,10 @@ describe("AppsPlugins screen", () => {
         ok: true,
         data: {
           entries: [
-            { name: "claude-code-proxy", url: "u1", kind: "proxy", description: "" },
-            { name: "opencode-proxy", url: "u2", kind: "proxy", description: "" },
-            { name: "wakatime-sync", url: "u3", kind: "plugin", description: "" },
-            { name: "stub-auth", url: "u4", kind: "provider", description: "" },
+            { name: "claude-code-proxy", url: "u1", kind: "proxy", description: "", deprecated: false },
+            { name: "opencode-proxy", url: "u2", kind: "proxy", description: "", deprecated: false },
+            { name: "wakatime-sync", url: "u3", kind: "plugin", description: "", deprecated: false },
+            { name: "stub-auth", url: "u4", kind: "provider", description: "", deprecated: false },
           ],
           source: "gh",
         },
@@ -240,7 +240,7 @@ describe("AppsPlugins screen", () => {
       pluginsList: async () => ({ ok: true, data: [cairnSection([]), claudeSection([]), opencodeSection([])] }),
       catalogList: async () => ({
         ok: true,
-        data: { entries: [{ name: "plugin-updater", url: "u", kind: "plugin", description: "" }], source: "gh" },
+        data: { entries: [{ name: "plugin-updater", url: "u", kind: "plugin", description: "", deprecated: false }], source: "gh" },
       }),
     });
     render(AppsPlugins);
@@ -260,7 +260,7 @@ describe("AppsPlugins screen", () => {
       pluginsList: async () => ({ ok: true, data: [cairnSection([]), claudeSection([], { hasUpdater: false })] }),
       catalogList: async () => ({
         ok: true,
-        data: { entries: [{ name: "stub-auth", url: "u", kind: "provider", description: "" }], source: "anonymous" },
+        data: { entries: [{ name: "stub-auth", url: "u", kind: "provider", description: "", deprecated: false }], source: "anonymous" },
       }),
     });
     render(AppsPlugins);
@@ -276,7 +276,7 @@ describe("AppsPlugins screen", () => {
       pluginsList: async () => ({ ok: true, data: [cairnSection([])] }),
       catalogList: async () => ({
         ok: true,
-        data: { entries: [{ name: "opencode-proxy", url: "u2", kind: "proxy", description: "" }], source: "gh" },
+        data: { entries: [{ name: "opencode-proxy", url: "u2", kind: "proxy", description: "", deprecated: false }], source: "gh" },
       }),
       pluginsInstall: async (...args: unknown[]) => {
         calls.push(args);
