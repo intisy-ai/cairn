@@ -7,7 +7,7 @@ import { providersList, providersSetActive, providersSetExposure } from "./modul
 import { routingApps, routingGet, routingSetChain } from "./modules/routing.js";
 import { appsDetect, appsInstallCli, appsInit } from "./modules/apps.js";
 import type { AppName } from "./modules/apps.js";
-import { pluginsList, pluginsInstall, pluginsSetEnabled, pluginsDowngrade } from "./modules/plugins.js";
+import { pluginsList, pluginsInstall, pluginsSetEnabled, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
 import { usageSnapshot } from "./modules/usage.js";
 import { importApps, importRun } from "./modules/import.js";
@@ -54,6 +54,7 @@ registerHandler("plugins:list", () => pluginsList());
 registerHandler("plugins:install", (home, name, url) => pluginsInstall(home as PluginHomeId, name as string, url as string));
 registerHandler("plugins:setEnabled", (home, name, on) => pluginsSetEnabled(home as PluginHomeId, name as string, on as boolean));
 registerHandler("plugins:downgrade", (home, name, hash) => pluginsDowngrade(home as PluginHomeId, name as string, hash as string));
+registerHandler("plugins:uninstall", (home, name) => pluginsUninstall(home as string, name as string));
 registerHandler("usage:snapshot", () => usageSnapshot());
 registerHandler("import:apps", () => importApps());
 registerHandler("import:run", (app) => importRun(app as string));

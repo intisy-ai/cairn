@@ -23,6 +23,7 @@ export interface CairnAPI {
   pluginsInstall(home: string, name: string, url: string): Promise<Result<void>>;
   pluginsSetEnabled(home: string, name: string, on: boolean): Promise<Result<void>>;
   pluginsDowngrade(home: string, name: string, hash: string): Promise<Result<void>>;
+  pluginsUninstall(home: string, name: string): Promise<Result<void>>;
   usageSnapshot(): Promise<Result<UsageSnapshot>>;
   importApps(): Promise<Result<ImportableApp[]>>;
   importRun(app: string): Promise<Result<ImportSummary>>;

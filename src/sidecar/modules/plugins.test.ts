@@ -254,4 +254,40 @@ describe("plugins sidecar module", () => {
     const downgradeResult = await pluginsDowngrade("nope" as never, "x", "deadbeef", { homes: fakeHomes });
     expect(downgradeResult.ok).toBe(false);
   });
+
+  it("uninstalls a git row via uninstallPlugin under the target home's scope", async () => {
+    const calls: Array<[string, string]> = [];
+    seedPlugins(claudeDir, [{ name: "plugin-a", url: "u", enabled: true }]);
+    const { pluginsUninstall } = await import("./plugins.js");
+    const result = await pluginsUninstall("claude", "plugin-a", {
+      homes: fakeHomes,
+      uninstallPlugin: (dir, name) => calls.push([dir, name]),
+    });
+    expect(result.ok).toBe(true);
+    expect(calls).toEqual([[fakeHomes[1].dir, "plugin-a"]]);
+  });
+
+  it("routes an npm row to uninstallNpmPlugin and surfaces its error string", async () => {
+    const { pluginsUninstall } = await import("./plugins.js");
+    const result = await pluginsUninstall("opencode", "some-npm-plugin", {
+      homes: fakeHomes,
+      npmPlugins: async () => [{ name: "some-npm-plugin", version: "1.0.0", installed: true, raw: "some-npm-plugin" }],
+      uninstallNpmPlugin: () => "npm exploded",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe("npm exploded");
+  });
+
+  it("refuses to uninstall plugin-updater", async () => {
+    const { pluginsUninstall } = await import("./plugins.js");
+    const result = await pluginsUninstall("claude", "plugin-updater", { homes: fakeHomes });
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe("refusing to uninstall the plugin machinery");
+  });
+
+  it("rejects an unknown home id on uninstall", async () => {
+    const { pluginsUninstall } = await import("./plugins.js");
+    const result = await pluginsUninstall("nope", "plugin-a", { homes: fakeHomes });
+    expect(result.ok).toBe(false);
+  });
 });

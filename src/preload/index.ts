@@ -50,6 +50,7 @@ const api: CairnAPI = {
   pluginsInstall: (home, name, url) => safeInvoke("plugins:install", home, name, url) as Promise<Result<void>>,
   pluginsSetEnabled: (home, name, on) => safeInvoke("plugins:setEnabled", home, name, on) as Promise<Result<void>>,
   pluginsDowngrade: (home, name, hash) => safeInvoke("plugins:downgrade", home, name, hash) as Promise<Result<void>>,
+  pluginsUninstall: (home, name) => safeInvoke("plugins:uninstall", home, name) as Promise<Result<void>>,
   usageSnapshot: () => safeInvoke("usage:snapshot") as Promise<Result<UsageSnapshot>>,
   importApps: () => safeInvoke("import:apps") as Promise<Result<ImportableApp[]>>,
   importRun: (app) => safeInvoke("import:run", app) as Promise<Result<ImportSummary>>,

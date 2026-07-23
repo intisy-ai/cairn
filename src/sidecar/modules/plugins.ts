@@ -63,6 +63,9 @@ export interface PluginsDeps {
   updatePluginPublic?: UpdatePluginPublicFn;
   syncPluginsAcrossApps?: SyncPluginsAcrossAppsFn;
   downgrade?: DowngradeFn;
+  npmPlugins?: (dir: string) => Promise<NpmPlugin[]>;
+  uninstallPlugin?: (dir: string, name: string) => void;
+  uninstallNpmPlugin?: (name: string, dir: string) => string;
 }
 
 async function resolveHomes(deps: PluginsDeps): Promise<PluginHome[]> {
@@ -140,5 +143,26 @@ export function pluginsDowngrade(homeId: PluginHomeId, name: string, hash: strin
     const downgrade = deps.downgrade ?? (await import("@plugin-updater/index.js")).downgrade;
     const result = await withHome(dir, async () => downgrade({ name: plugin.name, url: plugin.url, branch: plugin.branch }, hash));
     if (result) throw new Error(result);
+  });
+}
+
+export function pluginsUninstall(homeId: string, name: string, deps: PluginsDeps = {}): Promise<Result<void>> {
+  return wrap(async () => {
+    if (name === "plugin-updater") throw new Error("refusing to uninstall the plugin machinery");
+    const homes = await resolveHomes(deps);
+    const dir = homeDir(homeId as PluginHomeId, homes);
+    if (getPlugins(dir).some((p) => p.name === name)) {
+      const uninstall = deps.uninstallPlugin ?? (await import("@plugin-updater/index.js")).uninstallPlugin;
+      await withHome(dir, async () => uninstall(dir, name));
+      return;
+    }
+    const npmList = deps.npmPlugins ?? getNpmPlugins;
+    if ((await npmList(dir)).some((p) => p.name === name)) {
+      const uninstallNpm = deps.uninstallNpmPlugin ?? (await import("@plugin-updater/npm.js")).uninstallNpmPlugin;
+      const message = await withHome(dir, async () => uninstallNpm(name, dir));
+      if (message) throw new Error(message);
+      return;
+    }
+    throw new Error(`plugin not found: ${name}`);
   });
 }

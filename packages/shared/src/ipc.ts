@@ -23,6 +23,7 @@ export const IPC_CHANNELS = {
     "plugins:install",
     "plugins:setEnabled",
     "plugins:downgrade",
+    "plugins:uninstall",
     "usage:snapshot",
     "import:apps",
     "import:run",
