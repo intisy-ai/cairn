@@ -2,6 +2,7 @@
   import { theme, setTheme } from "../theme.js";
   import { cairn } from "../ipc.js";
   import CairnMark from "./CairnMark.svelte";
+  import DownloadManager from "./DownloadManager.svelte";
 
   let { title = "Cairn", subtitle = "" }: { title?: string; subtitle?: string } = $props();
 
@@ -20,6 +21,7 @@
     {#if subtitle}<span class="bsep">·</span><span class="bsub">{subtitle}</span>{/if}
   </div>
   <div class="spacer"></div>
+  <DownloadManager />
   <button class="iconbtn" title="Toggle theme" aria-label="Toggle light or dark theme" onclick={toggleTheme}>◐</button>
   {#if !isMac}
     <div class="winctl">
