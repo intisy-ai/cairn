@@ -8,7 +8,7 @@ describe("classifyRepo", () => {
     expect(classifyRepo("claude-code-proxy")).toBe("proxy");
     expect(classifyRepo("antigravity-auth")).toBe("provider");
     expect(classifyRepo("wakatime-sync")).toBe("plugin");
-    for (const excluded of ["claude-code-loader", "core-proxy", "ai-java", "workflows", "cairn", "agentbox"]) {
+    for (const excluded of ["claude-code-loader", "core-proxy", "ai-java", "workflows", "cairn", "agentbox", "core"]) {
       expect(classifyRepo(excluded)).toBeNull();
     }
   });

@@ -3,7 +3,7 @@ import type { CatalogEntry, CatalogKind, CatalogResult } from "../../../packages
 
 const ORG = "intisy-ai";
 const TTL_MS = 60_000;
-const EXCLUDED_EXACT = new Set(["ai-java", "workflows", "cairn", "agentbox"]);
+const EXCLUDED_EXACT = new Set(["ai-java", "workflows", "cairn", "agentbox", "core"]);
 
 export function classifyRepo(name: string): CatalogKind | null {
   if (name.endsWith("-loader") || name.startsWith("core-") || EXCLUDED_EXACT.has(name)) return null;
