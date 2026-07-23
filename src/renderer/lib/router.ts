@@ -11,7 +11,7 @@ export type ScreenDef = {
   section: ScreenSection;
 };
 
-export type RouterState = { screen: ScreenId };
+export type RouterState = { screen: ScreenId; params?: Record<string, string> };
 
 export const SCREENS: readonly ScreenDef[] = [
   { id: "overview", label: "Overview", glyph: "▤", section: "main" },
@@ -25,6 +25,15 @@ export const SCREENS: readonly ScreenDef[] = [
 
 export const router = writable<RouterState>({ screen: "overview" });
 
-export function navigate(screen: ScreenId): void {
-  router.set({ screen });
+export function navigate(screen: ScreenId, params?: Record<string, string>): void {
+  router.set({ screen, params });
+}
+
+export function consumeParams(): Record<string, string> | undefined {
+  let currentParams: Record<string, string> | undefined;
+  router.subscribe((state) => {
+    currentParams = state.params;
+  })();
+  router.update((state) => ({ ...state, params: undefined }));
+  return currentParams;
 }

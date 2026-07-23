@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, waitFor } from "@testing-library/svelte";
 import { get } from "svelte/store";
 import { stubCairn } from "../testing.js";
-import { router } from "../router.js";
+import { router, consumeParams } from "../router.js";
 import Providers from "./Providers.svelte";
 
 describe("Providers screen", () => {
@@ -147,7 +147,7 @@ describe("Providers screen", () => {
     await waitFor(() => expect(get(router).screen).toBe("appsPlugins"));
   });
 
-  it("+ Add provider navigates to Apps & plugins", async () => {
+  it("+ Add provider navigates to Apps & plugins with deep-link params", async () => {
     stubCairn({ providersList: async () => ({ ok: true, data: [] }) });
     router.set({ screen: "providers" });
 
@@ -156,5 +156,7 @@ describe("Providers screen", () => {
     await fireEvent.click(getByText("+ Add provider"));
 
     expect(get(router).screen).toBe("appsPlugins");
+    const params = consumeParams();
+    expect(params).toEqual({ home: "cairn", filter: "provider" });
   });
 });

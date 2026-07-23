@@ -115,7 +115,7 @@
   }
 
   function handleAddProvider(): void {
-    navigate("appsPlugins");
+    navigate("appsPlugins", { home: "cairn", filter: "provider" });
   }
 
   onMount(load);
