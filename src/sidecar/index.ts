@@ -14,6 +14,8 @@ import { usageSnapshot } from "./modules/usage.js";
 import { importApps, importPreview, importRun } from "./modules/import.js";
 import type { ImportSelection } from "../../packages/shared/src/domain.js";
 import { catalogList } from "./modules/catalog.js";
+import { customEndpointsList, customEndpointsUpsert, customEndpointsRemove, customEndpointsSaveKey } from "./modules/customEndpoints.js";
+import type { CustomEndpoint } from "../../packages/shared/src/domain.js";
 
 type SidecarRequest = { id: number; channel: string; args: unknown[] };
 type SidecarResponse = { id: number; result: Result<unknown> };
@@ -66,6 +68,10 @@ registerHandler("import:apps", () => importApps());
 registerHandler("import:preview", (app) => importPreview(app as string));
 registerHandler("import:run", (app, selection) => importRun(app as string, selection as ImportSelection | undefined));
 registerHandler("catalog:list", () => catalogList());
+registerHandler("customEndpoints:list", () => customEndpointsList());
+registerHandler("customEndpoints:upsert", (endpoint) => customEndpointsUpsert(endpoint as CustomEndpoint));
+registerHandler("customEndpoints:remove", (id) => customEndpointsRemove(id as string));
+registerHandler("customEndpoints:saveKey", (endpointId, key) => customEndpointsSaveKey(endpointId as string, key as string));
 
 if (process.parentPort) {
   process.parentPort.on("message", (messageEvent) => {

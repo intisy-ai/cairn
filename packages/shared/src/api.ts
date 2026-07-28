@@ -1,4 +1,4 @@
-import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema } from "./domain.js";
+import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -33,6 +33,10 @@ export interface CairnAPI {
   importPreview(app: string): Promise<Result<ImportPreview>>;
   importRun(app: string, selection?: ImportSelection): Promise<Result<ImportSummary>>;
   catalogList(): Promise<Result<CatalogResult>>;
+  customEndpointsList(): Promise<Result<CustomEndpointView[]>>;
+  customEndpointsUpsert(endpoint: CustomEndpoint): Promise<Result<void>>;
+  customEndpointsRemove(id: string): Promise<Result<void>>;
+  customEndpointsSaveKey(endpointId: string, key: string): Promise<Result<void>>;
   minimize(): void;
   maximize(): void;
   close(): void;

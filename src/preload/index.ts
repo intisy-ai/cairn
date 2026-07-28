@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import { IPC_CHANNELS } from "@cairn/shared";
-import type { CairnAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema } from "@cairn/shared";
+import type { CairnAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView } from "@cairn/shared";
 
 const invokeChannels: readonly string[] = IPC_CHANNELS.invoke;
 const sendChannels: readonly string[] = IPC_CHANNELS.send;
@@ -60,6 +60,10 @@ const api: CairnAPI = {
   importPreview: (app) => safeInvoke("import:preview", app) as Promise<Result<ImportPreview>>,
   importRun: (app, selection) => safeInvoke("import:run", app, selection) as Promise<Result<ImportSummary>>,
   catalogList: () => safeInvoke("catalog:list") as Promise<Result<CatalogResult>>,
+  customEndpointsList: () => safeInvoke("customEndpoints:list") as Promise<Result<CustomEndpointView[]>>,
+  customEndpointsUpsert: (endpoint) => safeInvoke("customEndpoints:upsert", endpoint) as Promise<Result<void>>,
+  customEndpointsRemove: (id) => safeInvoke("customEndpoints:remove", id) as Promise<Result<void>>,
+  customEndpointsSaveKey: (endpointId, key) => safeInvoke("customEndpoints:saveKey", endpointId, key) as Promise<Result<void>>,
   minimize: () => safeSend("window:minimize"),
   maximize: () => safeSend("window:maximize"),
   close: () => safeSend("window:close"),
