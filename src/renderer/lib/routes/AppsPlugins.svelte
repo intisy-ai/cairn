@@ -7,6 +7,7 @@
   import { debounce } from "../util/debounce.js";
   import StatusPill from "../components/StatusPill.svelte";
   import PluginRow from "../components/PluginRow.svelte";
+  import AddPluginDialog from "../components/AddPluginDialog.svelte";
   import Button from "../components/Button.svelte";
   import Card from "../components/Card.svelte";
   import Chip from "../components/Chip.svelte";
@@ -47,6 +48,7 @@
   let importErrors = $state<Record<AppId, string>>({ claude: "", opencode: "" });
 
   let uninstallArm = $state("");
+  let addOpen = $state(false);
 
   let searchRaw = $state("");
   let search = $state("");
@@ -93,6 +95,7 @@
     appUninstallOpen = false;
     appUninstallWipe = false;
     machineryBusy = false;
+    addOpen = false;
   });
 
   $effect(() => {
@@ -309,6 +312,7 @@
         kindFilter = params.filter;
       }
     }
+    if (params?.add) addOpen = true;
   });
 </script>
 
@@ -392,6 +396,7 @@
       {#each KIND_FILTERS as f (f.id)}
         <Chip label={f.label} on={kindFilter === f.id} onclick={() => (kindFilter = f.id)} />
       {/each}
+      <Button variant="primary" onclick={() => (addOpen = true)}>+ Add from URL</Button>
     </div>
 
     {#snippet installedPluginRow(plugin: PluginRowData)}
@@ -530,6 +535,9 @@
           </div>
         {/if}
       </div>
+    {/if}
+    {#if addOpen}
+      <AddPluginDialog home={detail.home.id} onClose={() => (addOpen = false)} onInstalled={loadPlugins} />
     {/if}
   </section>
 {:else}

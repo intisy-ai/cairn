@@ -159,7 +159,7 @@ describe("Providers screen", () => {
 
     expect(get(router).screen).toBe("appsPlugins");
     const params = consumeParams();
-    expect(params).toEqual({ home: "cairn", filter: "provider" });
+    expect(params).toEqual({ home: "cairn", filter: "provider", add: "1" });
   });
 
   it("filters rows by id or by label as the debounced search settles", async () => {

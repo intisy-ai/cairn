@@ -704,6 +704,22 @@ describe("AppsPlugins screen", () => {
     expect(screen.queryByRole("button", { name: /reinit/i })).toBeNull();
   });
 
+  it("installs a plugin from a pasted URL via the Add dialog", async () => {
+    const pluginsInstall = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: [cairnSection([])] }),
+      pluginsInstall,
+    });
+    render(AppsPlugins);
+    await openHome("Cairn");
+    await fireEvent.click(await screen.findByRole("button", { name: /add from url/i }));
+    await fireEvent.input(screen.getByPlaceholderText("owner/repo or GitHub URL"), {
+      target: { value: "intisy-ai/example-proxy" },
+    });
+    await fireEvent.click(screen.getByRole("button", { name: /^install$/i }));
+    await waitFor(() => expect(pluginsInstall).toHaveBeenCalledWith("cairn", "example-proxy", "https://github.com/intisy-ai/example-proxy"));
+  });
+
   it("shows catalogKind chips (PROVIDER/PROXY) on installed plugin rows that match catalog entries", async () => {
     stubCairn({
       appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
