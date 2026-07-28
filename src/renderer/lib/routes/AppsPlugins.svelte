@@ -159,10 +159,6 @@
     return availableFor(section).filter((e) => e.deprecated).filter(entryMatchesFilters);
   }
 
-  function homeDirFor(app: AppId): string {
-    return sections.find((s) => s.home.id === app)?.home.dir ?? app;
-  }
-
   function homeLabelFor(app: AppId): string {
     return sections.find((s) => s.home.id === app)?.home.label ?? app;
   }
