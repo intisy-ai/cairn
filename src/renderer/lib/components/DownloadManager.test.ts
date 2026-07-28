@@ -90,4 +90,19 @@ describe("DownloadManager", () => {
     expect(queryByText("installing plugin-a")).toBeNull();
     expect(getByText("installing plugin-b")).toBeTruthy();
   });
+
+  it("hides the panel and button after Clear empties all tasks", async () => {
+    downloads.set({
+      tasks: [{ id: 1, label: "installing plugin-final", home: "/h", status: "done", error: "", startedAt: 0 }],
+      open: true,
+    });
+    const { getByRole, queryByRole, queryByText, container } = render(DownloadManager);
+    expect(getByRole("button", { name: "Clear" })).toBeTruthy();
+    expect(queryByText("installing plugin-final")).toBeTruthy();
+
+    await fireEvent.click(getByRole("button", { name: "Clear" }));
+
+    expect(queryByRole("button", { name: "Toggle download manager" })).toBeNull();
+    expect(container.querySelector(".panel")).toBeNull();
+  });
 });
