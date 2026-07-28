@@ -7,25 +7,36 @@ import Overview from "./routes/Overview.svelte";
 
 describe("cairn proxy", () => {
   it("reads window.cairn lazily, so a stub installed after import still resolves", async () => {
-    stubCairn({
-      overviewSummary: async () => ({
-        ok: true,
-        data: { providersConnected: 3, accountsTotal: 5, serverRunning: true, serverPort: 34567 },
-      }),
-    });
+    const data = {
+      providersConnected: 3,
+      accountsTotal: 5,
+      accountsEnabled: 4,
+      appsDetected: 1,
+      pluginsInstalled: 2,
+      providerHealth: [],
+      serverRunning: true,
+      serverPort: 34567,
+    };
+    stubCairn({ overviewSummary: async () => ({ ok: true, data }) });
 
     const result = await cairn.overviewSummary();
-    expect(result).toEqual({
-      ok: true,
-      data: { providersConnected: 3, accountsTotal: 5, serverRunning: true, serverPort: 34567 },
-    });
+    expect(result).toEqual({ ok: true, data });
   });
 
   it("lets a component that imported { cairn } before the stub see the stubbed value", async () => {
     stubCairn({
       overviewSummary: async () => ({
         ok: true,
-        data: { providersConnected: 7, accountsTotal: 9, serverRunning: false, serverPort: 34567 },
+        data: {
+          providersConnected: 7,
+          accountsTotal: 12,
+          accountsEnabled: 9,
+          appsDetected: 1,
+          pluginsInstalled: 2,
+          providerHealth: [],
+          serverRunning: false,
+          serverPort: 34567,
+        },
       }),
     });
 
