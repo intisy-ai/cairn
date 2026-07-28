@@ -1,0 +1,55 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi } from "vitest";
+import { render, fireEvent, waitFor } from "@testing-library/svelte";
+import { stubCairn } from "../testing.js";
+import TestWrapper from "./CustomEndpointsDialog.test.svelte";
+
+const CUSTOM_ROW = { id: "custom", label: "Custom endpoint", hasOAuth: false, accountCount: 0, active: false, exposure: { cc: false, oc: false }, translator: "custom" };
+
+describe("CustomEndpointsDialog", () => {
+  it("lists endpoints with a key-set badge", async () => {
+    stubCairn({
+      providersList: async () => ({ ok: true, data: [CUSTOM_ROW] }),
+      customEndpointsList: async () => ({ ok: true, data: [{ id: "local", label: "Local", baseUrl: "https://ep/v1", format: "openai", models: ["gpt-4o"], hasKey: true }] }),
+    });
+    const { findByText } = render(TestWrapper);
+    expect(await findByText("Local")).toBeInTheDocument();
+    expect(await findByText(/key set/i)).toBeInTheDocument();
+  });
+
+  it("adds an endpoint via upsert", async () => {
+    const customEndpointsUpsert = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    stubCairn({ providersList: async () => ({ ok: true, data: [CUSTOM_ROW] }), customEndpointsUpsert });
+    const { getByLabelText, getByRole } = render(TestWrapper);
+    await fireEvent.input(getByLabelText(/endpoint id/i), { target: { value: "prod" } });
+    await fireEvent.input(getByLabelText(/label/i), { target: { value: "Prod" } });
+    await fireEvent.input(getByLabelText(/base url/i), { target: { value: "https://prod/v1" } });
+    await fireEvent.input(getByLabelText(/models/i), { target: { value: "gpt-4o, gpt-4o-mini" } });
+    await fireEvent.click(getByRole("button", { name: /add endpoint/i }));
+    await waitFor(() => expect(customEndpointsUpsert).toHaveBeenCalledWith({ id: "prod", label: "Prod", baseUrl: "https://prod/v1", format: "openai", models: ["gpt-4o", "gpt-4o-mini"] }));
+  });
+
+  it("saves a key write-only (never rendered back)", async () => {
+    const customEndpointsSaveKey = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    stubCairn({
+      providersList: async () => ({ ok: true, data: [CUSTOM_ROW] }),
+      customEndpointsList: async () => ({ ok: true, data: [{ id: "local", label: "Local", baseUrl: "https://ep/v1", format: "openai", models: ["m"], hasKey: false }] }),
+      customEndpointsSaveKey,
+    });
+    const { findByLabelText, getByRole } = render(TestWrapper);
+    const keyInput = await findByLabelText(/api key for local/i);
+    expect((keyInput as HTMLInputElement).type).toBe("password");
+    await fireEvent.input(keyInput, { target: { value: "sk-xyz" } });
+    await fireEvent.click(getByRole("button", { name: /save key/i }));
+    await waitFor(() => expect(customEndpointsSaveKey).toHaveBeenCalledWith("local", "sk-xyz"));
+  });
+
+  it("offers to install custom-auth when it is not a provider", async () => {
+    const pluginsInstall = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    stubCairn({ providersList: async () => ({ ok: true, data: [] }), pluginsInstall });
+    const { findByRole } = render(TestWrapper);
+    const installBtn = await findByRole("button", { name: /install custom-auth/i });
+    await fireEvent.click(installBtn);
+    await waitFor(() => expect(pluginsInstall).toHaveBeenCalledWith("cairn", "custom-auth", "intisy-ai/custom-auth"));
+  });
+});
