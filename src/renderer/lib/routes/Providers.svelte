@@ -4,12 +4,15 @@
   import type { StatusVariant } from "../components/StatusPill.svelte";
   import { cairn } from "../ipc.js";
   import { navigate } from "../router.js";
+  import { debounce } from "../util/debounce.js";
   import StatCard from "../components/StatCard.svelte";
   import SearchField from "../components/SearchField.svelte";
   import Chip from "../components/Chip.svelte";
   import ProviderRow from "../components/ProviderRow.svelte";
   import Button from "../components/Button.svelte";
   import Card from "../components/Card.svelte";
+  import CollapsibleGroup from "../components/CollapsibleGroup.svelte";
+  import VirtualList from "../components/VirtualList.svelte";
 
   // API key / Local chips can return once ProviderRow carries a real connection-kind field.
   type Filter = "all" | "connected" | "oauth";
@@ -20,12 +23,26 @@
     { id: "oauth", label: "OAuth" },
   ];
 
+  const VIRTUALIZE_THRESHOLD = 20;
+  const PROVIDER_ROW_HEIGHT = 64;
+
   let rows = $state<ProviderRowData[]>([]);
   let loadError = $state("");
+  let searchRaw = $state("");
   let search = $state("");
   let filter = $state<Filter>("all");
   let importNotes = $state<string[]>([]);
   let importError = $state("");
+  let connectedOpen = $state(true);
+  let availableOpen = $state(true);
+
+  const applySearch = debounce((value: string) => {
+    search = value;
+  }, 120);
+
+  $effect(() => {
+    applySearch(searchRaw);
+  });
 
   function isConnected(row: ProviderRowData): boolean {
     return row.active || row.accountCount > 0;
@@ -43,8 +60,9 @@
   }
 
   function matchesSearch(row: ProviderRowData): boolean {
-    if (!search.trim()) return true;
-    return row.label.toLowerCase().includes(search.trim().toLowerCase());
+    const term = search.trim().toLowerCase();
+    if (!term) return true;
+    return row.id.toLowerCase().includes(term) || row.label.toLowerCase().includes(term);
   }
 
   const filtered = $derived(rows.filter((row) => matchesFilter(row) && matchesSearch(row)));
@@ -150,54 +168,64 @@
   </section>
 
   <div class="toolbar">
-    <SearchField bind:value={search} placeholder="Search providers" />
+    <SearchField bind:value={searchRaw} placeholder="Search providers" />
     {#each FILTERS as f (f.id)}
       <Chip label={f.label} on={filter === f.id} onclick={() => (filter = f.id)} />
     {/each}
   </div>
 
-  <section class="group">
-    <div class="grouphead"><p class="label">Connected</p><span class="count">{connectedRows.length}</span><span class="line"></span></div>
-    <Card>
-      {#each connectedRows as row (row.id)}
-        <ProviderRow
-          avatar={initials(row.label)}
-          name={row.label}
-          subtitle={row.hasOAuth ? "OAuth" : "API key"}
-          status={statusFor(row)}
-          cc={row.exposure.cc}
-          oc={row.exposure.oc}
-          accountLabel={accountLabel(row)}
-          enabled={row.active}
-          onToggle={() => handleSetActive(row.id)}
-          onToggleCc={(on) => handleSetExposure(row.id, "cc", on)}
-          onToggleOc={(on) => handleSetExposure(row.id, "oc", on)}
-        />
-      {/each}
-    </Card>
-  </section>
+  <CollapsibleGroup label="Connected" count={connectedRows.length} bind:open={connectedOpen}>
+    {#snippet body()}
+      <Card>
+        {#if connectedRows.length > VIRTUALIZE_THRESHOLD}
+          <VirtualList items={connectedRows} rowHeight={PROVIDER_ROW_HEIGHT}>
+            {#snippet row(item)}
+              {@render providerRow(item)}
+            {/snippet}
+          </VirtualList>
+        {:else}
+          {#each connectedRows as item (item.id)}
+            {@render providerRow(item)}
+          {/each}
+        {/if}
+      </Card>
+    {/snippet}
+  </CollapsibleGroup>
 
-  <section class="group">
-    <div class="grouphead"><p class="label">Available</p><span class="count">{availableRows.length}</span><span class="line"></span></div>
-    <Card>
-      {#each availableRows as row (row.id)}
-        <ProviderRow
-          avatar={initials(row.label)}
-          name={row.label}
-          subtitle={row.hasOAuth ? "OAuth" : "API key"}
-          status={statusFor(row)}
-          cc={row.exposure.cc}
-          oc={row.exposure.oc}
-          accountLabel={accountLabel(row)}
-          enabled={row.active}
-          onToggle={() => handleSetActive(row.id)}
-          onToggleCc={(on) => handleSetExposure(row.id, "cc", on)}
-          onToggleOc={(on) => handleSetExposure(row.id, "oc", on)}
-        />
-      {/each}
-    </Card>
-  </section>
+  <CollapsibleGroup label="Available" count={availableRows.length} bind:open={availableOpen}>
+    {#snippet body()}
+      <Card>
+        {#if availableRows.length > VIRTUALIZE_THRESHOLD}
+          <VirtualList items={availableRows} rowHeight={PROVIDER_ROW_HEIGHT}>
+            {#snippet row(item)}
+              {@render providerRow(item)}
+            {/snippet}
+          </VirtualList>
+        {:else}
+          {#each availableRows as item (item.id)}
+            {@render providerRow(item)}
+          {/each}
+        {/if}
+      </Card>
+    {/snippet}
+  </CollapsibleGroup>
 {/if}
+
+{#snippet providerRow(row: ProviderRowData)}
+  <ProviderRow
+    avatar={initials(row.label)}
+    name={row.label}
+    subtitle={row.hasOAuth ? "OAuth" : "API key"}
+    status={statusFor(row)}
+    cc={row.exposure.cc}
+    oc={row.exposure.oc}
+    accountLabel={accountLabel(row)}
+    enabled={row.active}
+    onToggle={() => handleSetActive(row.id)}
+    onToggleCc={(on) => handleSetExposure(row.id, "cc", on)}
+    onToggleOc={(on) => handleSetExposure(row.id, "oc", on)}
+  />
+{/snippet}
 
 <style>
   .head {
@@ -229,33 +257,6 @@
     gap: 10px;
     margin-bottom: 18px;
     flex-wrap: wrap;
-  }
-  .group {
-    margin-bottom: 26px;
-  }
-  .grouphead {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 0 2px 10px;
-  }
-  .grouphead .label {
-    font-size: 10.5px;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    color: var(--faint);
-    font-weight: 600;
-    margin: 0;
-  }
-  .grouphead .count {
-    font-size: 11px;
-    color: var(--faint);
-    font-family: var(--mono);
-  }
-  .grouphead .line {
-    flex: 1;
-    height: 1px;
-    background: var(--border);
   }
   .error {
     color: var(--crit);

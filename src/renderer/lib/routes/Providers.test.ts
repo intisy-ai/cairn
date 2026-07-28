@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent, waitFor } from "@testing-library/svelte";
+import { render, fireEvent, waitFor, within } from "@testing-library/svelte";
 import { get } from "svelte/store";
 import { stubCairn } from "../testing.js";
 import { router, consumeParams } from "../router.js";
@@ -54,14 +54,15 @@ describe("Providers screen", () => {
       }),
     });
 
-    const { getByRole, getByText, queryByRole } = render(Providers);
+    const { getByText, container } = render(Providers);
     await waitFor(() => expect(getByText("OAuthOnly")).toBeTruthy());
 
-    expect(getByRole("button", { name: "All" })).toBeTruthy();
-    expect(getByRole("button", { name: "Connected" })).toBeTruthy();
-    expect(getByRole("button", { name: "OAuth" })).toBeTruthy();
-    expect(queryByRole("button", { name: "API key" })).toBeNull();
-    expect(queryByRole("button", { name: "Local" })).toBeNull();
+    const toolbar = within(container.querySelector(".toolbar")!);
+    expect(toolbar.getByRole("button", { name: "All" })).toBeTruthy();
+    expect(toolbar.getByRole("button", { name: "Connected" })).toBeTruthy();
+    expect(toolbar.getByRole("button", { name: "OAuth" })).toBeTruthy();
+    expect(toolbar.queryByRole("button", { name: "API key" })).toBeNull();
+    expect(toolbar.queryByRole("button", { name: "Local" })).toBeNull();
   });
 
   it("filters to hasOAuth rows when the OAuth chip is active", async () => {
@@ -96,11 +97,12 @@ describe("Providers screen", () => {
       }),
     });
 
-    const { getByRole, getByText, queryByText } = render(Providers);
+    const { getByText, queryByText, container } = render(Providers);
     await waitFor(() => expect(getByText("KeyConnected")).toBeTruthy());
     expect(getByText("KeyUnconnected")).toBeTruthy();
 
-    await fireEvent.click(getByRole("button", { name: "Connected" }));
+    const toolbar = within(container.querySelector(".toolbar")!);
+    await fireEvent.click(toolbar.getByRole("button", { name: "Connected" }));
 
     await waitFor(() => expect(queryByText("KeyUnconnected")).toBeNull());
     expect(getByText("KeyConnected")).toBeTruthy();
@@ -158,5 +160,73 @@ describe("Providers screen", () => {
     expect(get(router).screen).toBe("appsPlugins");
     const params = consumeParams();
     expect(params).toEqual({ home: "cairn", filter: "provider" });
+  });
+
+  it("filters rows by id or by label as the debounced search settles", async () => {
+    stubCairn({
+      providersList: async () => ({
+        ok: true,
+        data: [
+          { id: "gamma-id", label: "Alpha Label", hasOAuth: false, accountCount: 1, active: false, exposure: { cc: false, oc: false } },
+          { id: "beta-id", label: "Zeta Label", hasOAuth: false, accountCount: 1, active: false, exposure: { cc: false, oc: false } },
+        ],
+      }),
+    });
+
+    const { getByPlaceholderText, getByText, queryByText } = render(Providers);
+    await waitFor(() => expect(getByText("Alpha Label")).toBeTruthy());
+
+    const input = getByPlaceholderText("Search providers");
+
+    await fireEvent.input(input, { target: { value: "beta-id" } });
+    await waitFor(() => expect(queryByText("Alpha Label")).toBeNull(), { timeout: 1000 });
+    expect(getByText("Zeta Label")).toBeTruthy();
+
+    await fireEvent.input(input, { target: { value: "Alpha Label" } });
+    await waitFor(() => expect(getByText("Alpha Label")).toBeTruthy(), { timeout: 1000 });
+    expect(queryByText("Zeta Label")).toBeNull();
+  });
+
+  it("virtualizes a group once its row count exceeds the threshold", async () => {
+    const data = Array.from({ length: 25 }, (_, i) => ({
+      id: `provider-${i}`,
+      label: `Provider ${i}`,
+      hasOAuth: false,
+      accountCount: 1,
+      active: true,
+      exposure: { cc: false, oc: false },
+    }));
+    stubCairn({ providersList: async () => ({ ok: true, data }) });
+
+    const { getByText, container } = render(Providers);
+    await waitFor(() => expect(getByText("Provider 0")).toBeTruthy());
+
+    const groupButtons = Array.from(container.querySelectorAll("button.hd"));
+    const connectedButton = groupButtons.find((b) => b.querySelector(".lbl")?.textContent === "Connected");
+    expect(connectedButton?.querySelector(".cnt")?.textContent).toBe("25");
+
+    const renderedRows = container.querySelectorAll(".row").length;
+    expect(renderedRows).toBeGreaterThan(0);
+    expect(renderedRows).toBeLessThan(25);
+  });
+
+  it("collapsing the Available group hides its rows", async () => {
+    stubCairn({
+      providersList: async () => ({
+        ok: true,
+        data: [
+          { id: "avail", label: "Available Provider", hasOAuth: false, accountCount: 0, active: false, exposure: { cc: false, oc: false } },
+        ],
+      }),
+    });
+
+    const { getByText, queryByText, container } = render(Providers);
+    await waitFor(() => expect(getByText("Available Provider")).toBeTruthy());
+
+    const groupButtons = Array.from(container.querySelectorAll("button.hd"));
+    const availableButton = groupButtons.find((b) => b.querySelector(".lbl")?.textContent === "Available")!;
+    await fireEvent.click(availableButton);
+
+    await waitFor(() => expect(queryByText("Available Provider")).toBeNull());
   });
 });
