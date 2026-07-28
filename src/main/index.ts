@@ -1,10 +1,13 @@
 import { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, session, shell } from "electron";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { resolveStoreDir } from "./lib/storeDir.js";
+import { shouldAutostart } from "./lib/autostart.js";
 import { createSupervisor } from "./sidecar/supervisor.js";
 import { registerHandlers } from "./ipc/registerHandlers.js";
+import * as proxyDaemon from "./daemon/proxyDaemon.js";
 import type { Supervisor } from "./sidecar/supervisor.js";
 
 const dirName = dirname(fileURLToPath(import.meta.url));
@@ -60,6 +63,19 @@ function registerWindowControls(): void {
   ipcMain.on("window:close", () => mainWindow?.close());
 }
 
+function autostartProxyIfConfigured(storeDir: string): void {
+  let configured = false;
+  try {
+    const raw = readFileSync(join(storeDir, "config", "cairn.json"), "utf8");
+    configured = shouldAutostart(JSON.parse(raw));
+  } catch {
+    configured = false;
+  }
+  if (configured) {
+    proxyDaemon.start().catch((error) => console.error("proxy autostart failed:", error));
+  }
+}
+
 function createTray(): void {
   tray = new Tray(nativeImage.createEmpty());
   tray.setToolTip("Cairn");
@@ -95,6 +111,7 @@ if (!app.requestSingleInstanceLock()) {
     supervisor = createSupervisor({ sidecarPath: join(dirName, "sidecar.js"), storeDir });
     registerHandlers(supervisor);
     registerWindowControls();
+    autostartProxyIfConfigured(storeDir);
 
     createWindow();
     createTray();
