@@ -44,5 +44,6 @@
 <style>
   .vp { overflow-y: auto; overflow-x: hidden; position: relative; }
   .spacer { position: relative; width: 100%; }
-  .vrow { position: absolute; left: 0; right: 0; }
+  .vrow { position: absolute; left: 0; right: 0; box-sizing: border-box; border-bottom: 1px solid var(--border); }
+  .vrow:last-child { border-bottom: 0; }
 </style>
