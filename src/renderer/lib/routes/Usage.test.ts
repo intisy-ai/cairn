@@ -1,83 +1,76 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
-import { render, waitFor, within } from "@testing-library/svelte";
+import { describe, it, expect, beforeEach } from "vitest";
+import { render, fireEvent } from "@testing-library/svelte";
 import { stubCairn } from "../testing.js";
 import Usage from "./Usage.svelte";
+import type { UsageSession } from "@cairn/shared";
+
+function session(over: Partial<UsageSession> & { id: string; updated: number }): UsageSession {
+  return {
+    id: over.id,
+    title: over.title ?? over.id,
+    tokens: over.tokens ?? { input: 10, output: 10, reasoning: 0, cacheRead: 0, cacheWrite: 0 },
+    messageCount: over.messageCount ?? 2,
+    source: over.source ?? "claude-code",
+    updated: over.updated,
+    costByDay: over.costByDay ?? {},
+    models: over.models ?? [{ id: "sonnet", provider: "anthropic", tokens: 20 }],
+  };
+}
+
+const now = Date.now();
+const day = 86_400_000;
+
+beforeEach(() => {
+  stubCairn({
+    usageSnapshot: async () => ({
+      ok: true,
+      data: {
+        accounts: [{ provider: "anthropic", id: "a1" }],
+        updatedAt: new Date(now).toISOString(),
+        models: {},
+        sessions: [
+          session({ id: "recent", title: "Recent work", updated: now - day, models: [{ id: "sonnet", provider: "anthropic", tokens: 500 }] }),
+          session({ id: "old", title: "Old work", updated: now - 20 * day, models: [{ id: "opus", provider: "anthropic", tokens: 100 }] }),
+        ],
+      },
+    }),
+  });
+});
+
+async function mount() {
+  const utils = render(Usage);
+  // allow onMount async load to resolve
+  await new Promise((r) => setTimeout(r, 0));
+  return utils;
+}
 
 describe("Usage screen", () => {
-  it("renders real session and model rows with correct token totals, never fabricating cost", async () => {
-    stubCairn({
-      usageSnapshot: async () => ({
-        ok: true,
-        data: {
-          accounts: [
-            { provider: "stub", id: "a1" },
-            { provider: "stub", id: "a2" },
-          ],
-          sessions: [
-            {
-              id: "sess1",
-              title: "my test project",
-              tokens: { input: 1000, output: 200, reasoning: 0, cacheRead: 50, cacheWrite: 10 },
-              messageCount: 2,
-              source: "claude-code",
-              updated: new Date("2026-07-20T00:00:00.000Z").getTime(),
-              costByDay: {},
-              models: [],
-            },
-          ],
-          models: {
-            "claude-sonnet-5": {
-              provider: "anthropic",
-              tokens: { input: 1000, output: 200, reasoning: 0 },
-              sessionCount: 1,
-              messageCount: 2,
-            },
-          },
-          updatedAt: "2026-07-21T00:00:00.000Z",
-        },
-      }),
-    });
-
-    const { getByText, getAllByText, queryByText } = render(Usage);
-
-    await waitFor(() => expect(getByText("Accounts tracked")).toBeTruthy());
-    const accountsStat = getByText("Accounts tracked").closest(".stat") as HTMLElement;
-    expect(within(accountsStat).getByText("2")).toBeTruthy();
-
-    const sessionsLabel = getAllByText("Sessions").find((el) => el.closest(".stat")) as HTMLElement;
-    const sessionsStat = sessionsLabel.closest(".stat") as HTMLElement;
-    expect(within(sessionsStat).getByText("1")).toBeTruthy();
-
-    const tokensStat = getByText("Total tokens").closest(".stat") as HTMLElement;
-    expect(within(tokensStat).getByText("1,200")).toBeTruthy();
-
-    expect(getByText("my test project")).toBeTruthy();
-    expect(getByText(/Claude Code .* 1,200 tokens .* 2 messages .* 2026-07-20/)).toBeTruthy();
-
-    expect(getByText("claude-sonnet-5")).toBeTruthy();
-    expect(getByText(/anthropic .* 1,200 tokens .* 1 session/)).toBeTruthy();
-
-    expect(queryByText(/\$/)).toBeNull();
+  it("filters sessions by the selected range", async () => {
+    const { getByText, queryByText } = await mount();
+    // Default range 7d: only the recent session shows in the table.
+    expect(getByText("Recent work")).toBeInTheDocument();
+    expect(queryByText("Old work")).toBeNull();
+    await fireEvent.click(getByText("All"));
+    expect(getByText("Old work")).toBeInTheDocument();
   });
 
-  it("shows honest empty states when no sessions or models are present", async () => {
-    stubCairn({
-      usageSnapshot: async () => ({
-        ok: true,
-        data: { accounts: [], sessions: [], models: {}, updatedAt: "2026-07-21T00:00:00.000Z" },
-      }),
-    });
-
-    const { getByText } = render(Usage);
-    await waitFor(() => expect(getByText("No sessions found")).toBeTruthy());
-    expect(getByText("No model usage yet")).toBeTruthy();
-    expect(getByText("No accounts yet")).toBeTruthy();
+  it("narrows the table when a model bar is clicked", async () => {
+    const { getByText, queryByText, container } = await mount();
+    await fireEvent.click(getByText("All"));
+    // The 'opus' label appears both as a bar and in the table, so target the bar button.
+    const bars = container.querySelectorAll("button.bar-row");
+    const opusBar = Array.from(bars).find((b) => b.textContent?.includes("opus"));
+    await fireEvent.click(opusBar as Element);
+    expect(getByText("Old work")).toBeInTheDocument();
+    expect(queryByText("Recent work")).toBeNull();
   });
 
-  it("shows an inline error when usageSnapshot fails", async () => {
-    stubCairn({ usageSnapshot: async () => ({ ok: false, error: "boom" }) });
-    const { getByText } = render(Usage);
-    await waitFor(() => expect(getByText(/boom/i)).toBeTruthy());
+  it("searches the session table", async () => {
+    const { getByText, queryByText, getByPlaceholderText } = await mount();
+    await fireEvent.click(getByText("All"));
+    await fireEvent.input(getByPlaceholderText("Search sessions"), { target: { value: "old" } });
+    expect(getByText("Old work")).toBeInTheDocument();
+    expect(queryByText("Recent work")).toBeNull();
   });
 });

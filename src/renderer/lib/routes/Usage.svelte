@@ -1,51 +1,159 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { UsageSnapshot, UsageSession, UsageModel } from "@cairn/shared";
+  import type { UsageSnapshot, UsageSession } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import StatCard from "../components/StatCard.svelte";
   import Card from "../components/Card.svelte";
+  import SearchField from "../components/SearchField.svelte";
+  import AreaChart from "../charts/AreaChart.svelte";
+  import BarChart from "../charts/BarChart.svelte";
+  import Donut from "../charts/Donut.svelte";
+  import { dayRange, dayKey, paletteColor, SERIES_COLORS, type SeriesInput, type SliceInput, type BarInput } from "../charts/chartMath.js";
+
+  type Range = "7d" | "30d" | "all";
+  type SortKey = "updated" | "tokens" | "messages";
+  const PAGE_SIZE = 25;
+  const DAY_MS = 86_400_000;
 
   let snapshot = $state<UsageSnapshot | null>(null);
   let loadError = $state("");
+  let range = $state<Range>("7d");
+  let modelFilter = $state<string | null>(null);
+  let providerHighlight = $state<string | null>(null);
+  let query = $state("");
+  let sortKey = $state<SortKey>("updated");
+  let sortDesc = $state(true);
+  let page = $state(0);
 
-  const providerCounts = $derived.by(() => {
-    const counts = new Map<string, number>();
-    for (const account of snapshot?.accounts ?? []) {
-      counts.set(account.provider, (counts.get(account.provider) ?? 0) + 1);
-    }
-    return [...counts.entries()];
-  });
-
-  const sessions = $derived(snapshot?.sessions ?? []);
-  const modelEntries = $derived(Object.entries(snapshot?.models ?? {}));
-  const totalTokens = $derived(sessions.reduce((sum, session) => sum + sessionTokens(session), 0));
+  const cutoff = $derived(range === "all" ? 0 : Date.now() - (range === "7d" ? 7 : 30) * DAY_MS);
+  const inRange = $derived((snapshot?.sessions ?? []).filter((s) => s.updated >= cutoff));
 
   function sessionTokens(session: UsageSession): number {
     return session.tokens.input + session.tokens.output + session.tokens.reasoning;
   }
 
-  function modelTokens(model: UsageModel): number {
-    return model.tokens.input + model.tokens.output + model.tokens.reasoning;
+  const totalTokens = $derived(inRange.reduce((sum, s) => sum + sessionTokens(s), 0));
+
+  const areaColumns = $derived.by(() => {
+    if (inRange.length === 0) return [];
+    if (range !== "all") return dayRange(cutoff, Date.now());
+    const earliest = Math.min(...inRange.map((s) => s.updated));
+    return dayRange(earliest, Date.now());
+  });
+
+  const areaSeries = $derived.by<SeriesInput[]>(() => {
+    const input = new Array(areaColumns.length).fill(0);
+    const output = new Array(areaColumns.length).fill(0);
+    const reasoning = new Array(areaColumns.length).fill(0);
+    const index = new Map(areaColumns.map((c, i) => [c, i]));
+    for (const session of inRange) {
+      for (const [day, usage] of Object.entries(session.costByDay)) {
+        const i = index.get(day);
+        if (i === undefined) continue;
+        input[i] += usage.tokensInput;
+        output[i] += usage.tokensOutput;
+        reasoning[i] += usage.tokensReasoning;
+      }
+    }
+    return [
+      { key: "input", color: SERIES_COLORS.input, values: input },
+      { key: "output", color: SERIES_COLORS.output, values: output },
+      { key: "reasoning", color: SERIES_COLORS.reasoning, values: reasoning },
+    ];
+  });
+
+  const modelBars = $derived.by<BarInput[]>(() => {
+    const byModel = new Map<string, { tokens: number; provider: string }>();
+    for (const session of inRange) {
+      for (const model of session.models) {
+        const entry = byModel.get(model.id) ?? { tokens: 0, provider: model.provider };
+        entry.tokens += model.tokens;
+        byModel.set(model.id, entry);
+      }
+    }
+    return Array.from(byModel.entries()).map(([id, e]) => ({ label: id, value: e.tokens, meta: e.provider }));
+  });
+
+  const providerSlices = $derived.by<SliceInput[]>(() => {
+    const byProvider = new Map<string, number>();
+    for (const session of inRange) {
+      for (const model of session.models) byProvider.set(model.provider, (byProvider.get(model.provider) ?? 0) + model.tokens);
+    }
+    return Array.from(byProvider.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([provider, tokens], i) => ({ label: provider, value: tokens, color: paletteColor(i) }));
+  });
+
+  const filtered = $derived.by(() => {
+    const q = query.trim().toLowerCase();
+    return inRange.filter((session) => {
+      if (modelFilter && !session.models.some((m) => m.id === modelFilter)) return false;
+      if (!q) return true;
+      const haystack = [session.title, sourceLabel(session.source), ...session.models.map((m) => m.id)].join(" ").toLowerCase();
+      return haystack.includes(q);
+    });
+  });
+
+  const sorted = $derived.by(() => {
+    const rows = [...filtered];
+    rows.sort((a, b) => {
+      const av = sortKey === "updated" ? a.updated : sortKey === "tokens" ? sessionTokens(a) : a.messageCount;
+      const bv = sortKey === "updated" ? b.updated : sortKey === "tokens" ? sessionTokens(b) : b.messageCount;
+      return sortDesc ? bv - av : av - bv;
+    });
+    return rows;
+  });
+
+  const pageCount = $derived(Math.max(1, Math.ceil(sorted.length / PAGE_SIZE)));
+  const pageRows = $derived(sorted.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE));
+
+  $effect(() => {
+    // Reset paging whenever the effective row set changes.
+    void range;
+    void query;
+    void modelFilter;
+    void sortKey;
+    void sortDesc;
+    page = 0;
+  });
+
+  function setSort(key: SortKey): void {
+    if (sortKey === key) sortDesc = !sortDesc;
+    else {
+      sortKey = key;
+      sortDesc = true;
+    }
+  }
+
+  function toggleModel(label: string): void {
+    modelFilter = modelFilter === label ? null : label;
+  }
+
+  function toggleProvider(label: string): void {
+    providerHighlight = providerHighlight === label ? null : label;
   }
 
   function sourceLabel(source: UsageSession["source"]): string {
     return source === "claude-code" ? "Claude Code" : "OpenCode";
   }
 
-  function formatUpdatedAt(value: string): string {
-    if (!value) return "Never";
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? "Never" : date.toLocaleString();
-  }
-
-  function formatSessionUpdated(value: number): string {
-    if (!value) return "n/a";
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? "n/a" : date.toISOString().slice(0, 10);
+  function modelList(session: UsageSession): string {
+    return session.models.map((m) => m.id).join(", ") || "n/a";
   }
 
   function formatTokens(value: number): string {
     return value.toLocaleString("en-US");
+  }
+
+  function formatUpdated(value: number): string {
+    if (!value) return "n/a";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "n/a" : dayKey(value);
+  }
+
+  function sortArrow(key: SortKey): string {
+    if (sortKey !== key) return "";
+    return sortDesc ? " ↓" : " ↑";
   }
 
   onMount(async () => {
@@ -58,7 +166,12 @@
 <div class="head">
   <div>
     <h1>Usage</h1>
-    <p>Account coverage, session activity, and per-model token totals across providers.</p>
+    <p>Token activity across providers, models, and sessions.</p>
+  </div>
+  <div class="ranges" role="group" aria-label="Time range">
+    <button class:active={range === "7d"} onclick={() => (range = "7d")}>7d</button>
+    <button class:active={range === "30d"} onclick={() => (range = "30d")}>30d</button>
+    <button class:active={range === "all"} onclick={() => (range = "all")}>All</button>
   </div>
 </div>
 
@@ -68,80 +181,72 @@
   <p class="loading">Scanning session history, this can take a while on first load…</p>
 {:else}
   <section class="summary">
-    <StatCard label="Accounts tracked" value={String(snapshot.accounts.length)} />
-    <StatCard label="Sessions" value={String(sessions.length)} />
+    <StatCard label="Sessions" value={String(inRange.length)} />
     <StatCard label="Total tokens" value={formatTokens(totalTokens)} />
-    <StatCard label="Last updated" value={formatUpdatedAt(snapshot.updatedAt)} />
+    <StatCard label="Models" value={String(modelBars.length)} />
+    <StatCard label="Accounts tracked" value={String(snapshot.accounts.length)} />
   </section>
 
-  <section class="group">
-    <div class="grouphead">
-      <p class="label">Accounts by provider</p>
-      <span class="count">{snapshot.accounts.length}</span>
-      <span class="line"></span>
-    </div>
-    <Card>
-      <div class="list">
-        {#each providerCounts as [provider, count] (provider)}
-          <div class="row-line">
-            <span class="primary">{provider}</span>
-            <span class="meta">{count} account{count === 1 ? "" : "s"}</span>
-          </div>
-        {:else}
-          <p class="empty">No accounts yet</p>
-        {/each}
-      </div>
-    </Card>
+  <section class="panel">
+    <p class="ptitle">Tokens over time</p>
+    <Card><div class="pad"><AreaChart columns={areaColumns} series={areaSeries} /></div></Card>
   </section>
 
-  <section class="group">
-    <div class="grouphead">
-      <p class="label">Sessions</p>
-      <span class="count">{sessions.length}</span>
-      <span class="line"></span>
-    </div>
-    <Card>
-      <div class="list">
-        {#each sessions as session (session.id)}
-          <div class="row-line">
-            <span class="primary">{session.title}</span>
-            <span class="meta"
-              >{sourceLabel(session.source)} &middot; {formatTokens(sessionTokens(session))} tokens &middot; {session.messageCount} message{session.messageCount ===
-              1
-                ? ""
-                : "s"} &middot; {formatSessionUpdated(session.updated)}</span
-            >
-          </div>
-        {:else}
-          <p class="empty">No sessions found</p>
-        {/each}
-      </div>
-    </Card>
-  </section>
+  <div class="cols">
+    <section class="panel">
+      <p class="ptitle">By model{modelFilter ? ` · filtering ${modelFilter}` : ""}</p>
+      <Card><div class="pad"><BarChart items={modelBars} selected={modelFilter} onselect={toggleModel} /></div></Card>
+    </section>
+    <section class="panel">
+      <p class="ptitle">By provider</p>
+      <Card><div class="pad"><Donut slices={providerSlices} selected={providerHighlight} onselect={toggleProvider} /></div></Card>
+    </section>
+  </div>
 
-  <section class="group">
-    <div class="grouphead">
-      <p class="label">Models</p>
-      <span class="count">{modelEntries.length}</span>
-      <span class="line"></span>
+  <section class="panel">
+    <div class="tablehead">
+      <p class="ptitle">Sessions</p>
+      <SearchField bind:value={query} placeholder="Search sessions" />
     </div>
     <Card>
-      <div class="list">
-        {#each modelEntries as [modelId, model] (modelId)}
-          <div class="row-line">
-            <span class="primary">{modelId}</span>
-            <span class="meta"
-              >{model.provider} &middot; {formatTokens(modelTokens(model))} tokens &middot; {model.sessionCount} session{model.sessionCount ===
-              1
-                ? ""
-                : "s"}</span
-            >
-          </div>
-        {:else}
-          <p class="empty">No model usage yet</p>
-        {/each}
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Session</th>
+              <th>Source</th>
+              <th>Models</th>
+              <th class="num sortable" onclick={() => setSort("tokens")}>Tokens{sortArrow("tokens")}</th>
+              <th class="num sortable" onclick={() => setSort("messages")}>Msgs{sortArrow("messages")}</th>
+              <th class="num sortable" onclick={() => setSort("updated")}>Updated{sortArrow("updated")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each pageRows as session (session.id)}
+              <tr>
+                <td class="title" title={session.title}>{session.title}</td>
+                <td>{sourceLabel(session.source)}</td>
+                <td class="models" title={modelList(session)}>{modelList(session)}</td>
+                <td class="num">{formatTokens(sessionTokens(session))}</td>
+                <td class="num">{session.messageCount}</td>
+                <td class="num">{formatUpdated(session.updated)}</td>
+              </tr>
+            {:else}
+              <tr><td colspan="6" class="empty">No sessions in this range</td></tr>
+            {/each}
+          </tbody>
+        </table>
       </div>
     </Card>
+    {#if sorted.length > 0}
+      <div class="pager">
+        <span>Showing {page * PAGE_SIZE + 1} to {Math.min(sorted.length, (page + 1) * PAGE_SIZE)} of {sorted.length}</span>
+        <div class="pbtns">
+          <button disabled={page === 0} onclick={() => (page = Math.max(0, page - 1))}>Prev</button>
+          <button disabled={page >= pageCount - 1} onclick={() => (page = Math.min(pageCount - 1, page + 1))}>Next</button>
+        </div>
+      </div>
+    {/if}
   </section>
 {/if}
 
@@ -149,6 +254,7 @@
   .head {
     display: flex;
     align-items: flex-start;
+    justify-content: space-between;
     gap: 16px;
     margin-bottom: 20px;
   }
@@ -162,75 +268,146 @@
     margin: 3px 0 0;
     color: var(--muted);
     font-size: 12.5px;
-    max-width: 560px;
+  }
+  .ranges {
+    display: flex;
+    gap: 2px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2px;
+    flex: none;
+  }
+  .ranges button {
+    border: none;
+    background: none;
+    color: var(--muted);
+    font-family: var(--ui);
+    font-size: 12px;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .ranges button.active {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
   }
   .summary {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
     gap: 12px;
     margin-bottom: 22px;
   }
-  .group {
-    margin-bottom: 26px;
+  .panel {
+    margin-bottom: 22px;
   }
-  .grouphead {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 0 2px 10px;
-  }
-  .grouphead .label {
+  .ptitle {
     font-size: 10.5px;
     letter-spacing: .08em;
     text-transform: uppercase;
     color: var(--faint);
     font-weight: 600;
+    margin: 0 2px 10px;
+  }
+  .pad {
+    padding: 14px 16px;
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+    gap: 16px;
+  }
+  .tablehead {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .tablehead .ptitle {
     margin: 0;
   }
-  .grouphead .count {
-    font-size: 11px;
+  .tablewrap {
+    overflow-x: auto;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  th {
+    text-align: left;
     color: var(--faint);
+    font-weight: 600;
+    font-size: 11px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  th.num {
+    text-align: right;
+  }
+  th.sortable {
+    cursor: pointer;
+    user-select: none;
+  }
+  td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  td.num {
+    text-align: right;
     font-family: var(--mono);
+    color: var(--muted);
   }
-  .grouphead .line {
-    flex: 1;
-    height: 1px;
-    background: var(--border);
+  td.title {
+    font-weight: 600;
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .list {
-    padding: 4px 16px;
+  td.models {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11.5px;
   }
-  .row-line {
+  td.empty {
+    color: var(--faint);
+    text-align: center;
+    padding: 22px;
+  }
+  tr:last-child td {
+    border-bottom: 0;
+  }
+  .pager {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: 8px 0;
-    border-top: 1px solid var(--border);
-  }
-  .row-line:first-child {
-    border-top: 0;
-  }
-  .row-line .primary {
-    font-weight: 600;
-    font-size: 13px;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .row-line .meta {
-    color: var(--faint);
+    margin: 10px 2px 0;
     font-size: 11.5px;
-    font-family: var(--mono);
-    white-space: nowrap;
-    flex: none;
-  }
-  .empty {
     color: var(--faint);
-    font-size: 12.5px;
-    padding: 14px 16px;
-    margin: 0;
+  }
+  .pbtns {
+    display: flex;
+    gap: 6px;
+  }
+  .pbtns button {
+    font-family: var(--ui);
+    font-size: 12px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 5px 12px;
+    cursor: pointer;
+  }
+  .pbtns button:disabled {
+    opacity: 0.45;
+    cursor: default;
   }
   .error {
     color: var(--crit);
