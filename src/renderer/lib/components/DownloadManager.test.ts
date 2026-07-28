@@ -9,6 +9,20 @@ describe("DownloadManager", () => {
     downloads.set({ tasks: [], open: false });
   });
 
+  it("hides the button when no tasks exist", () => {
+    const { queryByRole } = render(DownloadManager);
+    expect(queryByRole("button", { name: "Toggle download manager" })).toBeNull();
+  });
+
+  it("shows the button when at least one task exists", () => {
+    downloads.set({
+      tasks: [{ id: 1, label: "a", home: "/h", status: "done", error: "", startedAt: 0 }],
+      open: false,
+    });
+    const { getByRole } = render(DownloadManager);
+    expect(getByRole("button", { name: "Toggle download manager" })).toBeTruthy();
+  });
+
   it("shows a badge equal to the running task count", () => {
     downloads.set({
       tasks: [

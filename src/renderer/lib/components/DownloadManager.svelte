@@ -6,10 +6,16 @@
 </script>
 
 <div class="downloadmgr">
-  <button class="iconbtn" title="Downloads" aria-label="Toggle download manager" onclick={toggleDownloads}>
-    ⇩
-    {#if runningCount > 0}<span class="badge">{runningCount}</span>{/if}
-  </button>
+  {#if $downloads.tasks.length > 0}
+    <button class="iconbtn" title="Downloads" aria-label="Toggle download manager" onclick={toggleDownloads}>
+      <svg class="downloadicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="3" />
+      </svg>
+      {#if runningCount > 0}<span class="badge">{runningCount}</span>{/if}
+    </button>
+  {/if}
   {#if $downloads.open}
     <div class="panel">
       <div class="panelhead">
@@ -52,8 +58,12 @@
     cursor: pointer;
     display: grid;
     place-items: center;
-    font-size: 14px;
+    padding: 0;
     -webkit-app-region: no-drag;
+  }
+  .downloadicon {
+    width: 14px;
+    height: 14px;
   }
   .iconbtn:hover {
     background: var(--surface);
