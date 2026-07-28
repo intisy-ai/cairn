@@ -9,7 +9,7 @@
     onclick,
     children,
   }: {
-    variant?: "default" | "primary";
+    variant?: "default" | "primary" | "danger";
     type?: "button" | "submit";
     disabled?: boolean;
     title?: string;
@@ -18,7 +18,15 @@
   } = $props();
 </script>
 
-<button {type} class="btn" class:primary={variant === "primary"} {disabled} {title} {onclick}>
+<button
+  {type}
+  class="btn"
+  class:primary={variant === "primary"}
+  class:danger={variant === "danger"}
+  {disabled}
+  {title}
+  {onclick}
+>
   {#if children}{@render children()}{/if}
 </button>
 
@@ -48,6 +56,15 @@
   }
   .btn.primary:hover {
     filter: brightness(1.05);
+  }
+  .btn.danger {
+    background: var(--crit-weak);
+    border-color: var(--crit);
+    color: var(--crit);
+  }
+  .btn.danger:hover {
+    background: var(--crit);
+    color: #fff;
   }
   .btn:focus-visible {
     outline: 2px solid var(--accent);

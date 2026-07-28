@@ -1,13 +1,25 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { ImportableApp, HomePlugins, CatalogEntry, CatalogKind, PluginHomeId } from "@cairn/shared";
+  import type { ImportableApp, HomePlugins, CatalogEntry, CatalogKind, PluginHomeId, PluginRow as PluginRowData, AppSummary } from "@cairn/shared";
   import { cairn } from "../ipc.js";
+  import { consumeParams } from "../router.js";
+  import { track } from "../downloads.js";
   import StatusPill from "../components/StatusPill.svelte";
   import PluginRow from "../components/PluginRow.svelte";
   import Button from "../components/Button.svelte";
   import Card from "../components/Card.svelte";
+  import Chip from "../components/Chip.svelte";
+  import SearchField from "../components/SearchField.svelte";
 
   type AppId = "claude" | "opencode";
+  type KindFilter = CatalogKind | "all";
+
+  const KIND_FILTERS: { id: KindFilter; label: string }[] = [
+    { id: "all", label: "All" },
+    { id: "provider", label: "Providers" },
+    { id: "proxy", label: "Proxies" },
+    { id: "plugin", label: "Plugins" },
+  ];
 
   let selectedHome = $state<PluginHomeId | null>(null);
 
@@ -20,6 +32,7 @@
   let catalog = $state<CatalogEntry[]>([]);
   let catalogSource = $state<"env" | "gh" | "anonymous">("gh");
   let installBusy = $state<string>("");
+  let machineryBusy = $state(false);
 
   let importable = $state<ImportableApp[]>([]);
   let importBusy = $state<Record<AppId, boolean>>({ claude: false, opencode: false });
@@ -28,11 +41,42 @@
 
   let uninstallArm = $state("");
 
+  let search = $state("");
+  let kindFilter = $state<KindFilter>("all");
+  let showDeprecated = $state(true);
+
+  let appSummary = $state<AppSummary | null>(null);
+  let appSummaryError = $state("");
+
+  let appUninstallOpen = $state(false);
+  let appUninstallWipe = $state(false);
+
   const selectedSection = $derived(sections.find((s) => s.home.id === selectedHome) ?? null);
 
   $effect(() => {
     selectedHome;
     uninstallArm = "";
+    appUninstallOpen = false;
+    appUninstallWipe = false;
+    machineryBusy = false;
+  });
+
+  $effect(() => {
+    const home = selectedHome;
+    if (home !== "claude" && home !== "opencode") {
+      appSummary = null;
+      appSummaryError = "";
+      return;
+    }
+    appSummary = null;
+    appSummaryError = "";
+    cairn.appsSummary(home).then((result) => {
+      if (result.ok) {
+        appSummary = result.data;
+      } else {
+        appSummaryError = result.error;
+      }
+    });
   });
 
   function canImport(app: AppId): boolean {
@@ -62,6 +106,43 @@
     }
   }
 
+  async function loadShowDeprecated(): Promise<void> {
+    const result = await cairn.getConfig("cairn", "showDeprecated");
+    if (result.ok && result.data === false) showDeprecated = false;
+  }
+
+  function catalogKindOf(name: string): CatalogKind | null {
+    return catalog.find((e) => e.name === name)?.kind ?? null;
+  }
+
+  function isDeprecated(name: string): boolean {
+    return catalog.some((e) => e.name === name && e.deprecated);
+  }
+
+  function matchesSearchText(text: string): boolean {
+    const needle = search.trim().toLowerCase();
+    return !needle || text.toLowerCase().includes(needle);
+  }
+
+  function rowMatchesFilters(row: PluginRowData): boolean {
+    if (!matchesSearchText(row.name)) return false;
+    return kindFilter === "all" || catalogKindOf(row.name) === kindFilter;
+  }
+
+  function entryMatchesFilters(entry: CatalogEntry): boolean {
+    if (kindFilter !== "all" && entry.kind !== kindFilter) return false;
+    const needle = search.trim().toLowerCase();
+    return !needle || entry.name.toLowerCase().includes(needle) || entry.description.toLowerCase().includes(needle);
+  }
+
+  function rawInstalledRows(section: HomePlugins): PluginRowData[] {
+    return section.rows.filter((r) => r.name !== "plugin-updater");
+  }
+
+  function installedRowsFor(section: HomePlugins): PluginRowData[] {
+    return rawInstalledRows(section).filter(rowMatchesFilters);
+  }
+
   function availableFor(section: HomePlugins): CatalogEntry[] {
     if (!section.home.hasUpdater) return [];
     const installed = new Set(section.rows.map((r) => r.name));
@@ -70,12 +151,28 @@
     return catalog.filter((e) => allowed(e.kind) && e.name !== "plugin-updater" && !installed.has(e.name));
   }
 
+  function mainCatalogFor(section: HomePlugins): CatalogEntry[] {
+    return availableFor(section).filter((e) => !e.deprecated).filter(entryMatchesFilters);
+  }
+
+  function deprecatedCatalogFor(section: HomePlugins): CatalogEntry[] {
+    return availableFor(section).filter((e) => e.deprecated).filter(entryMatchesFilters);
+  }
+
+  function homeDirFor(app: AppId): string {
+    return sections.find((s) => s.home.id === app)?.home.dir ?? app;
+  }
+
+  function homeLabelFor(app: AppId): string {
+    return sections.find((s) => s.home.id === app)?.home.label ?? app;
+  }
+
   async function handleInstallPlugin(home: string, entry: CatalogEntry): Promise<void> {
     const key = `${home}/${entry.name}`;
     if (installBusy === key) return;
     installBusy = key;
     try {
-      await cairn.pluginsInstall(home, entry.name, entry.url);
+      await track(`Install ${entry.name}`, home, () => cairn.pluginsInstall(home, entry.name, entry.url));
       await loadPlugins();
     } finally {
       installBusy = "";
@@ -116,11 +213,20 @@
   }
 
   async function handleInstall(app: AppId): Promise<void> {
-    await withAppBusy(app, () => cairn.appsInstallCli(app));
+    const home = homeDirFor(app);
+    const label = homeLabelFor(app);
+    await withAppBusy(app, () => track(`Install ${label} CLI`, home, () => cairn.appsInstallCli(app)));
   }
 
-  async function handleInit(app: AppId): Promise<void> {
-    await withAppBusy(app, () => cairn.appsInit(app));
+  async function handleInitUpdater(app: AppId, home: string): Promise<void> {
+    if (machineryBusy) return;
+    machineryBusy = true;
+    try {
+      await track("Initialize plugin-updater", home, () => cairn.appsInit(app));
+      await loadPlugins();
+    } finally {
+      machineryBusy = false;
+    }
   }
 
   async function handleToggle(home: string, name: string, on: boolean): Promise<void> {
@@ -134,9 +240,28 @@
       uninstallArm = key;
       return;
     }
-    await cairn.pluginsUninstall(home, name);
+    await track(`Uninstall ${name}`, home, () => cairn.pluginsUninstall(home, name));
     uninstallArm = "";
     await loadPlugins();
+  }
+
+  async function handleAppUninstall(app: AppId, home: string, label: string): Promise<void> {
+    await track(`Uninstall ${label}`, home, () => cairn.appsUninstallCli(app, appUninstallWipe));
+    appUninstallOpen = false;
+    appUninstallWipe = false;
+    await loadApps();
+    await loadPlugins();
+    selectedHome = null;
+  }
+
+  function openHome(id: PluginHomeId): void {
+    selectedHome = id;
+    search = "";
+    kindFilter = "all";
+  }
+
+  function goBack(): void {
+    selectedHome = null;
   }
 
   onMount(() => {
@@ -144,6 +269,15 @@
     loadPlugins();
     loadCatalog();
     loadImportable();
+    loadShowDeprecated();
+
+    const params = consumeParams();
+    if (params?.home) {
+      selectedHome = params.home as PluginHomeId;
+      if (params.filter === "provider" || params.filter === "proxy" || params.filter === "plugin") {
+        kindFilter = params.filter;
+      }
+    }
   });
 </script>
 
@@ -166,7 +300,7 @@
   {@const detail = selectedSection}
   <section class="group" data-testid={"home-" + detail.home.id}>
     <div class="detailhead">
-      <button class="backbtn" aria-label="Back to apps" onclick={() => (selectedHome = null)}>&larr; Back to apps</button>
+      <button class="backbtn" aria-label="Back to apps" onclick={goBack}>&larr; Back to apps</button>
       <h2>{detail.home.label}</h2>
     </div>
     {#if detail.home.id !== "cairn"}
@@ -174,9 +308,6 @@
       <div class="actions detailactions">
         {#if canImport(app)}
           <Button disabled={importBusy[app]} onclick={() => handleImportConfig(app)}>Import config</Button>
-        {/if}
-        {#if detail.home.hasUpdater}
-          <Button disabled={busyApps[app]} onclick={() => handleInit(app)}>Reinit</Button>
         {/if}
       </div>
       {#if importErrors[app]}
@@ -187,45 +318,149 @@
           {#each importNotes[app] as note}<li>{note}</li>{/each}
         </ul>
       {/if}
+
+      {#if appSummaryError}
+        <p class="summary-error">Could not load app summary: {appSummaryError}</p>
+      {:else if appSummary}
+        <Card>
+          <div class="summarycard">
+            {#if appSummary.accounts.length > 0}
+              <div class="summary-accounts">
+                {#each appSummary.accounts as acct}
+                  <span class="acct-chip"
+                    >{acct.provider} · {acct.label} · {acct.enabled ? "enabled" : "disabled"}{acct.quotaPct !== null
+                      ? ` · ${acct.quotaPct}%`
+                      : ""}</span
+                  >
+                {/each}
+              </div>
+            {:else}
+              <p class="summary-empty">No accounts connected.</p>
+            {/if}
+            <div class="summary-meta">
+              <span>{appSummary.configDir}</span>
+              <span>{appSummary.pluginCount} plugin{appSummary.pluginCount === 1 ? "" : "s"}</span>
+              {#if appSummary.routingSlots !== null}
+                <span>{appSummary.routingSlots} routing slot{appSummary.routingSlots === 1 ? "" : "s"}</span>
+              {/if}
+            </div>
+          </div>
+        </Card>
+      {/if}
     {/if}
+
+    <div class="toolbar">
+      <SearchField bind:value={search} placeholder="Search plugins…" />
+      {#each KIND_FILTERS as f (f.id)}
+        <Chip label={f.label} on={kindFilter === f.id} onclick={() => (kindFilter = f.id)} />
+      {/each}
+    </div>
+
     <Card>
-      {#each detail.rows as plugin (plugin.name)}
+      {#if detail.home.id !== "cairn"}
+        {@const app = detail.home.id as AppId}
+        <div class="row" data-testid="machinery-row">
+          <div class="info">
+            <b>plugin-updater</b>
+          </div>
+          <div class="actions">
+            {#if detail.home.hasUpdater}
+              <StatusPill variant="good" label="Installed" />
+            {:else}
+              <StatusPill variant="off" label="Not installed" />
+              <Button disabled={machineryBusy} onclick={() => handleInitUpdater(app, detail.home.dir)}>Install</Button>
+            {/if}
+          </div>
+        </div>
+      {/if}
+      {#each installedRowsFor(detail) as plugin (plugin.name)}
         <PluginRow
           name={plugin.name}
           kind={plugin.kind}
           installedVersion={plugin.installedVersion}
           updateAvailable={plugin.updateAvailable}
           enabled={plugin.enabled}
+          deprecated={isDeprecated(plugin.name)}
           onToggle={(on) => handleToggle(detail.home.id, plugin.name, on)}
           onUninstall={plugin.name === "plugin-updater" ? undefined : () => handleUninstall(detail.home.id, plugin.name)}
           uninstallState={uninstallArm === `${detail.home.id}/${plugin.name}` ? "confirm" : "idle"}
         />
       {/each}
-      {#if detail.rows.length === 0}
+      {#if rawInstalledRows(detail).length === 0}
         <p class="empty">No plugins installed.</p>
+      {:else if installedRowsFor(detail).length === 0}
+        <p class="empty">No plugins match your filters.</p>
       {/if}
       {#if !detail.home.hasUpdater}
         <p class="hint">Install plugin-updater to manage plugins here.</p>
       {:else}
-        {#each availableFor(detail) as entry (entry.name)}
-          <div class="row">
-            <div class="info">
-              <b>{entry.name}</b>
-              <span class="chip">{entry.kind}</span>
-              <span class="desc">{entry.description}</span>
+        <div class="marketmain" data-testid="marketplace-main">
+          {#each mainCatalogFor(detail) as entry (entry.name)}
+            <div class="row">
+              <div class="info">
+                <b>{entry.name}</b>
+                <span class="chip">{entry.kind}</span>
+                <span class="desc">{entry.description}</span>
+              </div>
+              <div class="actions">
+                <Button
+                  disabled={installBusy === detail.home.id + "/" + entry.name}
+                  onclick={() => handleInstallPlugin(detail.home.id, entry)}
+                >Install</Button>
+              </div>
             </div>
-            <div class="actions">
-              <Button
-                disabled={installBusy === detail.home.id + "/" + entry.name}
-                onclick={() => handleInstallPlugin(detail.home.id, entry)}
-              >Install</Button>
-            </div>
-          </div>
-        {/each}
+          {/each}
+        </div>
+        {#if showDeprecated}
+          {@const deprecatedList = deprecatedCatalogFor(detail)}
+          {#if deprecatedList.length > 0}
+            <details class="deprecated-group" data-testid="deprecated-group">
+              <summary>Deprecated</summary>
+              {#each deprecatedList as entry (entry.name)}
+                <div class="row">
+                  <div class="info">
+                    <b>{entry.name}</b>
+                    <span class="chip">{entry.kind}</span>
+                    <span class="desc">{entry.description}</span>
+                  </div>
+                  <div class="actions">
+                    <Button
+                      disabled={installBusy === detail.home.id + "/" + entry.name}
+                      onclick={() => handleInstallPlugin(detail.home.id, entry)}
+                    >Install</Button>
+                  </div>
+                </div>
+              {/each}
+            </details>
+          {/if}
+        {/if}
       {/if}
     </Card>
     {#if catalogSource === "anonymous"}
       <p class="hint">Marketplace unauthenticated: sign in with the gh CLI or set GITHUB_TOKEN for reliable listings.</p>
+    {/if}
+
+    {#if detail.home.id !== "cairn"}
+      {@const app = detail.home.id as AppId}
+      <div class="dangerzone">
+        <Button variant="danger" onclick={() => (appUninstallOpen = !appUninstallOpen)}>Uninstall app</Button>
+        {#if appUninstallOpen}
+          <div class="dangerpanel">
+            <p>
+              This removes the {detail.home.label} CLI from this machine. Plugins and configuration stay in place unless
+              you also delete data.
+            </p>
+            <label class="wipe">
+              <input type="checkbox" bind:checked={appUninstallWipe} />
+              Also delete all data
+            </label>
+            <div class="actions">
+              <Button onclick={() => (appUninstallOpen = false)}>Cancel</Button>
+              <Button variant="danger" onclick={() => handleAppUninstall(app, detail.home.dir, detail.home.label)}>Uninstall</Button>
+            </div>
+          </div>
+        {/if}
+      </div>
     {/if}
   </section>
 {:else}
@@ -234,7 +469,7 @@
       <Card>
         <div class="row masterrow">
           {#if section.home.present}
-            <button class="rowmain" aria-label={"Open " + section.home.label + " plugins"} onclick={() => (selectedHome = section.home.id)}>
+            <button class="rowmain" aria-label={"Open " + section.home.label + " plugins"} onclick={() => openHome(section.home.id)}>
               <div class="info">
                 <b>{section.home.label}</b>
                 {#if section.home.id !== "cairn"}
@@ -253,9 +488,6 @@
             {#if !section.home.present}
               {@const app = section.home.id as AppId}
               <Button variant="primary" disabled={busyApps[app]} onclick={() => handleInstall(app)}>Install CLI</Button>
-            {:else if section.home.id !== "cairn" && !section.home.hasUpdater}
-              {@const app = section.home.id as AppId}
-              <Button disabled={busyApps[app]} onclick={() => handleInit(app)}>Init</Button>
             {/if}
           </div>
         </div>
@@ -322,6 +554,9 @@
   .row:first-child {
     border-top: 0;
   }
+  .marketmain {
+    display: contents;
+  }
   .rowmain {
     all: unset;
     cursor: pointer;
@@ -355,6 +590,13 @@
   }
   .detailactions {
     margin: 0 2px 12px;
+  }
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 2px 14px;
+    flex-wrap: wrap;
   }
   .empty, .hint {
     margin: 0;
@@ -391,5 +633,86 @@
     padding: 0 18px 12px 34px;
     color: var(--muted);
     font-size: 12.5px;
+  }
+  .deprecated-group {
+    border-top: 1px solid var(--border);
+  }
+  .deprecated-group summary {
+    cursor: pointer;
+    padding: 12px 18px;
+    font-size: 10.5px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--faint);
+    list-style: none;
+  }
+  .deprecated-group summary::-webkit-details-marker {
+    display: none;
+  }
+  .summarycard {
+    padding: 14px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .summary-accounts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .acct-chip {
+    font-size: 11.5px;
+    color: var(--muted);
+    background: var(--surface-2);
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+  .summary-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    font-size: 11.5px;
+    color: var(--faint);
+    font-family: var(--mono);
+  }
+  .summary-empty {
+    margin: 0;
+    color: var(--faint);
+    font-size: 12.5px;
+  }
+  .summary-error {
+    color: var(--crit);
+    font-size: 12.5px;
+    margin: 0 0 14px;
+  }
+  .dangerzone {
+    margin-top: 22px;
+  }
+  .dangerpanel {
+    margin-top: 12px;
+    padding: 16px 18px;
+    border: 1px solid var(--crit);
+    border-radius: var(--radius);
+    background: var(--crit-weak);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .dangerpanel p {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--text);
+  }
+  .wipe {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .dangerpanel .actions {
+    justify-content: flex-end;
   }
 </style>

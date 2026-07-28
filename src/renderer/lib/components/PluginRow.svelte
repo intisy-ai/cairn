@@ -12,6 +12,7 @@
     onToggle,
     onUninstall,
     uninstallState = "idle",
+    deprecated = false,
   }: {
     name: string;
     kind: "git" | "npm";
@@ -21,6 +22,7 @@
     onToggle?: (on: boolean) => void;
     onUninstall?: () => void;
     uninstallState?: "idle" | "confirm";
+    deprecated?: boolean;
   } = $props();
 
   const detail = $derived(installedVersion ? `${kind} · v${installedVersion}` : kind);
@@ -32,7 +34,9 @@
     <span>{detail}</span>
   </div>
   <div>
-    {#if updateAvailable}
+    {#if deprecated}
+      <StatusPill variant="warn" label="Deprecated" />
+    {:else if updateAvailable}
       <StatusPill variant="warn" label="Update available" />
     {:else}
       <StatusPill variant="good" label="Up to date" />
