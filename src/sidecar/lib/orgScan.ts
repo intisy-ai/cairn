@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { classifyRepoName } from "../../../packages/shared/src/repoRef.js";
 import type { CatalogEntry, CatalogKind, CatalogResult } from "../../../packages/shared/src/domain.js";
 
 const ORG = "intisy-ai";
@@ -6,10 +7,8 @@ const TTL_MS = 60_000;
 const EXCLUDED_EXACT = new Set(["ai-java", "workflows", "cairn", "agentbox", "core"]);
 
 export function classifyRepo(name: string): CatalogKind | null {
-  if (name.endsWith("-loader") || name.startsWith("core-") || EXCLUDED_EXACT.has(name)) return null;
-  if (name.endsWith("-proxy")) return "proxy";
-  if (name.endsWith("-auth")) return "provider";
-  return "plugin";
+  if (EXCLUDED_EXACT.has(name)) return null;
+  return classifyRepoName(name);
 }
 
 interface RepoJson { name?: string; html_url?: string; description?: string | null; archived?: boolean }
