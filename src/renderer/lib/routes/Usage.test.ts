@@ -22,6 +22,8 @@ describe("Usage screen", () => {
               messageCount: 2,
               source: "claude-code",
               updated: new Date("2026-07-20T00:00:00.000Z").getTime(),
+              costByDay: {},
+              models: [],
             },
           ],
           models: {

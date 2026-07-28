@@ -1,8 +1,16 @@
 import { readDeployedProviders } from "@core-loader/loader-runtime.js";
 import { reposDir, listAccounts } from "@core-auth/index.js";
 import { buildSnapshot } from "../../../vendor/usage/snapshot.js";
-import type { Session, ModelSummary } from "../../../vendor/usage/types.js";
-import type { UsageSnapshot, UsageAccount, UsageSession, UsageModel, Result } from "../../../packages/shared/src/domain.js";
+import type { Session, ModelSummary, DayUsage, ModelUsage } from "../../../vendor/usage/types.js";
+import type {
+  UsageSnapshot,
+  UsageAccount,
+  UsageSession,
+  UsageModel,
+  UsageDay,
+  UsageSessionModel,
+  Result,
+} from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
 
 function deployedAccounts(): UsageAccount[] {
@@ -14,7 +22,27 @@ function deployedAccounts(): UsageAccount[] {
   return accounts;
 }
 
+function mapDay(day: DayUsage): UsageDay {
+  return {
+    tokens: day.tokens,
+    tokensInput: day.tokensInput,
+    tokensOutput: day.tokensOutput,
+    tokensReasoning: day.tokensReasoning,
+    messageCount: day.messageCount,
+  };
+}
+
+function mapSessionModels(modelUsage: Record<string, ModelUsage>): UsageSessionModel[] {
+  return Object.entries(modelUsage).map(([id, usage]) => ({
+    id,
+    provider: usage.provider,
+    tokens: usage.tokens.input + usage.tokens.output + usage.tokens.reasoning,
+  }));
+}
+
 function mapSession(session: Session): UsageSession {
+  const costByDay: Record<string, UsageDay> = {};
+  for (const [day, usage] of Object.entries(session.costByDay)) costByDay[day] = mapDay(usage);
   return {
     id: session.id,
     title: session.title,
@@ -22,6 +50,8 @@ function mapSession(session: Session): UsageSession {
     messageCount: session.messageCount,
     source: session.source,
     updated: session.updated,
+    costByDay,
+    models: mapSessionModels(session.modelUsage),
   };
 }
 

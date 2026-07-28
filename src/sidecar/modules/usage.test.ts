@@ -80,6 +80,37 @@ function seedClaudeSession(): void {
   writeFileSync(join(projectDir, "session-abc.jsonl"), lines.join("\n"), "utf-8");
 }
 
+// dayKeyFor (vendor/usage/sessions.ts) buckets by local calendar date, so the
+// expected key is derived the same way instead of a hardcoded string.
+function localDayKey(timestampMs: number): string {
+  const date = new Date(timestampMs);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function seedMultiModelClaudeSession(): { day1: number; day2: number } {
+  const claudeHome = process.env.HUB_CLAUDE_DIR as string;
+  const projectDir = join(claudeHome, "projects", "-multi-model-project");
+  mkdirSync(projectDir, { recursive: true });
+  const day1 = Date.UTC(2026, 0, 1, 12, 0, 0);
+  const day2 = Date.UTC(2026, 0, 2, 12, 0, 0);
+  const lines = [
+    JSON.stringify({
+      type: "assistant",
+      timestamp: new Date(day1).toISOString(),
+      message: { model: "claude-sonnet", usage: { input_tokens: 20, output_tokens: 5 } },
+    }),
+    JSON.stringify({
+      type: "assistant",
+      timestamp: new Date(day2).toISOString(),
+      message: { model: "claude-haiku", usage: { input_tokens: 10, output_tokens: 5 } },
+    }),
+  ];
+  writeFileSync(join(projectDir, "session-multi.jsonl"), lines.join("\n"), "utf-8");
+  return { day1, day2 };
+}
+
 describe("usage sidecar module", () => {
   it("returns real sessions and models from the vendored snapshot layer alongside deployed-provider accounts", async () => {
     seedStubProvider();
@@ -124,5 +155,28 @@ describe("usage sidecar module", () => {
     expect(result.data.accounts).toEqual([]);
     expect(result.data.sessions).toEqual([]);
     expect(result.data.models).toEqual({});
+  });
+
+  it("exposes per-session costByDay and per-model token totals", async () => {
+    const { day1, day2 } = seedMultiModelClaudeSession();
+    const { usageSnapshot } = await import("./usage.js");
+    const result = await usageSnapshot();
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+
+    expect(result.data.sessions).toHaveLength(1);
+    const session = result.data.sessions[0];
+
+    const key1 = localDayKey(day1);
+    const key2 = localDayKey(day2);
+    expect(session.costByDay[key1]).toEqual({ tokens: 25, tokensInput: 20, tokensOutput: 5, tokensReasoning: 0, messageCount: 1 });
+    expect(session.costByDay[key2]).toEqual({ tokens: 15, tokensInput: 10, tokensOutput: 5, tokensReasoning: 0, messageCount: 1 });
+
+    const models = [...session.models].sort((a, b) => b.tokens - a.tokens);
+    expect(models).toEqual([
+      { id: "claude-sonnet", provider: "anthropic", tokens: 25 },
+      { id: "claude-haiku", provider: "anthropic", tokens: 15 },
+    ]);
   });
 });

@@ -56,6 +56,18 @@ export type UsageTokens = {
   cacheRead: number;
   cacheWrite: number;
 };
+export type UsageDay = {
+  tokens: number;
+  tokensInput: number;
+  tokensOutput: number;
+  tokensReasoning: number;
+  messageCount: number;
+};
+export type UsageSessionModel = {
+  id: string;
+  provider: string;
+  tokens: number;
+};
 export type UsageSession = {
   id: string;
   title: string;
@@ -63,6 +75,8 @@ export type UsageSession = {
   messageCount: number;
   source: UsageSessionSource;
   updated: number;
+  costByDay: Record<string, UsageDay>;
+  models: UsageSessionModel[];
 };
 export type UsageModel = {
   provider: string;
