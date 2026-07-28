@@ -213,16 +213,15 @@
   }
 
   async function handleInstall(app: AppId): Promise<void> {
-    const home = homeDirFor(app);
     const label = homeLabelFor(app);
-    await withAppBusy(app, () => track(`Install ${label} CLI`, home, () => cairn.appsInstallCli(app)));
+    await withAppBusy(app, () => track(`Install ${label} CLI`, app, () => cairn.appsInstallCli(app)));
   }
 
-  async function handleInitUpdater(app: AppId, home: string): Promise<void> {
+  async function handleInitUpdater(app: AppId): Promise<void> {
     if (machineryBusy) return;
     machineryBusy = true;
     try {
-      await track("Initialize plugin-updater", home, () => cairn.appsInit(app));
+      await track("Initialize plugin-updater", app, () => cairn.appsInit(app));
       await loadPlugins();
     } finally {
       machineryBusy = false;
@@ -245,8 +244,8 @@
     await loadPlugins();
   }
 
-  async function handleAppUninstall(app: AppId, home: string, label: string): Promise<void> {
-    await track(`Uninstall ${label}`, home, () => cairn.appsUninstallCli(app, appUninstallWipe));
+  async function handleAppUninstall(app: AppId, label: string): Promise<void> {
+    await track(`Uninstall ${label}`, app, () => cairn.appsUninstallCli(app, appUninstallWipe));
     appUninstallOpen = false;
     appUninstallWipe = false;
     await loadApps();
@@ -368,7 +367,7 @@
               <StatusPill variant="good" label="Installed" />
             {:else}
               <StatusPill variant="off" label="Not installed" />
-              <Button disabled={machineryBusy} onclick={() => handleInitUpdater(app, detail.home.dir)}>Install</Button>
+              <Button disabled={machineryBusy} onclick={() => handleInitUpdater(app)}>Install</Button>
             {/if}
           </div>
         </div>
@@ -443,7 +442,12 @@
     {#if detail.home.id !== "cairn"}
       {@const app = detail.home.id as AppId}
       <div class="dangerzone">
-        <Button variant="danger" onclick={() => (appUninstallOpen = !appUninstallOpen)}>Uninstall app</Button>
+        <Button variant="danger" onclick={() => {
+          appUninstallOpen = !appUninstallOpen;
+          if (appUninstallOpen) {
+            appUninstallWipe = false;
+          }
+        }}>Uninstall app</Button>
         {#if appUninstallOpen}
           <div class="dangerpanel">
             <p>
@@ -455,8 +459,11 @@
               Also delete all data
             </label>
             <div class="actions">
-              <Button onclick={() => (appUninstallOpen = false)}>Cancel</Button>
-              <Button variant="danger" onclick={() => handleAppUninstall(app, detail.home.dir, detail.home.label)}>Uninstall</Button>
+              <Button onclick={() => {
+                appUninstallOpen = false;
+                appUninstallWipe = false;
+              }}>Cancel</Button>
+              <Button variant="danger" onclick={() => handleAppUninstall(app, detail.home.label)}>Uninstall</Button>
             </div>
           </div>
         {/if}

@@ -536,6 +536,37 @@ describe("AppsPlugins screen", () => {
     expect(screen.queryByLabelText("Also delete all data")).toBeNull();
   });
 
+  it("fresh app-uninstall confirms never inherit the wipe flag when cancelled", async () => {
+    const calls: unknown[][] = [];
+    stubCairn({
+      appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
+      pluginsList: async () => ({ ok: true, data: [claudeSection([])] }),
+      appsUninstallCli: async (...args: unknown[]) => {
+        calls.push(args);
+        return { ok: true, data: { stdout: "", stderr: "" } };
+      },
+    });
+    render(AppsPlugins);
+    await openHome("claude code");
+
+    await fireEvent.click(screen.getByRole("button", { name: "Uninstall app" }));
+    const wipeCheckbox = screen.getByLabelText("Also delete all data") as HTMLInputElement;
+    expect(wipeCheckbox.checked).toBe(false);
+
+    await fireEvent.click(wipeCheckbox);
+    expect(wipeCheckbox.checked).toBe(true);
+
+    await fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByLabelText("Also delete all data")).toBeNull();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Uninstall app" }));
+    const wipeCheckboxAfterReopen = screen.getByLabelText("Also delete all data") as HTMLInputElement;
+    expect(wipeCheckboxAfterReopen.checked).toBe(false);
+
+    await fireEvent.click(screen.getByRole("button", { name: "Uninstall" }));
+    await waitFor(() => expect(calls[0]).toEqual(["claude", false]));
+  });
+
   it("shows no Init or Reinit buttons anywhere", async () => {
     stubCairn({
       appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
