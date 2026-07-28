@@ -69,7 +69,7 @@ describe("import", () => {
     seedAppHome(appHomeDir);
 
     const { importRun } = await import("./import.js");
-    const result = await importRun("claude", { appHome: () => appHomeDir, proxyDeps });
+    const result = await importRun("claude", undefined, { appHome: () => appHomeDir, proxyDeps });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
@@ -91,5 +91,34 @@ describe("import", () => {
     const { getConfigValue } = await import("@core/index.js");
     const exposure = getConfigValue("dashboard-exposure", "map") as Record<string, { cc: boolean }>;
     expect(exposure.stub.cc).toBe(true);
+  });
+
+  it("previews accounts, routing slots, and exposable providers without writing", async () => {
+    deployStubProvider(process.env.HUB_CONFIG_DIR!);
+    const appHomeDir = mkdtempSync(join(tmpdir(), "dash-import-app-home-"));
+    seedAppHome(appHomeDir);
+
+    const { importPreview } = await import("./import.js");
+    const result = await importPreview("claude", { appHome: () => appHomeDir, proxyDeps });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data.accounts).toBe(1);
+    expect(result.data.exposedProviders).toBeGreaterThanOrEqual(1);
+    expect(result.data.routingSlots).not.toBeUndefined();
+  });
+
+  it("skips categories that are not selected", async () => {
+    deployStubProvider(process.env.HUB_CONFIG_DIR!);
+    const appHomeDir = mkdtempSync(join(tmpdir(), "dash-import-app-home-"));
+    seedAppHome(appHomeDir);
+
+    const { importRun } = await import("./import.js");
+    const result = await importRun("claude", { accounts: false, routing: true, exposure: true }, { appHome: () => appHomeDir, proxyDeps });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data.accounts).toBe(0);
+    expect(result.data.notes.some((n) => n.toLowerCase().includes("account") && n.toLowerCase().includes("skip"))).toBe(true);
   });
 });

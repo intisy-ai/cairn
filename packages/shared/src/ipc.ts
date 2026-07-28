@@ -30,6 +30,7 @@ export const IPC_CHANNELS = {
     "config:write",
     "usage:snapshot",
     "import:apps",
+    "import:preview",
     "import:run",
     "catalog:list",
   ] as const,

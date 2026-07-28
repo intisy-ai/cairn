@@ -11,7 +11,8 @@ import { pluginsList, pluginsInstall, pluginsSetEnabled, pluginsDowngrade, plugi
 import { configSchemas, configWrite } from "./modules/appConfig.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
 import { usageSnapshot } from "./modules/usage.js";
-import { importApps, importRun } from "./modules/import.js";
+import { importApps, importPreview, importRun } from "./modules/import.js";
+import type { ImportSelection } from "../../packages/shared/src/domain.js";
 import { catalogList } from "./modules/catalog.js";
 
 type SidecarRequest = { id: number; channel: string; args: unknown[] };
@@ -62,7 +63,8 @@ registerHandler("config:schemas", (home) => configSchemas(home as string));
 registerHandler("config:write", (home, plugin, key, value) => configWrite(home as string, plugin as string, key as string, value));
 registerHandler("usage:snapshot", () => usageSnapshot());
 registerHandler("import:apps", () => importApps());
-registerHandler("import:run", (app) => importRun(app as string));
+registerHandler("import:preview", (app) => importPreview(app as string));
+registerHandler("import:run", (app, selection) => importRun(app as string, selection as ImportSelection | undefined));
 registerHandler("catalog:list", () => catalogList());
 
 if (process.parentPort) {

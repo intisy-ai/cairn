@@ -4,7 +4,7 @@ import { addAccount, getConfigDir, listAccounts, reposDir } from "@core-auth/ind
 import { readDeployedProviders } from "@core-loader/loader-runtime.js";
 import { resolveModelMap } from "@core-proxy/model-map.js";
 import { getConfigValue, setConfigValue } from "@core/index.js";
-import type { ImportableApp, ImportSummary, Result } from "../../../packages/shared/src/domain.js";
+import type { ImportableApp, ImportPreview, ImportSelection, ImportSummary, Result } from "../../../packages/shared/src/domain.js";
 import { appRealHome } from "../lib/pluginHomes.js";
 import { profileFor } from "../lib/proxyRegistry.js";
 import type { ProxyRegistryDeps } from "../lib/proxyRegistry.js";
@@ -37,7 +37,32 @@ export async function importApps(deps: ImportDeps = {}): Promise<Result<Importab
   });
 }
 
-export async function importRun(app: string, deps: ImportDeps = {}): Promise<Result<ImportSummary>> {
+const ALL_SELECTED: ImportSelection = { accounts: true, routing: true, exposure: true };
+
+export async function importPreview(app: string, deps: ImportDeps = {}): Promise<Result<ImportPreview>> {
+  const appHome = deps.appHome ?? appRealHome;
+  return wrap(async () => {
+    if (!isAppName(app)) throw new Error(`unknown app: ${app}`);
+    const home = appHome(app);
+    if (!existsSync(home)) throw new Error(`no config found for ${app} at ${home}`);
+
+    const providers = readDeployedProviders(reposDir());
+    const accountsOpts = { dir: join(home, "config") };
+    let accounts = 0;
+    for (const p of providers) accounts += (listAccounts(p.provider, accountsOpts) as unknown[]).length;
+
+    let routingSlots: number | null = null;
+    const profile = await profileFor(app, deps.proxyDeps);
+    if (profile) {
+      const map = resolveModelMap(home, profile);
+      routingSlots = Object.values(map).filter((chain) => chain.length > 0).length;
+    }
+
+    return { accounts, routingSlots, exposedProviders: providers.length };
+  });
+}
+
+export async function importRun(app: string, selection: ImportSelection = ALL_SELECTED, deps: ImportDeps = {}): Promise<Result<ImportSummary>> {
   const appHome = deps.appHome ?? appRealHome;
   return wrap(async () => {
     if (!isAppName(app)) throw new Error(`unknown app: ${app}`);
@@ -46,41 +71,54 @@ export async function importRun(app: string, deps: ImportDeps = {}): Promise<Res
     if (!existsSync(home)) throw new Error(`no config found for ${app} at ${home}`);
 
     const providers = readDeployedProviders(reposDir());
-    const accountsOpts = { dir: join(home, "config") };
+
     let accounts = 0;
-    for (const p of providers) {
-      const imported = listAccounts(p.provider, accountsOpts) as unknown[];
-      for (const account of imported) addAccount(p.provider, account, undefined);
-      accounts += imported.length;
+    if (selection.accounts) {
+      const accountsOpts = { dir: join(home, "config") };
+      for (const p of providers) {
+        const imported = listAccounts(p.provider, accountsOpts) as unknown[];
+        for (const account of imported) addAccount(p.provider, account, undefined);
+        accounts += imported.length;
+      }
+      notes.push(accounts > 0 ? `imported ${accounts} account(s)` : "no accounts to import");
+    } else {
+      notes.push("accounts skipped");
     }
-    notes.push(accounts > 0 ? `imported ${accounts} account(s)` : "no accounts to import");
 
     let routingImported = false;
-    const profile = await profileFor(app, deps.proxyDeps);
-    if (profile) {
-      const map = resolveModelMap(home, profile);
-      let tiersWritten = 0;
-      for (const slot of Object.keys(map)) {
-        const chain = map[slot];
-        if (!chain.length) continue;
-        modelMapWrite(getConfigDir(), profile, slot, chain.map(({ provider, model }) => ({ provider, model })));
-        tiersWritten++;
+    if (selection.routing) {
+      const profile = await profileFor(app, deps.proxyDeps);
+      if (profile) {
+        const map = resolveModelMap(home, profile);
+        let tiersWritten = 0;
+        for (const slot of Object.keys(map)) {
+          const chain = map[slot];
+          if (!chain.length) continue;
+          modelMapWrite(getConfigDir(), profile, slot, chain.map(({ provider, model }) => ({ provider, model })));
+          tiersWritten++;
+        }
+        routingImported = tiersWritten > 0;
+        notes.push(routingImported ? `imported routing for ${tiersWritten} tier(s)` : "no routing to import");
+      } else {
+        notes.push(`no routing available for ${LABELS[app]}`);
       }
-      routingImported = tiersWritten > 0;
-      notes.push(routingImported ? `imported routing for ${tiersWritten} tier(s)` : "no routing to import");
     } else {
-      notes.push(`no routing available for ${LABELS[app]}`);
+      notes.push("routing skipped");
     }
 
-    const exposureKey = app === "claude" ? "cc" : "oc";
-    const exposureMap =
-      (getConfigValue(EXPOSURE_CONFIG_NAME, EXPOSURE_CONFIG_KEY) as Record<string, { cc: boolean; oc: boolean }> | undefined) ?? {};
-    for (const p of providers) {
-      const cur = exposureMap[p.provider] ?? { cc: true, oc: true };
-      exposureMap[p.provider] = { ...cur, [exposureKey]: true };
+    if (selection.exposure) {
+      const exposureKey = app === "claude" ? "cc" : "oc";
+      const exposureMap =
+        (getConfigValue(EXPOSURE_CONFIG_NAME, EXPOSURE_CONFIG_KEY) as Record<string, { cc: boolean; oc: boolean }> | undefined) ?? {};
+      for (const p of providers) {
+        const cur = exposureMap[p.provider] ?? { cc: true, oc: true };
+        exposureMap[p.provider] = { ...cur, [exposureKey]: true };
+      }
+      setConfigValue(EXPOSURE_CONFIG_NAME, EXPOSURE_CONFIG_KEY, exposureMap);
+      notes.push(`exposed ${providers.length} provider(s) for ${LABELS[app]}`);
+    } else {
+      notes.push("provider exposure skipped");
     }
-    setConfigValue(EXPOSURE_CONFIG_NAME, EXPOSURE_CONFIG_KEY, exposureMap);
-    notes.push(`exposed ${providers.length} provider(s) for ${LABELS[app]}`);
 
     return { accounts, providers: providers.length, routingImported, notes };
   });

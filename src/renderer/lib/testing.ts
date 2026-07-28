@@ -56,6 +56,7 @@ function defaultCairn(): CairnAPI {
     configWrite: async (_home, _plugin, _key, _value) => ({ ok: true, data: undefined }),
     usageSnapshot: async () => ({ ok: true, data: { accounts: [], sessions: [], models: {}, updatedAt: "" } }),
     importApps: async () => ({ ok: true, data: [] }),
+    importPreview: async () => ({ ok: true, data: { accounts: 0, routingSlots: null, exposedProviders: 0 } }),
     importRun: async () => ({ ok: true, data: { accounts: 0, providers: 0, routingImported: false, notes: [] } }),
     catalogList: async () => ({ ok: true, data: { entries: [], source: "anonymous" } }),
     minimize: () => {},

@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import { IPC_CHANNELS } from "@cairn/shared";
-import type { CairnAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, CatalogResult, AppSummary, PluginConfigSchema } from "@cairn/shared";
+import type { CairnAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema } from "@cairn/shared";
 
 const invokeChannels: readonly string[] = IPC_CHANNELS.invoke;
 const sendChannels: readonly string[] = IPC_CHANNELS.send;
@@ -57,7 +57,8 @@ const api: CairnAPI = {
   configWrite: (home, plugin, key, value) => safeInvoke("config:write", home, plugin, key, value) as Promise<Result<void>>,
   usageSnapshot: () => safeInvoke("usage:snapshot") as Promise<Result<UsageSnapshot>>,
   importApps: () => safeInvoke("import:apps") as Promise<Result<ImportableApp[]>>,
-  importRun: (app) => safeInvoke("import:run", app) as Promise<Result<ImportSummary>>,
+  importPreview: (app) => safeInvoke("import:preview", app) as Promise<Result<ImportPreview>>,
+  importRun: (app, selection) => safeInvoke("import:run", app, selection) as Promise<Result<ImportSummary>>,
   catalogList: () => safeInvoke("catalog:list") as Promise<Result<CatalogResult>>,
   minimize: () => safeSend("window:minimize"),
   maximize: () => safeSend("window:maximize"),

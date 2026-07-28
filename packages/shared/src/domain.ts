@@ -101,6 +101,8 @@ export type UsageSnapshot = {
 };
 export type ImportableApp = { app: string; label: string; hasConfig: boolean };
 export type ImportSummary = { accounts: number; providers: number; routingImported: boolean; notes: string[] };
+export type ImportSelection = { accounts: boolean; routing: boolean; exposure: boolean };
+export type ImportPreview = { accounts: number; routingSlots: number | null; exposedProviders: number };
 export type RoutingApp = { app: "claude" | "opencode"; label: string };
 export type PluginHomeId = "cairn" | "claude" | "opencode";
 export type PluginHome = {
