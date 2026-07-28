@@ -19,4 +19,9 @@ describe("BarChart", () => {
     await fireEvent.click(container.querySelector("button.bar-row") as Element);
     expect(clicked).toEqual(["sonnet"]);
   });
+
+  it("shows an empty state when there are no positive-value bars", () => {
+    const { getByText } = render(TestWrapper, { props: { items: [] } });
+    expect(getByText("Nothing to show")).toBeInTheDocument();
+  });
 });

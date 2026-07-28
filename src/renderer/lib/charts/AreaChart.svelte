@@ -44,11 +44,11 @@
       {#each polygons as poly (poly.key)}
         <path class="area" d={areaPath(poly)} fill={poly.color} />
       {/each}
-      {#if hoverIndex !== null}
+      {#if hoverIndex !== null && hoverIndex < columns.length}
         <line class="crosshair" x1={columnX[hoverIndex]} y1={dims.padTop} x2={columnX[hoverIndex]} y2={height - dims.padBottom} />
       {/if}
     </svg>
-    {#if hoverIndex !== null}
+    {#if hoverIndex !== null && hoverIndex < columns.length}
       <div class="tip">
         <p class="day">{columns[hoverIndex]}</p>
         {#each series as s (s.key)}

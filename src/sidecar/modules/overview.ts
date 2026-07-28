@@ -56,7 +56,7 @@ export function overviewSummary(deps: OverviewDeps = {}): Promise<Result<Overvie
   const probe = deps.probe ?? defaultProbe;
   const accountsOf = deps.accounts ?? getAccountsData;
   const homesOf = deps.homes ?? pluginHomes;
-  const pluginsIn = deps.pluginsIn ?? ((dir: string) => getPlugins(dir));
+  const pluginsIn = deps.pluginsIn ?? getPlugins;
   const detect = deps.detect ?? (async () => {
     const result = await appsDetect();
     return result.ok ? result.data : { claude: false, opencode: false };

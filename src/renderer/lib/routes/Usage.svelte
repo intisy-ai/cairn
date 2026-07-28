@@ -26,6 +26,7 @@
   let page = $state(0);
 
   const cutoff = $derived(range === "all" ? 0 : Date.now() - (range === "7d" ? 7 : 30) * DAY_MS);
+  // A session is attributed to its last-updated day for range membership, even though its tokens can span several days.
   const inRange = $derived((snapshot?.sessions ?? []).filter((s) => s.updated >= cutoff));
 
   function sessionTokens(session: UsageSession): number {
@@ -216,9 +217,9 @@
               <th>Session</th>
               <th>Source</th>
               <th>Models</th>
-              <th class="num sortable" onclick={() => setSort("tokens")}>Tokens{sortArrow("tokens")}</th>
-              <th class="num sortable" onclick={() => setSort("messages")}>Msgs{sortArrow("messages")}</th>
-              <th class="num sortable" onclick={() => setSort("updated")}>Updated{sortArrow("updated")}</th>
+              <th class="num"><button class="sortbtn" onclick={() => setSort("tokens")}>Tokens{sortArrow("tokens")}</button></th>
+              <th class="num"><button class="sortbtn" onclick={() => setSort("messages")}>Msgs{sortArrow("messages")}</button></th>
+              <th class="num"><button class="sortbtn" onclick={() => setSort("updated")}>Updated{sortArrow("updated")}</button></th>
             </tr>
           </thead>
           <tbody>
@@ -347,9 +348,20 @@
   th.num {
     text-align: right;
   }
-  th.sortable {
+  .sortbtn {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: var(--faint);
+    font-weight: 600;
+    font-size: 11px;
     cursor: pointer;
     user-select: none;
+  }
+  .sortbtn:hover {
+    color: var(--muted);
   }
   td {
     padding: 9px 12px;
