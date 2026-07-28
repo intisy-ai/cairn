@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { customEndpointsList, customEndpointsUpsert, customEndpointsRemove, customEndpointsSaveKey } from "./customEndpoints.js";

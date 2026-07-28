@@ -16,6 +16,7 @@
 
   let form = $state({ id: "", label: "", baseUrl: "", format: SUPPORTED_ENDPOINT_FORMATS[0] as string, models: "" });
   let keyDraft = $state<Record<string, string>>({});
+  let panel = $state<HTMLDivElement | undefined>(undefined);
 
   function onKeydown(event: KeyboardEvent): void {
     if (event.key === "Escape") onClose();
@@ -63,12 +64,14 @@
   }
 
   async function removeEndpoint(id: string): Promise<void> {
+    error = "";
     const result = await cairn.customEndpointsRemove(id);
     if (result.ok) { dirtyHint = true; await refresh(); }
     else error = result.error;
   }
 
   async function saveKey(id: string): Promise<void> {
+    error = "";
     const key = keyDraft[id];
     if (!key) return;
     const result = await cairn.customEndpointsSaveKey(id, key);
@@ -76,12 +79,15 @@
     else error = result.error;
   }
 
-  onMount(refresh);
+  onMount(async () => {
+    await refresh();
+    panel?.focus();
+  });
 </script>
 
 <svelte:window onkeydown={onKeydown} />
 <div class="backdrop" role="presentation" onclick={onClose}></div>
-<div class="dialog" role="dialog" aria-modal="true" aria-label="Manage custom endpoints">
+<div class="dialog" role="dialog" aria-modal="true" aria-label="Manage custom endpoints" tabindex="-1" bind:this={panel}>
   <h3>Custom endpoints</h3>
   {#if !installed}
     <p class="hint">The custom-auth provider is not installed. It serves your configured endpoints.</p>
@@ -129,6 +135,7 @@
 <style>
   .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 40; }
   .dialog { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 41; width: min(94vw, 560px); max-height: 88vh; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .dialog:focus { outline: none; }
   h3 { margin: 0; font-size: 15px; font-weight: 650; }
   .hint { margin: 0; font-size: 12px; color: var(--muted); }
   .ptitle { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); font-weight: 600; margin: 6px 0 2px; }
