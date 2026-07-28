@@ -31,7 +31,7 @@ describe("PluginRow", () => {
     });
     const chip = container.querySelector(".chip");
     expect(chip).toBeInTheDocument();
-    expect(chip?.textContent).toBe("PROVIDER");
+    expect(chip?.textContent?.toLowerCase()).toBe("provider");
   });
 
   it("renders catalogKind='proxy' as PROXY chip", () => {
@@ -47,7 +47,7 @@ describe("PluginRow", () => {
     });
     const chip = container.querySelector(".chip");
     expect(chip).toBeInTheDocument();
-    expect(chip?.textContent).toBe("PROXY");
+    expect(chip?.textContent?.toLowerCase()).toBe("proxy");
   });
 
   it("does not render chip for catalogKind='plugin'", () => {

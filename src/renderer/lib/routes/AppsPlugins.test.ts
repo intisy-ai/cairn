@@ -673,7 +673,7 @@ describe("AppsPlugins screen", () => {
 
     const pnameElements = container.querySelectorAll(".pname .chip");
     expect(pnameElements).toHaveLength(2);
-    expect(pnameElements[0]?.textContent).toBe("PROVIDER");
-    expect(pnameElements[1]?.textContent).toBe("PROXY");
+    expect(pnameElements[0]?.textContent?.toLowerCase()).toBe("provider");
+    expect(pnameElements[1]?.textContent?.toLowerCase()).toBe("proxy");
   });
 });

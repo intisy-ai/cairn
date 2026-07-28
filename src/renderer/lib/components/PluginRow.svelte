@@ -35,7 +35,7 @@
     <div class="name-with-chip">
       <b>{name}</b>
       {#if catalogKind === "provider" || catalogKind === "proxy"}
-        <span class="chip">{catalogKind.toUpperCase()}</span>
+        <span class="chip">{catalogKind}</span>
       {/if}
     </div>
     <span>{detail}</span>
@@ -86,7 +86,7 @@
     font-weight: 600;
     letter-spacing: -.01em;
   }
-  .pname span {
+  .pname > span {
     display: block;
     color: var(--faint);
     font-size: 11.5px;
