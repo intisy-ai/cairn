@@ -105,7 +105,7 @@ describe("import", () => {
     if (!result.ok) throw new Error("unreachable");
     expect(result.data.accounts).toBe(1);
     expect(result.data.exposedProviders).toBeGreaterThanOrEqual(1);
-    expect(result.data.routingSlots).not.toBeUndefined();
+    expect(result.data.routingSlots).toBe(2);
   });
 
   it("skips categories that are not selected", async () => {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import type { CatalogKind } from "@cairn/shared";
   import { parseRepoRef, classifyRepoName } from "@cairn/shared";
   import { cairn } from "../ipc.js";
@@ -7,16 +8,19 @@
 
   let { home, onClose, onInstalled }: { home: string; onClose: () => void; onInstalled: () => void } = $props();
 
-  const KINDS: CatalogKind[] = ["provider", "proxy", "plugin"];
-
   let url = $state("");
-  let kindOverride = $state<CatalogKind | "">("");
   let busy = $state(false);
   let error = $state("");
 
   const parsed = $derived(parseRepoRef(url));
-  const autoKind = $derived(parsed ? classifyRepoName(parsed.repo) ?? "plugin" : null);
-  const kind = $derived<CatalogKind | null>(kindOverride || autoKind);
+  const kind = $derived<CatalogKind | null>(parsed ? classifyRepoName(parsed.repo) ?? "plugin" : null);
+
+  let urlInput = $state<HTMLInputElement | undefined>(undefined);
+  onMount(() => urlInput?.focus());
+
+  function onKeydown(event: KeyboardEvent): void {
+    if (event.key === "Escape") onClose();
+  }
 
   async function install(): Promise<void> {
     if (!parsed || busy) return;
@@ -33,22 +37,16 @@
   }
 </script>
 
+<svelte:window onkeydown={onKeydown} />
 <div class="backdrop" role="presentation" onclick={onClose}></div>
-<div class="dialog" role="dialog" aria-label="Add a plugin from a URL">
+<div class="dialog" role="dialog" aria-modal="true" aria-label="Add a plugin from a URL">
   <h3>Add from URL</h3>
   <p class="hint">Install any provider, proxy, or plugin from a GitHub repository. A repository that does not follow the plugin contract installs but will not be picked up.</p>
-  <input class="url" placeholder="owner/repo or GitHub URL" aria-label="Repository URL" bind:value={url} />
+  <input class="url" placeholder="owner/repo or GitHub URL" aria-label="Repository URL" bind:value={url} bind:this={urlInput} />
   {#if parsed}
     <div class="preview">
       <span class="name">{parsed.repo}</span>
       {#if kind}<span class="kind">{kind}</span>{/if}
-      <label class="override">
-        Kind
-        <select bind:value={kindOverride} aria-label="Kind override">
-          <option value="">Auto</option>
-          {#each KINDS as k (k)}<option value={k}>{k}</option>{/each}
-        </select>
-      </label>
     </div>
   {/if}
   {#if error}<p class="error">{error}</p>{/if}
@@ -123,23 +121,6 @@
     background: var(--surface-2);
     padding: 2px 7px;
     border-radius: 20px;
-  }
-  .override {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11.5px;
-    color: var(--muted);
-    margin-left: auto;
-  }
-  .override select {
-    font-family: var(--ui);
-    font-size: 12px;
-    color: var(--text);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    padding: 4px 8px;
   }
   .error {
     margin: 0;

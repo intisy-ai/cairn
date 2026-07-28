@@ -12,6 +12,12 @@
   let busy = $state(false);
   let selection = $state<ImportSelection>({ accounts: true, routing: true, exposure: true });
 
+  let panel = $state<HTMLDivElement | undefined>(undefined);
+
+  function onKeydown(event: KeyboardEvent): void {
+    if (event.key === "Escape") onClose();
+  }
+
   async function run(): Promise<void> {
     if (busy) return;
     busy = true;
@@ -26,6 +32,8 @@
     }
   }
 
+  onMount(() => panel?.focus());
+
   onMount(async () => {
     const result = await cairn.importPreview(app);
     if (result.ok) preview = result.data;
@@ -33,8 +41,9 @@
   });
 </script>
 
+<svelte:window onkeydown={onKeydown} />
 <div class="backdrop" role="presentation" onclick={onClose}></div>
-<div class="dialog" role="dialog" aria-label={`Import ${label} config`}>
+<div class="dialog" role="dialog" aria-modal="true" tabindex="-1" bind:this={panel} aria-label={`Import ${label} config`}>
   <h3>Import from {label}</h3>
   {#if error}
     <p class="error">{error}</p>
@@ -86,6 +95,9 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+  }
+  .dialog:focus {
+    outline: none;
   }
   h3 {
     margin: 0;
