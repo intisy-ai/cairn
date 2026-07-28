@@ -197,6 +197,44 @@ describe("appsSummary", () => {
       { provider: "antigravity", label: "a@example.com", enabled: true, quotaPct: 62 },
       { provider: "claude-code", label: "acct-2", enabled: false, quotaPct: null },
     ]);
+    expect(result.data.providerCount).toBe(2);
+    expect(result.data.accountsEnabled).toBe(1);
+    expect(result.data.providerBreakdown).toEqual([
+      { provider: "antigravity", accounts: 1, enabled: 1 },
+      { provider: "claude-code", accounts: 1, enabled: 0 },
+    ]);
+    expect(result.data.quotaMinPct).toBe(62);
+  });
+
+  it("aggregates provider breakdown sorted by accounts desc and the lowest reported quota", async () => {
+    writeFileSync(
+      join(tempHome, "config", "accounts.json"),
+      JSON.stringify({
+        providers: {
+          antigravity: {
+            accounts: [
+              { id: "acc-1", email: "a@example.com", enabled: true, meta: { cachedQuota: { pool: { remainingFraction: 0.62 } } } },
+              { id: "acc-2", email: "b@example.com", enabled: true, meta: { cachedQuota: { pool: { remainingFraction: 0.2 } } } },
+            ],
+          },
+          "claude-code": {
+            accounts: [{ id: "acc-3", enabled: false }],
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    const result = await appsSummary("claude", { appHome: () => tempHome });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data.providerCount).toBe(2);
+    expect(result.data.accountsEnabled).toBe(2);
+    expect(result.data.providerBreakdown).toEqual([
+      { provider: "antigravity", accounts: 2, enabled: 2 },
+      { provider: "claude-code", accounts: 1, enabled: 0 },
+    ]);
+    expect(result.data.quotaMinPct).toBe(20);
   });
 
   it("returns an empty summary when there is no accounts.json or plugins.json", async () => {
@@ -206,6 +244,10 @@ describe("appsSummary", () => {
     expect(result.data.accounts).toEqual([]);
     expect(result.data.pluginCount).toBe(0);
     expect(result.data.configDir).toBe(tempHome);
+    expect(result.data.providerCount).toBe(0);
+    expect(result.data.accountsEnabled).toBe(0);
+    expect(result.data.providerBreakdown).toEqual([]);
+    expect(result.data.quotaMinPct).toBeNull();
   });
 
   it("returns an error for an unknown app", async () => {

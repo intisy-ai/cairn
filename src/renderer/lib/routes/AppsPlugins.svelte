@@ -26,6 +26,7 @@
   const VIRTUALIZE_THRESHOLD = 20;
   const HOME_CARD_HEIGHT = 84;
   const PLUGIN_ROW_HEIGHT = 64;
+  const PROVIDER_BREAKDOWN_CAP = 6;
 
   let selectedHome = $state<PluginHomeId | null>(null);
 
@@ -352,20 +353,27 @@
       {#if appSummaryError}
         <p class="summary-error">Could not load app summary: {appSummaryError}</p>
       {:else if appSummary}
+        {@const shownBreakdown = appSummary.providerBreakdown.slice(0, PROVIDER_BREAKDOWN_CAP)}
+        {@const moreCount = appSummary.providerBreakdown.length - shownBreakdown.length}
         <Card>
           <div class="summarycard">
-            {#if appSummary.accounts.length > 0}
-              <div class="summary-accounts">
-                {#each appSummary.accounts as acct}
-                  <span class="acct-chip"
-                    >{acct.provider} · {acct.label} · {acct.enabled ? "enabled" : "disabled"}{acct.quotaPct !== null
-                      ? ` · ${acct.quotaPct}%`
-                      : ""}</span
-                  >
+            <p class="summary-headline">
+              {appSummary.accounts.length} accounts across {appSummary.providerCount} providers, {appSummary.accountsEnabled} enabled
+            </p>
+            {#if shownBreakdown.length > 0}
+              <div class="summary-breakdown">
+                {#each shownBreakdown as agg}
+                  <span class="breakdown-chip">{agg.provider} · {agg.enabled}/{agg.accounts}</span>
                 {/each}
+                {#if moreCount > 0}
+                  <span class="breakdown-more">+{moreCount} more</span>
+                {/if}
               </div>
             {:else}
               <p class="summary-empty">No accounts connected.</p>
+            {/if}
+            {#if appSummary.quotaMinPct !== null}
+              <p class="summary-quota">Lowest quota {appSummary.quotaMinPct}%</p>
             {/if}
             <div class="summary-meta">
               <span>{appSummary.configDir}</span>
@@ -731,17 +739,33 @@
     flex-direction: column;
     gap: 10px;
   }
-  .summary-accounts {
+  .summary-headline {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .summary-breakdown {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
   }
-  .acct-chip {
+  .breakdown-chip {
     font-size: 11.5px;
     color: var(--muted);
     background: var(--surface-2);
     padding: 4px 10px;
     border-radius: 20px;
+  }
+  .breakdown-more {
+    font-size: 11.5px;
+    color: var(--faint);
+    padding: 4px 10px;
+  }
+  .summary-quota {
+    margin: 0;
+    font-size: 11.5px;
+    color: var(--muted);
   }
   .summary-meta {
     display: flex;

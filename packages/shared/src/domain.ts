@@ -90,4 +90,14 @@ export type PluginHome = {
 export type HomePlugins = { home: PluginHome; rows: PluginRow[] };
 export type PluginConfigSchema = { plugin: string; defaults: Record<string, unknown>; current: Record<string, unknown> };
 export type AppAccountSummary = { provider: string; label: string; enabled: boolean; quotaPct: number | null };
-export type AppSummary = { accounts: AppAccountSummary[]; configDir: string; pluginCount: number; routingSlots: number | null };
+export type AppProviderAgg = { provider: string; accounts: number; enabled: number };
+export type AppSummary = {
+  accounts: AppAccountSummary[];
+  providerCount: number;
+  accountsEnabled: number;
+  providerBreakdown: AppProviderAgg[];
+  quotaMinPct: number | null;
+  configDir: string;
+  pluginCount: number;
+  routingSlots: number | null;
+};

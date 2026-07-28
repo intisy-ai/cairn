@@ -7,7 +7,7 @@ import { resolveModelMap } from "@core-proxy/model-map.js";
 import { normalizeQuotas } from "../../../vendor/usage/snapshot.js";
 import { appRealHome } from "../lib/pluginHomes.js";
 import { profileFor } from "../lib/proxyRegistry.js";
-import type { AppAccountSummary, AppPresence, AppSummary, CliResult, Result } from "../../../packages/shared/src/domain.js";
+import type { AppAccountSummary, AppPresence, AppProviderAgg, AppSummary, CliResult, Result } from "../../../packages/shared/src/domain.js";
 import { wrap, err } from "../result.js";
 
 export type AppName = "claude" | "opencode";
@@ -100,6 +100,22 @@ function accountQuotaPct(account: Record<string, unknown>): number | null {
   return first && typeof first.remaining === "number" ? Math.round(first.remaining * 100) : null;
 }
 
+function providerBreakdownOf(accounts: AppAccountSummary[]): AppProviderAgg[] {
+  const byProvider = new Map<string, AppProviderAgg>();
+  for (const account of accounts) {
+    const agg = byProvider.get(account.provider) ?? { provider: account.provider, accounts: 0, enabled: 0 };
+    agg.accounts += 1;
+    if (account.enabled) agg.enabled += 1;
+    byProvider.set(account.provider, agg);
+  }
+  return Array.from(byProvider.values()).sort((a, b) => b.accounts - a.accounts);
+}
+
+function quotaMinPctOf(accounts: AppAccountSummary[]): number | null {
+  const reported = accounts.map((a) => a.quotaPct).filter((pct): pct is number => pct !== null);
+  return reported.length > 0 ? Math.min(...reported) : null;
+}
+
 export interface AppsUninstallDeps {
   spawn?: SpawnFn;
   rm?: (path: string) => void;
@@ -154,6 +170,16 @@ export function appsSummary(app: AppName, deps: AppsSummaryDeps = {}): Promise<R
       routingSlots = Object.values(map).filter((chain) => chain.length > 0).length;
     }
 
-    return { accounts, configDir: home, pluginCount, routingSlots };
+    const providerBreakdown = providerBreakdownOf(accounts);
+    return {
+      accounts,
+      providerCount: providerBreakdown.length,
+      accountsEnabled: accounts.filter((a) => a.enabled).length,
+      providerBreakdown,
+      quotaMinPct: quotaMinPctOf(accounts),
+      configDir: home,
+      pluginCount,
+      routingSlots,
+    };
   });
 }

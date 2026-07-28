@@ -499,7 +499,17 @@ describe("AppsPlugins screen", () => {
       appsSummary: async () => ({
         ok: true,
         data: {
-          accounts: [{ provider: "anthropic", label: "jane@example.com", enabled: true, quotaPct: 82 }],
+          accounts: [
+            { provider: "anthropic", label: "jane@example.com", enabled: true, quotaPct: 82 },
+            { provider: "antigravity", label: "jane2@example.com", enabled: false, quotaPct: 40 },
+          ],
+          providerCount: 2,
+          accountsEnabled: 1,
+          providerBreakdown: [
+            { provider: "anthropic", accounts: 1, enabled: 1 },
+            { provider: "antigravity", accounts: 1, enabled: 0 },
+          ],
+          quotaMinPct: 40,
           configDir: "/home/jane/.claude",
           pluginCount: 3,
           routingSlots: 2,
@@ -508,10 +518,45 @@ describe("AppsPlugins screen", () => {
     });
     render(AppsPlugins);
     await openHome("claude code");
-    expect(await screen.findByText(/jane@example.com/)).toBeInTheDocument();
+    expect(await screen.findByText(/2 accounts across 2 providers, 1 enabled/i)).toBeInTheDocument();
+    expect(screen.getByText(/anthropic.*1\/1/)).toBeInTheDocument();
+    expect(screen.getByText(/antigravity.*0\/1/)).toBeInTheDocument();
+    expect(screen.getByText(/lowest quota 40%/i)).toBeInTheDocument();
     expect(screen.getByText("/home/jane/.claude")).toBeInTheDocument();
     expect(screen.getByText(/3 plugins/i)).toBeInTheDocument();
     expect(screen.getByText(/2 routing slots/i)).toBeInTheDocument();
+  });
+
+  it("caps the provider breakdown at 6 and shows a +N more line", async () => {
+    const providerBreakdown = Array.from({ length: 8 }, (_, i) => ({
+      provider: `provider-${i}`,
+      accounts: 8 - i,
+      enabled: 8 - i,
+    }));
+    stubCairn({
+      appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
+      pluginsList: async () => ({ ok: true, data: [claudeSection([])] }),
+      appsSummary: async () => ({
+        ok: true,
+        data: {
+          accounts: [],
+          providerCount: 8,
+          accountsEnabled: 36,
+          providerBreakdown,
+          quotaMinPct: null,
+          configDir: "/home/jane/.claude",
+          pluginCount: 0,
+          routingSlots: null,
+        },
+      }),
+    });
+    render(AppsPlugins);
+    await openHome("claude code");
+    await screen.findByText(/8 providers/i);
+    expect(screen.getByText(/provider-0.*8\/8/)).toBeInTheDocument();
+    expect(screen.getByText(/provider-5.*3\/3/)).toBeInTheDocument();
+    expect(screen.queryByText(/provider-6/)).toBeNull();
+    expect(screen.getByText("+2 more")).toBeInTheDocument();
   });
 
   it("renders a muted line when the app summary fails to load, without blocking the plugin list", async () => {
@@ -527,15 +572,25 @@ describe("AppsPlugins screen", () => {
   });
 
   it("ignores a stale appSummary response after navigating to a different home", async () => {
-    let resolveClaude!: (result: { ok: true; data: { accounts: []; configDir: string; pluginCount: number; routingSlots: null } }) => void;
+    function emptySummary(configDir: string, pluginCount: number) {
+      return {
+        accounts: [],
+        providerCount: 0,
+        accountsEnabled: 0,
+        providerBreakdown: [],
+        quotaMinPct: null,
+        configDir,
+        pluginCount,
+        routingSlots: null,
+      };
+    }
+    let resolveClaude!: (result: { ok: true; data: ReturnType<typeof emptySummary> }) => void;
     const claudeSummary = new Promise((resolve) => { resolveClaude = resolve; });
     stubCairn({
       appsDetect: async () => ({ ok: true, data: { claude: true, opencode: true } }),
       pluginsList: async () => ({ ok: true, data: [claudeSection([]), opencodeSection([])] }),
       appsSummary: async (app: string) =>
-        app === "claude"
-          ? claudeSummary
-          : { ok: true, data: { accounts: [], configDir: "/o", pluginCount: 9, routingSlots: null } },
+        app === "claude" ? claudeSummary : { ok: true, data: emptySummary("/o", 9) },
     });
     render(AppsPlugins);
     await openHome("claude code");
@@ -543,7 +598,7 @@ describe("AppsPlugins screen", () => {
     await openHome("opencode");
     await waitFor(() => expect(screen.getByText("/o")).toBeInTheDocument());
 
-    resolveClaude({ ok: true, data: { accounts: [], configDir: "/c-stale", pluginCount: 1, routingSlots: null } });
+    resolveClaude({ ok: true, data: emptySummary("/c-stale", 1) });
     await Promise.resolve();
     await Promise.resolve();
 
