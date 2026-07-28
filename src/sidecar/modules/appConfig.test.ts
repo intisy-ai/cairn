@@ -105,6 +105,21 @@ describe("appConfig sidecar module", () => {
     expect(existsSync(join(dir, "..", "escape.json"))).toBe(false);
   });
 
+  it("configWrite's containment check rejects a plugins.json entry whose name escapes the config dir", async () => {
+    // getPlugins never validates the name field, so this seeds the one case that
+    // reaches the containment assertion (the plugin-list guard alone would let it through).
+    const { dir, home } = makeHome("claude", "Claude Code");
+    seedPlugins(dir, [{ name: "../escape", url: "https://github.com/intisy-ai/escape", enabled: true }]);
+
+    const { configWrite } = await import("./appConfig.js");
+    const result = await configWrite("claude", "../escape", "logging", false, { homes: [home] });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("invalid config target");
+    expect(existsSync(join(dir, "escape.json"))).toBe(false);
+  });
+
   it("configWrite rejects prototype pollution keys", async () => {
     const { dir, home } = makeHome("claude", "Claude Code");
     seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);

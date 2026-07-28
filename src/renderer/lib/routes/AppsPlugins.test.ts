@@ -493,6 +493,31 @@ describe("AppsPlugins screen", () => {
     expect(screen.getByText("plugin-a")).toBeInTheDocument();
   });
 
+  it("ignores a stale appSummary response after navigating to a different home", async () => {
+    let resolveClaude!: (result: { ok: true; data: { accounts: []; configDir: string; pluginCount: number; routingSlots: null } }) => void;
+    const claudeSummary = new Promise((resolve) => { resolveClaude = resolve; });
+    stubCairn({
+      appsDetect: async () => ({ ok: true, data: { claude: true, opencode: true } }),
+      pluginsList: async () => ({ ok: true, data: [claudeSection([]), opencodeSection([])] }),
+      appsSummary: async (app: string) =>
+        app === "claude"
+          ? claudeSummary
+          : { ok: true, data: { accounts: [], configDir: "/o", pluginCount: 9, routingSlots: null } },
+    });
+    render(AppsPlugins);
+    await openHome("claude code");
+    await fireEvent.click(screen.getByRole("button", { name: /back to apps/i }));
+    await openHome("opencode");
+    await waitFor(() => expect(screen.getByText("/o")).toBeInTheDocument());
+
+    resolveClaude({ ok: true, data: { accounts: [], configDir: "/c-stale", pluginCount: 1, routingSlots: null } });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(screen.queryByText("/c-stale")).toBeNull();
+    expect(screen.getByText("/o")).toBeInTheDocument();
+  });
+
   it("app uninstall requires the confirm panel and honors the wipe checkbox", async () => {
     const calls: unknown[][] = [];
     stubCairn({

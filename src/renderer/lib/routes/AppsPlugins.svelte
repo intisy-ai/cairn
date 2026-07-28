@@ -71,6 +71,7 @@
     appSummary = null;
     appSummaryError = "";
     cairn.appsSummary(home).then((result) => {
+      if (selectedHome !== home) return;
       if (result.ok) {
         appSummary = result.data;
       } else {

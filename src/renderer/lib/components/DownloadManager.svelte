@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { downloads, toggleDownloads } from "../downloads.js";
+  import { downloads, toggleDownloads, clearFinished } from "../downloads.js";
 
   const runningCount = $derived($downloads.tasks.filter((task) => task.status === "running").length);
+  const hasFinished = $derived($downloads.tasks.some((task) => task.status === "done" || task.status === "failed"));
 </script>
 
 <div class="downloadmgr">
@@ -11,6 +12,12 @@
   </button>
   {#if $downloads.open}
     <div class="panel">
+      <div class="panelhead">
+        <span class="title">Downloads</span>
+        {#if hasFinished}
+          <button class="clearbtn" onclick={clearFinished}>Clear</button>
+        {/if}
+      </div>
       {#if $downloads.tasks.length === 0}
         <p class="empty">No downloads yet</p>
       {:else}
@@ -85,6 +92,35 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
     z-index: 50;
     padding: 6px;
+    -webkit-app-region: no-drag;
+  }
+  .panelhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 6px 6px;
+  }
+  .panelhead .title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    color: var(--faint);
+    text-transform: uppercase;
+  }
+  .clearbtn {
+    all: unset;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+  .clearbtn:hover {
+    color: var(--text);
+  }
+  .clearbtn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
   .empty {
     padding: 10px;
@@ -120,7 +156,7 @@
     letter-spacing: .02em;
   }
   .status-failed {
-    color: #c0392b;
+    color: var(--crit);
   }
   .status-done {
     color: var(--good);
@@ -135,6 +171,6 @@
   .error {
     margin-top: 4px;
     font-size: 11px;
-    color: #c0392b;
+    color: var(--crit);
   }
 </style>

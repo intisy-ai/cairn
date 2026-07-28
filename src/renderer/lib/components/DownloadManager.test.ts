@@ -50,4 +50,30 @@ describe("DownloadManager", () => {
     const { getByText } = render(DownloadManager);
     expect(getByText("network error")).toBeTruthy();
   });
+
+  it("hides the Clear button when no task is finished", () => {
+    downloads.set({
+      tasks: [{ id: 1, label: "installing plugin-z", home: "/h", status: "running", error: "", startedAt: 0 }],
+      open: true,
+    });
+    const { queryByRole } = render(DownloadManager);
+    expect(queryByRole("button", { name: "Clear" })).toBeNull();
+  });
+
+  it("clicking Clear removes finished tasks but keeps running ones", async () => {
+    downloads.set({
+      tasks: [
+        { id: 1, label: "installing plugin-a", home: "/h", status: "done", error: "", startedAt: 0 },
+        { id: 2, label: "installing plugin-b", home: "/h", status: "running", error: "", startedAt: 0 },
+      ],
+      open: true,
+    });
+    const { getByRole, getByText, queryByText } = render(DownloadManager);
+    expect(getByText("installing plugin-a")).toBeTruthy();
+
+    await fireEvent.click(getByRole("button", { name: "Clear" }));
+
+    expect(queryByText("installing plugin-a")).toBeNull();
+    expect(getByText("installing plugin-b")).toBeTruthy();
+  });
 });

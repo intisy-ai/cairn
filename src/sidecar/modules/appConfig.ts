@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { getPlugins } from "@plugin-updater/config.js";
 import type { PluginConfigSchema, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir } from "../lib/pluginHomes.js";
@@ -65,6 +65,10 @@ export function configWrite(homeId: string, plugin: string, key: string, value: 
       throw new Error(`invalid config key: ${key}`);
     }
     const file = join(dir, "config", `${plugin}.json`);
+    const base = resolve(dir, "config");
+    if (!resolve(file).startsWith(base + sep)) {
+      throw new Error(`invalid config target: ${plugin}`);
+    }
     const existing = existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>) : {};
     existing[key] = value;
     mkdirSync(dirname(file), { recursive: true });
