@@ -218,6 +218,20 @@ describe("Providers screen", () => {
     expect(renderedRows).toBeLessThan(25);
   });
 
+  it("shows the provider's translator as a chip", async () => {
+    stubCairn({
+      providersList: async () => ({
+        ok: true,
+        data: [
+          { id: "custom", label: "Custom endpoint", hasOAuth: false, accountCount: 1, active: false, exposure: { cc: true, oc: false }, translator: "custom" },
+        ],
+      }),
+    });
+
+    const { findByText } = render(Providers);
+    expect(await findByText("custom")).toBeTruthy();
+  });
+
   it("collapsing the Available group hides its rows", async () => {
     stubCairn({
       providersList: async () => ({

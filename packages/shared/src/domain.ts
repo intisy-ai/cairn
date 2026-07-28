@@ -31,6 +31,7 @@ export type ProviderRow = {
   accountCount: number;
   active: boolean;
   exposure: { cc: boolean; oc: boolean };
+  translator?: string;
 };
 export type RoutingState = {
   tiers: string[];

@@ -223,6 +223,7 @@
     avatar={initials(row.label)}
     name={row.label}
     subtitle={row.hasOAuth ? "OAuth" : "API key"}
+    translator={row.translator}
     status={statusFor(row)}
     cc={row.exposure.cc}
     oc={row.exposure.oc}

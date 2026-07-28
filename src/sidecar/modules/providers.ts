@@ -34,6 +34,7 @@ export function providersList(): Promise<Result<ProviderRow[]>> {
         accountCount: listAccounts(provider.provider, undefined).length,
         active: active === provider.provider,
         exposure: exposureFor(exposureMap, provider.provider),
+        translator: provider.translator,
       });
     }
     return rows;

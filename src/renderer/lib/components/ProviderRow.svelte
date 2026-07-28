@@ -3,11 +3,13 @@
   import type { StatusVariant } from "./StatusPill.svelte";
   import AppPills from "./AppPills.svelte";
   import ToggleSwitch from "./ToggleSwitch.svelte";
+  import Chip from "./Chip.svelte";
 
   let {
     avatar,
     name,
     subtitle,
+    translator,
     status,
     cc,
     oc,
@@ -20,6 +22,7 @@
     avatar: string;
     name: string;
     subtitle: string;
+    translator?: string;
     status: { variant: StatusVariant; label: string };
     cc: boolean;
     oc: boolean;
@@ -36,6 +39,7 @@
   <div class="pname">
     <b>{name}</b>
     <span>{subtitle}</span>
+    {#if translator}<Chip label={translator} />{/if}
   </div>
   <div><StatusPill variant={status.variant} label={status.label} /></div>
   <AppPills {cc} {oc} {onToggleCc} {onToggleOc} />
