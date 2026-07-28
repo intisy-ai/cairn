@@ -8,7 +8,7 @@ describe("CollapsibleGroup", () => {
     const { getByRole, getByText, queryByText } = render(TestWrapper);
 
     const header = getByRole("button");
-    expect(header.getAttribute("aria-label")).toBe("Connected");
+    expect(header.getAttribute("aria-label")).toBe("Toggle Connected section");
     expect(header.getAttribute("aria-expanded")).toBe("true");
     expect(getByText("Connected")).toBeInTheDocument();
     expect(getByText("3")).toBeInTheDocument();

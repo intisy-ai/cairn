@@ -8,7 +8,7 @@
 </script>
 
 <section class="grp">
-  <button class="hd" aria-label={label} aria-expanded={open} onclick={() => (open = !open)}>
+  <button class="hd" aria-label={"Toggle " + label + " section"} aria-expanded={open} onclick={() => (open = !open)}>
     <span class="chev" class:o={open}>&rsaquo;</span>
     <span class="lbl">{label}</span>
     {#if count !== undefined}<span class="cnt">{count}</span>{/if}
