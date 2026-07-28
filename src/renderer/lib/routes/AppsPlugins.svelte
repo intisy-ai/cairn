@@ -4,12 +4,14 @@
   import { cairn } from "../ipc.js";
   import { consumeParams } from "../router.js";
   import { track } from "../downloads.js";
+  import { debounce } from "../util/debounce.js";
   import StatusPill from "../components/StatusPill.svelte";
   import PluginRow from "../components/PluginRow.svelte";
   import Button from "../components/Button.svelte";
   import Card from "../components/Card.svelte";
   import Chip from "../components/Chip.svelte";
   import SearchField from "../components/SearchField.svelte";
+  import VirtualList from "../components/VirtualList.svelte";
 
   type AppId = "claude" | "opencode";
   type KindFilter = CatalogKind | "all";
@@ -20,6 +22,10 @@
     { id: "proxy", label: "Proxies" },
     { id: "plugin", label: "Plugins" },
   ];
+
+  const VIRTUALIZE_THRESHOLD = 20;
+  const HOME_CARD_HEIGHT = 84;
+  const PLUGIN_ROW_HEIGHT = 64;
 
   let selectedHome = $state<PluginHomeId | null>(null);
 
@@ -41,9 +47,29 @@
 
   let uninstallArm = $state("");
 
+  let searchRaw = $state("");
   let search = $state("");
   let kindFilter = $state<KindFilter>("all");
   let showDeprecated = $state(true);
+
+  let homeSearchRaw = $state("");
+  let homeSearch = $state("");
+
+  const applySearch = debounce((value: string) => {
+    search = value;
+  }, 120);
+
+  $effect(() => {
+    applySearch(searchRaw);
+  });
+
+  const applyHomeSearch = debounce((value: string) => {
+    homeSearch = value;
+  }, 120);
+
+  $effect(() => {
+    applyHomeSearch(homeSearchRaw);
+  });
 
   let appSummary = $state<AppSummary | null>(null);
   let appSummaryError = $state("");
@@ -52,6 +78,13 @@
   let appUninstallWipe = $state(false);
 
   const selectedSection = $derived(sections.find((s) => s.home.id === selectedHome) ?? null);
+
+  const filteredSections = $derived(
+    sections.filter((s) => {
+      const needle = homeSearch.trim().toLowerCase();
+      return !needle || s.home.label.toLowerCase().includes(needle);
+    }),
+  );
 
   $effect(() => {
     selectedHome;
@@ -252,6 +285,7 @@
 
   function openHome(id: PluginHomeId): void {
     selectedHome = id;
+    searchRaw = "";
     search = "";
     kindFilter = "all";
   }
@@ -346,11 +380,41 @@
     {/if}
 
     <div class="toolbar">
-      <SearchField bind:value={search} placeholder="Search plugins…" />
+      <SearchField bind:value={searchRaw} placeholder="Search plugins…" />
       {#each KIND_FILTERS as f (f.id)}
         <Chip label={f.label} on={kindFilter === f.id} onclick={() => (kindFilter = f.id)} />
       {/each}
     </div>
+
+    {#snippet installedPluginRow(plugin: PluginRowData)}
+      <PluginRow
+        name={plugin.name}
+        kind={plugin.kind}
+        installedVersion={plugin.installedVersion}
+        updateAvailable={plugin.updateAvailable}
+        enabled={plugin.enabled}
+        deprecated={isDeprecated(plugin.name)}
+        onToggle={(on) => handleToggle(detail.home.id, plugin.name, on)}
+        onUninstall={plugin.name === "plugin-updater" ? undefined : () => handleUninstall(detail.home.id, plugin.name)}
+        uninstallState={uninstallArm === `${detail.home.id}/${plugin.name}` ? "confirm" : "idle"}
+      />
+    {/snippet}
+
+    {#snippet marketplaceRow(entry: CatalogEntry)}
+      <div class="row">
+        <div class="info">
+          <b>{entry.name}</b>
+          <span class="chip">{entry.kind}</span>
+          <span class="desc">{entry.description}</span>
+        </div>
+        <div class="actions">
+          <Button
+            disabled={installBusy === detail.home.id + "/" + entry.name}
+            onclick={() => handleInstallPlugin(detail.home.id, entry)}
+          >Install</Button>
+        </div>
+      </div>
+    {/snippet}
 
     <Card>
       {#if detail.home.id !== "cairn"}
@@ -369,64 +433,56 @@
           </div>
         </div>
       {/if}
-      {#each installedRowsFor(detail) as plugin (plugin.name)}
-        <PluginRow
-          name={plugin.name}
-          kind={plugin.kind}
-          installedVersion={plugin.installedVersion}
-          updateAvailable={plugin.updateAvailable}
-          enabled={plugin.enabled}
-          deprecated={isDeprecated(plugin.name)}
-          onToggle={(on) => handleToggle(detail.home.id, plugin.name, on)}
-          onUninstall={plugin.name === "plugin-updater" ? undefined : () => handleUninstall(detail.home.id, plugin.name)}
-          uninstallState={uninstallArm === `${detail.home.id}/${plugin.name}` ? "confirm" : "idle"}
-        />
-      {/each}
+      {@const installed = installedRowsFor(detail)}
+      {#if installed.length > VIRTUALIZE_THRESHOLD}
+        <VirtualList items={installed} rowHeight={PLUGIN_ROW_HEIGHT}>
+          {#snippet row(plugin)}
+            {@render installedPluginRow(plugin)}
+          {/snippet}
+        </VirtualList>
+      {:else}
+        {#each installed as plugin (plugin.name)}
+          {@render installedPluginRow(plugin)}
+        {/each}
+      {/if}
       {#if rawInstalledRows(detail).length === 0}
         <p class="empty">No plugins installed.</p>
-      {:else if installedRowsFor(detail).length === 0}
+      {:else if installed.length === 0}
         <p class="empty">No plugins match your filters.</p>
       {/if}
       {#if !detail.home.hasUpdater}
         <p class="hint">Install plugin-updater to manage plugins here.</p>
       {:else}
+        {@const mainCatalog = mainCatalogFor(detail)}
         <div class="marketmain" data-testid="marketplace-main">
-          {#each mainCatalogFor(detail) as entry (entry.name)}
-            <div class="row">
-              <div class="info">
-                <b>{entry.name}</b>
-                <span class="chip">{entry.kind}</span>
-                <span class="desc">{entry.description}</span>
-              </div>
-              <div class="actions">
-                <Button
-                  disabled={installBusy === detail.home.id + "/" + entry.name}
-                  onclick={() => handleInstallPlugin(detail.home.id, entry)}
-                >Install</Button>
-              </div>
-            </div>
-          {/each}
+          {#if mainCatalog.length > VIRTUALIZE_THRESHOLD}
+            <VirtualList items={mainCatalog} rowHeight={PLUGIN_ROW_HEIGHT}>
+              {#snippet row(entry)}
+                {@render marketplaceRow(entry)}
+              {/snippet}
+            </VirtualList>
+          {:else}
+            {#each mainCatalog as entry (entry.name)}
+              {@render marketplaceRow(entry)}
+            {/each}
+          {/if}
         </div>
         {#if showDeprecated}
           {@const deprecatedList = deprecatedCatalogFor(detail)}
           {#if deprecatedList.length > 0}
             <details class="deprecated-group" data-testid="deprecated-group">
               <summary>Deprecated</summary>
-              {#each deprecatedList as entry (entry.name)}
-                <div class="row">
-                  <div class="info">
-                    <b>{entry.name}</b>
-                    <span class="chip">{entry.kind}</span>
-                    <span class="desc">{entry.description}</span>
-                  </div>
-                  <div class="actions">
-                    <Button
-                      disabled={installBusy === detail.home.id + "/" + entry.name}
-                      onclick={() => handleInstallPlugin(detail.home.id, entry)}
-                    >Install</Button>
-                  </div>
-                </div>
-              {/each}
+              {#if deprecatedList.length > VIRTUALIZE_THRESHOLD}
+                <VirtualList items={deprecatedList} rowHeight={PLUGIN_ROW_HEIGHT}>
+                  {#snippet row(entry)}
+                    {@render marketplaceRow(entry)}
+                  {/snippet}
+                </VirtualList>
+              {:else}
+                {#each deprecatedList as entry (entry.name)}
+                  {@render marketplaceRow(entry)}
+                {/each}
+              {/if}
             </details>
           {/if}
         {/if}
@@ -468,7 +524,10 @@
     {/if}
   </section>
 {:else}
-  {#each sections as section (section.home.id)}
+  <div class="toolbar">
+    <SearchField bind:value={homeSearchRaw} placeholder="Search apps…" />
+  </div>
+  {#snippet homeCard(section: HomePlugins)}
     <section class="group" data-testid={"home-" + section.home.id}>
       <Card>
         <div class="row masterrow">
@@ -497,7 +556,18 @@
         </div>
       </Card>
     </section>
-  {/each}
+  {/snippet}
+  {#if filteredSections.length > VIRTUALIZE_THRESHOLD}
+    <VirtualList items={filteredSections} rowHeight={HOME_CARD_HEIGHT}>
+      {#snippet row(section)}
+        {@render homeCard(section)}
+      {/snippet}
+    </VirtualList>
+  {:else}
+    {#each filteredSections as section (section.home.id)}
+      {@render homeCard(section)}
+    {/each}
+  {/if}
 {/if}
 
 <style>

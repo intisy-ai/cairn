@@ -382,10 +382,43 @@ describe("AppsPlugins screen", () => {
 
     await fireEvent.click(screen.getByRole("button", { name: "All" }));
     await fireEvent.input(screen.getByPlaceholderText("Search plugins…"), { target: { value: "stub" } });
+    await waitFor(() => expect(screen.queryByText("wakatime-sync")).toBeNull(), { timeout: 1000 });
     expect(screen.getByText("stub-auth")).toBeInTheDocument();
-    expect(screen.queryByText("wakatime-sync")).toBeNull();
     expect(screen.queryByText("antigravity-auth")).toBeNull();
     expect(screen.queryByText("claude-code-proxy")).toBeNull();
+  });
+
+  it("filters master home cards by label through the debounced master search field", async () => {
+    stubCairn({
+      appsDetect: async () => ({ ok: true, data: { claude: true, opencode: true } }),
+      pluginsList: async () => ({ ok: true, data: [cairnSection([]), claudeSection([]), opencodeSection([])] }),
+    });
+    render(AppsPlugins);
+    await screen.findByText("Cairn");
+    expect(screen.getByText("Claude Code")).toBeInTheDocument();
+    expect(screen.getByText("OpenCode")).toBeInTheDocument();
+
+    await fireEvent.input(screen.getByPlaceholderText("Search apps…"), { target: { value: "claude" } });
+    await waitFor(() => expect(screen.queryByText("Cairn")).toBeNull(), { timeout: 1000 });
+    expect(screen.getByText("Claude Code")).toBeInTheDocument();
+    expect(screen.queryByText("OpenCode")).toBeNull();
+  });
+
+  it("virtualizes a large installed list while keeping the pinned machinery row rendered", async () => {
+    const rows = Array.from({ length: 25 }, (_, i) => row(`plugin-${i}`));
+    stubCairn({
+      appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
+      pluginsList: async () => ({ ok: true, data: [cairnSection([]), claudeSection(rows)] }),
+    });
+    const { container } = render(AppsPlugins);
+    await openHome("claude code");
+    await screen.findByText("plugin-0");
+
+    const machineryRow = screen.getByTestId("machinery-row");
+    expect(within(machineryRow).getByText("plugin-updater")).toBeInTheDocument();
+
+    const renderedPluginNames = container.querySelectorAll(".pname b");
+    expect(renderedPluginNames.length).toBeLessThan(25);
   });
 
   it("consumes deep-link params to open cairn with the provider filter", async () => {
