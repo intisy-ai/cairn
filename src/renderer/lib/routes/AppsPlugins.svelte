@@ -8,6 +8,7 @@
   import StatusPill from "../components/StatusPill.svelte";
   import PluginRow from "../components/PluginRow.svelte";
   import AddPluginDialog from "../components/AddPluginDialog.svelte";
+  import ImportDialog from "../components/ImportDialog.svelte";
   import Button from "../components/Button.svelte";
   import Card from "../components/Card.svelte";
   import Chip from "../components/Chip.svelte";
@@ -43,12 +44,11 @@
   let machineryBusy = $state(false);
 
   let importable = $state<ImportableApp[]>([]);
-  let importBusy = $state<Record<AppId, boolean>>({ claude: false, opencode: false });
   let importNotes = $state<Record<AppId, string[]>>({ claude: [], opencode: [] });
-  let importErrors = $state<Record<AppId, string>>({ claude: "", opencode: "" });
 
   let uninstallArm = $state("");
   let addOpen = $state(false);
+  let importOpen = $state<AppId | null>(null);
 
   let searchRaw = $state("");
   let search = $state("");
@@ -96,6 +96,7 @@
     appUninstallWipe = false;
     machineryBusy = false;
     addOpen = false;
+    importOpen = null;
   });
 
   $effect(() => {
@@ -218,22 +219,6 @@
     if (result.ok) importable = result.data;
   }
 
-  async function handleImportConfig(app: AppId): Promise<void> {
-    if (importBusy[app]) return;
-    importBusy = { ...importBusy, [app]: true };
-    importErrors = { ...importErrors, [app]: "" };
-    try {
-      const result = await cairn.importRun(app);
-      if (result.ok) {
-        importNotes = { ...importNotes, [app]: result.data.notes };
-      } else {
-        importErrors = { ...importErrors, [app]: result.error };
-      }
-    } finally {
-      importBusy = { ...importBusy, [app]: false };
-    }
-  }
-
   async function withAppBusy(app: AppId, action: () => Promise<unknown>): Promise<void> {
     if (busyApps[app]) return;
     busyApps = { ...busyApps, [app]: true };
@@ -342,12 +327,9 @@
       {@const app = detail.home.id as AppId}
       <div class="actions detailactions">
         {#if canImport(app)}
-          <Button disabled={importBusy[app]} onclick={() => handleImportConfig(app)}>Import config</Button>
+          <Button onclick={() => (importOpen = app)}>Import config</Button>
         {/if}
       </div>
-      {#if importErrors[app]}
-        <p class="error import-row-error">{importErrors[app]}</p>
-      {/if}
       {#if importNotes[app].length > 0}
         <ul class="import-notes">
           {#each importNotes[app] as note}<li>{note}</li>{/each}
@@ -539,6 +521,14 @@
     {#if addOpen}
       <AddPluginDialog home={detail.home.id} onClose={() => (addOpen = false)} onInstalled={loadPlugins} />
     {/if}
+    {#if importOpen}
+      <ImportDialog
+        app={importOpen}
+        label={homeLabelFor(importOpen)}
+        onClose={() => (importOpen = null)}
+        onDone={(notes) => { importNotes = { ...importNotes, [importOpen as AppId]: notes }; loadPlugins(); }}
+      />
+    {/if}
   </section>
 {:else}
   <div class="toolbar">
@@ -715,9 +705,6 @@
   .loading {
     color: var(--faint);
     font-size: 13px;
-  }
-  .import-row-error {
-    padding: 0 18px 10px;
   }
   .import-notes {
     margin: 0;

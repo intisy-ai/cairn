@@ -175,27 +175,21 @@ describe("AppsPlugins screen", () => {
     await waitFor(() => expect(screen.getByText(/list boom/i)).toBeTruthy());
   });
 
-  it("shows an Import config control for an importable app and runs the import", async () => {
-    const importApps = vi.fn(async () => ({
-      ok: true,
-      data: [{ app: "claude", label: "Claude Code", hasConfig: true }],
-    }) as const);
-    const importRun = vi.fn(async () => ({
-      ok: true,
-      data: { accounts: 1, providers: 3, routingImported: false, notes: ["exposed 3 provider(s) for Claude Code"] },
-    }) as const);
+  it("imports config through the selective dialog", async () => {
+    const importRun = vi.fn(async () => ({ ok: true, data: { accounts: 1, providers: 1, routingImported: true, notes: ["imported 1 account(s)"] } }) as const);
     stubCairn({
       appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
-      pluginsList: async () => ({ ok: true, data: [claudeSection([])] }),
-      importApps,
+      pluginsList: async () => ({ ok: true, data: [claudeSection([row("plugin-a")])] }),
+      importApps: async () => ({ ok: true, data: [{ app: "claude", label: "Claude Code", hasConfig: true }] }),
+      importPreview: async () => ({ ok: true, data: { accounts: 1, routingSlots: 2, exposedProviders: 1 } }),
       importRun,
     });
     render(AppsPlugins);
-    await openHome("claude code");
-    await waitFor(() => expect(screen.getByText("Import config")).toBeTruthy());
-    await fireEvent.click(screen.getByText("Import config"));
-    await waitFor(() => expect(importRun).toHaveBeenCalledWith("claude"));
-    await waitFor(() => expect(screen.getByText(/exposed 3 provider\(s\) for Claude Code/i)).toBeTruthy());
+    await openHome("Claude Code");
+    await fireEvent.click(await screen.findByRole("button", { name: /import config/i }));
+    await fireEvent.click(await screen.findByRole("button", { name: /^import$/i }));
+    await waitFor(() => expect(importRun).toHaveBeenCalledWith("claude", { accounts: true, routing: true, exposure: true }));
+    await waitFor(() => expect(screen.getByText(/imported 1 account\(s\)/i)).toBeTruthy());
   });
 
   it("does not show an Import config control when no app is importable", async () => {

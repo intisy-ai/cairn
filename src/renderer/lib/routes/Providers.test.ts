@@ -108,7 +108,7 @@ describe("Providers screen", () => {
     expect(getByText("KeyConnected")).toBeTruthy();
   });
 
-  it("Import calls importApps then importRun for the single importable app, and shows its notes", async () => {
+  it("Import opens the selective dialog for the single importable app, and shows its notes", async () => {
     const importApps = vi.fn(async () => ({
       ok: true,
       data: [{ app: "claude", label: "Claude Code", hasConfig: true }],
@@ -117,15 +117,23 @@ describe("Providers screen", () => {
       ok: true,
       data: { accounts: 1, providers: 2, routingImported: true, notes: ["exposed 2 provider(s) for Claude Code"] },
     }) as const);
-    stubCairn({ providersList: async () => ({ ok: true, data: [] }), importApps, importRun });
+    stubCairn({
+      providersList: async () => ({ ok: true, data: [] }),
+      importApps,
+      importPreview: async () => ({ ok: true, data: { accounts: 1, routingSlots: 2, exposedProviders: 2 } }),
+      importRun,
+    });
 
-    const { getByText } = render(Providers);
+    const { getByText, findByRole } = render(Providers);
     await waitFor(() => expect(getByText("Import")).toBeTruthy());
 
     await fireEvent.click(getByText("Import"));
-
-    await waitFor(() => expect(importRun).toHaveBeenCalledWith("claude"));
     expect(importApps).toHaveBeenCalled();
+
+    const dialog = await findByRole("dialog");
+    await fireEvent.click(within(dialog).getByRole("button", { name: /^import$/i }));
+
+    await waitFor(() => expect(importRun).toHaveBeenCalledWith("claude", { accounts: true, routing: true, exposure: true }));
     await waitFor(() => expect(getByText(/exposed 2 provider\(s\) for Claude Code/i)).toBeTruthy());
   });
 

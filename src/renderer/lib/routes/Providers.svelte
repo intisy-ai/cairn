@@ -11,6 +11,7 @@
   import ProviderRow from "../components/ProviderRow.svelte";
   import Button from "../components/Button.svelte";
   import Card from "../components/Card.svelte";
+  import ImportDialog from "../components/ImportDialog.svelte";
   import CollapsibleGroup from "../components/CollapsibleGroup.svelte";
   import VirtualList from "../components/VirtualList.svelte";
 
@@ -33,6 +34,8 @@
   let filter = $state<Filter>("all");
   let importNotes = $state<string[]>([]);
   let importError = $state("");
+  let importApp = $state<"claude" | "opencode" | null>(null);
+  let importAppLabel = $state("");
   let connectedOpen = $state(true);
   let availableOpen = $state(true);
 
@@ -123,13 +126,8 @@
       navigate("appsPlugins");
       return;
     }
-    const run = await cairn.importRun(importable[0].app);
-    if (run.ok) {
-      importNotes = run.data.notes;
-      await load();
-    } else {
-      importError = run.error;
-    }
+    importApp = importable[0].app as "claude" | "opencode";
+    importAppLabel = importable[0].label;
   }
 
   function handleAddProvider(): void {
@@ -209,6 +207,15 @@
       </Card>
     {/snippet}
   </CollapsibleGroup>
+{/if}
+
+{#if importApp}
+  <ImportDialog
+    app={importApp}
+    label={importAppLabel}
+    onClose={() => (importApp = null)}
+    onDone={(notes) => { importNotes = notes; load(); }}
+  />
 {/if}
 
 {#snippet providerRow(row: ProviderRowData)}
