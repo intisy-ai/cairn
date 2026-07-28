@@ -5,9 +5,18 @@ export type CatalogKind = "provider" | "proxy" | "plugin";
 export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string; deprecated: boolean };
 export type CatalogResult = { entries: CatalogEntry[]; source: "env" | "gh" | "anonymous" };
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
+export type ProviderHealth = {
+  provider: string;
+  accounts: number;
+  quotaMinPct: number | null;
+};
 export type OverviewSummary = {
   providersConnected: number;
   accountsTotal: number;
+  accountsEnabled: number;
+  appsDetected: number;
+  pluginsInstalled: number;
+  providerHealth: ProviderHealth[];
   serverRunning: boolean;
   serverPort: number;
 };

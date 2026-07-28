@@ -1,33 +1,54 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { describe, it, expect } from "vitest";
+import { overviewSummary } from "./overview.js";
+import type { AccountSummary } from "../../../vendor/usage/types.js";
+import type { PluginHome } from "../../../packages/shared/src/domain.js";
 
-beforeEach(() => {
-  process.env.HUB_CONFIG_DIR = mkdtempSync(join(tmpdir(), "dash-overview-"));
-});
+function account(provider: string, enabled: boolean, remaining: number | null): AccountSummary {
+  return {
+    email: `${provider}@test`,
+    enabled,
+    lastUsed: 0,
+    rateLimits: {},
+    quotas: remaining === null ? {} : { "5-hour": { remaining, resetTime: null } },
+    quotaUpdatedAt: 0,
+    provider,
+  };
+}
 
-describe("overview sidecar module", () => {
-  it("summarizes deployed providers, accounts, and server state", async () => {
-    const configDir = process.env.HUB_CONFIG_DIR as string;
-    const repoDir = join(configDir, "repos", "stub-auth");
-    mkdirSync(join(repoDir, "dist"), { recursive: true });
-    writeFileSync(
-      join(repoDir, "package.json"),
-      JSON.stringify({
-        name: "stub-auth",
-        claudeHub: { authProviders: [{ name: "stub", handler: "dist/handler.js" }] },
-      }),
-    );
-    writeFileSync(join(repoDir, "dist", "handler.js"), "export {};\n");
+const homes: PluginHome[] = [
+  { id: "cairn", label: "Cairn", dir: "/cairn", present: true, hasUpdater: true },
+  { id: "claude", label: "Claude", dir: "/claude", present: true, hasUpdater: true },
+];
 
-    const { addAccount } = await import("@core-auth/index.js");
-    addAccount("stub", { id: "acc1" });
+const deps = {
+  probe: async () => true,
+  accounts: () => [account("anthropic", true, 0.9), account("anthropic", false, 0.4), account("google", true, null)],
+  homes: async () => homes,
+  pluginsIn: (dir: string) => (dir === "/cairn" ? [{}, {}] : [{}]),
+  detect: async () => ({ claude: true, opencode: false }),
+  providers: () => [{ provider: "anthropic" }, { provider: "google" }],
+};
 
-    const { overviewSummary } = await import("./overview.js");
-    expect(await overviewSummary(async () => false)).toEqual({
-      ok: true,
-      data: { providersConnected: 1, accountsTotal: 1, serverRunning: false, serverPort: 34567 },
-    });
+describe("overviewSummary aggregates", () => {
+  it("computes enabled accounts, apps detected, plugins installed, and per-provider health", async () => {
+    const result = await overviewSummary(deps);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const data = result.data;
+    expect(data.providersConnected).toBe(2);
+    expect(data.accountsTotal).toBe(3);
+    expect(data.accountsEnabled).toBe(2);
+    expect(data.appsDetected).toBe(1);
+    expect(data.pluginsInstalled).toBe(3);
+    expect(data.serverRunning).toBe(true);
+    const anthropic = data.providerHealth.find((p) => p.provider === "anthropic");
+    expect(anthropic).toEqual({ provider: "anthropic", accounts: 2, quotaMinPct: 40 });
+    const google = data.providerHealth.find((p) => p.provider === "google");
+    expect(google).toEqual({ provider: "google", accounts: 1, quotaMinPct: null });
+  });
+
+  it("degrades server status to false when the probe fails", async () => {
+    const result = await overviewSummary({ ...deps, probe: async () => false });
+    expect(result.ok && result.data.serverRunning).toBe(false);
   });
 });

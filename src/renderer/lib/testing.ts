@@ -6,7 +6,16 @@ function defaultCairn(): CairnAPI {
     setConfig: async () => ({ ok: true, data: undefined }),
     overviewSummary: async () => ({
       ok: true,
-      data: { providersConnected: 0, accountsTotal: 0, serverRunning: false, serverPort: 34567 },
+      data: {
+        providersConnected: 0,
+        accountsTotal: 0,
+        accountsEnabled: 0,
+        appsDetected: 0,
+        pluginsInstalled: 0,
+        providerHealth: [],
+        serverRunning: false,
+        serverPort: 34567,
+      },
     }),
     accountsList: async () => ({ ok: true, data: [] }),
     accountsEnable: async () => ({ ok: true, data: undefined }),
