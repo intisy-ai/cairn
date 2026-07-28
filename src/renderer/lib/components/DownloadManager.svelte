@@ -24,20 +24,16 @@
           <button class="clearbtn" onclick={clearFinished}>Clear</button>
         {/if}
       </div>
-      {#if $downloads.tasks.length === 0}
-        <p class="empty">No downloads yet</p>
-      {:else}
-        {#each $downloads.tasks as task (task.id)}
-          <div class="task">
-            <div class="row">
-              <span class="label">{task.label}</span>
-              <span class="status status-{task.status}">{task.status}</span>
-            </div>
-            <div class="home">{task.home}</div>
-            {#if task.status === "failed"}<div class="error">{task.error}</div>{/if}
+      {#each $downloads.tasks as task (task.id)}
+        <div class="task">
+          <div class="row">
+            <span class="label">{task.label}</span>
+            <span class="status status-{task.status}">{task.status}</span>
           </div>
-        {/each}
-      {/if}
+          <div class="home">{task.home}</div>
+          {#if task.status === "failed"}<div class="error">{task.error}</div>{/if}
+        </div>
+      {/each}
     </div>
   {/if}
 </div>
@@ -131,12 +127,6 @@
   .clearbtn:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
-  }
-  .empty {
-    padding: 10px;
-    color: var(--faint);
-    font-size: 12px;
-    text-align: center;
   }
   .task {
     padding: 8px;
