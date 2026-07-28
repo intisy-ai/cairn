@@ -12,6 +12,7 @@
   import Button from "../components/Button.svelte";
   import Card from "../components/Card.svelte";
   import ImportDialog from "../components/ImportDialog.svelte";
+  import CustomEndpointsDialog from "../components/CustomEndpointsDialog.svelte";
   import CollapsibleGroup from "../components/CollapsibleGroup.svelte";
   import VirtualList from "../components/VirtualList.svelte";
 
@@ -38,6 +39,7 @@
   let importAppLabel = $state("");
   let connectedOpen = $state(true);
   let availableOpen = $state(true);
+  let customEndpointsOpen = $state(false);
 
   const applySearch = debounce((value: string) => {
     search = value;
@@ -143,6 +145,7 @@
     <p>Connect AI backends once, routed to Claude Code and OpenCode alike.</p>
   </div>
   <Button onclick={handleImport}>Import</Button>
+  <Button onclick={() => (customEndpointsOpen = true)}>Custom endpoints</Button>
   <Button variant="primary" onclick={handleAddProvider}>+ Add provider</Button>
 </div>
 
@@ -216,6 +219,10 @@
     onClose={() => (importApp = null)}
     onDone={(notes) => { importNotes = notes; load(); }}
   />
+{/if}
+
+{#if customEndpointsOpen}
+  <CustomEndpointsDialog onClose={() => (customEndpointsOpen = false)} />
 {/if}
 
 {#snippet providerRow(row: ProviderRowData)}
