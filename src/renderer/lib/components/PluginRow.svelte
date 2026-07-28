@@ -13,6 +13,7 @@
     onUninstall,
     uninstallState = "idle",
     deprecated = false,
+    catalogKind,
   }: {
     name: string;
     kind: "git" | "npm";
@@ -23,6 +24,7 @@
     onUninstall?: () => void;
     uninstallState?: "idle" | "confirm";
     deprecated?: boolean;
+    catalogKind?: "provider" | "proxy" | "plugin";
   } = $props();
 
   const detail = $derived(installedVersion ? `${kind} · v${installedVersion}` : kind);
@@ -30,7 +32,12 @@
 
 <div class="row" class:has-uninstall={!!onUninstall}>
   <div class="pname">
-    <b>{name}</b>
+    <div class="name-with-chip">
+      <b>{name}</b>
+      {#if catalogKind === "provider" || catalogKind === "proxy"}
+        <span class="chip">{catalogKind.toUpperCase()}</span>
+      {/if}
+    </div>
     <span>{detail}</span>
   </div>
   <div>
@@ -69,6 +76,11 @@
   .pname {
     min-width: 0;
   }
+  .name-with-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
   .pname b {
     font-size: 13.5px;
     font-weight: 600;
@@ -82,5 +94,15 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .chip {
+    font-size: 10.5px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--faint);
+    background: var(--surface-2);
+    padding: 2px 7px;
+    border-radius: 20px;
+    white-space: nowrap;
   }
 </style>

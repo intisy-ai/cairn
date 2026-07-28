@@ -394,6 +394,7 @@
         updateAvailable={plugin.updateAvailable}
         enabled={plugin.enabled}
         deprecated={isDeprecated(plugin.name)}
+        catalogKind={catalogKindOf(plugin.name) ?? undefined}
         onToggle={(on) => handleToggle(detail.home.id, plugin.name, on)}
         onUninstall={plugin.name === "plugin-updater" ? undefined : () => handleUninstall(detail.home.id, plugin.name)}
         uninstallState={uninstallArm === `${detail.home.id}/${plugin.name}` ? "confirm" : "idle"}

@@ -648,4 +648,32 @@ describe("AppsPlugins screen", () => {
     expect(screen.queryByRole("button", { name: /^init$/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /reinit/i })).toBeNull();
   });
+
+  it("shows catalogKind chips (PROVIDER/PROXY) on installed plugin rows that match catalog entries", async () => {
+    stubCairn({
+      appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
+      pluginsList: async () => ({
+        ok: true,
+        data: [cairnSection([row("stub-auth"), row("claude-code-proxy"), row("wakatime-sync")])],
+      }),
+      catalogList: async () => ({
+        ok: true,
+        data: {
+          entries: [
+            { name: "stub-auth", url: "u1", kind: "provider", description: "", deprecated: false },
+            { name: "claude-code-proxy", url: "u2", kind: "proxy", description: "", deprecated: false },
+            { name: "wakatime-sync", url: "u3", kind: "plugin", description: "", deprecated: false },
+          ],
+          source: "gh",
+        },
+      }),
+    });
+    const { container } = render(AppsPlugins);
+    await openHome("cairn");
+
+    const pnameElements = container.querySelectorAll(".pname .chip");
+    expect(pnameElements).toHaveLength(2);
+    expect(pnameElements[0]?.textContent).toBe("PROVIDER");
+    expect(pnameElements[1]?.textContent).toBe("PROXY");
+  });
 });
