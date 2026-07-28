@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, waitFor } from "@testing-library/svelte";
+import type { AccountView } from "@cairn/shared";
 import { stubCairn } from "../testing.js";
 import Accounts from "./Accounts.svelte";
 
@@ -64,5 +65,67 @@ describe("Accounts screen", () => {
     });
     const { getByText } = render(Accounts);
     await waitFor(() => expect(getByText(/no accounts/i)).toBeTruthy());
+  });
+
+  const TWO_PROVIDERS = [
+    { id: "alpha", label: "Alpha Team", hasOAuth: true, accountCount: 1, active: true, exposure: { cc: true, oc: false } },
+    { id: "beta", label: "Beta Team", hasOAuth: true, accountCount: 1, active: true, exposure: { cc: true, oc: false } },
+  ];
+
+  function twoProviderAccounts(provider: string): { ok: true; data: AccountView[] } {
+    if (provider === "alpha") return { ok: true, data: [{ id: "a1", email: "foo@x.test", status: "active", enabled: true, quota: [] }] };
+    return { ok: true, data: [{ id: "b1", email: "bar@x.test", status: "active", enabled: true, quota: [] }] };
+  }
+
+  it("empty search shows all provider groups", async () => {
+    stubCairn({
+      providersList: async () => ({ ok: true, data: TWO_PROVIDERS }),
+      accountsList: async (provider) => twoProviderAccounts(provider),
+    });
+
+    const { getByText } = render(Accounts);
+    await waitFor(() => expect(getByText("foo@x.test")).toBeTruthy());
+    expect(getByText("bar@x.test")).toBeTruthy();
+  });
+
+  it("search narrows to matching accounts across providers", async () => {
+    stubCairn({
+      providersList: async () => ({ ok: true, data: TWO_PROVIDERS }),
+      accountsList: async (provider) => twoProviderAccounts(provider),
+    });
+
+    const { getByPlaceholderText, getByText, queryByText } = render(Accounts);
+    await waitFor(() => expect(getByText("foo@x.test")).toBeTruthy());
+
+    const input = getByPlaceholderText("Search accounts");
+    await fireEvent.input(input, { target: { value: "foo" } });
+
+    await waitFor(() => expect(queryByText("bar@x.test")).toBeNull(), { timeout: 1000 });
+    expect(getByText("foo@x.test")).toBeTruthy();
+  });
+
+  it("virtualizes a provider group once its account count exceeds the threshold", async () => {
+    const data = Array.from({ length: 25 }, (_, i) => ({
+      id: `acc-${i}`,
+      email: `person${i}@stub.test`,
+      status: "active" as const,
+      enabled: true,
+      quota: [],
+    }));
+    stubCairn({
+      providersList: async () => ({ ok: true, data: PROVIDERS }),
+      accountsList: async (provider) => (provider === "stub" ? { ok: true, data } : { ok: true, data: [] }),
+    });
+
+    const { getByText, container } = render(Accounts);
+    await waitFor(() => expect(getByText("person0@stub.test")).toBeTruthy());
+
+    const groupButtons = Array.from(container.querySelectorAll("button.hd"));
+    const stubButton = groupButtons.find((b) => b.querySelector(".lbl")?.textContent === "Stub");
+    expect(stubButton?.querySelector(".cnt")?.textContent).toBe("25");
+
+    const renderedRows = container.querySelectorAll(".row").length;
+    expect(renderedRows).toBeGreaterThan(0);
+    expect(renderedRows).toBeLessThan(25);
   });
 });

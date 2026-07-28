@@ -3,9 +3,12 @@
   import type { ProviderRow as ProviderRowData, AccountView, AccountStatus } from "@cairn/shared";
   import type { StatusVariant } from "../components/StatusPill.svelte";
   import { cairn } from "../ipc.js";
+  import { debounce } from "../util/debounce.js";
   import AccountRow from "../components/AccountRow.svelte";
-  import Button from "../components/Button.svelte";
   import Card from "../components/Card.svelte";
+  import SearchField from "../components/SearchField.svelte";
+  import CollapsibleGroup from "../components/CollapsibleGroup.svelte";
+  import VirtualList from "../components/VirtualList.svelte";
 
   const STATUS_INFO: Record<AccountStatus, { variant: StatusVariant; label: string }> = {
     active: { variant: "good", label: "Active" },
@@ -15,14 +18,47 @@
     disabled: { variant: "off", label: "Disabled" },
   };
 
+  const VIRTUALIZE_THRESHOLD = 20;
+  const ACCOUNT_ROW_HEIGHT = 64;
+
   let providers = $state<ProviderRowData[]>([]);
   let providersError = $state("");
   let accountsByProvider = $state<Record<string, AccountView[]>>({});
   let accountErrors = $state<Record<string, string>>({});
+  let searchRaw = $state("");
+  let search = $state("");
+
+  const applySearch = debounce((value: string) => {
+    search = value;
+  }, 120);
+
+  $effect(() => {
+    applySearch(searchRaw);
+  });
 
   function statusFor(account: AccountView): { variant: StatusVariant; label: string } {
     return STATUS_INFO[account.status];
   }
+
+  function accountLabel(account: AccountView): string {
+    return account.email ?? account.id;
+  }
+
+  function matchesSearch(provider: ProviderRowData, account: AccountView, term: string): boolean {
+    if (!term) return true;
+    if (provider.label.toLowerCase().includes(term)) return true;
+    return accountLabel(account).toLowerCase().includes(term);
+  }
+
+  const filteredAccountsByProvider = $derived.by(() => {
+    const term = search.trim().toLowerCase();
+    const result: Record<string, AccountView[]> = {};
+    for (const provider of providers) {
+      const accounts = accountsByProvider[provider.id] ?? [];
+      result[provider.id] = accounts.filter((account) => matchesSearch(provider, account, term));
+    }
+    return result;
+  });
 
   async function loadAccounts(providerId: string): Promise<void> {
     const result = await cairn.accountsList(providerId);
@@ -69,34 +105,47 @@
 {#if providersError}
   <p class="error">Could not load providers: {providersError}</p>
 {:else}
+  <div class="toolbar">
+    <SearchField bind:value={searchRaw} placeholder="Search accounts" />
+  </div>
+
   {#each providers as provider (provider.id)}
-    <section class="group">
-      <div class="grouphead">
-        <p class="label">{provider.label}</p>
-        <span class="count">{(accountsByProvider[provider.id] ?? []).length}</span>
-        <span class="line"></span>
-        <Button disabled title="Login flow not wired up yet">+ Add account</Button>
-      </div>
-      {#if accountErrors[provider.id]}
-        <p class="error">Could not load accounts for {provider.label}: {accountErrors[provider.id]}</p>
-      {:else}
-        <Card>
-          {#each accountsByProvider[provider.id] ?? [] as account (account.id)}
-            <AccountRow
-              label={account.email ?? account.id}
-              detail={account.detail ?? ""}
-              status={statusFor(account)}
-              enabled={account.enabled}
-              quota={account.quota ?? []}
-              onToggle={(on) => handleToggle(provider.id, account.id, on)}
-              onRemove={() => handleRemove(provider.id, account.id)}
-            />
-          {/each}
-        </Card>
-      {/if}
-    </section>
+    {@const providerAccounts = filteredAccountsByProvider[provider.id] ?? []}
+    <CollapsibleGroup label={provider.label} count={providerAccounts.length}>
+      {#snippet body()}
+        {#if accountErrors[provider.id]}
+          <p class="error">Could not load accounts for {provider.label}: {accountErrors[provider.id]}</p>
+        {:else}
+          <Card>
+            {#if providerAccounts.length > VIRTUALIZE_THRESHOLD}
+              <VirtualList items={providerAccounts} rowHeight={ACCOUNT_ROW_HEIGHT}>
+                {#snippet row(account)}
+                  {@render accountRow(provider.id, account)}
+                {/snippet}
+              </VirtualList>
+            {:else}
+              {#each providerAccounts as account (account.id)}
+                {@render accountRow(provider.id, account)}
+              {/each}
+            {/if}
+          </Card>
+        {/if}
+      {/snippet}
+    </CollapsibleGroup>
   {/each}
 {/if}
+
+{#snippet accountRow(providerId: string, account: AccountView)}
+  <AccountRow
+    label={accountLabel(account)}
+    detail={account.detail ?? ""}
+    status={statusFor(account)}
+    enabled={account.enabled}
+    quota={account.quota ?? []}
+    onToggle={(on) => handleToggle(providerId, account.id, on)}
+    onRemove={() => handleRemove(providerId, account.id)}
+  />
+{/snippet}
 
 <style>
   .head {
@@ -116,32 +165,12 @@
     color: var(--muted);
     font-size: 12.5px;
   }
-  .group {
-    margin-bottom: 26px;
-  }
-  .grouphead {
+  .toolbar {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin: 0 2px 10px;
-  }
-  .grouphead .label {
-    font-size: 10.5px;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    color: var(--faint);
-    font-weight: 600;
-    margin: 0;
-  }
-  .grouphead .count {
-    font-size: 11px;
-    color: var(--faint);
-    font-family: var(--mono);
-  }
-  .grouphead .line {
-    flex: 1;
-    height: 1px;
-    background: var(--border);
+    margin-bottom: 18px;
+    flex-wrap: wrap;
   }
   .error {
     color: var(--crit);
