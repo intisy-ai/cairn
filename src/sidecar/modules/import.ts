@@ -3,17 +3,15 @@ import { join } from "node:path";
 import { addAccount, getConfigDir, listAccounts, reposDir } from "@core-auth/index.js";
 import { readDeployedProviders } from "@core-loader/loader-runtime.js";
 import { resolveModelMap } from "@core-proxy/model-map.js";
-import { getApps, getAppDescriptor, getConfigValue, setConfigValue } from "@core/index.js";
+import { getApps, getAppDescriptor } from "@core/index.js";
 import type { AppPresence, ImportableApp, ImportPreview, ImportSelection, ImportSummary, Result } from "../../../packages/shared/src/domain.js";
 import { appRealHome } from "../lib/pluginHomes.js";
 import { profileFor } from "../lib/proxyRegistry.js";
 import type { ProxyRegistryDeps } from "../lib/proxyRegistry.js";
 import { modelMapWrite } from "../lib/modelMapWrite.js";
+import { exposeProviders } from "../lib/exposure.js";
 import { appsDetect } from "./apps.js";
 import { wrap } from "../result.js";
-
-const EXPOSURE_CONFIG_NAME = "dashboard-exposure";
-const EXPOSURE_CONFIG_KEY = "map";
 
 export interface ImportDeps {
   appHome?: (app: string) => string;
@@ -101,13 +99,7 @@ export async function importRun(app: string, selection: ImportSelection = ALL_SE
     }
 
     if (selection.exposure) {
-      const exposureMap =
-        (getConfigValue(EXPOSURE_CONFIG_NAME, EXPOSURE_CONFIG_KEY) as Record<string, Record<string, boolean>> | undefined) ?? {};
-      for (const p of providers) {
-        const cur = exposureMap[p.provider] ?? {};
-        exposureMap[p.provider] = { ...cur, [app]: true };
-      }
-      setConfigValue(EXPOSURE_CONFIG_NAME, EXPOSURE_CONFIG_KEY, exposureMap);
+      exposeProviders(providers.map((p) => p.provider), app);
       const label = getAppDescriptor(app)?.label ?? app;
       notes.push(`exposed ${providers.length} provider(s) for ${label}`);
     } else {

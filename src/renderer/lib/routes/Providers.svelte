@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { ProviderRow as ProviderRowData } from "@cairn/shared";
+  import type { ProviderRow as ProviderRowData, HostApp } from "@cairn/shared";
   import type { StatusVariant } from "../components/StatusPill.svelte";
   import { cairn } from "../ipc.js";
   import { navigate } from "../router.js";
@@ -37,7 +37,7 @@
   let importError = $state("");
   let importApp = $state<string | null>(null);
   let importAppLabel = $state("");
-  let apps = $state<{ id: string; label: string }[]>([]);
+  let apps = $state<HostApp[]>([]);
   let connectedOpen = $state(true);
   let availableOpen = $state(true);
   let customEndpointsOpen = $state(false);

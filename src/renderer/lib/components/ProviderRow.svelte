@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { HostApp } from "@cairn/shared";
   import StatusPill from "./StatusPill.svelte";
   import type { StatusVariant } from "./StatusPill.svelte";
   import AppPills from "./AppPills.svelte";
@@ -23,7 +24,7 @@
     subtitle: string;
     translator?: string;
     status: { variant: StatusVariant; label: string };
-    apps: { id: string; label: string }[];
+    apps: HostApp[];
     exposure: Record<string, boolean>;
     accountLabel: string;
     enabled: boolean;

@@ -324,7 +324,7 @@
       <h2>{detail.home.label}</h2>
     </div>
     {#if detail.home.id !== "cairn"}
-      {@const app = detail.home.id as AppId}
+      {@const app = detail.home.id}
       <div class="actions detailactions">
         {#if canImport(app)}
           <Button onclick={() => (importOpen = app)}>Import config</Button>
@@ -414,7 +414,7 @@
 
     <Card>
       {#if detail.home.id !== "cairn"}
-        {@const app = detail.home.id as AppId}
+        {@const app = detail.home.id}
         <div class="row" data-testid="machinery-row">
           <div class="info">
             <b>plugin-updater</b>
@@ -489,7 +489,7 @@
     {/if}
 
     {#if detail.home.id !== "cairn"}
-      {@const app = detail.home.id as AppId}
+      {@const app = detail.home.id}
       <div class="dangerzone">
         <Button variant="danger" onclick={() => {
           appUninstallOpen = !appUninstallOpen;
@@ -556,7 +556,7 @@
           {/if}
           <div class="actions">
             {#if !section.home.present}
-              {@const app = section.home.id as AppId}
+              {@const app = section.home.id}
               <Button variant="primary" disabled={busyApps[app]} onclick={() => handleInstall(app)}>Install CLI</Button>
             {/if}
           </div>

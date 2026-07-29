@@ -1,6 +1,8 @@
 <script lang="ts">
+  import type { HostApp } from "@cairn/shared";
+
   let { apps, values, onToggle }: {
-    apps: { id: string; label: string }[];
+    apps: HostApp[];
     values: Record<string, boolean>;
     onToggle?: (appId: string, on: boolean) => void;
   } = $props();
