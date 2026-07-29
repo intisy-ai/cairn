@@ -170,4 +170,18 @@ describe("Plugins screen", () => {
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
+
+  it("shows a loading skeleton before plugins resolve, then content", async () => {
+    let resolvePlugins!: (v: { ok: true; data: HomePlugins[] }) => void;
+    const pending = new Promise<{ ok: true; data: HomePlugins[] }>((r) => (resolvePlugins = r));
+    stubCairn({
+      pluginsList: () => pending,
+      catalogList: async () => ({ ok: true, data: { entries: [], source: "anonymous" } }),
+    });
+    const { getAllByTestId, queryAllByTestId } = render(Plugins);
+
+    expect(getAllByTestId("skeleton").length).toBeGreaterThan(0);
+    resolvePlugins({ ok: true, data: baseSections() });
+    await waitFor(() => expect(queryAllByTestId("skeleton").length).toBe(0));
+  });
 });

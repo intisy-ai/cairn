@@ -258,4 +258,18 @@ describe("Providers screen", () => {
 
     await waitFor(() => expect(queryByText("Available Provider")).toBeNull());
   });
+
+  it("shows a loading skeleton before providers resolve, then content", async () => {
+    let resolveProviders!: (v: { ok: true; data: [] }) => void;
+    const pending = new Promise<{ ok: true; data: [] }>((r) => (resolveProviders = r));
+    stubCairn({
+      providersList: () => pending,
+      appsList: async () => ({ ok: true, data: [] }),
+    });
+    const { getAllByTestId, queryAllByTestId } = render(Providers);
+
+    expect(getAllByTestId("skeleton").length).toBeGreaterThan(0);
+    resolveProviders({ ok: true, data: [] });
+    await waitFor(() => expect(queryAllByTestId("skeleton").length).toBe(0));
+  });
 });
