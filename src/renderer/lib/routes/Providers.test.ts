@@ -19,13 +19,13 @@ describe("Providers screen", () => {
       providersSetExposure,
     });
 
-    const { getByText, getByRole } = render(Providers);
+    const { getByText, getByRole, getByTitle } = render(Providers);
 
     await waitFor(() => expect(getByText("Stub")).toBeTruthy());
     expect(getByText(/2 accounts/i)).toBeTruthy();
 
-    const clPill = await waitFor(() => getByText("CL"));
-    const opPill = getByText("OP");
+    const clPill = await waitFor(() => getByTitle("Claude Code"));
+    const opPill = getByTitle("OpenCode");
     expect(clPill.classList.contains("on")).toBe(true);
     expect(opPill.classList.contains("na")).toBe(true);
 
