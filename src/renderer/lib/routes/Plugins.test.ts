@@ -171,6 +171,23 @@ describe("Plugins screen", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 
+  it("shows the display name as the title and the repo name as a subtitle", async () => {
+    stubCairn({
+      pluginsList: async () => ({
+        ok: true,
+        data: [
+          { home: CAIRN, rows: [] },
+          { home: CLAUDE, rows: [{ name: "wakatime-sync", kind: "git", enabled: true, updateAvailable: false, description: "d", displayName: "WakaTime", icon: "" }] },
+          { home: OPENCODE, rows: [] },
+        ],
+      }),
+      catalogList: async () => ({ ok: true, data: { entries: [], source: "gh" } }),
+    });
+    const { findByText, getByText } = render(Plugins);
+    expect(await findByText("WakaTime")).toBeInTheDocument();
+    expect(getByText("wakatime-sync")).toBeInTheDocument();
+  });
+
   it("renders repo topic chips on a plugin row", async () => {
     stubCairn({
       pluginsList: async () => ({ ok: true, data: baseSections() }),

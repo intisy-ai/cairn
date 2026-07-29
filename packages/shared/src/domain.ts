@@ -2,7 +2,7 @@ export type { AccountView, AccountQuota, AccountStatus } from "@core-auth/index.
 export type { Chain, ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/index.js";
 import type { ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/index.js";
 export type CatalogKind = "provider" | "proxy" | "plugin";
-export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string; deprecated: boolean; topics: string[] };
+export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string; deprecated: boolean; topics: string[]; displayName?: string; icon?: string };
 export type CatalogResult = { entries: CatalogEntry[]; source: "env" | "gh" | "anonymous" };
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 export type ProviderHealth = {
@@ -52,6 +52,8 @@ export type PluginRow = {
   installedVersion?: string | null;
   updateAvailable: boolean;
   description: string;
+  displayName?: string;
+  icon?: string;
 };
 export type UsageAccount = {
   provider: string;
@@ -125,6 +127,8 @@ export type UnifiedPlugin = {
   updateAvailable: boolean;
   homes: Record<string, UnifiedHomeState>;
   topics: string[];
+  displayName: string;
+  icon: string;
 };
 export type InstallOutcome = { home: string; ok: boolean; error?: string };
 export type InstallManyResult = { outcomes: InstallOutcome[] };

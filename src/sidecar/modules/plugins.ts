@@ -58,8 +58,29 @@ function readDescription(homeDirPath: string, name: string): string {
   }
 }
 
+// Read a plugin's cairn.json manifest from its deployed clone: displayName plus
+// the referenced icon SVG base64-encoded into a data URI (safe for an <img>).
+function readManifest(homeDirPath: string, name: string): { displayName?: string; icon?: string } {
+  try {
+    const repoDir = join(homeDirPath, "repos", name);
+    const manifest = JSON.parse(readFileSync(join(repoDir, "cairn.json"), "utf-8"));
+    const out: { displayName?: string; icon?: string } = {};
+    if (typeof manifest.displayName === "string" && manifest.displayName) out.displayName = manifest.displayName;
+    if (typeof manifest.icon === "string" && manifest.icon.endsWith(".svg")) {
+      try {
+        const svg = readFileSync(join(repoDir, manifest.icon), "utf-8");
+        out.icon = "data:image/svg+xml;base64," + Buffer.from(svg, "utf-8").toString("base64");
+      } catch { /* icon file missing */ }
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 function rowFor(name: string, kind: "git" | "npm", enabled: boolean, url: string | undefined, cache: UpdateCache, homeDirPath: string): PluginRow {
   const entry = cache.plugins[name];
+  const manifest = readManifest(homeDirPath, name);
   return {
     name,
     kind,
@@ -68,6 +89,8 @@ function rowFor(name: string, kind: "git" | "npm", enabled: boolean, url: string
     installedVersion: entry?.installedVersion ?? null,
     updateAvailable: entry?.updateAvailable ?? false,
     description: readDescription(homeDirPath, name),
+    displayName: manifest.displayName,
+    icon: manifest.icon,
   };
 }
 

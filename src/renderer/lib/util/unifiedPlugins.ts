@@ -26,6 +26,8 @@ export function buildUnifiedPlugins(sections: HomePlugins[], catalog: CatalogEnt
     const homeIds = applicableHomeIds(kind, homes);
     const rows = sections.flatMap((s) => s.rows.filter((r) => r.name === name).map((r) => ({ home: s.home.id, r })));
     const installedDesc = rows.map((x) => x.r.description).find((d) => d && d.length > 0) ?? "";
+    const installedName = rows.map((x) => x.r.displayName).find((d) => d && d.length > 0);
+    const installedIcon = rows.map((x) => x.r.icon).find((i) => i && i.length > 0);
     const homesMap: UnifiedPlugin["homes"] = {};
     for (const id of homeIds) {
       const hit = rows.find((x) => x.home === id);
@@ -39,6 +41,8 @@ export function buildUnifiedPlugins(sections: HomePlugins[], catalog: CatalogEnt
       updateAvailable: rows.some((x) => x.r.updateAvailable),
       homes: homesMap,
       topics: catEntry?.topics ?? [],
+      displayName: installedName || catEntry?.displayName || name,
+      icon: installedIcon || catEntry?.icon || "",
     });
   }
   out.sort((a, b) => a.name.localeCompare(b.name));

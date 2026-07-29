@@ -44,6 +44,17 @@ describe("buildUnifiedPlugins", () => {
     expect(buildUnifiedPlugins(sections, catalog, homes).find((p) => p.name === "demo")!.description).toBe("from catalog");
   });
 
+  it("prefers installed displayName/icon, then catalog, then repo name", () => {
+    const sections: HomePlugins[] = [{ home: homes[1], rows: [row("wakatime-sync", { displayName: "WakaTime", icon: "data:installed" })] }];
+    const catalog: CatalogEntry[] = [{ name: "wakatime-sync", url: "u", kind: "plugin", description: "d", deprecated: false, topics: [], displayName: "Catalog Name", icon: "data:catalog" }];
+    const p = buildUnifiedPlugins(sections, catalog, homes).find((x) => x.name === "wakatime-sync")!;
+    expect(p.displayName).toBe("WakaTime");
+    expect(p.icon).toBe("data:installed");
+    const q = buildUnifiedPlugins([], [{ name: "foo-auth", url: "u", kind: "provider", description: "", deprecated: false, topics: [] }], homes).find((x) => x.name === "foo-auth")!;
+    expect(q.displayName).toBe("foo-auth");
+    expect(q.icon).toBe("");
+  });
+
   it("carries catalog topics onto the unified plugin", () => {
     const catalog: CatalogEntry[] = [{ name: "antigravity-auth", url: "u", kind: "provider", description: "d", deprecated: false, topics: ["intisy-ai", "gemini"] }];
     const out = buildUnifiedPlugins([], catalog, homes);

@@ -15,9 +15,11 @@
   import SplitButton from "../components/SplitButton.svelte";
   import AddPluginDialog from "../components/AddPluginDialog.svelte";
   import Skeleton from "../components/Skeleton.svelte";
+  import PageHeader from "../components/PageHeader.svelte";
+  import PluginIcon from "../components/PluginIcon.svelte";
 
   const VIRTUALIZE_THRESHOLD = 20;
-  const ROW_HEIGHT = 76;
+  const ROW_HEIGHT = 96;
 
   let sections = $state<HomePlugins[]>([]);
   let catalog = $state<CatalogEntry[]>([]);
@@ -43,6 +45,7 @@
       const needle = search.trim().toLowerCase();
       return !needle
         || p.name.toLowerCase().includes(needle)
+        || p.displayName.toLowerCase().includes(needle)
         || p.description.toLowerCase().includes(needle)
         || p.topics.some((t) => t.toLowerCase().includes(needle));
     }),
@@ -156,12 +159,7 @@
   });
 </script>
 
-<div class="head">
-  <div>
-    <h1>Plugins</h1>
-    <p>Every provider, proxy, and plugin across your apps, in one place.</p>
-  </div>
-</div>
+<PageHeader title="Plugins" subtitle="Every provider, proxy, and plugin across your apps, in one place." />
 
 {#if pluginsError}
   <p class="error">Could not load plugins: {pluginsError}</p>
@@ -194,9 +192,11 @@
       </div>
     {/snippet}
     <div class="row" data-testid={"plugin-" + p.name}>
+      <PluginIcon icon={p.icon} name={p.displayName} kind={p.kind} />
       <div class="info">
         <div class="name-with-chip">
-          <b>{p.name}</b>
+          <b>{p.displayName}</b>
+          {#if p.displayName !== p.name}<span class="repo">{p.name}</span>{/if}
           {#if p.kind === "provider" || p.kind === "proxy"}
             <span class="chip">{p.kind}</span>
           {/if}
@@ -248,23 +248,6 @@
 {/if}
 
 <style>
-  .head {
-    display: flex;
-    align-items: flex-start;
-    gap: 16px;
-    margin-bottom: 20px;
-  }
-  .head h1 {
-    margin: 0;
-    font-size: 20px;
-    letter-spacing: -.02em;
-    font-weight: 650;
-  }
-  .head p {
-    margin: 3px 0 0;
-    color: var(--muted);
-    font-size: 12.5px;
-  }
   .toolbar {
     display: flex;
     align-items: center;
@@ -275,8 +258,7 @@
   .row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
+    gap: 14px;
     padding: 14px 18px;
     border-top: 1px solid var(--border);
   }
@@ -286,8 +268,9 @@
   .info {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 3px;
     min-width: 0;
+    flex: 1;
   }
   .name-with-chip {
     display: flex;
@@ -299,9 +282,18 @@
     font-weight: 600;
     letter-spacing: -.01em;
   }
+  .repo {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--faint);
+  }
   .desc {
     color: var(--muted);
     font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
   .chip {
     font-size: 10.5px;

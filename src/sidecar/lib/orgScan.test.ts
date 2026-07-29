@@ -51,6 +51,19 @@ describe("scanOrg", () => {
     expect(result.entries.find((e) => e.name === "stub-auth")?.topics).toEqual(["intisy-ai", "ai-provider"]);
   });
 
+  it("enriches an entry with displayName + icon from cairn.json", async () => {
+    const manifest = { displayName: "Sync Bridge", icon: "icon.svg" };
+    const fetchFn = (async (url: string) => {
+      if (url.includes("/contents/cairn.json")) return { ok: true, status: 200, json: async () => ({ encoding: "base64", content: Buffer.from(JSON.stringify(manifest)).toString("base64") }) };
+      if (url.includes("/contents/icon.svg")) return { ok: true, status: 200, json: async () => ({ encoding: "base64", content: Buffer.from("<svg/>").toString("base64") }) };
+      return { ok: true, status: 200, json: async () => [repo("sync-bridge")] };
+    }) as unknown as typeof fetch;
+    const result = await scanOrg({ fetchFn, env: { GITHUB_TOKEN: "t" }, execFn: async () => "" });
+    const entry = result.entries.find((e) => e.name === "sync-bridge");
+    expect(entry?.displayName).toBe("Sync Bridge");
+    expect(entry?.icon).toContain("data:image/svg+xml;base64,");
+  });
+
   it("maps archived repos to deprecated entries instead of skipping them", async () => {
     const archived = { name: "metric-dashboard", html_url: "https://github.com/intisy-ai/metric-dashboard", description: "", archived: true };
     const result = await scanOrg({ fetchFn: okFetch([repo("stub-auth"), archived]), env: { GITHUB_TOKEN: "t" }, execFn: async () => "" });

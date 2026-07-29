@@ -43,6 +43,42 @@ async function resolveToken(env: NodeJS.ProcessEnv, execFn: (f: string, a: strin
   return { token: null, source: "anonymous" };
 }
 
+// Fetch one repo's cairn.json manifest (displayName + icon) via the contents API,
+// so it works for private repos with the same token. Best-effort: a repo without a
+// manifest (404) returns {}. The icon SVG is base64-encoded into a data URI.
+async function fetchManifest(
+  fetchFn: typeof fetch,
+  repo: string,
+  token: string | null,
+): Promise<{ displayName?: string; icon?: string }> {
+  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+  const contents = async (path: string): Promise<string | null> => {
+    try {
+      const response = await fetchFn(`https://api.github.com/repos/${ORG}/${repo}/contents/${path}`, { headers });
+      if (!response.ok) return null;
+      const json = (await response.json()) as { content?: string; encoding?: string };
+      if (json.encoding !== "base64" || typeof json.content !== "string") return null;
+      return json.content.replace(/\s/g, "");
+    } catch {
+      return null;
+    }
+  };
+  const manifestB64 = await contents("cairn.json");
+  if (!manifestB64) return {};
+  try {
+    const manifest = JSON.parse(Buffer.from(manifestB64, "base64").toString("utf-8"));
+    const out: { displayName?: string; icon?: string } = {};
+    if (typeof manifest.displayName === "string" && manifest.displayName) out.displayName = manifest.displayName;
+    if (typeof manifest.icon === "string" && manifest.icon.endsWith(".svg")) {
+      const iconB64 = await contents(manifest.icon);
+      if (iconB64) out.icon = "data:image/svg+xml;base64," + iconB64;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 export async function scanOrg(deps: OrgScanDeps = {}): Promise<CatalogResult> {
   const now = deps.now ?? Date.now;
   if (cache && now() - cache.at < TTL_MS) return cache.result;
@@ -64,6 +100,13 @@ export async function scanOrg(deps: OrgScanDeps = {}): Promise<CatalogResult> {
       }
       if (repos.length < 100) break;
     }
+    await Promise.all(
+      entries.map(async (entry) => {
+        const manifest = await fetchManifest(fetchFn, entry.name, token);
+        if (manifest.displayName) entry.displayName = manifest.displayName;
+        if (manifest.icon) entry.icon = manifest.icon;
+      }),
+    );
     const result: CatalogResult = { entries, source };
     if (entries.length > 0 || !cache) cache = { at: now(), result };
     return cache.result;
