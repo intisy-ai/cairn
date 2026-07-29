@@ -14,7 +14,9 @@ export function classifyRepo(name: string): CatalogKind | null {
 interface RepoJson { name?: string; html_url?: string; description?: string | null; archived?: boolean; topics?: string[] }
 
 let cache: { at: number; result: CatalogResult } | null = null;
-export function resetOrgScanCacheForTests(): void { cache = null; }
+const MANIFEST_TTL_MS = 1_800_000;
+const manifestCache = new Map<string, { at: number; value: { displayName?: string; icon?: string } }>();
+export function resetOrgScanCacheForTests(): void { cache = null; manifestCache.clear(); }
 
 function tryExec(exe: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -47,6 +49,19 @@ async function resolveToken(env: NodeJS.ProcessEnv, execFn: (f: string, a: strin
 // so it works for private repos with the same token. Best-effort: a repo without a
 // manifest (404) returns {}. The icon SVG is base64-encoded into a data URI.
 async function fetchManifest(
+  fetchFn: typeof fetch,
+  repo: string,
+  token: string | null,
+  now: () => number,
+): Promise<{ displayName?: string; icon?: string }> {
+  const hit = manifestCache.get(repo);
+  if (hit && now() - hit.at < MANIFEST_TTL_MS) return hit.value;
+  const value = await fetchManifestUncached(fetchFn, repo, token);
+  manifestCache.set(repo, { at: now(), value });
+  return value;
+}
+
+async function fetchManifestUncached(
   fetchFn: typeof fetch,
   repo: string,
   token: string | null,
@@ -100,13 +115,22 @@ export async function scanOrg(deps: OrgScanDeps = {}): Promise<CatalogResult> {
       }
       if (repos.length < 100) break;
     }
-    await Promise.all(
-      entries.map(async (entry) => {
-        const manifest = await fetchManifest(fetchFn, entry.name, token);
-        if (manifest.displayName) entry.displayName = manifest.displayName;
-        if (manifest.icon) entry.icon = manifest.icon;
-      }),
-    );
+    // Manifest enrichment is best-effort and MUST NOT affect the base catalog.
+    // Only with a token: anonymous requests share a tiny 60/hr budget that the
+    // per-repo fan-out would exhaust, starving the repo-list call itself.
+    if (token) {
+      try {
+        await Promise.all(
+          entries.map(async (entry) => {
+            const manifest = await fetchManifest(fetchFn, entry.name, token, now);
+            if (manifest.displayName) entry.displayName = manifest.displayName;
+            if (manifest.icon) entry.icon = manifest.icon;
+          }),
+        );
+      } catch {
+        // enrichment failure never empties the catalog
+      }
+    }
     const result: CatalogResult = { entries, source };
     if (entries.length > 0 || !cache) cache = { at: now(), result };
     return cache.result;
