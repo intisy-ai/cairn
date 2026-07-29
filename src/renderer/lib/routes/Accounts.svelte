@@ -9,6 +9,7 @@
   import SearchField from "../components/SearchField.svelte";
   import CollapsibleGroup from "../components/CollapsibleGroup.svelte";
   import VirtualList from "../components/VirtualList.svelte";
+  import Skeleton from "../components/Skeleton.svelte";
 
   const STATUS_INFO: Record<AccountStatus, { variant: StatusVariant; label: string }> = {
     active: { variant: "good", label: "Active" },
@@ -23,6 +24,7 @@
 
   let providers = $state<ProviderRowData[]>([]);
   let providersError = $state("");
+  let loaded = $state(false);
   let accountsByProvider = $state<Record<string, AccountView[]>>({});
   let accountErrors = $state<Record<string, string>>({});
   let searchRaw = $state("");
@@ -92,7 +94,9 @@
     await loadAccounts(providerId);
   }
 
-  onMount(load);
+  onMount(() => {
+    load().finally(() => (loaded = true));
+  });
 </script>
 
 <div class="head">
@@ -104,6 +108,12 @@
 
 {#if providersError}
   <p class="error">Could not load providers: {providersError}</p>
+{:else if !loaded}
+  <div class="skeletons">
+    {#each Array(5) as _}
+      <Skeleton height="52px" radius="10px" />
+    {/each}
+  </div>
 {:else}
   <div class="toolbar">
     <SearchField bind:value={searchRaw} placeholder="Search accounts" />

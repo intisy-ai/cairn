@@ -5,6 +5,7 @@
   import { navigate } from "../router.js";
   import StatCard from "../components/StatCard.svelte";
   import Card from "../components/Card.svelte";
+  import Skeleton from "../components/Skeleton.svelte";
   import AreaChart from "../charts/AreaChart.svelte";
   import { dayRange, dayKey, SERIES_COLORS, type SeriesInput } from "../charts/chartMath.js";
 
@@ -144,6 +145,12 @@
         </div>
       </Card>
     </section>
+  </div>
+{:else}
+  <div class="skeletons">
+    <Skeleton height="72px" radius="12px" />
+    <Skeleton height="140px" radius="12px" />
+    <Skeleton height="140px" radius="12px" />
   </div>
 {/if}
 

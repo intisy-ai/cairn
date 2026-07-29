@@ -14,6 +14,7 @@
   import AppPills from "../components/AppPills.svelte";
   import SplitButton from "../components/SplitButton.svelte";
   import AddPluginDialog from "../components/AddPluginDialog.svelte";
+  import Skeleton from "../components/Skeleton.svelte";
 
   const VIRTUALIZE_THRESHOLD = 20;
   const ROW_HEIGHT = 76;
@@ -21,6 +22,7 @@
   let sections = $state<HomePlugins[]>([]);
   let catalog = $state<CatalogEntry[]>([]);
   let pluginsError = $state("");
+  let loaded = $state(false);
 
   let searchRaw = $state("");
   let search = $state("");
@@ -61,6 +63,7 @@
 
   async function reload(): Promise<void> {
     await Promise.all([loadPlugins(), loadCatalog()]);
+    loaded = true;
   }
 
   function homesById(): Record<string, PluginHome> {
@@ -159,8 +162,12 @@
 
 {#if pluginsError}
   <p class="error">Could not load plugins: {pluginsError}</p>
-{:else if sections.length === 0}
-  <p class="loading">Loading plugins…</p>
+{:else if !loaded}
+  <div class="skeletons">
+    {#each Array(5) as _}
+      <Skeleton height="46px" radius="10px" />
+    {/each}
+  </div>
 {:else}
   <div class="toolbar">
     <SearchField bind:value={searchRaw} placeholder="Search plugins…" />

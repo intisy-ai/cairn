@@ -7,6 +7,7 @@
   import StatusPill from "../components/StatusPill.svelte";
   import Chip from "../components/Chip.svelte";
   import Button from "../components/Button.svelte";
+  import Skeleton from "../components/Skeleton.svelte";
   import ImportDialog from "../components/ImportDialog.svelte";
 
   const PROVIDER_BREAKDOWN_CAP = 6;
@@ -14,6 +15,7 @@
   let apps = $state<HostApp[]>([]);
   let presence = $state<AppPresence>({});
   let appsError = $state("");
+  let loaded = $state(false);
 
   let busy = $state<Record<string, boolean>>({});
   let summaries = $state<Record<string, AppSummary | null>>({});
@@ -125,9 +127,7 @@
   }
 
   onMount(() => {
-    loadApps();
-    loadPresence();
-    loadImportable();
+    Promise.all([loadApps(), loadPresence(), loadImportable()]).finally(() => (loaded = true));
   });
 </script>
 
@@ -142,8 +142,9 @@
   <p class="error">Could not load app status: {appsError}</p>
 {/if}
 
-{#if visibleApps.length === 0}
-  <p class="loading">Loading apps…</p>
+{#if !loaded}
+  <section class="group"><Skeleton height="86px" radius="12px" /></section>
+  <section class="group"><Skeleton height="86px" radius="12px" /></section>
 {:else}
   {#each visibleApps as app (app.id)}
     {@const present = presence[app.id] ?? false}

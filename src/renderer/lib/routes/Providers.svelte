@@ -15,6 +15,7 @@
   import CustomEndpointsDialog from "../components/CustomEndpointsDialog.svelte";
   import CollapsibleGroup from "../components/CollapsibleGroup.svelte";
   import VirtualList from "../components/VirtualList.svelte";
+  import Skeleton from "../components/Skeleton.svelte";
 
   // API key / Local chips can return once ProviderRow carries a real connection-kind field.
   type Filter = "all" | "connected" | "oauth";
@@ -30,6 +31,7 @@
 
   let rows = $state<ProviderRowData[]>([]);
   let loadError = $state("");
+  let loaded = $state(false);
   let searchRaw = $state("");
   let search = $state("");
   let filter = $state<Filter>("all");
@@ -87,6 +89,7 @@
     } else {
       loadError = result.error;
     }
+    loaded = true;
   }
 
   function initials(label: string): string {
@@ -167,6 +170,13 @@
 
 {#if loadError}
   <p class="error">Could not load providers: {loadError}</p>
+{:else if !loaded}
+  <div class="skeletons">
+    <Skeleton height="64px" radius="10px" />
+    {#each Array(5) as _}
+      <Skeleton height="46px" radius="10px" />
+    {/each}
+  </div>
 {:else}
   <section class="summary">
     <StatCard label="Connected" value={String(connectedCount)} unit={`/ ${rows.length} providers`} />

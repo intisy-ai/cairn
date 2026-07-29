@@ -4,6 +4,7 @@
   import { cairn } from "../ipc.js";
   import Card from "../components/Card.svelte";
   import Button from "../components/Button.svelte";
+  import Skeleton from "../components/Skeleton.svelte";
 
   let apps = $state<RoutingApp[]>([]);
   let app = $state("");
@@ -12,6 +13,7 @@
   let catalog = $state<ModelCatalogEntry[]>([]);
   let loadError = $state("");
   let warnings = $state<string[]>([]);
+  let loaded = $state(false);
   let pending = $state<Record<string, string>>({});
 
   const slots = $derived(["default", ...tiers]);
@@ -71,6 +73,7 @@
       app = result.data[0]?.app ?? "";
       if (app) await load();
     }
+    loaded = true;
   });
 </script>
 
@@ -81,8 +84,15 @@
   </div>
 </div>
 
-{#if apps.length === 0}
-  <p class="hint">Install a proxy in Apps &amp; plugins to configure routing.</p>
+{#if !loaded}
+  <div class="skeletons">
+    <Skeleton width="220px" height="30px" />
+    {#each Array(4) as _}
+      <Skeleton height="46px" radius="10px" />
+    {/each}
+  </div>
+{:else if apps.length === 0}
+  <p class="hint">Install a proxy in Plugins to configure routing.</p>
 {:else}
   {#if apps.length > 1}
     <div class="apptabs">

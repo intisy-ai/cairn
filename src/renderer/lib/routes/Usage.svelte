@@ -5,6 +5,7 @@
   import StatCard from "../components/StatCard.svelte";
   import Card from "../components/Card.svelte";
   import SearchField from "../components/SearchField.svelte";
+  import Skeleton from "../components/Skeleton.svelte";
   import AreaChart from "../charts/AreaChart.svelte";
   import BarChart from "../charts/BarChart.svelte";
   import Donut from "../charts/Donut.svelte";
@@ -179,7 +180,11 @@
 {#if loadError}
   <p class="error">Could not load usage: {loadError}</p>
 {:else if !snapshot}
-  <p class="loading">Scanning session history, this can take a while on first load…</p>
+  <div class="skeletons">
+    <Skeleton width="200px" height="30px" />
+    <Skeleton height="220px" radius="12px" />
+    <Skeleton height="120px" radius="12px" />
+  </div>
 {:else}
   <section class="summary">
     <StatCard label="Sessions" value={String(inRange.length)} />

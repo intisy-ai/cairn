@@ -5,6 +5,7 @@
   import Card from "../components/Card.svelte";
   import Button from "../components/Button.svelte";
   import StatusPill from "../components/StatusPill.svelte";
+  import Skeleton from "../components/Skeleton.svelte";
 
   let status = $state<ProxyStatus | null>(null);
   let loadError = $state("");
@@ -67,6 +68,8 @@
       <p class="error">{actionError}</p>
     {/if}
   </Card>
+{:else}
+  <Skeleton height="72px" radius="12px" />
 {/if}
 
 <style>
