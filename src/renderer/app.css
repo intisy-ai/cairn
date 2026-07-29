@@ -130,8 +130,17 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+button {
+  transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease, filter 0.14s ease, transform 0.14s ease;
+}
+button:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  * {
+  *, *::before, *::after {
     transition: none !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
