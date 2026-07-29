@@ -317,10 +317,6 @@
     color: var(--crit);
     font-size: 13px;
   }
-  .loading {
-    color: var(--faint);
-    font-size: 13px;
-  }
   .summarycard {
     padding: 0 18px 14px;
     display: flex;

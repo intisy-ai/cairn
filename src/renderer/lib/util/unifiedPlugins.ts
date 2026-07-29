@@ -38,6 +38,7 @@ export function buildUnifiedPlugins(sections: HomePlugins[], catalog: CatalogEnt
       url: catEntry?.url,
       updateAvailable: rows.some((x) => x.r.updateAvailable),
       homes: homesMap,
+      topics: catEntry?.topics ?? [],
     });
   }
   out.sort((a, b) => a.name.localeCompare(b.name));

@@ -22,8 +22,8 @@ describe("scanOrg", () => {
     const result = await scanOrg({ fetchFn: okFetch([repo("stub-auth"), repo("core-ir"), repo("opencode-proxy")]), env: { GITHUB_TOKEN: "t" }, execFn: async () => "" });
     expect(result.source).toBe("env");
     expect(result.entries).toEqual([
-      { name: "stub-auth", url: "https://github.com/intisy-ai/stub-auth", kind: "provider", description: "stub-auth desc", deprecated: false },
-      { name: "opencode-proxy", url: "https://github.com/intisy-ai/opencode-proxy", kind: "proxy", description: "opencode-proxy desc", deprecated: false },
+      { name: "stub-auth", url: "https://github.com/intisy-ai/stub-auth", kind: "provider", description: "stub-auth desc", deprecated: false, topics: [] },
+      { name: "opencode-proxy", url: "https://github.com/intisy-ai/opencode-proxy", kind: "proxy", description: "opencode-proxy desc", deprecated: false, topics: [] },
     ]);
   });
 
@@ -43,6 +43,12 @@ describe("scanOrg", () => {
     resetOrgScanCacheForTests();
     const anon = await scanOrg({ fetchFn: okFetch([]), env: {}, execFn: async () => { throw new Error("no gh"); } });
     expect(anon.source).toBe("anonymous");
+  });
+
+  it("carries repo topics onto the catalog entry", async () => {
+    const withTopics = { name: "stub-auth", html_url: "https://github.com/intisy-ai/stub-auth", description: "d", archived: false, topics: ["intisy-ai", "ai-provider"] };
+    const result = await scanOrg({ fetchFn: okFetch([withTopics]), env: { GITHUB_TOKEN: "t" }, execFn: async () => "" });
+    expect(result.entries.find((e) => e.name === "stub-auth")?.topics).toEqual(["intisy-ai", "ai-provider"]);
   });
 
   it("maps archived repos to deprecated entries instead of skipping them", async () => {

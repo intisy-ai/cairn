@@ -11,7 +11,7 @@ export function classifyRepo(name: string): CatalogKind | null {
   return classifyRepoName(name);
 }
 
-interface RepoJson { name?: string; html_url?: string; description?: string | null; archived?: boolean }
+interface RepoJson { name?: string; html_url?: string; description?: string | null; archived?: boolean; topics?: string[] }
 
 let cache: { at: number; result: CatalogResult } | null = null;
 export function resetOrgScanCacheForTests(): void { cache = null; }
@@ -60,7 +60,7 @@ export async function scanOrg(deps: OrgScanDeps = {}): Promise<CatalogResult> {
         if (!repo.name) continue;
         const kind = classifyRepo(repo.name);
         if (!kind) continue;
-        entries.push({ name: repo.name, url: repo.html_url ?? `https://github.com/${ORG}/${repo.name}`, kind, description: repo.description ?? "", deprecated: repo.archived === true });
+        entries.push({ name: repo.name, url: repo.html_url ?? `https://github.com/${ORG}/${repo.name}`, kind, description: repo.description ?? "", deprecated: repo.archived === true, topics: Array.isArray(repo.topics) ? repo.topics : [] });
       }
       if (repos.length < 100) break;
     }

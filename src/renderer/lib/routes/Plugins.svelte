@@ -41,7 +41,10 @@
   const filtered = $derived(
     unified.filter((p) => {
       const needle = search.trim().toLowerCase();
-      return !needle || p.name.toLowerCase().includes(needle) || p.description.toLowerCase().includes(needle);
+      return !needle
+        || p.name.toLowerCase().includes(needle)
+        || p.description.toLowerCase().includes(needle)
+        || p.topics.some((t) => t.toLowerCase().includes(needle));
     }),
   );
   const addPluginHome = $derived(homes[0]?.id ?? "cairn");
@@ -199,6 +202,13 @@
           {/if}
         </div>
         {#if p.description}<span class="desc">{p.description}</span>{/if}
+        {#if p.topics.length > 0}
+          <div class="topics">
+            {#each p.topics.slice(0, 4) as topic (topic)}
+              <span class="topic" data-testid="topic">{topic}</span>
+            {/each}
+          </div>
+        {/if}
       </div>
       <AppPills apps={applicableHomesFor(p)} values={installedMap(p)} onToggle={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))} />
       <div class="actions">
@@ -302,6 +312,19 @@
     padding: 2px 7px;
     border-radius: 20px;
   }
+  .topics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 4px;
+  }
+  .topic {
+    font-size: 10px;
+    color: var(--faint);
+    background: var(--surface-2);
+    padding: 1px 7px;
+    border-radius: 20px;
+  }
   .actions {
     display: flex;
     align-items: center;
@@ -328,10 +351,6 @@
   }
   .error {
     color: var(--crit);
-    font-size: 13px;
-  }
-  .loading {
-    color: var(--faint);
     font-size: 13px;
   }
 </style>

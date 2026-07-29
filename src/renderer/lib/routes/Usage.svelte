@@ -430,8 +430,4 @@
     color: var(--crit);
     font-size: 13px;
   }
-  .loading {
-    color: var(--faint);
-    font-size: 13px;
-  }
 </style>

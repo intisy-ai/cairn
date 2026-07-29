@@ -44,6 +44,12 @@ describe("buildUnifiedPlugins", () => {
     expect(buildUnifiedPlugins(sections, catalog, homes).find((p) => p.name === "demo")!.description).toBe("from catalog");
   });
 
+  it("carries catalog topics onto the unified plugin", () => {
+    const catalog: CatalogEntry[] = [{ name: "antigravity-auth", url: "u", kind: "provider", description: "d", deprecated: false, topics: ["intisy-ai", "gemini"] }];
+    const out = buildUnifiedPlugins([], catalog, homes);
+    expect(out.find((p) => p.name === "antigravity-auth")!.topics).toEqual(["intisy-ai", "gemini"]);
+  });
+
   it("excludes plugin-updater and marks updateAvailable if any home has an update", () => {
     const sections: HomePlugins[] = [{ home: homes[1], rows: [row("x", { updateAvailable: true }), row("plugin-updater")] }];
     const out = buildUnifiedPlugins(sections, [], homes);

@@ -171,6 +171,16 @@ describe("Plugins screen", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 
+  it("renders repo topic chips on a plugin row", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: { entries: [{ name: "wakatime-sync", url: "u", kind: "plugin", description: "Tracks time", deprecated: false, topics: ["intisy-ai", "plugin", "typescript"] }], source: "gh" } }),
+    });
+    const { findAllByTestId } = render(Plugins);
+    const chips = await findAllByTestId("topic");
+    expect(chips.map((c) => c.textContent)).toEqual(expect.arrayContaining(["intisy-ai", "plugin", "typescript"]));
+  });
+
   it("shows a loading skeleton before plugins resolve, then content", async () => {
     let resolvePlugins!: (v: { ok: true; data: HomePlugins[] }) => void;
     const pending = new Promise<{ ok: true; data: HomePlugins[] }>((r) => (resolvePlugins = r));
