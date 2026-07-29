@@ -2,7 +2,6 @@
   import type { UnifiedPlugin } from "@cairn/shared";
   import PluginIcon from "./PluginIcon.svelte";
   import Button from "./Button.svelte";
-  import { appIcon } from "../appIcons.js";
   import { fadeMotion, flyMotion } from "../util/motion.js";
 
   let {
@@ -15,7 +14,7 @@
     onToggleHome,
   }: {
     plugin: UnifiedPlugin;
-    homes: { id: string; label: string }[];
+    homes: { id: string; label: string; icon?: string }[];
     onClose: () => void;
     onInstallAll: () => void;
     onRemoveEverywhere: () => void;
@@ -66,7 +65,7 @@
     <ul class="apps">
       {#each homes as h (h.id)}
         {@const on = !!plugin.homes[h.id]?.installed}
-        {@const icon = appIcon(h.id)}
+        {@const icon = h.icon}
         <li>
           <span class="appmark" class:na={!on}>
             {#if icon}<span class="glyph">{@html icon}</span>{:else}<span class="lm">{letters(h.label)}</span>{/if}

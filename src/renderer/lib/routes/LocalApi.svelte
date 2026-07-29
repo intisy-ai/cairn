@@ -9,12 +9,6 @@
   import PageHeader from "../components/PageHeader.svelte";
   import ToggleSwitch from "../components/ToggleSwitch.svelte";
 
-  const ENDPOINTS = [
-    { path: "/v1/messages", desc: "Anthropic Messages API" },
-    { path: "/v1/models", desc: "Available models" },
-    { path: "/health", desc: "Health probe" },
-  ];
-
   let status = $state<ProxyStatus | null>(null);
   let loadError = $state("");
   let actionError = $state("");
@@ -78,7 +72,7 @@
   });
 </script>
 
-<PageHeader title="Local API" subtitle="Controls the local proxy that Claude Code and OpenCode connect through." />
+<PageHeader title="Local API" subtitle="Controls the local proxy your apps connect through." />
 
 {#if loadError}
   <p class="error">Could not load the local API status: {loadError}</p>
@@ -117,29 +111,12 @@
   </section>
 
   <section class="panel">
-    <p class="ptitle">Endpoints</p>
-    <Card>
-      <ul class="endpoints">
-        {#each ENDPOINTS as ep (ep.path)}
-          <li>
-            <button class="ep" title="Copy endpoint" onclick={() => copy(baseUrl + ep.path, ep.path)}>
-              <span class="path">{baseUrl}{ep.path}</span>
-              <span class="epdesc">{ep.desc}</span>
-              <span class="copy">{copied === ep.path ? "copied" : "copy"}</span>
-            </button>
-          </li>
-        {/each}
-      </ul>
-    </Card>
-  </section>
-
-  <section class="panel">
     <p class="ptitle">Connecting your apps</p>
     <Card>
       <div class="connect">
-        <p>Point a client at the local API by exporting its base URL:</p>
-        <button class="snippet" title="Copy" onclick={() => copy(`ANTHROPIC_BASE_URL=${baseUrl}`, "env")}>
-          <code>ANTHROPIC_BASE_URL={baseUrl}</code>
+        <p>Point a client at the local API by setting its base URL to:</p>
+        <button class="snippet" title="Copy" onclick={() => copy(baseUrl, "env")}>
+          <code>{baseUrl}</code>
           <span class="copy">{copied === "env" ? "copied" : "copy"}</span>
         </button>
       </div>
@@ -229,44 +206,6 @@
   .optlabel .desc {
     font-size: 11.5px;
     color: var(--muted);
-  }
-  .endpoints {
-    list-style: none;
-    margin: 0;
-    padding: 6px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .ep {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    text-align: left;
-    background: none;
-    border: none;
-    border-radius: 8px;
-    padding: 9px 12px;
-    cursor: pointer;
-    color: var(--text);
-  }
-  .ep:hover {
-    background: var(--surface-2);
-  }
-  .ep .path {
-    font-family: var(--mono);
-    font-size: 12px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-width: 0;
-  }
-  .ep .epdesc {
-    font-size: 11.5px;
-    color: var(--faint);
-    margin-left: auto;
-    flex: none;
   }
   .connect {
     padding: 14px 18px;

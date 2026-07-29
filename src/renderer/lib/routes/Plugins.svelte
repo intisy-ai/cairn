@@ -100,9 +100,9 @@
   function homesById(): Record<string, PluginHome> {
     return Object.fromEntries(homes.map((h) => [h.id, h]));
   }
-  function applicableHomesFor(p: UnifiedPlugin): { id: string; label: string }[] {
+  function applicableHomesFor(p: UnifiedPlugin): { id: string; label: string; icon?: string }[] {
     const by = homesById();
-    return Object.keys(p.homes).map((id) => ({ id, label: by[id]?.label ?? id }));
+    return Object.keys(p.homes).map((id) => ({ id, label: by[id]?.label ?? id, icon: by[id]?.icon }));
   }
   function installedMap(p: UnifiedPlugin): Record<string, boolean> {
     return Object.fromEntries(Object.entries(p.homes).map(([id, s]) => [id, s.installed]));

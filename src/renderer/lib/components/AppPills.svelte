@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { HostApp } from "@cairn/shared";
-  import { appIcon } from "../appIcons.js";
 
   let { apps, values, onToggle, size = 22 }: {
     apps: HostApp[];
@@ -17,7 +16,7 @@
 <div class="apps">
   {#each apps as app (app.id)}
     {@const on = !!values[app.id]}
-    {@const icon = appIcon(app.id)}
+    {@const icon = app.icon}
     <svelte:element
       this={onToggle ? "button" : "span"}
       role={onToggle ? "button" : undefined}

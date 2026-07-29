@@ -39,7 +39,7 @@ export type RoutingState = {
   catalog: ModelCatalogEntry[];
 };
 export type AppPresence = Record<string, boolean>;
-export type HostApp = { id: string; label: string };
+export type HostApp = { id: string; label: string; icon?: string };
 export type CliResult = {
   stdout: string;
   stderr: string;
@@ -59,7 +59,7 @@ export type UsageAccount = {
   provider: string;
   id: string;
 };
-export type UsageSessionSource = "opencode" | "claude-code";
+export type UsageSessionSource = string;
 export type UsageTokens = {
   input: number;
   output: number;
@@ -113,6 +113,7 @@ export type PluginHomeId = string;
 export type PluginHome = {
   id: PluginHomeId;
   label: string;
+  icon?: string;
   dir: string;
   present: boolean;
   hasUpdater: boolean;

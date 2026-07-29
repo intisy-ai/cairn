@@ -152,7 +152,7 @@
 <div class="head">
   <div style="flex:1">
     <h1>Providers</h1>
-    <p>Connect AI backends once, routed to Claude Code and OpenCode alike.</p>
+    <p>Connect AI backends once, routed to all your apps alike.</p>
   </div>
   <Button onclick={handleImport}>Import</Button>
   <Button onclick={() => (customEndpointsOpen = true)}>Custom endpoints</Button>

@@ -28,10 +28,10 @@ describe("LocalApi screen", () => {
       proxyStop,
     });
 
-    const { getByText } = render(LocalApi);
+    const { getByText, getAllByText } = render(LocalApi);
 
     await waitFor(() => expect(getByText("Running")).toBeTruthy());
-    expect(getByText("http://127.0.0.1:34567")).toBeTruthy();
+    expect(getAllByText("http://127.0.0.1:34567").length).toBeGreaterThan(0);
 
     await fireEvent.click(getByText("Stop"));
     await waitFor(() => expect(proxyStop).toHaveBeenCalled());

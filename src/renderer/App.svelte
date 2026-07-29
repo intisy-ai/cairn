@@ -34,17 +34,21 @@
   const routeModule = $derived(loadRoute(screen));
 
   let hasRouting = $state(true);
+  let brandTag = $state("AI control plane");
 
   onMount(async () => {
     const result = await cairn.routingApps();
     hasRouting = result.ok && result.data.length > 0;
+    // Brand tag lists the managed apps from registry data, never hardcoded names.
+    const apps = await cairn.appsList();
+    if (apps.ok && apps.data.length > 0) brandTag = apps.data.map((a) => a.label).join(" · ");
   });
 </script>
 
 <div class="window">
   <Titlebar title="Cairn" subtitle={activeLabel} />
   <div class="shell">
-    <Sidebar {hasRouting} />
+    <Sidebar {hasRouting} {brandTag} />
     <main class="main">
       {#key screen}
         <div class="screen" in:fadeMotion={{ duration: 120 }}>

@@ -6,7 +6,7 @@
 
   let {
     brandName = "Cairn",
-    brandTag = "Claude Code · OpenCode",
+    brandTag = "AI control plane",
     apiPort = 34567,
     hasRouting = true,
   }: { brandName?: string; brandTag?: string; apiPort?: number; hasRouting?: boolean } = $props();

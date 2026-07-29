@@ -5,6 +5,7 @@ import { getConfigDir } from "@core-auth/index.js";
 import { getPluginsPath } from "@plugin-updater/config.js";
 import { getApps, getAppDescriptor, resolveHome } from "@core/index.js";
 import { appsDetect } from "../modules/apps.js";
+import { renderCairnMark } from "../../../packages/shared/src/logo.js";
 import type { AppPresence, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
 
 export function appRealHome(app: string, env: NodeJS.ProcessEnv = process.env, home: string = homedir()): string {
@@ -28,10 +29,10 @@ export async function pluginHomes(deps: PluginHomesDeps = {}): Promise<PluginHom
   const present: AppPresence = detected.ok ? detected.data : {};
   const appHomes: PluginHome[] = getApps().map((desc) => {
     const dir = appHomeForId(desc.id);
-    return { id: desc.id, label: desc.label, dir, present: !!present[desc.id], hasUpdater: exists(getPluginsPath(dir)) };
+    return { id: desc.id, label: desc.label, icon: desc.icon, dir, present: !!present[desc.id], hasUpdater: exists(getPluginsPath(dir)) };
   });
   return [
-    { id: "cairn", label: "Cairn", dir: cairnDir, present: true, hasUpdater: true },
+    { id: "cairn", label: "Cairn", icon: renderCairnMark(), dir: cairnDir, present: true, hasUpdater: true },
     ...appHomes,
   ];
 }

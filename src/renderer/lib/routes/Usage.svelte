@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import type { UsageSnapshot, UsageSession } from "@cairn/shared";
   import { cairn } from "../ipc.js";
+  import { humanizeId } from "../util/appLabel.js";
   import StatCard from "../components/StatCard.svelte";
   import Card from "../components/Card.svelte";
   import SearchField from "../components/SearchField.svelte";
@@ -136,7 +137,7 @@
   }
 
   function sourceLabel(source: UsageSession["source"]): string {
-    return source === "claude-code" ? "Claude Code" : "OpenCode";
+    return humanizeId(source);
   }
 
   function modelList(session: UsageSession): string {

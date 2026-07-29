@@ -6,6 +6,7 @@ declare module "@core/index.js" {
   export interface AppDescriptor {
     id: string;
     label: string;
+    icon?: string;
     home: {
       envOverride?: string;
       nativeEnv?: string;

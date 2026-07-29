@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import type { OverviewSummary, UsageSnapshot, UsageSession } from "@cairn/shared";
   import { cairn } from "../ipc.js";
+  import { humanizeId } from "../util/appLabel.js";
   import { navigate } from "../router.js";
   import StatCard from "../components/StatCard.svelte";
   import Card from "../components/Card.svelte";
@@ -50,7 +51,7 @@
   const providerHealth = $derived(summary?.providerHealth.slice(0, 6) ?? []);
 
   function sourceLabel(source: UsageSession["source"]): string {
-    return source === "claude-code" ? "Claude Code" : "OpenCode";
+    return humanizeId(source);
   }
 
   function formatTokens(value: number): string {

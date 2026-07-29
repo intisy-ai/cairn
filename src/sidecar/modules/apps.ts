@@ -56,7 +56,7 @@ export function appsDetect(deps: AppsDetectDeps = {}): Promise<Result<AppPresenc
 }
 
 export function appsList(): Promise<Result<HostApp[]>> {
-  return wrap(() => getApps().map((desc) => ({ id: desc.id, label: desc.label })));
+  return wrap(() => getApps().map((desc) => ({ id: desc.id, label: desc.label, icon: desc.icon })));
 }
 
 export function appsInstallCli(app: string, spawn: SpawnFn = realSpawn): Promise<Result<CliResult>> {
