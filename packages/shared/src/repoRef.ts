@@ -17,7 +17,7 @@ export function parseRepoRef(input: string): RepoRef | null {
 }
 
 export function classifyRepoName(name: string): CatalogKind | null {
-  if (name.endsWith("-loader") || name.startsWith("core-")) return null;
+  if (name.endsWith("-loader") || name.endsWith("-translator") || name.startsWith("core-")) return null;
   if (name.endsWith("-proxy")) return "proxy";
   if (name.endsWith("-auth")) return "provider";
   return "plugin";

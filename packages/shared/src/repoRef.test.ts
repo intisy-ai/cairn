@@ -35,8 +35,10 @@ describe("classifyRepoName", () => {
     expect(classifyRepoName("foo-auth")).toBe("provider");
     expect(classifyRepoName("some-plugin")).toBe("plugin");
   });
-  it("returns null for loaders and core libraries", () => {
+  it("returns null for loaders, core libraries, and vendor translators", () => {
     expect(classifyRepoName("claude-code-loader")).toBeNull();
     expect(classifyRepoName("core-proxy")).toBeNull();
+    expect(classifyRepoName("openai-translator")).toBeNull();
+    expect(classifyRepoName("anthropic-translator")).toBeNull();
   });
 });

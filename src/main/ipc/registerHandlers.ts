@@ -13,9 +13,22 @@ export interface RpcSupervisor {
 // the generic supervisor-forwarding loop below.
 const MAIN_HANDLED = new Set(["proxy:status", "proxy:start", "proxy:stop"]);
 
-// The first usage scan streams the full transcript history (multi-GB on real
-// machines) before its per-file cache warms up, so it gets a wider deadline.
-const CHANNEL_TIMEOUTS: Record<string, number> = { "usage:snapshot": 120000 };
+// Channels that do real work (git clone + npm install + build, a full usage scan,
+// a cross-app sync) need deadlines far wider than the supervisor's 15s default.
+const LONG_MS = 600000;
+const CHANNEL_TIMEOUTS: Record<string, number> = {
+  "usage:snapshot": 120000,
+  "plugins:install": LONG_MS,
+  "plugins:installMany": LONG_MS,
+  "plugins:removeEverywhere": LONG_MS,
+  "plugins:uninstall": LONG_MS,
+  "plugins:downgrade": LONG_MS,
+  "apps:installCli": LONG_MS,
+  "apps:init": LONG_MS,
+  "apps:uninstallCli": LONG_MS,
+  "sync:run": LONG_MS,
+  "import:run": LONG_MS,
+};
 
 export function registerHandlers(supervisor: RpcSupervisor): void {
   for (const channel of IPC_CHANNELS.invoke) {
