@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { HostApp, AppPresence, AppSummary } from "@cairn/shared";
+  import type { HostApp, AppPresence, AppSummary, ImportableApp } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { track } from "../downloads.js";
   import Card from "../components/Card.svelte";
   import StatusPill from "../components/StatusPill.svelte";
   import Chip from "../components/Chip.svelte";
   import Button from "../components/Button.svelte";
+  import ImportDialog from "../components/ImportDialog.svelte";
 
   const PROVIDER_BREAKDOWN_CAP = 6;
 
@@ -22,7 +23,21 @@
   let uninstallOpen = $state<Record<string, boolean>>({});
   let uninstallWipe = $state<Record<string, boolean>>({});
 
+  let importable = $state<ImportableApp[]>([]);
+  let importApp = $state<string | null>(null);
+  let importAppLabel = $state("");
+  let importNotes = $state<Record<string, string[]>>({});
+
   const visibleApps = $derived(apps.filter((app) => app.id !== "cairn"));
+
+  function canImport(appId: string): boolean {
+    return importable.some((a) => a.app === appId && a.hasConfig);
+  }
+
+  function openImport(app: HostApp): void {
+    importApp = app.id;
+    importAppLabel = app.label;
+  }
 
   async function loadApps(): Promise<void> {
     const result = await cairn.appsList();
@@ -37,6 +52,11 @@
     } else {
       appsError = result.error;
     }
+  }
+
+  async function loadImportable(): Promise<void> {
+    const result = await cairn.importApps();
+    if (result.ok) importable = result.data;
   }
 
   function loadSummary(app: string): void {
@@ -107,6 +127,7 @@
   onMount(() => {
     loadApps();
     loadPresence();
+    loadImportable();
   });
 </script>
 
@@ -141,6 +162,9 @@
           </div>
           <div class="actions">
             {#if present}
+              {#if canImport(app.id)}
+                <Button onclick={() => openImport(app)}>Import config</Button>
+              {/if}
               <Button disabled={busy[app.id]} onclick={() => handleInit(app)}>Initialize plugin-updater</Button>
             {:else}
               <Button variant="primary" disabled={busy[app.id]} onclick={() => handleInstallCli(app)}>Install CLI</Button>
@@ -183,6 +207,12 @@
             </div>
           {/if}
         {/if}
+
+        {#if importNotes[app.id]?.length}
+          <ul class="importnotes">
+            {#each importNotes[app.id] as note}<li>{note}</li>{/each}
+          </ul>
+        {/if}
       </Card>
 
       {#if present}
@@ -212,6 +242,23 @@
       {/if}
     </section>
   {/each}
+{/if}
+
+{#if importApp}
+  <ImportDialog
+    app={importApp}
+    label={importAppLabel}
+    onClose={() => (importApp = null)}
+    onDone={(notes) => {
+      const target = importApp;
+      if (target) {
+        importNotes = { ...importNotes, [target]: notes };
+        const { [target]: _removed, ...rest } = summaries;
+        summaries = rest;
+      }
+      loadPresence();
+    }}
+  />
 {/if}
 
 <style>
@@ -312,6 +359,13 @@
     color: var(--crit);
     font-size: 12.5px;
     margin: 14px 18px 0;
+  }
+  .importnotes {
+    margin: 0;
+    padding: 12px 18px 14px 34px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
   }
   .dangerzone {
     margin-top: 10px;

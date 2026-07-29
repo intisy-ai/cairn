@@ -77,4 +77,53 @@ describe("Apps screen", () => {
 
     await waitFor(() => expect(appsInstallCli).toHaveBeenCalledWith("opencode"));
   });
+
+  it("offers Import config on an app with importable config and opens the import dialog", async () => {
+    const importPreview = vi.fn(async () => ({
+      ok: true,
+      data: { accounts: 2, routingSlots: 1, exposedProviders: 3 },
+    }) as const);
+    stubCairn({
+      appsList: async () => ({
+        ok: true,
+        data: [
+          { id: "claude", label: "Claude Code" },
+          { id: "opencode", label: "OpenCode" },
+        ],
+      }),
+      appsDetect: async () => ({ ok: true, data: { claude: true, opencode: true } }),
+      appsSummary: async () => ({
+        ok: true,
+        data: {
+          accounts: [],
+          providerCount: 0,
+          accountsEnabled: 0,
+          providerBreakdown: [],
+          quotaMinPct: null,
+          configDir: "/home/jane/.claude",
+          pluginCount: 0,
+          routingSlots: null,
+        },
+      }),
+      importApps: async () => ({
+        ok: true,
+        data: [
+          { app: "claude", label: "Claude Code", hasConfig: true },
+          { app: "opencode", label: "OpenCode", hasConfig: false },
+        ],
+      }),
+      importPreview,
+    });
+    render(Apps);
+
+    const claudeCard = within(await screen.findByTestId("app-claude"));
+    const importButton = await claudeCard.findByRole("button", { name: /import config/i });
+    expect(importButton).toBeInTheDocument();
+
+    const opencodeCard = within(screen.getByTestId("app-opencode"));
+    expect(opencodeCard.queryByRole("button", { name: /import config/i })).toBeNull();
+
+    await fireEvent.click(importButton);
+    await waitFor(() => expect(importPreview).toHaveBeenCalledWith("claude"));
+  });
 });
