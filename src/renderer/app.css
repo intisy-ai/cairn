@@ -21,6 +21,13 @@
   --radius: 10px;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
   --ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --fs-h1: 20px;
+  --fs-h2: 15px;
+  --fs-body: 12.5px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 14px;
+  --space-4: 22px;
 }
 
 @media (prefers-color-scheme: dark) {
