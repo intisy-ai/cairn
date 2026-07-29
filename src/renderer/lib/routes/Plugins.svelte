@@ -17,6 +17,7 @@
   import Skeleton from "../components/Skeleton.svelte";
   import PageHeader from "../components/PageHeader.svelte";
   import PluginIcon from "../components/PluginIcon.svelte";
+  import Chip from "../components/Chip.svelte";
 
   const VIRTUALIZE_THRESHOLD = 20;
   const ROW_HEIGHT = 96;
@@ -38,10 +39,27 @@
   let addOpen = $state(false);
   let selections = $state<Record<string, string[]>>({});
 
+  type KindFilter = "all" | "provider" | "proxy" | "plugin";
+  let kindFilter = $state<KindFilter>("all");
+  let installedOnly = $state(false);
+
+  function isInstalled(p: UnifiedPlugin): boolean {
+    return Object.values(p.homes).some((h) => h.installed);
+  }
+
   const homes = $derived(sections.map((s) => s.home));
   const unified = $derived(buildUnifiedPlugins(sections, catalog, homes));
+  const counts = $derived({
+    all: unified.length,
+    provider: unified.filter((p) => p.kind === "provider").length,
+    proxy: unified.filter((p) => p.kind === "proxy").length,
+    plugin: unified.filter((p) => p.kind === "plugin").length,
+    installed: unified.filter(isInstalled).length,
+  });
   const filtered = $derived(
     unified.filter((p) => {
+      if (kindFilter !== "all" && p.kind !== kindFilter) return false;
+      if (installedOnly && !isInstalled(p)) return false;
       const needle = search.trim().toLowerCase();
       return !needle
         || p.name.toLowerCase().includes(needle)
@@ -50,6 +68,9 @@
         || p.topics.some((t) => t.toLowerCase().includes(needle));
     }),
   );
+  function setKind(kind: KindFilter): void {
+    kindFilter = kind;
+  }
   const addPluginHome = $derived(homes[0]?.id ?? "cairn");
 
   async function loadPlugins(): Promise<void> {
@@ -175,6 +196,15 @@
     <Button variant="primary" onclick={() => (addOpen = true)}>+ Add from URL</Button>
   </div>
 
+  <div class="filters">
+    <Chip label={`All ${counts.all}`} on={kindFilter === "all"} onclick={() => setKind("all")} />
+    <Chip label={`Providers ${counts.provider}`} on={kindFilter === "provider"} onclick={() => setKind("provider")} />
+    <Chip label={`Proxies ${counts.proxy}`} on={kindFilter === "proxy"} onclick={() => setKind("proxy")} />
+    <Chip label={`Plugins ${counts.plugin}`} on={kindFilter === "plugin"} onclick={() => setKind("plugin")} />
+    <span class="sep"></span>
+    <Chip label={`Installed ${counts.installed}`} on={installedOnly} onclick={() => (installedOnly = !installedOnly)} />
+  </div>
+
   {#snippet unifiedRow(p: UnifiedPlugin)}
     {#snippet installMenu()}
       <div class="install-menu">
@@ -252,8 +282,21 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    margin: 0 2px 12px;
+    flex-wrap: wrap;
+  }
+  .filters {
+    display: flex;
+    align-items: center;
+    gap: 7px;
     margin: 0 2px 14px;
     flex-wrap: wrap;
+  }
+  .filters .sep {
+    width: 1px;
+    height: 18px;
+    background: var(--border);
+    margin: 0 3px;
   }
   .row {
     display: flex;
