@@ -23,7 +23,17 @@ function setTaskStatus(id: number, status: DownloadStatus, error: string): void 
   }));
 }
 
-export async function track<T>(label: string, home: string, run: () => Promise<Result<T>>): Promise<Result<T>> {
+/**
+ * summarizeFailure lets a caller flag a partial failure that a plain ok/error Result can't
+ * express, e.g. a multi-home install where the overall call succeeded but some homes failed.
+ * Return an error string to mark the task failed, or null when data is fully ok.
+ */
+export async function track<T>(
+  label: string,
+  home: string,
+  run: () => Promise<Result<T>>,
+  summarizeFailure?: (data: T) => string | null,
+): Promise<Result<T>> {
   const id = nextId++;
   downloads.update((state) => ({
     tasks: [...state.tasks, { id, label, home, status: "running", error: "", startedAt: Date.now() }],
@@ -33,7 +43,9 @@ export async function track<T>(label: string, home: string, run: () => Promise<R
   try {
     const result = await run();
     if (result.ok) {
-      setTaskStatus(id, "done", "");
+      const failure = summarizeFailure?.(result.data) ?? null;
+      if (failure) setTaskStatus(id, "failed", failure);
+      else setTaskStatus(id, "done", "");
     } else {
       setTaskStatus(id, "failed", result.error);
     }

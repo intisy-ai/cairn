@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, waitFor, within, screen } from "@testing-library/svelte";
+import { get } from "svelte/store";
 import { stubCairn } from "../testing.js";
+import { downloads } from "../downloads.js";
 import Plugins from "./Plugins.svelte";
 import type { HomePlugins, PluginHome } from "@cairn/shared";
 
@@ -32,6 +34,10 @@ function baseCatalog() {
 }
 
 describe("Plugins screen", () => {
+  beforeEach(() => {
+    downloads.set({ tasks: [], open: false });
+  });
+
   it("renders a unified row per plugin with its description text", async () => {
     stubCairn({
       pluginsList: async () => ({ ok: true, data: baseSections() }),
@@ -87,5 +93,69 @@ describe("Plugins screen", () => {
     await fireEvent.click(row.getByTitle("OpenCode"));
 
     await waitFor(() => expect(pluginsInstall).toHaveBeenCalledWith("opencode", "wakatime-sync", "uw"));
+  });
+
+  it("surfaces a failed outcome from a multi-home install in the download manager", async () => {
+    const pluginsInstallMany = vi.fn(async () => ({
+      ok: true,
+      data: { outcomes: [{ home: "claude", ok: true }, { home: "opencode", ok: false, error: "disk full" }] },
+    }) as const);
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      pluginsInstallMany,
+    });
+    render(Plugins);
+
+    const row = within(await screen.findByTestId("plugin-demo"));
+    await fireEvent.click(row.getByRole("button", { name: "Install" }));
+
+    await waitFor(() => expect(pluginsInstallMany).toHaveBeenCalled());
+    await waitFor(() => {
+      const task = get(downloads).tasks[0];
+      expect(task.status).toBe("failed");
+      expect(task.error).toMatch(/opencode: disk full/);
+    });
+  });
+
+  it("surfaces a rejected multi-home install (res.ok=false) in the download manager", async () => {
+    const pluginsInstallMany = vi.fn(async () => ({ ok: false, error: "network unreachable" }) as const);
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      pluginsInstallMany,
+    });
+    render(Plugins);
+
+    const row = within(await screen.findByTestId("plugin-demo"));
+    await fireEvent.click(row.getByRole("button", { name: "Install" }));
+
+    await waitFor(() => expect(pluginsInstallMany).toHaveBeenCalled());
+    await waitFor(() => {
+      const task = get(downloads).tasks[0];
+      expect(task.status).toBe("failed");
+      expect(task.error).toBe("network unreachable");
+    });
+  });
+
+  it("adding a plugin-kind repo by URL installs to the applicable host-app homes, not cairn", async () => {
+    const pluginsInstallMany = vi.fn(async () => ({ ok: true, data: { outcomes: [] } }) as const);
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      pluginsInstallMany,
+    });
+    render(Plugins);
+
+    await fireEvent.click(await screen.findByRole("button", { name: "+ Add from URL" }));
+    const dialog = within(screen.getByRole("dialog"));
+    await fireEvent.input(dialog.getByPlaceholderText("owner/repo or GitHub URL"), {
+      target: { value: "https://github.com/intisy-ai/some-plugin" },
+    });
+    await fireEvent.click(dialog.getByRole("button", { name: "Install" }));
+
+    await waitFor(() =>
+      expect(pluginsInstallMany).toHaveBeenCalledWith("some-plugin", "https://github.com/intisy-ai/some-plugin", ["claude", "opencode"]),
+    );
   });
 });

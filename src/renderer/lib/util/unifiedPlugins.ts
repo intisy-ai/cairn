@@ -7,7 +7,7 @@ function kindOf(name: string, catalog: CatalogEntry[]): CatalogKind {
   return classifyRepoName(name) ?? "plugin";
 }
 
-function applicableHomeIds(kind: CatalogKind, homes: PluginHome[]): string[] {
+export function applicableHomeIds(kind: CatalogKind, homes: PluginHome[]): string[] {
   return homes
     .filter((h) => (h.id === "cairn" ? kind !== "plugin" : kind !== "proxy"))
     .map((h) => h.id);

@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin } from "@cairn/shared";
+  import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin, Result, InstallManyResult, InstallOutcome, RepoRef } from "@cairn/shared";
+  import { classifyRepoName } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { track } from "../downloads.js";
   import { debounce } from "../util/debounce.js";
-  import { buildUnifiedPlugins } from "../util/unifiedPlugins.js";
+  import { buildUnifiedPlugins, applicableHomeIds } from "../util/unifiedPlugins.js";
   import Button from "../components/Button.svelte";
   import Card from "../components/Card.svelte";
   import SearchField from "../components/SearchField.svelte";
@@ -90,6 +91,21 @@
     selections = { ...selections, [p.name]: [...current] };
   }
 
+  function outcomesError(outcomes: InstallOutcome[]): string | null {
+    const failed = outcomes.filter((o) => !o.ok);
+    if (failed.length === 0) return null;
+    return failed.map((o) => `${o.home}: ${o.error ?? "failed"}`).join("; ");
+  }
+
+  async function installManyTracked(label: string, name: string, url: string, homeIds: string[]): Promise<Result<InstallManyResult>> {
+    const result = await track(label, homeIds.join(", ") || "none", () => cairn.pluginsInstallMany(name, url, homeIds), (data) =>
+      outcomesError(data.outcomes),
+    );
+    if (!result.ok) return result;
+    const error = outcomesError(result.data.outcomes);
+    return error ? { ok: false, error } : result;
+  }
+
   async function addHome(p: UnifiedPlugin, homeId: string): Promise<void> {
     await track(`Install ${p.name}`, homeId, () => cairn.pluginsInstall(homeId, p.name, p.url ?? ""));
     await reload();
@@ -99,23 +115,31 @@
     await reload();
   }
   async function handleInstallAll(p: UnifiedPlugin): Promise<void> {
-    await cairn.pluginsInstallMany(p.name, p.url ?? "", notInstalledApplicable(p));
+    await installManyTracked(`Install ${p.name}`, p.name, p.url ?? "", notInstalledApplicable(p));
     await reload();
   }
   async function handleInstallSelected(p: UnifiedPlugin): Promise<void> {
-    await cairn.pluginsInstallMany(p.name, p.url ?? "", selectionFor(p));
+    await installManyTracked(`Install ${p.name}`, p.name, p.url ?? "", selectionFor(p));
     const next = { ...selections };
     delete next[p.name];
     selections = next;
     await reload();
   }
   async function handleUpdate(p: UnifiedPlugin): Promise<void> {
-    await cairn.pluginsInstallMany(p.name, p.url ?? "", installedApplicable(p));
+    await installManyTracked(`Update ${p.name}`, p.name, p.url ?? "", installedApplicable(p));
     await reload();
   }
   async function handleRemoveEverywhere(p: UnifiedPlugin): Promise<void> {
-    await cairn.pluginsRemoveEverywhere(p.name);
+    const homeIds = installedApplicable(p);
+    await track(`Remove ${p.name} everywhere`, homeIds.join(", ") || "all homes", () => cairn.pluginsRemoveEverywhere(p.name), (data) =>
+      outcomesError(data.outcomes),
+    );
     await reload();
+  }
+  async function installFromUrl(repo: RepoRef): Promise<Result<unknown>> {
+    const kind = classifyRepoName(repo.repo) ?? "plugin";
+    const homeIds = applicableHomeIds(kind, homes);
+    return installManyTracked(`Install ${repo.repo}`, repo.repo, repo.url, homeIds);
   }
 
   onMount(() => {
@@ -199,7 +223,7 @@
   </Card>
 
   {#if addOpen}
-    <AddPluginDialog home={addPluginHome} onClose={() => (addOpen = false)} onInstalled={reload} />
+    <AddPluginDialog home={addPluginHome} install={installFromUrl} onClose={() => (addOpen = false)} onInstalled={reload} />
   {/if}
 {/if}
 

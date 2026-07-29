@@ -1,12 +1,22 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { CatalogKind } from "@cairn/shared";
+  import type { CatalogKind, RepoRef, Result } from "@cairn/shared";
   import { parseRepoRef, classifyRepoName } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { track } from "../downloads.js";
   import Button from "./Button.svelte";
 
-  let { home, onClose, onInstalled }: { home: string; onClose: () => void; onInstalled: () => void } = $props();
+  let {
+    home,
+    onClose,
+    onInstalled,
+    install,
+  }: {
+    home: string;
+    onClose: () => void;
+    onInstalled: () => void;
+    install?: (repo: RepoRef) => Promise<Result<unknown>>;
+  } = $props();
 
   let url = $state("");
   let busy = $state(false);
@@ -22,11 +32,15 @@
     if (event.key === "Escape") onClose();
   }
 
-  async function install(): Promise<void> {
+  function defaultInstall(repo: RepoRef): Promise<Result<unknown>> {
+    return track(`Install ${repo.repo}`, home, () => cairn.pluginsInstall(home, repo.repo, repo.url));
+  }
+
+  async function handleInstall(): Promise<void> {
     if (!parsed || busy) return;
     busy = true;
     error = "";
-    const result = await track(`Install ${parsed.repo}`, home, () => cairn.pluginsInstall(home, parsed.repo, parsed.url));
+    const result = await (install ?? defaultInstall)(parsed);
     busy = false;
     if (result.ok) {
       onInstalled();
@@ -52,7 +66,7 @@
   {#if error}<p class="error">{error}</p>{/if}
   <div class="actions">
     <Button onclick={onClose}>Cancel</Button>
-    <Button variant="primary" disabled={!parsed || busy} onclick={install}>Install</Button>
+    <Button variant="primary" disabled={!parsed || busy} onclick={handleInstall}>Install</Button>
   </div>
 </div>
 
