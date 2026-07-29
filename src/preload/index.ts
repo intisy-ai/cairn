@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import { IPC_CHANNELS } from "@cairn/shared";
-import type { CairnAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, HostApp, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView } from "@cairn/shared";
+import type { CairnAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, HostApp, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView, InstallManyResult } from "@cairn/shared";
 
 const invokeChannels: readonly string[] = IPC_CHANNELS.invoke;
 const sendChannels: readonly string[] = IPC_CHANNELS.send;
@@ -51,6 +51,8 @@ const api: CairnAPI = {
   appsSummary: (app) => safeInvoke("apps:summary", app) as Promise<Result<AppSummary>>,
   pluginsList: () => safeInvoke("plugins:list") as Promise<Result<HomePlugins[]>>,
   pluginsInstall: (home, name, url) => safeInvoke("plugins:install", home, name, url) as Promise<Result<void>>,
+  pluginsInstallMany: (name, url, homeIds) => safeInvoke("plugins:installMany", name, url, homeIds) as Promise<Result<InstallManyResult>>,
+  pluginsRemoveEverywhere: (name) => safeInvoke("plugins:removeEverywhere", name) as Promise<Result<InstallManyResult>>,
   pluginsSetEnabled: (home, name, on) => safeInvoke("plugins:setEnabled", home, name, on) as Promise<Result<void>>,
   pluginsDowngrade: (home, name, hash) => safeInvoke("plugins:downgrade", home, name, hash) as Promise<Result<void>>,
   pluginsUninstall: (home, name) => safeInvoke("plugins:uninstall", home, name) as Promise<Result<void>>,

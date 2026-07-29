@@ -5,7 +5,7 @@
 process.env.PLUGIN_UPDATER_LIBRARY_MODE = "1";
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
 import { getConfigValue } from "@core/index.js";
 import { getPlugins, getPluginsPath } from "@plugin-updater/config.js";
@@ -14,7 +14,7 @@ import { syncPluginsAcrossApps as realSyncPluginsAcrossApps } from "@plugin-upda
 import { setEarlyLaunchConfigDir } from "@plugin-updater/env.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
 import type { Plugin, NpmPlugin } from "@plugin-updater/types.js";
-import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, Result, CliResult } from "../../../packages/shared/src/domain.js";
+import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, Result, CliResult, InstallManyResult, InstallOutcome } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir } from "../lib/pluginHomes.js";
 import { wrap } from "../result.js";
 
@@ -49,7 +49,16 @@ function withHome<T>(dir: string, fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
-function rowFor(name: string, kind: "git" | "npm", enabled: boolean, url: string | undefined, cache: UpdateCache): PluginRow {
+function readDescription(homeDirPath: string, name: string): string {
+  try {
+    const pkg = JSON.parse(readFileSync(join(homeDirPath, "repos", name, "package.json"), "utf-8"));
+    return typeof pkg.description === "string" ? pkg.description : "";
+  } catch {
+    return "";
+  }
+}
+
+function rowFor(name: string, kind: "git" | "npm", enabled: boolean, url: string | undefined, cache: UpdateCache, homeDirPath: string): PluginRow {
   const entry = cache.plugins[name];
   return {
     name,
@@ -58,6 +67,7 @@ function rowFor(name: string, kind: "git" | "npm", enabled: boolean, url: string
     url,
     installedVersion: entry?.installedVersion ?? null,
     updateAvailable: entry?.updateAvailable ?? false,
+    description: readDescription(homeDirPath, name),
   };
 }
 
@@ -71,6 +81,7 @@ export interface PluginsDeps {
   uninstallNpmPlugin?: (name: string, dir: string) => string;
   hasUpdater?: HasUpdaterFn;
   initApp?: InitAppFn;
+  getPlugins?: (dir: string) => Plugin[];
 }
 
 async function resolveHomes(deps: PluginsDeps): Promise<PluginHome[]> {
@@ -87,8 +98,8 @@ export function pluginsList(deps: PluginsDeps = {}): Promise<Result<HomePlugins[
         continue;
       }
       const cache = readUpdateCache(home.dir);
-      const gitRows = getPlugins(home.dir).map((p) => rowFor(p.name, "git", p.enabled !== false, p.url, cache));
-      const npmRows = (await getNpmPlugins(home.dir)).map((p) => rowFor(p.name, "npm", true, undefined, cache));
+      const gitRows = (deps.getPlugins ?? getPlugins)(home.dir).map((p) => rowFor(p.name, "git", p.enabled !== false, p.url, cache, home.dir));
+      const npmRows = (await getNpmPlugins(home.dir)).map((p) => rowFor(p.name, "npm", true, undefined, cache, home.dir));
       sections.push({ home, rows: [...gitRows, ...npmRows] });
     }
     return sections;
@@ -136,6 +147,31 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
       const syncPluginsAcrossApps = deps.syncPluginsAcrossApps ?? realSyncPluginsAcrossApps;
       await syncPluginsAcrossApps(dir);
     }
+  });
+}
+
+export function pluginsInstallMany(name: string, url: string, homeIds: string[], deps: PluginsDeps = {}): Promise<Result<InstallManyResult>> {
+  return wrap(async () => {
+    const outcomes: InstallOutcome[] = [];
+    for (const homeId of homeIds) {
+      const res = await pluginsInstall(homeId, name, url, deps);
+      outcomes.push(res.ok ? { home: homeId, ok: true } : { home: homeId, ok: false, error: res.error });
+    }
+    return { outcomes };
+  });
+}
+
+export function pluginsRemoveEverywhere(name: string, deps: PluginsDeps = {}): Promise<Result<InstallManyResult>> {
+  return wrap(async () => {
+    const homes = await resolveHomes(deps);
+    const outcomes: InstallOutcome[] = [];
+    for (const home of homes) {
+      const installed = (deps.getPlugins ?? getPlugins)(home.dir).some((p) => p.name === name);
+      if (!installed) continue;
+      const res = await pluginsUninstall(home.id, name, deps);
+      outcomes.push(res.ok ? { home: home.id, ok: true } : { home: home.id, ok: false, error: res.error });
+    }
+    return { outcomes };
   });
 }
 

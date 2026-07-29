@@ -6,7 +6,7 @@ import { accountsList, accountsEnable, accountsRemove, accountsRefreshQuota } fr
 import { providersList, providersSetActive, providersSetExposure } from "./modules/providers.js";
 import { routingApps, routingGet, routingSetChain } from "./modules/routing.js";
 import { appsDetect, appsList, appsInstallCli, appsInit, appsUninstallCli, appsSummary } from "./modules/apps.js";
-import { pluginsList, pluginsInstall, pluginsSetEnabled, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
+import { pluginsList, pluginsInstall, pluginsInstallMany, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
 import { configSchemas, configWrite } from "./modules/appConfig.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
 import { usageSnapshot } from "./modules/usage.js";
@@ -58,6 +58,8 @@ registerHandler("apps:uninstallCli", (app, wipeData) => appsUninstallCli(app as 
 registerHandler("apps:summary", (app) => appsSummary(app as string));
 registerHandler("plugins:list", () => pluginsList());
 registerHandler("plugins:install", (home, name, url) => pluginsInstall(home as PluginHomeId, name as string, url as string));
+registerHandler("plugins:installMany", (name, url, homeIds) => pluginsInstallMany(name as string, url as string, homeIds as string[]));
+registerHandler("plugins:removeEverywhere", (name) => pluginsRemoveEverywhere(name as string));
 registerHandler("plugins:setEnabled", (home, name, on) => pluginsSetEnabled(home as PluginHomeId, name as string, on as boolean));
 registerHandler("plugins:downgrade", (home, name, hash) => pluginsDowngrade(home as PluginHomeId, name as string, hash as string));
 registerHandler("plugins:uninstall", (home, name) => pluginsUninstall(home as string, name as string));

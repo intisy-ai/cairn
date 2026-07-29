@@ -51,6 +51,7 @@ export type PluginRow = {
   url?: string;
   installedVersion?: string | null;
   updateAvailable: boolean;
+  description: string;
 };
 export type UsageAccount = {
   provider: string;
@@ -112,6 +113,17 @@ export type PluginHome = {
   hasUpdater: boolean;
 };
 export type HomePlugins = { home: PluginHome; rows: PluginRow[] };
+export type UnifiedHomeState = { installed: boolean; version?: string | null };
+export type UnifiedPlugin = {
+  name: string;
+  kind: CatalogKind;
+  description: string;
+  url?: string;
+  updateAvailable: boolean;
+  homes: Record<string, UnifiedHomeState>;
+};
+export type InstallOutcome = { home: string; ok: boolean; error?: string };
+export type InstallManyResult = { outcomes: InstallOutcome[] };
 export type PluginConfigSchema = { plugin: string; defaults: Record<string, unknown>; current: Record<string, unknown> };
 export type AppAccountSummary = { provider: string; label: string; enabled: boolean; quotaPct: number | null };
 export type AppProviderAgg = { provider: string; accounts: number; enabled: number };

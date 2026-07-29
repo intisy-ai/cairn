@@ -1,4 +1,4 @@
-import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, HostApp, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView } from "./domain.js";
+import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, HostApp, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView, InstallManyResult } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -24,6 +24,8 @@ export interface CairnAPI {
   appsSummary(app: string): Promise<Result<AppSummary>>;
   pluginsList(): Promise<Result<HomePlugins[]>>;
   pluginsInstall(home: string, name: string, url: string): Promise<Result<void>>;
+  pluginsInstallMany(name: string, url: string, homeIds: string[]): Promise<Result<InstallManyResult>>;
+  pluginsRemoveEverywhere(name: string): Promise<Result<InstallManyResult>>;
   pluginsSetEnabled(home: string, name: string, on: boolean): Promise<Result<void>>;
   pluginsDowngrade(home: string, name: string, hash: string): Promise<Result<void>>;
   pluginsUninstall(home: string, name: string): Promise<Result<void>>;

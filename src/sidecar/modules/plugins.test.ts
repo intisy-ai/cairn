@@ -99,15 +99,15 @@ describe("plugins sidecar module", () => {
     const byName = new Map(claudeSection.rows.map((row) => [row.name, row]));
     expect(byName.get("plugin-a")).toEqual({
       name: "plugin-a", kind: "git", enabled: true, url: "https://github.com/intisy-ai/plugin-a",
-      installedVersion: null, updateAvailable: true,
+      installedVersion: null, updateAvailable: true, description: "",
     });
     expect(byName.get("plugin-b")).toEqual({
       name: "plugin-b", kind: "git", enabled: false, url: "https://github.com/intisy-ai/plugin-b",
-      installedVersion: null, updateAvailable: false,
+      installedVersion: null, updateAvailable: false, description: "",
     });
     expect(byName.get("npm-plugin-x")).toEqual({
       name: "npm-plugin-x", kind: "npm", enabled: true, url: undefined,
-      installedVersion: "1.2.3", updateAvailable: true,
+      installedVersion: "1.2.3", updateAvailable: true, description: "",
     });
   });
 
@@ -349,5 +349,68 @@ describe("plugins sidecar module", () => {
       enabled: true,
       autoUpdate: false,
     });
+  });
+
+  it("pluginsInstallMany installs to each home and reports per-home outcomes", async () => {
+    const deps = {
+      homes: fakeHomes,
+      hasUpdater: () => true,
+      updatePluginPublic: async () => {},
+      syncPluginsAcrossApps: async () => {},
+    };
+    const { pluginsInstallMany } = await import("./plugins.js");
+    const res = await pluginsInstallMany("wakatime-sync", "https://github.com/intisy-ai/wakatime-sync", ["claude", "opencode"], deps);
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.data.outcomes.map((o) => [o.home, o.ok])).toEqual([["claude", true], ["opencode", true]]);
+  });
+
+  it("pluginsInstallMany reports a per-home failure without aborting the rest", async () => {
+    let first = true;
+    const deps = {
+      homes: fakeHomes,
+      hasUpdater: () => true,
+      updatePluginPublic: async () => {
+        if (first) {
+          first = false;
+          throw new Error("bad");
+        }
+      },
+      syncPluginsAcrossApps: async () => {},
+    };
+    const { pluginsInstallMany } = await import("./plugins.js");
+    const res = await pluginsInstallMany("p", "u", ["claude", "opencode"], deps);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.data.outcomes[0]).toMatchObject({ home: "claude", ok: false });
+      expect(res.data.outcomes[1]).toMatchObject({ home: "opencode", ok: true });
+    }
+  });
+
+  it("pluginsRemoveEverywhere uninstalls only from homes where the plugin is installed", async () => {
+    seedPlugins(claudeDir, [{ name: "shared-plugin", url: "u", enabled: true }]);
+    const calls: Array<[string, string]> = [];
+    const { pluginsRemoveEverywhere } = await import("./plugins.js");
+    const res = await pluginsRemoveEverywhere("shared-plugin", {
+      homes: fakeHomes,
+      uninstallPlugin: (dir, name) => calls.push([dir, name]),
+    });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.data.outcomes.map((o) => o.home)).toEqual(["claude"]);
+    expect(calls).toEqual([[claudeDir, "shared-plugin"]]);
+  });
+
+  it("pluginsList surfaces a description from the deployed clone package.json", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "cairn-plugins-"));
+    const repo = join(dir, "repos", "demo");
+    mkdirSync(repo, { recursive: true });
+    writeFileSync(join(repo, "package.json"), JSON.stringify({ name: "demo", description: "A demo plugin" }));
+    const homes = [{ id: "claude", label: "Claude", dir, present: true, hasUpdater: true }];
+    const { pluginsList } = await import("./plugins.js");
+    const res = await pluginsList({ homes, getPlugins: () => [{ name: "demo", url: "u", enabled: true }] } as any);
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      const row = res.data[0].rows.find((r) => r.name === "demo");
+      expect(row?.description).toBe("A demo plugin");
+    }
   });
 });
