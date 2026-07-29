@@ -4,16 +4,21 @@ import { render, fireEvent, waitFor, within, screen } from "@testing-library/sve
 import { stubCairn } from "../testing.js";
 import Apps from "./Apps.svelte";
 
+const TWO_APPS = {
+  appsList: async () =>
+    ({
+      ok: true,
+      data: [
+        { id: "claude", label: "Claude Code" },
+        { id: "opencode", label: "OpenCode" },
+      ],
+    }) as const,
+};
+
 describe("Apps screen", () => {
-  it("renders one card per host app and no cairn card", async () => {
+  it("renders one row per host app and no cairn row", async () => {
     stubCairn({
-      appsList: async () => ({
-        ok: true,
-        data: [
-          { id: "claude", label: "Claude Code" },
-          { id: "opencode", label: "OpenCode" },
-        ],
-      }),
+      ...TWO_APPS,
       appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
     });
     render(Apps);
@@ -22,75 +27,62 @@ describe("Apps screen", () => {
     expect(screen.queryByText("Cairn")).toBeNull();
   });
 
-  it("shows the summary for a detected app and an Install CLI action for an absent one", async () => {
+  it("opens a detail with the summary when a detected app row is clicked", async () => {
+    const appsSummary = vi.fn(async () => ({
+      ok: true,
+      data: {
+        accounts: [],
+        providerCount: 2,
+        accountsEnabled: 1,
+        providerBreakdown: [],
+        quotaMinPct: null,
+        configDir: "/home/jane/.claude",
+        pluginCount: 3,
+        routingSlots: null,
+      },
+    }) as const);
     stubCairn({
-      appsList: async () => ({
-        ok: true,
-        data: [
-          { id: "claude", label: "Claude Code" },
-          { id: "opencode", label: "OpenCode" },
-        ],
-      }),
+      ...TWO_APPS,
       appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
-      appsSummary: async () => ({
-        ok: true,
-        data: {
-          accounts: [],
-          providerCount: 2,
-          accountsEnabled: 1,
-          providerBreakdown: [],
-          quotaMinPct: null,
-          configDir: "/home/jane/.claude",
-          pluginCount: 3,
-          routingSlots: null,
-        },
-      }),
+      appsSummary,
     });
     render(Apps);
 
-    const claudeCard = within(await screen.findByTestId("app-claude"));
-    await waitFor(() => expect(claudeCard.getByTestId("stat-providers")).toHaveTextContent(/2\s*providers/i));
-    expect(claudeCard.getByTestId("stat-enabled")).toHaveTextContent(/1\s*enabled/i);
-    expect(claudeCard.getByTestId("stat-plugins")).toHaveTextContent(/3\s*plugins/i);
+    // No summary is fetched until the row is opened.
+    const claudeRow = within(await screen.findByTestId("app-claude"));
+    expect(appsSummary).not.toHaveBeenCalled();
 
-    const opencodeCard = within(screen.getByTestId("app-opencode"));
-    expect(opencodeCard.getByRole("button", { name: /install cli/i })).toBeInTheDocument();
+    await fireEvent.click(claudeRow.getByText("Claude Code"));
+
+    const dialog = within(await screen.findByRole("dialog"));
+    await waitFor(() => expect(dialog.getByTestId("stat-providers")).toHaveTextContent(/2\s*providers/i));
+    expect(dialog.getByTestId("stat-enabled")).toHaveTextContent(/1\s*enabled/i);
+    expect(dialog.getByTestId("stat-plugins")).toHaveTextContent(/3\s*plugins/i);
+    expect(appsSummary).toHaveBeenCalledWith("claude");
   });
 
-  it("clicking Install CLI on the absent app calls appsInstallCli", async () => {
+  it("shows an inline Install CLI action for an absent app and calls appsInstallCli", async () => {
     const appsInstallCli = vi.fn(async () => ({ ok: true, data: { stdout: "", stderr: "" } }) as const);
     stubCairn({
-      appsList: async () => ({
-        ok: true,
-        data: [
-          { id: "claude", label: "Claude Code" },
-          { id: "opencode", label: "OpenCode" },
-        ],
-      }),
+      ...TWO_APPS,
       appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
       appsInstallCli,
     });
     render(Apps);
 
-    const opencodeCard = within(await screen.findByTestId("app-opencode"));
-    await fireEvent.click(opencodeCard.getByRole("button", { name: /install cli/i }));
+    const opencodeRow = within(await screen.findByTestId("app-opencode"));
+    await fireEvent.click(opencodeRow.getByRole("button", { name: /install cli/i }));
 
     await waitFor(() => expect(appsInstallCli).toHaveBeenCalledWith("opencode"));
   });
 
-  it("offers Import config on an app with importable config and opens the import dialog", async () => {
+  it("offers Import config in the detail of an app with importable config and opens the dialog", async () => {
     const importPreview = vi.fn(async () => ({
       ok: true,
       data: { accounts: 2, routingSlots: 1, exposedProviders: 3 },
     }) as const);
     stubCairn({
-      appsList: async () => ({
-        ok: true,
-        data: [
-          { id: "claude", label: "Claude Code" },
-          { id: "opencode", label: "OpenCode" },
-        ],
-      }),
+      ...TWO_APPS,
       appsDetect: async () => ({ ok: true, data: { claude: true, opencode: true } }),
       appsSummary: async () => ({
         ok: true,
@@ -116,14 +108,44 @@ describe("Apps screen", () => {
     });
     render(Apps);
 
-    const claudeCard = within(await screen.findByTestId("app-claude"));
-    const importButton = await claudeCard.findByRole("button", { name: /import config/i });
-    expect(importButton).toBeInTheDocument();
+    const claudeRow = within(await screen.findByTestId("app-claude"));
+    await fireEvent.click(claudeRow.getByText("Claude Code"));
 
-    const opencodeCard = within(screen.getByTestId("app-opencode"));
-    expect(opencodeCard.queryByRole("button", { name: /import config/i })).toBeNull();
-
+    const dialog = within(await screen.findByRole("dialog"));
+    const importButton = await dialog.findByRole("button", { name: /import config/i });
     await fireEvent.click(importButton);
     await waitFor(() => expect(importPreview).toHaveBeenCalledWith("claude"));
+  });
+
+  it("does not offer Import config for an app without importable config", async () => {
+    stubCairn({
+      ...TWO_APPS,
+      appsDetect: async () => ({ ok: true, data: { claude: false, opencode: true } }),
+      appsSummary: async () => ({
+        ok: true,
+        data: {
+          accounts: [],
+          providerCount: 0,
+          accountsEnabled: 0,
+          providerBreakdown: [],
+          quotaMinPct: null,
+          configDir: "/home/jane/.config/opencode",
+          pluginCount: 0,
+          routingSlots: null,
+        },
+      }),
+      importApps: async () => ({
+        ok: true,
+        data: [{ app: "opencode", label: "OpenCode", hasConfig: false }],
+      }),
+    });
+    render(Apps);
+
+    const opencodeRow = within(await screen.findByTestId("app-opencode"));
+    await fireEvent.click(opencodeRow.getByText("OpenCode"));
+
+    const dialog = within(await screen.findByRole("dialog"));
+    await waitFor(() => expect(dialog.getByTestId("stat-providers")).toBeInTheDocument());
+    expect(dialog.queryByRole("button", { name: /import config/i })).toBeNull();
   });
 });
