@@ -34,10 +34,13 @@ async function defaultProbe(): Promise<boolean> {
   }
 }
 
-export async function resolveClaudeProfile(deps: { defs?: () => Promise<LoadedProxyDef[]> } = {}): Promise<RoutingProfile> {
+// App-agnostic: the local API serves whichever proxy plugin is installed. It
+// never names a specific app; the first installed proxy def wins (behaviour
+// parity with a single-proxy setup).
+export async function resolveProxyProfile(deps: { defs?: () => Promise<LoadedProxyDef[]> } = {}): Promise<RoutingProfile> {
   const defs = await (deps.defs ?? (() => loadInstalledProxyDefs(dashboardStoreDir())))();
-  const def = defs.find((d) => d.app === "claude");
-  if (!def) throw new Error("claude proxy plugin not installed");
+  const def = defs[0];
+  if (!def) throw new Error("no proxy plugin installed");
   return def.profile();
 }
 
@@ -66,7 +69,7 @@ export async function status(probe: () => Promise<boolean> = defaultProbe): Prom
 
 export async function start(
   starter: Starter = startLoaderProxy,
-  resolveProfile: () => Promise<RoutingProfile> = () => resolveClaudeProfile(),
+  resolveProfile: () => Promise<RoutingProfile> = () => resolveProxyProfile(),
 ): Promise<void> {
   if (handle) return;
   if (startingPromise) return startingPromise;
