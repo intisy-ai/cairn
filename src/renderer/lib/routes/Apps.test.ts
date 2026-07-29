@@ -49,9 +49,9 @@ describe("Apps screen", () => {
     render(Apps);
 
     const claudeCard = within(await screen.findByTestId("app-claude"));
-    await waitFor(() => expect(claudeCard.getByText(/2 providers/i)).toBeInTheDocument());
-    expect(claudeCard.getByText(/1 enabled/i)).toBeInTheDocument();
-    expect(claudeCard.getByText(/3 plugins/i)).toBeInTheDocument();
+    await waitFor(() => expect(claudeCard.getByTestId("stat-providers")).toHaveTextContent(/2\s*providers/i));
+    expect(claudeCard.getByTestId("stat-enabled")).toHaveTextContent(/1\s*enabled/i);
+    expect(claudeCard.getByTestId("stat-plugins")).toHaveTextContent(/3\s*plugins/i);
 
     const opencodeCard = within(screen.getByTestId("app-opencode"));
     expect(opencodeCard.getByRole("button", { name: /install cli/i })).toBeInTheDocument();

@@ -10,6 +10,8 @@
   import Skeleton from "../components/Skeleton.svelte";
   import Spinner from "../components/Spinner.svelte";
   import ImportDialog from "../components/ImportDialog.svelte";
+  import PageHeader from "../components/PageHeader.svelte";
+  import PluginIcon from "../components/PluginIcon.svelte";
   import { flyMotion } from "../util/motion.js";
 
   const PROVIDER_BREAKDOWN_CAP = 6;
@@ -133,20 +135,17 @@
   });
 </script>
 
-<div class="head">
-  <div>
-    <h1>Apps</h1>
-    <p>Install, initialize, and manage the host CLIs Cairn connects to.</p>
-  </div>
-</div>
+<PageHeader title="Apps" subtitle="Install, initialize, and manage the host CLIs Cairn connects to." />
 
 {#if appsError}
   <p class="error">Could not load app status: {appsError}</p>
 {/if}
 
 {#if !loaded}
-  <section class="group"><Skeleton height="86px" radius="12px" /></section>
-  <section class="group"><Skeleton height="86px" radius="12px" /></section>
+  <div class="skeletons">
+    <Skeleton height="150px" radius="12px" />
+    <Skeleton height="150px" radius="12px" />
+  </div>
 {:else}
   {#each visibleApps as app (app.id)}
     {@const present = presence[app.id] ?? false}
@@ -155,6 +154,7 @@
     <section class="group" data-testid={"app-" + app.id} in:flyMotion={{ y: 6 }}>
       <Card>
         <div class="row">
+          <PluginIcon name={app.label} size={38} />
           <div class="info">
             <b>{app.label}</b>
             {#if present}
@@ -188,9 +188,18 @@
             {@const shownBreakdown = summary.providerBreakdown.slice(0, PROVIDER_BREAKDOWN_CAP)}
             {@const moreCount = summary.providerBreakdown.length - shownBreakdown.length}
             <div class="summarycard">
-              <p class="summary-headline">
-                {summary.accounts.length} accounts across {summary.providerCount} providers, {summary.accountsEnabled} enabled
-              </p>
+              <div class="stats">
+                <div class="stat" data-testid="stat-accounts"><span class="v">{summary.accounts.length}</span><span class="k">accounts</span></div>
+                <div class="stat" data-testid="stat-enabled"><span class="v">{summary.accountsEnabled}</span><span class="k">enabled</span></div>
+                <div class="stat" data-testid="stat-providers"><span class="v">{summary.providerCount}</span><span class="k">providers</span></div>
+                <div class="stat" data-testid="stat-plugins"><span class="v">{summary.pluginCount}</span><span class="k">plugins</span></div>
+                {#if summary.routingSlots !== null}
+                  <div class="stat" data-testid="stat-routing"><span class="v">{summary.routingSlots}</span><span class="k">routing slots</span></div>
+                {/if}
+                {#if summary.quotaMinPct !== null}
+                  <div class="stat" data-testid="stat-quota"><span class="v">{summary.quotaMinPct}%</span><span class="k">lowest quota</span></div>
+                {/if}
+              </div>
               {#if shownBreakdown.length > 0}
                 <div class="summary-breakdown">
                   {#each shownBreakdown as agg}
@@ -203,15 +212,8 @@
               {:else}
                 <p class="summary-empty">No accounts connected.</p>
               {/if}
-              {#if summary.quotaMinPct !== null}
-                <p class="summary-quota">Lowest quota {summary.quotaMinPct}%</p>
-              {/if}
               <div class="summary-meta">
-                <span>{summary.configDir}</span>
-                <span>{summary.pluginCount} plugin{summary.pluginCount === 1 ? "" : "s"}</span>
-                {#if summary.routingSlots !== null}
-                  <span>{summary.routingSlots} routing slot{summary.routingSlots === 1 ? "" : "s"}</span>
-                {/if}
+                <span class="mono-path">{summary.configDir}</span>
               </div>
             </div>
           {/if}
@@ -271,40 +273,24 @@
 {/if}
 
 <style>
-  .head {
-    display: flex;
-    align-items: flex-start;
-    gap: 16px;
-    margin-bottom: 20px;
-  }
-  .head h1 {
-    margin: 0;
-    font-size: 20px;
-    letter-spacing: -.02em;
-    font-weight: 650;
-  }
-  .head p {
-    margin: 3px 0 0;
-    color: var(--muted);
-    font-size: 12.5px;
-  }
   .group {
-    margin-bottom: 26px;
+    margin-bottom: 18px;
   }
   .row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
+    gap: 14px;
     padding: 14px 18px;
   }
   .info {
     display: flex;
     align-items: center;
     gap: 12px;
+    flex: 1;
+    min-width: 0;
   }
   .info b {
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 600;
     letter-spacing: -.01em;
   }
@@ -312,25 +298,45 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-shrink: 0;
   }
   .error {
     color: var(--crit);
     font-size: 13px;
   }
   .summarycard {
-    padding: 0 18px 14px;
+    padding: 14px 18px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
     border-top: 1px solid var(--border);
-    margin-top: 14px;
-    padding-top: 14px;
   }
-  .summary-headline {
-    margin: 0;
-    font-size: 13px;
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+    gap: 8px;
+  }
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+  }
+  .stat .v {
+    font-size: 17px;
+    font-weight: 650;
+    letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat .k {
+    font-size: 10.5px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--faint);
     font-weight: 600;
-    color: var(--text);
   }
   .summary-breakdown {
     display: flex;
@@ -342,18 +348,19 @@
     color: var(--faint);
     padding: 4px 10px;
   }
-  .summary-quota {
-    margin: 0;
-    font-size: 11.5px;
-    color: var(--muted);
-  }
   .summary-meta {
     display: flex;
     flex-wrap: wrap;
     gap: 14px;
     font-size: 11.5px;
     color: var(--faint);
+  }
+  .mono-path {
     font-family: var(--mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
   }
   .summary-empty {
     margin: 0;
