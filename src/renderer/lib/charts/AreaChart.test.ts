@@ -8,7 +8,7 @@ describe("AreaChart", () => {
     const { container } = render(TestWrapper);
     const svg = container.querySelector("svg");
     expect(svg).not.toBeNull();
-    expect(svg?.getAttribute("viewBox")).toBe("0 0 600 180");
+    expect(svg?.getAttribute("viewBox")).toBe("0 0 600 150");
     expect(container.querySelectorAll("path.area").length).toBe(2);
   });
 

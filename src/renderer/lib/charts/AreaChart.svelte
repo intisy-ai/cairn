@@ -1,11 +1,11 @@
 <script lang="ts">
   import { stackedMax, stackedAreas, areaPath, linePath, niceMax, type SeriesInput, type Dims } from "./chartMath.js";
 
-  let { columns, series, height = 180 }: { columns: string[]; series: SeriesInput[]; height?: number } = $props();
+  let { columns, series, height = 150 }: { columns: string[]; series: SeriesInput[]; height?: number } = $props();
 
   const WIDTH = 600;
   const TICKS = 4;
-  const dims = $derived<Dims>({ width: WIDTH, height, padTop: 12, padRight: 14, padBottom: 24, padLeft: 48 });
+  const dims = $derived<Dims>({ width: WIDTH, height, padTop: 10, padRight: 12, padBottom: 20, padLeft: 46 });
   const max = $derived(niceMax(stackedMax(series)));
   const polygons = $derived(stackedAreas(series, max, dims));
 
@@ -21,7 +21,6 @@
   const columnX = $derived(
     columns.map((_, i) => (columns.length <= 1 ? dims.padLeft + (WIDTH - dims.padLeft - dims.padRight) / 2 : dims.padLeft + ((WIDTH - dims.padLeft - dims.padRight) * i) / (columns.length - 1))),
   );
-  // Show at most ~6 date labels so they never overlap on dense ranges.
   const xLabelStep = $derived(Math.max(1, Math.ceil(columns.length / 6)));
 
   function onMove(event: PointerEvent): void {
@@ -52,6 +51,10 @@
     const [, month, day] = key.split("-");
     return month && day ? `${Number(month)}/${Number(day)}` : key;
   }
+  // Percent positions so HTML labels stay crisp regardless of render width.
+  function pctX(x: number): number {
+    return (x / WIDTH) * 100;
+  }
 </script>
 
 {#if columns.length === 0}
@@ -65,60 +68,68 @@
         {/each}
       </div>
     {/if}
-    <svg viewBox="0 0 {WIDTH} {height}" width="100%" role="img" aria-label="Tokens over time" onpointermove={onMove} onpointerleave={() => (hoverIndex = null)}>
+    <div class="plot" style="height:{height}px">
+      <svg viewBox="0 0 {WIDTH} {height}" preserveAspectRatio="none" role="img" aria-label="Tokens over time" onpointermove={onMove} onpointerleave={() => (hoverIndex = null)}>
+        {#each yTicks as tick (tick.value)}
+          <line class="grid" x1={dims.padLeft} y1={tick.y} x2={WIDTH - dims.padRight} y2={tick.y} />
+        {/each}
+        {#each polygons as poly (poly.key)}
+          <path class="area" d={areaPath(poly)} fill={poly.color} />
+          <path class="topline" d={linePath(poly.top)} stroke={poly.color} />
+        {/each}
+        {#if hoverIndex !== null && hoverIndex < columns.length}
+          <line class="crosshair" x1={columnX[hoverIndex]} y1={dims.padTop} x2={columnX[hoverIndex]} y2={height - dims.padBottom} />
+        {/if}
+      </svg>
       {#each yTicks as tick (tick.value)}
-        <line class="grid" x1={dims.padLeft} y1={tick.y} x2={WIDTH - dims.padRight} y2={tick.y} />
-        <text class="ylabel" x={dims.padLeft - 8} y={tick.y + 3}>{formatCompact(tick.value)}</text>
-      {/each}
-      {#each polygons as poly (poly.key)}
-        <path class="area" d={areaPath(poly)} fill={poly.color} />
-        <path class="topline" d={linePath(poly.top)} stroke={poly.color} />
+        <span class="ylabel" style="top:{tick.y}px">{formatCompact(tick.value)}</span>
       {/each}
       {#each columns as col, i (col)}
         {#if i % xLabelStep === 0 || i === columns.length - 1}
-          <text class="xlabel" x={columnX[i]} y={height - 8}>{shortDay(col)}</text>
+          <span class="xlabel" style="left:{pctX(columnX[i])}%">{shortDay(col)}</span>
         {/if}
       {/each}
       {#if hoverIndex !== null && hoverIndex < columns.length}
-        <line class="crosshair" x1={columnX[hoverIndex]} y1={dims.padTop} x2={columnX[hoverIndex]} y2={height - dims.padBottom} />
-        {#each polygons as poly (poly.key)}
-          <circle class="dot" cx={columnX[hoverIndex]} cy={poly.top[hoverIndex]?.y ?? 0} r="2.5" fill={poly.color} />
-        {/each}
+        <div class="tip">
+          <p class="day">{columns[hoverIndex]}</p>
+          {#each series as s (s.key)}
+            <p class="line"><span class="sw" style="background:{s.color}"></span>{s.key}: {formatTokens(s.values[hoverIndex] ?? 0)}</p>
+          {/each}
+        </div>
       {/if}
-    </svg>
-    {#if hoverIndex !== null && hoverIndex < columns.length}
-      <div class="tip">
-        <p class="day">{columns[hoverIndex]}</p>
-        {#each series as s (s.key)}
-          <p class="line"><span class="sw" style="background:{s.color}"></span>{s.key}: {formatTokens(s.values[hoverIndex] ?? 0)}</p>
-        {/each}
-      </div>
-    {/if}
+    </div>
   </div>
 {/if}
 
 <style>
   .wrap {
     position: relative;
+    font-size: 11px;
   }
   .legend {
     display: flex;
     flex-wrap: wrap;
-    gap: 14px;
-    margin-bottom: 8px;
+    gap: 12px;
+    margin-bottom: 6px;
   }
   .lg {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 11.5px;
+    gap: 5px;
+    font-size: 11px;
     color: var(--muted);
     text-transform: capitalize;
   }
+  .plot {
+    position: relative;
+    width: 100%;
+  }
   svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
     display: block;
-    max-width: 100%;
-    overflow: visible;
   }
   .area {
     opacity: 0.7;
@@ -134,16 +145,24 @@
     vector-effect: non-scaling-stroke;
   }
   .ylabel {
-    fill: var(--faint);
+    position: absolute;
+    left: 0;
+    width: 38px;
+    text-align: right;
+    transform: translateY(-50%);
     font-size: 10px;
-    text-anchor: end;
+    color: var(--faint);
     font-family: var(--mono);
+    pointer-events: none;
   }
   .xlabel {
-    fill: var(--faint);
+    position: absolute;
+    bottom: 0;
+    transform: translateX(-50%);
     font-size: 10px;
-    text-anchor: middle;
+    color: var(--faint);
     font-family: var(--mono);
+    pointer-events: none;
   }
   .crosshair {
     stroke: var(--faint);
@@ -151,26 +170,22 @@
     stroke-dasharray: 3 3;
     vector-effect: non-scaling-stroke;
   }
-  .dot {
-    stroke: var(--surface);
-    stroke-width: 1.5;
-  }
   .tip {
     position: absolute;
-    top: 30px;
-    right: 8px;
+    top: 4px;
+    right: 6px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 8px 10px;
+    padding: 7px 9px;
     box-shadow: var(--shadow);
-    font-size: 11.5px;
+    font-size: 11px;
     pointer-events: none;
   }
   .tip .day {
-    margin: 0 0 4px;
+    margin: 0 0 3px;
     font-weight: 650;
-    font-size: 11px;
+    font-size: 10.5px;
     color: var(--muted);
   }
   .tip .line {
@@ -189,8 +204,8 @@
   }
   .empty {
     color: var(--faint);
-    font-size: 12.5px;
-    padding: 20px 4px;
+    font-size: 12px;
+    padding: 18px 4px;
     margin: 0;
   }
 </style>
