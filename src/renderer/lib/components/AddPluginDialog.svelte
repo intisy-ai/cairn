@@ -5,6 +5,7 @@
   import { cairn } from "../ipc.js";
   import { track } from "../downloads.js";
   import Button from "./Button.svelte";
+  import { fadeMotion, flyMotion } from "../util/motion.js";
 
   let {
     home,
@@ -52,8 +53,8 @@
 </script>
 
 <svelte:window onkeydown={onKeydown} />
-<div class="backdrop" role="presentation" onclick={onClose}></div>
-<div class="dialog" role="dialog" aria-modal="true" aria-label="Add a plugin from a URL">
+<div class="backdrop" role="presentation" onclick={onClose} transition:fadeMotion></div>
+<div class="dialog" role="dialog" aria-modal="true" aria-label="Add a plugin from a URL" transition:flyMotion={{ y: 8 }}>
   <h3>Add from URL</h3>
   <p class="hint">Install any provider, proxy, or plugin from a GitHub repository. A repository that does not follow the plugin contract installs but will not be picked up.</p>
   <input class="url" placeholder="owner/repo or GitHub URL" aria-label="Repository URL" bind:value={url} bind:this={urlInput} />

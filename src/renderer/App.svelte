@@ -13,6 +13,7 @@
   import Settings from "./lib/routes/Settings.svelte";
   import { router, SCREENS } from "./lib/router.js";
   import { cairn } from "./lib/ipc.js";
+  import { fadeMotion } from "./lib/util/motion.js";
 
   const activeLabel = $derived(SCREENS.find((screen) => screen.id === $router.screen)?.label ?? "");
 
@@ -29,27 +30,31 @@
   <div class="shell">
     <Sidebar {hasRouting} />
     <main class="main">
-      {#if $router.screen === "overview"}
-        <Overview />
-      {:else if $router.screen === "providers"}
-        <Providers />
-      {:else if $router.screen === "accounts"}
-        <Accounts />
-      {:else if $router.screen === "routing"}
-        <Routing />
-      {:else if $router.screen === "usage"}
-        <Usage />
-      {:else if $router.screen === "localApi"}
-        <LocalApi />
-      {:else if $router.screen === "apps"}
-        <Apps />
-      {:else if $router.screen === "plugins"}
-        <Plugins />
-      {:else if $router.screen === "settings"}
-        <Settings />
-      {:else}
-        <Overview />
-      {/if}
+      {#key $router.screen}
+        <div class="screen" in:fadeMotion={{ duration: 120 }}>
+          {#if $router.screen === "overview"}
+            <Overview />
+          {:else if $router.screen === "providers"}
+            <Providers />
+          {:else if $router.screen === "accounts"}
+            <Accounts />
+          {:else if $router.screen === "routing"}
+            <Routing />
+          {:else if $router.screen === "usage"}
+            <Usage />
+          {:else if $router.screen === "localApi"}
+            <LocalApi />
+          {:else if $router.screen === "apps"}
+            <Apps />
+          {:else if $router.screen === "plugins"}
+            <Plugins />
+          {:else if $router.screen === "settings"}
+            <Settings />
+          {:else}
+            <Overview />
+          {/if}
+        </div>
+      {/key}
     </main>
   </div>
 </div>

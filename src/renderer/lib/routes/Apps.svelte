@@ -8,7 +8,9 @@
   import Chip from "../components/Chip.svelte";
   import Button from "../components/Button.svelte";
   import Skeleton from "../components/Skeleton.svelte";
+  import Spinner from "../components/Spinner.svelte";
   import ImportDialog from "../components/ImportDialog.svelte";
+  import { flyMotion } from "../util/motion.js";
 
   const PROVIDER_BREAKDOWN_CAP = 6;
 
@@ -150,7 +152,7 @@
     {@const present = presence[app.id] ?? false}
     {@const summary = summaries[app.id]}
     {@const summaryError = summaryErrors[app.id]}
-    <section class="group" data-testid={"app-" + app.id}>
+    <section class="group" data-testid={"app-" + app.id} in:flyMotion={{ y: 6 }}>
       <Card>
         <div class="row">
           <div class="info">
@@ -166,9 +168,15 @@
               {#if canImport(app.id)}
                 <Button onclick={() => openImport(app)}>Import config</Button>
               {/if}
-              <Button disabled={busy[app.id]} onclick={() => handleInit(app)}>Initialize plugin-updater</Button>
+              <Button disabled={busy[app.id]} onclick={() => handleInit(app)}>
+                {#if busy[app.id]}<Spinner />{/if}
+                Initialize plugin-updater
+              </Button>
             {:else}
-              <Button variant="primary" disabled={busy[app.id]} onclick={() => handleInstallCli(app)}>Install CLI</Button>
+              <Button variant="primary" disabled={busy[app.id]} onclick={() => handleInstallCli(app)}>
+                {#if busy[app.id]}<Spinner />{/if}
+                Install CLI
+              </Button>
             {/if}
           </div>
         </div>

@@ -4,6 +4,7 @@
   import { cairn } from "../ipc.js";
   import { track } from "../downloads.js";
   import Button from "./Button.svelte";
+  import { fadeMotion, flyMotion } from "../util/motion.js";
 
   let { app, label, onClose, onDone }: { app: string; label: string; onClose: () => void; onDone: (notes: string[]) => void } = $props();
 
@@ -42,8 +43,8 @@
 </script>
 
 <svelte:window onkeydown={onKeydown} />
-<div class="backdrop" role="presentation" onclick={onClose}></div>
-<div class="dialog" role="dialog" aria-modal="true" tabindex="-1" bind:this={panel} aria-label={`Import ${label} config`}>
+<div class="backdrop" role="presentation" onclick={onClose} transition:fadeMotion></div>
+<div class="dialog" role="dialog" aria-modal="true" tabindex="-1" bind:this={panel} aria-label={`Import ${label} config`} transition:flyMotion={{ y: 8 }}>
   <h3>Import from {label}</h3>
   {#if error}
     <p class="error">{error}</p>

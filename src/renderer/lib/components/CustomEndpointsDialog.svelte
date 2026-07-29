@@ -5,6 +5,7 @@
   import { cairn } from "../ipc.js";
   import { track } from "../downloads.js";
   import Button from "./Button.svelte";
+  import { fadeMotion, flyMotion } from "../util/motion.js";
 
   let { onClose }: { onClose: () => void } = $props();
 
@@ -86,8 +87,8 @@
 </script>
 
 <svelte:window onkeydown={onKeydown} />
-<div class="backdrop" role="presentation" onclick={onClose}></div>
-<div class="dialog" role="dialog" aria-modal="true" aria-label="Manage custom endpoints" tabindex="-1" bind:this={panel}>
+<div class="backdrop" role="presentation" onclick={onClose} transition:fadeMotion></div>
+<div class="dialog" role="dialog" aria-modal="true" aria-label="Manage custom endpoints" tabindex="-1" bind:this={panel} transition:flyMotion={{ y: 8 }}>
   <h3>Custom endpoints</h3>
   {#if !installed}
     <p class="hint">The custom-auth provider is not installed. It serves your configured endpoints.</p>
