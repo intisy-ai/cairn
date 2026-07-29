@@ -2,16 +2,26 @@
   import { onMount } from "svelte";
   import Titlebar from "./lib/components/Titlebar.svelte";
   import Sidebar from "./lib/components/Sidebar.svelte";
-  import Overview from "./lib/routes/Overview.svelte";
-  import Providers from "./lib/routes/Providers.svelte";
-  import Accounts from "./lib/routes/Accounts.svelte";
-  import Routing from "./lib/routes/Routing.svelte";
-  import Usage from "./lib/routes/Usage.svelte";
-  import LocalApi from "./lib/routes/LocalApi.svelte";
-  import Apps from "./lib/routes/Apps.svelte";
-  import Plugins from "./lib/routes/Plugins.svelte";
-  import Settings from "./lib/routes/Settings.svelte";
+  import Skeleton from "./lib/components/Skeleton.svelte";
   import { router, SCREENS } from "./lib/router.js";
+  import type { ScreenId } from "./lib/router.js";
+
+  // Routes load on first visit (code-split) instead of all up front.
+  const ROUTES: Record<string, () => Promise<{ default: unknown }>> = {
+    overview: () => import("./lib/routes/Overview.svelte"),
+    providers: () => import("./lib/routes/Providers.svelte"),
+    accounts: () => import("./lib/routes/Accounts.svelte"),
+    routing: () => import("./lib/routes/Routing.svelte"),
+    usage: () => import("./lib/routes/Usage.svelte"),
+    localApi: () => import("./lib/routes/LocalApi.svelte"),
+    apps: () => import("./lib/routes/Apps.svelte"),
+    plugins: () => import("./lib/routes/Plugins.svelte"),
+    settings: () => import("./lib/routes/Settings.svelte"),
+  };
+
+  function loadRoute(screen: ScreenId): Promise<{ default: unknown }> {
+    return (ROUTES[screen] ?? ROUTES.overview)();
+  }
   import { cairn } from "./lib/ipc.js";
   import { fadeMotion } from "./lib/util/motion.js";
 
@@ -32,27 +42,14 @@
     <main class="main">
       {#key $router.screen}
         <div class="screen" in:fadeMotion={{ duration: 120 }}>
-          {#if $router.screen === "overview"}
-            <Overview />
-          {:else if $router.screen === "providers"}
-            <Providers />
-          {:else if $router.screen === "accounts"}
-            <Accounts />
-          {:else if $router.screen === "routing"}
-            <Routing />
-          {:else if $router.screen === "usage"}
-            <Usage />
-          {:else if $router.screen === "localApi"}
-            <LocalApi />
-          {:else if $router.screen === "apps"}
-            <Apps />
-          {:else if $router.screen === "plugins"}
-            <Plugins />
-          {:else if $router.screen === "settings"}
-            <Settings />
-          {:else}
-            <Overview />
-          {/if}
+          {#await loadRoute($router.screen)}
+            <div class="route-loading"><Skeleton height="80px" radius="12px" /></div>
+          {:then module}
+            {@const Route = module.default as typeof Skeleton}
+            <Route />
+          {:catch}
+            <p class="route-error">Could not load this screen.</p>
+          {/await}
         </div>
       {/key}
     </main>
@@ -82,6 +79,13 @@
   .main {
     padding: 22px 26px;
     overflow: auto;
+  }
+  .route-loading {
+    padding: 8px 0;
+  }
+  .route-error {
+    color: var(--crit);
+    font-size: 13px;
   }
   @media (max-width: 640px) {
     .main {
