@@ -14,6 +14,7 @@
     uninstallState = "idle",
     deprecated = false,
     catalogKind,
+    description = "",
   }: {
     name: string;
     kind: "git" | "npm";
@@ -25,6 +26,7 @@
     uninstallState?: "idle" | "confirm";
     deprecated?: boolean;
     catalogKind?: "provider" | "proxy" | "plugin";
+    description?: string;
   } = $props();
 
   const detail = $derived(installedVersion ? `${kind} · v${installedVersion}` : kind);
@@ -39,6 +41,7 @@
       {/if}
     </div>
     <span>{detail}</span>
+    {#if description}<span class="desc">{description}</span>{/if}
   </div>
   <div>
     {#if deprecated}
@@ -94,6 +97,9 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .pname > span.desc {
+    color: var(--muted);
   }
   .chip {
     font-size: 10.5px;
