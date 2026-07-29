@@ -18,6 +18,7 @@
   import PageHeader from "../components/PageHeader.svelte";
   import PluginIcon from "../components/PluginIcon.svelte";
   import Chip from "../components/Chip.svelte";
+  import PluginDetail from "../components/PluginDetail.svelte";
 
   const VIRTUALIZE_THRESHOLD = 20;
   const ROW_HEIGHT = 96;
@@ -38,6 +39,7 @@
 
   let addOpen = $state(false);
   let selections = $state<Record<string, string[]>>({});
+  let selectedName = $state<string | null>(null);
 
   type KindFilter = "all" | "provider" | "proxy" | "plugin";
   let kindFilter = $state<KindFilter>("all");
@@ -72,6 +74,8 @@
     kindFilter = kind;
   }
   const addPluginHome = $derived(homes[0]?.id ?? "cairn");
+  // Derive from the live list by name so the open detail reflects installs/removes.
+  const selectedPlugin = $derived(selectedName ? unified.find((p) => p.name === selectedName) ?? null : null);
 
   async function loadPlugins(): Promise<void> {
     const result = await cairn.pluginsList();
@@ -222,24 +226,26 @@
       </div>
     {/snippet}
     <div class="row" data-testid={"plugin-" + p.name}>
-      <PluginIcon icon={p.icon} name={p.displayName} kind={p.kind} />
-      <div class="info">
-        <div class="name-with-chip">
-          <b>{p.displayName}</b>
-          {#if p.displayName !== p.name}<span class="repo">{p.name}</span>{/if}
-          {#if p.kind === "provider" || p.kind === "proxy"}
-            <span class="chip">{p.kind}</span>
+      <button class="open" title={`View ${p.displayName}`} onclick={() => (selectedName = p.name)}>
+        <PluginIcon icon={p.icon} name={p.displayName} kind={p.kind} />
+        <div class="info">
+          <div class="name-with-chip">
+            <b>{p.displayName}</b>
+            {#if p.displayName !== p.name}<span class="repo">{p.name}</span>{/if}
+            {#if p.kind === "provider" || p.kind === "proxy"}
+              <span class="chip">{p.kind}</span>
+            {/if}
+          </div>
+          {#if p.description}<span class="desc">{p.description}</span>{/if}
+          {#if p.topics.length > 0}
+            <div class="topics">
+              {#each p.topics.slice(0, 4) as topic (topic)}
+                <span class="topic" data-testid="topic">{topic}</span>
+              {/each}
+            </div>
           {/if}
         </div>
-        {#if p.description}<span class="desc">{p.description}</span>{/if}
-        {#if p.topics.length > 0}
-          <div class="topics">
-            {#each p.topics.slice(0, 4) as topic (topic)}
-              <span class="topic" data-testid="topic">{topic}</span>
-            {/each}
-          </div>
-        {/if}
-      </div>
+      </button>
       <AppPills apps={applicableHomesFor(p)} values={installedMap(p)} onToggle={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))} />
       <div class="actions">
         {#if p.updateAvailable}
@@ -275,6 +281,18 @@
   {#if addOpen}
     <AddPluginDialog home={addPluginHome} install={installFromUrl} onClose={() => (addOpen = false)} onInstalled={reload} />
   {/if}
+
+  {#if selectedPlugin}
+    <PluginDetail
+      plugin={selectedPlugin}
+      homes={applicableHomesFor(selectedPlugin)}
+      onClose={() => (selectedName = null)}
+      onInstallAll={() => handleInstallAll(selectedPlugin)}
+      onRemoveEverywhere={() => handleRemoveEverywhere(selectedPlugin)}
+      onUpdate={() => handleUpdate(selectedPlugin)}
+      onToggleHome={(homeId, on) => (on ? addHome(selectedPlugin, homeId) : removeHome(selectedPlugin, homeId))}
+    />
+  {/if}
 {/if}
 
 <style>
@@ -307,6 +325,25 @@
   }
   .row:first-child {
     border-top: 0;
+  }
+  .open {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: 0;
+    padding: 6px;
+    margin: -6px;
+    border-radius: 10px;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+  }
+  .open:hover {
+    background: var(--surface-2);
   }
   .info {
     display: flex;
