@@ -36,6 +36,7 @@ export function consumeParams(): Record<string, string> | undefined {
   router.subscribe((state) => {
     currentParams = state.params;
   })();
+  if (currentParams === undefined) return undefined;
   router.update((state) => ({ ...state, params: undefined }));
   return currentParams;
 }

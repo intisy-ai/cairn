@@ -32,6 +32,17 @@ describe("router", () => {
     expect(get(router).params).toBeUndefined();
   });
 
+  it("consumeParams does not notify subscribers when there are no params", () => {
+    navigate("plugins");
+    let notifications = 0;
+    const unsub = router.subscribe(() => notifications++);
+    notifications = 0;
+    const result = consumeParams();
+    unsub();
+    expect(result).toBeUndefined();
+    expect(notifications).toBe(0);
+  });
+
   it("navigate without params clears any prior params", () => {
     navigate("apps", { app: "claude" });
     expect(get(router).params).toEqual({ app: "claude" });

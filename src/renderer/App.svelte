@@ -27,6 +27,12 @@
 
   const activeLabel = $derived(SCREENS.find((screen) => screen.id === $router.screen)?.label ?? "");
 
+  // Depend only on the screen value, never the whole router store: a route that
+  // mutates params in onMount (Plugins clears its deep-link param) must not make
+  // this re-import and remount the route in a loop.
+  const screen = $derived($router.screen);
+  const routeModule = $derived(loadRoute(screen));
+
   let hasRouting = $state(true);
 
   onMount(async () => {
@@ -40,9 +46,9 @@
   <div class="shell">
     <Sidebar {hasRouting} />
     <main class="main">
-      {#key $router.screen}
+      {#key screen}
         <div class="screen" in:fadeMotion={{ duration: 120 }}>
-          {#await loadRoute($router.screen)}
+          {#await routeModule}
             <div class="route-loading"><Skeleton height="80px" radius="12px" /></div>
           {:then module}
             {@const Route = module.default as typeof Skeleton}
