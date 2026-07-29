@@ -8,7 +8,8 @@
   import Routing from "./lib/routes/Routing.svelte";
   import Usage from "./lib/routes/Usage.svelte";
   import LocalApi from "./lib/routes/LocalApi.svelte";
-  import AppsPlugins from "./lib/routes/AppsPlugins.svelte";
+  import Apps from "./lib/routes/Apps.svelte";
+  import Plugins from "./lib/routes/Plugins.svelte";
   import Settings from "./lib/routes/Settings.svelte";
   import { router, SCREENS } from "./lib/router.js";
   import { cairn } from "./lib/ipc.js";
@@ -40,10 +41,14 @@
         <Usage />
       {:else if $router.screen === "localApi"}
         <LocalApi />
+      {:else if $router.screen === "apps"}
+        <Apps />
+      {:else if $router.screen === "plugins"}
+        <Plugins />
       {:else if $router.screen === "settings"}
         <Settings />
       {:else}
-        <AppsPlugins />
+        <Overview />
       {/if}
     </main>
   </div>

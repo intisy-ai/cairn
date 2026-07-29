@@ -1,6 +1,6 @@
 import { writable } from "svelte/store";
 
-export type ScreenId = "overview" | "providers" | "accounts" | "routing" | "usage" | "localApi" | "appsPlugins" | "settings";
+export type ScreenId = "overview" | "providers" | "accounts" | "routing" | "usage" | "localApi" | "apps" | "plugins" | "settings";
 
 export type ScreenSection = "main" | "network";
 
@@ -20,7 +20,8 @@ export const SCREENS: readonly ScreenDef[] = [
   { id: "routing", label: "Routing", glyph: "⇄", section: "main" },
   { id: "usage", label: "Usage", glyph: "◷", section: "main" },
   { id: "localApi", label: "Local API", glyph: "⇢", section: "network" },
-  { id: "appsPlugins", label: "Apps & plugins", glyph: "⊞", section: "network" },
+  { id: "apps", label: "Apps", glyph: "▤", section: "network" },
+  { id: "plugins", label: "Plugins", glyph: "⊞", section: "network" },
   { id: "settings", label: "Settings", glyph: "⚙", section: "network" },
 ];
 

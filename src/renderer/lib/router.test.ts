@@ -16,16 +16,16 @@ describe("router", () => {
 
   it("lists every screen exactly once, in a stable order", () => {
     const ids = SCREENS.map((screen) => screen.id);
-    expect(ids).toEqual(["overview", "providers", "accounts", "routing", "usage", "localApi", "appsPlugins", "settings"]);
+    expect(ids).toEqual(["overview", "providers", "accounts", "routing", "usage", "localApi", "apps", "plugins", "settings"]);
   });
 
   it("navigate with params stores them and consumeParams exposes them once", () => {
-    navigate("appsPlugins", { home: "cairn", filter: "provider" });
-    expect(get(router).screen).toBe("appsPlugins");
-    expect(get(router).params).toEqual({ home: "cairn", filter: "provider" });
+    navigate("plugins", { add: "1" });
+    expect(get(router).screen).toBe("plugins");
+    expect(get(router).params).toEqual({ add: "1" });
 
     const params = consumeParams();
-    expect(params).toEqual({ home: "cairn", filter: "provider" });
+    expect(params).toEqual({ add: "1" });
 
     const secondCall = consumeParams();
     expect(secondCall).toBeUndefined();
@@ -33,8 +33,8 @@ describe("router", () => {
   });
 
   it("navigate without params clears any prior params", () => {
-    navigate("appsPlugins", { home: "cairn" });
-    expect(get(router).params).toEqual({ home: "cairn" });
+    navigate("apps", { app: "claude" });
+    expect(get(router).params).toEqual({ app: "claude" });
 
     navigate("overview");
     expect(get(router).params).toBeUndefined();

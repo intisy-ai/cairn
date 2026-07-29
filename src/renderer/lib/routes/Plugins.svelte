@@ -3,6 +3,7 @@
   import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin, Result, InstallManyResult, InstallOutcome, RepoRef } from "@cairn/shared";
   import { classifyRepoName } from "@cairn/shared";
   import { cairn } from "../ipc.js";
+  import { consumeParams } from "../router.js";
   import { track } from "../downloads.js";
   import { debounce } from "../util/debounce.js";
   import { buildUnifiedPlugins, applicableHomeIds } from "../util/unifiedPlugins.js";
@@ -144,6 +145,8 @@
 
   onMount(() => {
     reload();
+    const params = consumeParams();
+    if (params?.add) addOpen = true;
   });
 </script>
 

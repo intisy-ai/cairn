@@ -131,7 +131,7 @@
       return;
     }
     if (importable.length > 1) {
-      navigate("appsPlugins");
+      navigate("apps");
       return;
     }
     importApp = importable[0].app;
@@ -139,7 +139,7 @@
   }
 
   function handleAddProvider(): void {
-    navigate("appsPlugins", { home: "cairn", filter: "provider", add: "1" });
+    navigate("plugins", { add: "1" });
   }
 
   onMount(load);

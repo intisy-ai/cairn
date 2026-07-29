@@ -137,7 +137,7 @@ describe("Providers screen", () => {
     await waitFor(() => expect(getByText(/exposed 2 provider\(s\) for Claude Code/i)).toBeTruthy());
   });
 
-  it("Import navigates to Apps & plugins when more than one app is importable", async () => {
+  it("Import navigates to Apps when more than one app is importable", async () => {
     stubCairn({
       providersList: async () => ({ ok: true, data: [] }),
       importApps: async () => ({
@@ -154,10 +154,10 @@ describe("Providers screen", () => {
     await waitFor(() => expect(getByText("Import")).toBeTruthy());
     await fireEvent.click(getByText("Import"));
 
-    await waitFor(() => expect(get(router).screen).toBe("appsPlugins"));
+    await waitFor(() => expect(get(router).screen).toBe("apps"));
   });
 
-  it("+ Add provider navigates to Apps & plugins with deep-link params", async () => {
+  it("+ Add provider navigates to Plugins with deep-link params", async () => {
     stubCairn({ providersList: async () => ({ ok: true, data: [] }) });
     router.set({ screen: "providers" });
 
@@ -165,9 +165,9 @@ describe("Providers screen", () => {
     await waitFor(() => expect(getByText("+ Add provider")).toBeTruthy());
     await fireEvent.click(getByText("+ Add provider"));
 
-    expect(get(router).screen).toBe("appsPlugins");
+    expect(get(router).screen).toBe("plugins");
     const params = consumeParams();
-    expect(params).toEqual({ home: "cairn", filter: "provider", add: "1" });
+    expect(params).toEqual({ add: "1" });
   });
 
   it("filters rows by id or by label as the debounced search settles", async () => {

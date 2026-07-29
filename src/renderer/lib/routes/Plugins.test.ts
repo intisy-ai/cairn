@@ -4,6 +4,7 @@ import { render, fireEvent, waitFor, within, screen } from "@testing-library/sve
 import { get } from "svelte/store";
 import { stubCairn } from "../testing.js";
 import { downloads } from "../downloads.js";
+import { router } from "../router.js";
 import Plugins from "./Plugins.svelte";
 import type { HomePlugins, PluginHome } from "@cairn/shared";
 
@@ -157,5 +158,16 @@ describe("Plugins screen", () => {
     await waitFor(() =>
       expect(pluginsInstallMany).toHaveBeenCalledWith("some-plugin", "https://github.com/intisy-ai/some-plugin", ["claude", "opencode"]),
     );
+  });
+
+  it("opens the Add dialog on mount when deep-linked with an add param", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+    });
+    router.set({ screen: "plugins", params: { add: "1" } });
+    render(Plugins);
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 });
