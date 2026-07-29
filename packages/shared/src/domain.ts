@@ -104,6 +104,9 @@ export type ImportSummary = { accounts: number; providers: number; routingImport
 export type ImportSelection = { accounts: boolean; routing: boolean; exposure: boolean };
 export type ImportPreview = { accounts: number; routingSlots: number | null; exposedProviders: number };
 export type RoutingApp = { app: string; label: string };
+export type SyncCategories = { accounts: boolean; plugins: boolean; settings: boolean; pluginConfigs: boolean };
+export type SyncStatus = { enabled: boolean; categories: SyncCategories; exclude: string[]; homes: string[]; pluginConfigs: string[] };
+
 export type PluginHomeId = string;
 export type PluginHome = {
   id: PluginHomeId;

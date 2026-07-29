@@ -1,11 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { HomePlugins, PluginConfigSchema } from "@cairn/shared";
+  import type { HomePlugins, PluginConfigSchema, SyncStatus, SyncCategories } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { applyThemeSetting } from "../theme.js";
   import type { ThemeSetting } from "../theme.js";
   import Card from "../components/Card.svelte";
   import ToggleSwitch from "../components/ToggleSwitch.svelte";
+  import Button from "../components/Button.svelte";
+  import Spinner from "../components/Spinner.svelte";
 
   type FieldKind = "boolean" | "number" | "string" | "json";
   type Field = { key: string; value: unknown; kind: FieldKind };
@@ -95,6 +97,44 @@
     await cairn.setConfig("settings", "logConsole", on);
   }
 
+  const SYNC_CATEGORIES: { key: keyof SyncCategories; label: string; desc: string }[] = [
+    { key: "accounts", label: "Accounts", desc: "Mirror provider logins across apps (no login is ever lost)." },
+    { key: "plugins", label: "Plugins", desc: "Install a plugin in one app and it appears in the others." },
+    { key: "settings", label: "Global settings", desc: "Share config/settings.json across apps (secrets excluded)." },
+    { key: "pluginConfigs", label: "Plugin configs", desc: "Share each plugin's config across apps (secrets excluded)." },
+  ];
+
+  let sync = $state<SyncStatus | null>(null);
+  let syncRunning = $state(false);
+
+  async function loadSync(): Promise<void> {
+    const result = await cairn.syncStatus();
+    if (result.ok) sync = result.data;
+  }
+
+  async function handleSyncEnabled(on: boolean): Promise<void> {
+    if (sync) sync = { ...sync, enabled: on };
+    await cairn.syncSetConfig("enabled", on);
+  }
+
+  async function handleSyncCategory(key: keyof SyncCategories, on: boolean): Promise<void> {
+    if (!sync) return;
+    const categories = { ...sync.categories, [key]: on };
+    sync = { ...sync, categories };
+    await cairn.syncSetConfig("categories", categories);
+  }
+
+  async function handleSyncNow(): Promise<void> {
+    if (syncRunning) return;
+    syncRunning = true;
+    try {
+      await cairn.syncRun();
+      await loadSync();
+    } finally {
+      syncRunning = false;
+    }
+  }
+
   async function handleFieldChange(homeId: string, plugin: string, key: string, value: unknown): Promise<void> {
     const id = fieldId(homeId, plugin, key);
     const result = await cairn.configWrite(homeId, plugin, key, value);
@@ -116,6 +156,7 @@
   onMount(() => {
     loadCairnSettings();
     loadAppGroups();
+    loadSync();
   });
 </script>
 
@@ -195,6 +236,45 @@
         <span class="desc">Every plugin's log lines also print to stderr.</span>
       </div>
       <ToggleSwitch checked={logConsole} label="Mirror plugin logs to the console" onchange={handleLogConsoleChange} />
+    </div>
+  </Card>
+</section>
+
+<section class="category">
+  <h2>Sync</h2>
+  <Card>
+    <div class="row">
+      <div class="info">
+        <b>Sync across apps</b>
+        <span class="desc">Keep accounts, plugins, and settings mirrored across every app. Secrets are never shared.</span>
+      </div>
+      <ToggleSwitch checked={sync?.enabled ?? true} label="Sync across apps" onchange={handleSyncEnabled} />
+    </div>
+    {#each SYNC_CATEGORIES as cat (cat.key)}
+      <div class="row">
+        <div class="info">
+          <b>{cat.label}</b>
+          <span class="desc">{cat.desc}</span>
+        </div>
+        <ToggleSwitch
+          checked={sync?.categories?.[cat.key] ?? true}
+          label={cat.label}
+          disabled={sync?.enabled === false}
+          onchange={(on) => handleSyncCategory(cat.key, on)}
+        />
+      </div>
+    {/each}
+    <div class="row">
+      <div class="info">
+        <b>Sync now</b>
+        <span class="desc">
+          {#if sync && sync.homes.length > 0}Reconciles {sync.homes.length} app home{sync.homes.length === 1 ? "" : "s"} immediately.{:else}Runs a reconcile across your app homes.{/if}
+        </span>
+      </div>
+      <Button disabled={syncRunning || sync?.enabled === false} onclick={handleSyncNow}>
+        {#if syncRunning}<Spinner />{/if}
+        Sync now
+      </Button>
     </div>
   </Card>
 </section>

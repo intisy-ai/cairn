@@ -102,4 +102,25 @@ describe("Settings screen", () => {
     await waitFor(() => expect(screen.getByText(/list boom/i)).toBeTruthy());
     expect(await screen.findByLabelText("Theme")).toBeInTheDocument();
   });
+
+  it("renders the Sync section, persists a category toggle, and runs sync now", async () => {
+    const setCalls: [string, unknown][] = [];
+    const syncRun = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    stubCairn({
+      syncStatus: async () => ({
+        ok: true,
+        data: { enabled: true, categories: { accounts: true, plugins: true, settings: true, pluginConfigs: true }, exclude: [], homes: ["/a", "/b"], pluginConfigs: [] },
+      }),
+      syncSetConfig: async (key, value) => { setCalls.push([key, value]); return { ok: true, data: undefined }; },
+      syncRun,
+    });
+    render(Settings);
+
+    const accountsSwitch = await screen.findByLabelText("Accounts");
+    await fireEvent.click(accountsSwitch);
+    await waitFor(() => expect(setCalls.some(([k]) => k === "categories")).toBe(true));
+
+    await fireEvent.click(screen.getByRole("button", { name: /sync now/i }));
+    await waitFor(() => expect(syncRun).toHaveBeenCalledOnce());
+  });
 });

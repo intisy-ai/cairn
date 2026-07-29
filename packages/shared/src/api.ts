@@ -1,4 +1,4 @@
-import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, HostApp, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView, InstallManyResult } from "./domain.js";
+import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, HostApp, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView, InstallManyResult, SyncStatus } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -31,6 +31,9 @@ export interface CairnAPI {
   pluginsUninstall(home: string, name: string): Promise<Result<void>>;
   configSchemas(home: string): Promise<Result<PluginConfigSchema[]>>;
   configWrite(home: string, plugin: string, key: string, value: unknown): Promise<Result<void>>;
+  syncStatus(): Promise<Result<SyncStatus>>;
+  syncRun(): Promise<Result<void>>;
+  syncSetConfig(key: string, value: unknown): Promise<Result<void>>;
   usageSnapshot(): Promise<Result<UsageSnapshot>>;
   importApps(): Promise<Result<ImportableApp[]>>;
   importPreview(app: string): Promise<Result<ImportPreview>>;

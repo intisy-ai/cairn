@@ -2,20 +2,23 @@
   let {
     checked = $bindable(false),
     label,
+    disabled = false,
     onchange,
   }: {
     checked?: boolean;
     label: string;
+    disabled?: boolean;
     onchange?: (checked: boolean) => void;
   } = $props();
 
   function toggle(): void {
+    if (disabled) return;
     checked = !checked;
     onchange?.(checked);
   }
 </script>
 
-<button class="sw" role="switch" aria-checked={checked} aria-label={label} onclick={toggle}></button>
+<button class="sw" role="switch" aria-checked={checked} aria-label={label} {disabled} onclick={toggle}></button>
 
 <style>
   .sw {

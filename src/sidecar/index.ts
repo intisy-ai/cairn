@@ -8,6 +8,7 @@ import { routingApps, routingGet, routingSetChain } from "./modules/routing.js";
 import { appsDetect, appsList, appsInstallCli, appsInit, appsUninstallCli, appsSummary } from "./modules/apps.js";
 import { pluginsList, pluginsInstall, pluginsInstallMany, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
 import { configSchemas, configWrite } from "./modules/appConfig.js";
+import { syncStatus, syncRun, syncSetConfig } from "./modules/sync.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
 import { usageSnapshot } from "./modules/usage.js";
 import { importApps, importPreview, importRun } from "./modules/import.js";
@@ -65,6 +66,9 @@ registerHandler("plugins:downgrade", (home, name, hash) => pluginsDowngrade(home
 registerHandler("plugins:uninstall", (home, name) => pluginsUninstall(home as string, name as string));
 registerHandler("config:schemas", (home) => configSchemas(home as string));
 registerHandler("config:write", (home, plugin, key, value) => configWrite(home as string, plugin as string, key as string, value));
+registerHandler("sync:status", () => syncStatus());
+registerHandler("sync:run", () => syncRun());
+registerHandler("sync:setConfig", (key, value) => syncSetConfig(key as string, value));
 registerHandler("usage:snapshot", () => usageSnapshot());
 registerHandler("import:apps", () => importApps());
 registerHandler("import:preview", (app) => importPreview(app as string));
