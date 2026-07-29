@@ -11,26 +11,24 @@
     subtitle,
     translator,
     status,
-    cc,
-    oc,
+    apps,
+    exposure,
     accountLabel,
     enabled,
     onToggle,
-    onToggleCc,
-    onToggleOc,
+    onToggleExposure,
   }: {
     avatar: string;
     name: string;
     subtitle: string;
     translator?: string;
     status: { variant: StatusVariant; label: string };
-    cc: boolean;
-    oc: boolean;
+    apps: { id: string; label: string }[];
+    exposure: Record<string, boolean>;
     accountLabel: string;
     enabled: boolean;
     onToggle?: (on: boolean) => void;
-    onToggleCc?: (on: boolean) => void;
-    onToggleOc?: (on: boolean) => void;
+    onToggleExposure?: (appId: string, on: boolean) => void;
   } = $props();
 </script>
 
@@ -42,7 +40,7 @@
     {#if translator}<Chip label={translator} />{/if}
   </div>
   <div><StatusPill variant={status.variant} label={status.label} /></div>
-  <AppPills {cc} {oc} {onToggleCc} {onToggleOc} />
+  <AppPills {apps} values={exposure} onToggle={onToggleExposure} />
   <div class="acct">{accountLabel}</div>
   <ToggleSwitch checked={enabled} label={`${name} enabled`} onchange={onToggle} />
 </div>

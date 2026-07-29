@@ -31,6 +31,13 @@ function defaultCairn(): CairnAPI {
     proxyStart: async () => ({ ok: true, data: undefined }),
     proxyStop: async () => ({ ok: true, data: undefined }),
     appsDetect: async () => ({ ok: true, data: { claude: false, opencode: false } }),
+    appsList: async () => ({
+      ok: true,
+      data: [
+        { id: "claude", label: "Claude Code" },
+        { id: "opencode", label: "OpenCode" },
+      ],
+    }),
     appsInstallCli: async () => ({ ok: true, data: { stdout: "", stderr: "" } }),
     appsInit: async () => ({ ok: true, data: { stdout: "", stderr: "" } }),
     appsUninstallCli: async () => ({ ok: true, data: { stdout: "", stderr: "" } }),

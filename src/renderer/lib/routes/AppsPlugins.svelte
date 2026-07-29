@@ -15,7 +15,7 @@
   import SearchField from "../components/SearchField.svelte";
   import VirtualList from "../components/VirtualList.svelte";
 
-  type AppId = "claude" | "opencode";
+  type AppId = string;
   type KindFilter = CatalogKind | "all";
 
   const KIND_FILTERS: { id: KindFilter; label: string }[] = [
@@ -33,7 +33,7 @@
   let selectedHome = $state<PluginHomeId | null>(null);
 
   let appsError = $state("");
-  let busyApps = $state<Record<AppId, boolean>>({ claude: false, opencode: false });
+  let busyApps = $state<Record<AppId, boolean>>({});
 
   let sections = $state<HomePlugins[]>([]);
   let pluginsError = $state("");
@@ -44,7 +44,7 @@
   let machineryBusy = $state(false);
 
   let importable = $state<ImportableApp[]>([]);
-  let importNotes = $state<Record<AppId, string[]>>({ claude: [], opencode: [] });
+  let importNotes = $state<Record<AppId, string[]>>({});
 
   let uninstallArm = $state("");
   let addOpen = $state(false);
@@ -101,7 +101,7 @@
 
   $effect(() => {
     const home = selectedHome;
-    if (home !== "claude" && home !== "opencode") {
+    if (!home || home === "cairn") {
       appSummary = null;
       appSummaryError = "";
       return;
@@ -330,9 +330,9 @@
           <Button onclick={() => (importOpen = app)}>Import config</Button>
         {/if}
       </div>
-      {#if importNotes[app].length > 0}
+      {#if (importNotes[app] ?? []).length > 0}
         <ul class="import-notes">
-          {#each importNotes[app] as note}<li>{note}</li>{/each}
+          {#each importNotes[app] ?? [] as note}<li>{note}</li>{/each}
         </ul>
       {/if}
 

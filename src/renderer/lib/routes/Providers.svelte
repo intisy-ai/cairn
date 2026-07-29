@@ -35,8 +35,9 @@
   let filter = $state<Filter>("all");
   let importNotes = $state<string[]>([]);
   let importError = $state("");
-  let importApp = $state<"claude" | "opencode" | null>(null);
+  let importApp = $state<string | null>(null);
   let importAppLabel = $state("");
+  let apps = $state<{ id: string; label: string }[]>([]);
   let connectedOpen = $state(true);
   let availableOpen = $state(true);
   let customEndpointsOpen = $state(false);
@@ -106,9 +107,14 @@
     await load();
   }
 
-  async function handleSetExposure(id: string, app: "cc" | "oc", on: boolean): Promise<void> {
-    await cairn.providersSetExposure(id, app, on);
+  async function handleSetExposure(id: string, appId: string, on: boolean): Promise<void> {
+    await cairn.providersSetExposure(id, appId, on);
     await load();
+  }
+
+  async function loadApps(): Promise<void> {
+    const result = await cairn.appsList();
+    if (result.ok) apps = result.data;
   }
 
   async function handleImport(): Promise<void> {
@@ -128,7 +134,7 @@
       navigate("appsPlugins");
       return;
     }
-    importApp = importable[0].app as "claude" | "opencode";
+    importApp = importable[0].app;
     importAppLabel = importable[0].label;
   }
 
@@ -137,6 +143,7 @@
   }
 
   onMount(load);
+  onMount(loadApps);
 </script>
 
 <div class="head">
@@ -232,13 +239,12 @@
     subtitle={row.hasOAuth ? "OAuth" : "API key"}
     translator={row.translator}
     status={statusFor(row)}
-    cc={row.exposure.cc}
-    oc={row.exposure.oc}
+    {apps}
+    exposure={row.exposure}
     accountLabel={accountLabel(row)}
     enabled={row.active}
     onToggle={() => handleSetActive(row.id)}
-    onToggleCc={(on) => handleSetExposure(row.id, "cc", on)}
-    onToggleOc={(on) => handleSetExposure(row.id, "oc", on)}
+    onToggleExposure={(appId, on) => handleSetExposure(row.id, appId, on)}
   />
 {/snippet}
 

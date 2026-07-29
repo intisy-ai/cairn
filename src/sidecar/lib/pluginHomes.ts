@@ -3,24 +3,20 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
 import { getPluginsPath } from "@plugin-updater/config.js";
+import { getApps, getAppDescriptor, resolveHome } from "@core/index.js";
 import { appsDetect } from "../modules/apps.js";
 import type { AppPresence, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
 
-// Mirrors libs/core-auth/src/env.ts's getConfigDir, resolving the app's REAL home independent of HUB_CONFIG_DIR (which the dashboard sidecar sets to its own store).
-export function appRealHome(app: "claude" | "opencode", env: NodeJS.ProcessEnv = process.env, home: string = homedir()): string {
-  if (app === "claude") {
-    return existsSync(join(home, ".claude")) ? join(home, ".claude") : join(home, ".config", "claude");
-  }
-  const xdg = env.XDG_CONFIG_HOME;
-  if (xdg && xdg.trim()) return join(xdg.trim(), "opencode");
-  return existsSync(join(home, ".config", "opencode")) ? join(home, ".config", "opencode") : join(home, ".opencode");
+export function appRealHome(app: string, env: NodeJS.ProcessEnv = process.env, home: string = homedir()): string {
+  const desc = getAppDescriptor(app, env, home);
+  return desc ? resolveHome(desc, env, home) : "";
 }
 
 export interface PluginHomesDeps {
   detect?: () => Promise<Result<AppPresence>>;
   cairnDir?: string;
   exists?: (path: string) => boolean;
-  appHome?: (app: "claude" | "opencode") => string;
+  appHome?: (app: string) => string;
 }
 
 export async function pluginHomes(deps: PluginHomesDeps = {}): Promise<PluginHome[]> {
@@ -29,15 +25,14 @@ export async function pluginHomes(deps: PluginHomesDeps = {}): Promise<PluginHom
   const cairnDir = deps.cairnDir ?? getConfigDir();
   const appHomeForId = deps.appHome ?? appRealHome;
   const detected = await detect();
-  const present = detected.ok ? detected.data : { claude: false, opencode: false };
-  const app = (id: "claude" | "opencode", label: string): PluginHome => {
-    const dir = appHomeForId(id);
-    return { id, label, dir, present: present[id], hasUpdater: exists(getPluginsPath(dir)) };
-  };
+  const present: AppPresence = detected.ok ? detected.data : {};
+  const appHomes: PluginHome[] = getApps().map((desc) => {
+    const dir = appHomeForId(desc.id);
+    return { id: desc.id, label: desc.label, dir, present: !!present[desc.id], hasUpdater: exists(getPluginsPath(dir)) };
+  });
   return [
     { id: "cairn", label: "Cairn", dir: cairnDir, present: true, hasUpdater: true },
-    app("claude", "Claude Code"),
-    app("opencode", "OpenCode"),
+    ...appHomes,
   ];
 }
 

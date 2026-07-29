@@ -1,31 +1,19 @@
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join, delimiter } from "node:path";
-import { getAppConfigDir } from "@plugin-updater/env.js";
+import { getApps, getAppDescriptor, resolveHome } from "@core/index.js";
+import type { AppDescriptor } from "@core/index.js";
 import { getPlugins } from "@plugin-updater/config.js";
 import { resolveModelMap } from "@core-proxy/model-map.js";
 import { normalizeQuotas } from "../../../vendor/usage/snapshot.js";
 import { appRealHome } from "../lib/pluginHomes.js";
 import { profileFor } from "../lib/proxyRegistry.js";
-import type { AppAccountSummary, AppPresence, AppProviderAgg, AppSummary, CliResult, Result } from "../../../packages/shared/src/domain.js";
+import type { AppAccountSummary, AppPresence, AppProviderAgg, AppSummary, CliResult, HostApp, Result } from "../../../packages/shared/src/domain.js";
 import { wrap, err } from "../result.js";
-
-export type AppName = "claude" | "opencode";
 
 export type BinaryExistsFn = (name: string) => boolean;
 export type FsExistsFn = (path: string) => boolean;
 export type SpawnFn = (file: string, args: string[]) => Promise<CliResult>;
-
-const APPS = ["claude", "opencode"] as const;
-
-function isAppName(x: unknown): x is AppName {
-  return typeof x === "string" && (APPS as readonly string[]).includes(x);
-}
-
-const CLI_PACKAGES: Record<AppName, string> = {
-  claude: "@anthropic-ai/claude-code",
-  opencode: "opencode-ai",
-};
 
 function realBinaryExists(name: string): boolean {
   const pathEnv = process.env.PATH ?? process.env.Path ?? "";
@@ -48,8 +36,8 @@ function realSpawn(file: string, args: string[]): Promise<CliResult> {
   });
 }
 
-function isPresent(app: AppName, binaryExists: BinaryExistsFn, fsExists: FsExistsFn): boolean {
-  return binaryExists(app) || fsExists(getAppConfigDir(app));
+function isPresent(desc: AppDescriptor, binaryExists: BinaryExistsFn, fsExists: FsExistsFn): boolean {
+  return binaryExists(desc.detect.binary) || fsExists(resolveHome(desc));
 }
 
 export interface AppsDetectDeps {
@@ -60,20 +48,27 @@ export interface AppsDetectDeps {
 export function appsDetect(deps: AppsDetectDeps = {}): Promise<Result<AppPresence>> {
   const binaryExists = deps.binaryExists ?? realBinaryExists;
   const fsExists = deps.fsExists ?? existsSync;
-  return wrap(() => ({
-    claude: isPresent("claude", binaryExists, fsExists),
-    opencode: isPresent("opencode", binaryExists, fsExists),
-  }));
+  return wrap(() => {
+    const out: AppPresence = {};
+    for (const desc of getApps()) out[desc.id] = isPresent(desc, binaryExists, fsExists);
+    return out;
+  });
 }
 
-export function appsInstallCli(app: AppName, spawn: SpawnFn = realSpawn): Promise<Result<CliResult>> {
-  if (!isAppName(app)) return Promise.resolve(err(`unknown app: ${app}`));
-  return wrap(() => spawn("npm", ["install", "-g", CLI_PACKAGES[app]]));
+export function appsList(): Promise<Result<HostApp[]>> {
+  return wrap(() => getApps().map((desc) => ({ id: desc.id, label: desc.label })));
 }
 
-export function appsInit(app: AppName, spawn: SpawnFn = realSpawn): Promise<Result<CliResult>> {
-  if (!isAppName(app)) return Promise.resolve(err(`unknown app: ${app}`));
-  return wrap(() => spawn("npx", ["plugin-updater", "init", "--app", app]));
+export function appsInstallCli(app: string, spawn: SpawnFn = realSpawn): Promise<Result<CliResult>> {
+  const desc = getAppDescriptor(app);
+  if (!desc) return Promise.resolve(err(`unknown app: ${app}`));
+  return wrap(() => spawn("npm", ["install", "-g", desc.detect.pkg]));
+}
+
+export function appsInit(app: string, spawn: SpawnFn = realSpawn): Promise<Result<CliResult>> {
+  const desc = getAppDescriptor(app);
+  if (!desc) return Promise.resolve(err(`unknown app: ${app}`));
+  return wrap(() => spawn("npx", ["plugin-updater", "init", "--app", desc.id]));
 }
 
 function safeReadJson(path: string): unknown | null {
@@ -119,16 +114,17 @@ function quotaMinPctOf(accounts: AppAccountSummary[]): number | null {
 export interface AppsUninstallDeps {
   spawn?: SpawnFn;
   rm?: (path: string) => void;
-  appHome?: (app: AppName) => string;
+  appHome?: (app: string) => string;
 }
 
-export function appsUninstallCli(app: AppName, wipeData: boolean, deps: AppsUninstallDeps = {}): Promise<Result<CliResult>> {
-  if (!isAppName(app)) return Promise.resolve(err(`unknown app: ${app}`));
+export function appsUninstallCli(app: string, wipeData: boolean, deps: AppsUninstallDeps = {}): Promise<Result<CliResult>> {
+  const desc = getAppDescriptor(app);
+  if (!desc) return Promise.resolve(err(`unknown app: ${app}`));
   const spawn = deps.spawn ?? realSpawn;
   const rm = deps.rm ?? ((p: string) => rmSync(p, { recursive: true, force: true }));
   const appHome = deps.appHome ?? appRealHome;
   return wrap(async () => {
-    const result = await spawn("npm", ["uninstall", "-g", CLI_PACKAGES[app]]);
+    const result = await spawn("npm", ["uninstall", "-g", desc.detect.pkg]);
     if (wipeData) rm(appHome(app));
     return result;
   });
@@ -139,12 +135,13 @@ interface AccountsStoreShape {
 }
 
 export interface AppsSummaryDeps {
-  appHome?: (app: AppName) => string;
+  appHome?: (app: string) => string;
   readJson?: (path: string) => unknown | null;
 }
 
-export function appsSummary(app: AppName, deps: AppsSummaryDeps = {}): Promise<Result<AppSummary>> {
-  if (!isAppName(app)) return Promise.resolve(err(`unknown app: ${app}`));
+export function appsSummary(app: string, deps: AppsSummaryDeps = {}): Promise<Result<AppSummary>> {
+  const desc = getAppDescriptor(app);
+  if (!desc) return Promise.resolve(err(`unknown app: ${app}`));
   const appHome = deps.appHome ?? appRealHome;
   const readJson = deps.readJson ?? safeReadJson;
   return wrap(async () => {

@@ -6,7 +6,7 @@ import { stubCairn } from "../testing.js";
 import Accounts from "./Accounts.svelte";
 
 const PROVIDERS = [
-  { id: "stub", label: "Stub", hasOAuth: true, accountCount: 2, active: true, exposure: { cc: true, oc: false } },
+  { id: "stub", label: "Stub", hasOAuth: true, accountCount: 2, active: true, exposure: { claude: true, opencode: false } },
 ];
 
 const ACCOUNTS = [
@@ -68,8 +68,8 @@ describe("Accounts screen", () => {
   });
 
   const TWO_PROVIDERS = [
-    { id: "alpha", label: "Alpha Team", hasOAuth: true, accountCount: 1, active: true, exposure: { cc: true, oc: false } },
-    { id: "beta", label: "Beta Team", hasOAuth: true, accountCount: 1, active: true, exposure: { cc: true, oc: false } },
+    { id: "alpha", label: "Alpha Team", hasOAuth: true, accountCount: 1, active: true, exposure: { claude: true, opencode: false } },
+    { id: "beta", label: "Beta Team", hasOAuth: true, accountCount: 1, active: true, exposure: { claude: true, opencode: false } },
   ];
 
   function twoProviderAccounts(provider: string): { ok: true; data: AccountView[] } {

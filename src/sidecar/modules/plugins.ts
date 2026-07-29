@@ -22,7 +22,7 @@ type UpdatePluginPublicFn = (name: string, url: string, branch?: string, commitH
 type SyncPluginsAcrossAppsFn = (configDir: string) => Promise<void>;
 type DowngradeFn = (plugin: { name: string; url?: string; branch?: string }, commitHash: string) => string;
 type HasUpdaterFn = (dir: string) => boolean;
-type InitAppFn = (app: "claude" | "opencode") => Promise<Result<CliResult>>;
+type InitAppFn = (app: string) => Promise<Result<CliResult>>;
 
 // Loaded dynamically (not statically bundled) because npm.js's require.resolve
 // fallback trips a Rollup CommonJS-interop bug when inlined into this chunk.

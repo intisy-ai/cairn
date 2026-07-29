@@ -13,7 +13,7 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "stub", label: "Stub", hasOAuth: true, accountCount: 2, active: true, exposure: { cc: true, oc: false } },
+          { id: "stub", label: "Stub", hasOAuth: true, accountCount: 2, active: true, exposure: { claude: true, opencode: false } },
         ],
       }),
       providersSetExposure,
@@ -24,16 +24,16 @@ describe("Providers screen", () => {
     await waitFor(() => expect(getByText("Stub")).toBeTruthy());
     expect(getByText(/2 accounts/i)).toBeTruthy();
 
-    const ccPill = getByText("CC");
-    const ocPill = getByText("OC");
-    expect(ccPill.classList.contains("on")).toBe(true);
-    expect(ocPill.classList.contains("na")).toBe(true);
+    const clPill = await waitFor(() => getByText("CL"));
+    const opPill = getByText("OP");
+    expect(clPill.classList.contains("on")).toBe(true);
+    expect(opPill.classList.contains("na")).toBe(true);
 
     const enabledSwitch = getByRole("switch", { name: /Stub enabled/i });
     expect(enabledSwitch.getAttribute("aria-checked")).toBe("true");
 
-    await fireEvent.click(ocPill);
-    expect(providersSetExposure).toHaveBeenCalledWith("stub", "oc", true);
+    await fireEvent.click(opPill);
+    expect(providersSetExposure).toHaveBeenCalledWith("stub", "opencode", true);
   });
 
   it("shows an inline error when providersList fails", async () => {
@@ -47,9 +47,9 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "oauth-only", label: "OAuthOnly", hasOAuth: true, accountCount: 0, active: false, exposure: { cc: false, oc: false } },
-          { id: "key-connected", label: "KeyConnected", hasOAuth: false, accountCount: 1, active: false, exposure: { cc: false, oc: false } },
-          { id: "key-unconnected", label: "KeyUnconnected", hasOAuth: false, accountCount: 0, active: false, exposure: { cc: false, oc: false } },
+          { id: "oauth-only", label: "OAuthOnly", hasOAuth: true, accountCount: 0, active: false, exposure: { claude: false, opencode: false } },
+          { id: "key-connected", label: "KeyConnected", hasOAuth: false, accountCount: 1, active: false, exposure: { claude: false, opencode: false } },
+          { id: "key-unconnected", label: "KeyUnconnected", hasOAuth: false, accountCount: 0, active: false, exposure: { claude: false, opencode: false } },
         ],
       }),
     });
@@ -70,8 +70,8 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "oauth-only", label: "OAuthOnly", hasOAuth: true, accountCount: 0, active: false, exposure: { cc: false, oc: false } },
-          { id: "key-unconnected", label: "KeyUnconnected", hasOAuth: false, accountCount: 0, active: false, exposure: { cc: false, oc: false } },
+          { id: "oauth-only", label: "OAuthOnly", hasOAuth: true, accountCount: 0, active: false, exposure: { claude: false, opencode: false } },
+          { id: "key-unconnected", label: "KeyUnconnected", hasOAuth: false, accountCount: 0, active: false, exposure: { claude: false, opencode: false } },
         ],
       }),
     });
@@ -91,8 +91,8 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "key-connected", label: "KeyConnected", hasOAuth: false, accountCount: 1, active: false, exposure: { cc: false, oc: false } },
-          { id: "key-unconnected", label: "KeyUnconnected", hasOAuth: false, accountCount: 0, active: false, exposure: { cc: false, oc: false } },
+          { id: "key-connected", label: "KeyConnected", hasOAuth: false, accountCount: 1, active: false, exposure: { claude: false, opencode: false } },
+          { id: "key-unconnected", label: "KeyUnconnected", hasOAuth: false, accountCount: 0, active: false, exposure: { claude: false, opencode: false } },
         ],
       }),
     });
@@ -175,8 +175,8 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "gamma-id", label: "Alpha Label", hasOAuth: false, accountCount: 1, active: false, exposure: { cc: false, oc: false } },
-          { id: "beta-id", label: "Zeta Label", hasOAuth: false, accountCount: 1, active: false, exposure: { cc: false, oc: false } },
+          { id: "gamma-id", label: "Alpha Label", hasOAuth: false, accountCount: 1, active: false, exposure: { claude: false, opencode: false } },
+          { id: "beta-id", label: "Zeta Label", hasOAuth: false, accountCount: 1, active: false, exposure: { claude: false, opencode: false } },
         ],
       }),
     });
@@ -202,7 +202,7 @@ describe("Providers screen", () => {
       hasOAuth: false,
       accountCount: 1,
       active: true,
-      exposure: { cc: false, oc: false },
+      exposure: { claude: false, opencode: false },
     }));
     stubCairn({ providersList: async () => ({ ok: true, data }) });
 
@@ -223,7 +223,7 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "custom", label: "Custom endpoint", hasOAuth: false, accountCount: 1, active: false, exposure: { cc: true, oc: false }, translator: "custom" },
+          { id: "custom", label: "Custom endpoint", hasOAuth: false, accountCount: 1, active: false, exposure: { claude: true, opencode: false }, translator: "custom" },
         ],
       }),
     });
@@ -244,7 +244,7 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "avail", label: "Available Provider", hasOAuth: false, accountCount: 0, active: false, exposure: { cc: false, oc: false } },
+          { id: "avail", label: "Available Provider", hasOAuth: false, accountCount: 0, active: false, exposure: { claude: false, opencode: false } },
         ],
       }),
     });

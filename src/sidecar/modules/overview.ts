@@ -5,7 +5,7 @@ import { getAccountsData } from "../../../vendor/usage/snapshot.js";
 import { pluginHomes } from "../lib/pluginHomes.js";
 import { appsDetect } from "./apps.js";
 import type { AccountSummary } from "../../../vendor/usage/types.js";
-import type { OverviewSummary, ProviderHealth, PluginHome, Result } from "../../../packages/shared/src/domain.js";
+import type { AppPresence, OverviewSummary, ProviderHealth, PluginHome, Result } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
 
 const SERVER_PORT = 34567;
@@ -48,7 +48,7 @@ export interface OverviewDeps {
   accounts?: () => AccountSummary[];
   homes?: () => Promise<PluginHome[]>;
   pluginsIn?: (dir: string) => unknown[];
-  detect?: () => Promise<{ claude: boolean; opencode: boolean }>;
+  detect?: () => Promise<AppPresence>;
   providers?: () => { provider: string }[];
 }
 
@@ -59,7 +59,7 @@ export function overviewSummary(deps: OverviewDeps = {}): Promise<Result<Overvie
   const pluginsIn = deps.pluginsIn ?? getPlugins;
   const detect = deps.detect ?? (async () => {
     const result = await appsDetect();
-    return result.ok ? result.data : { claude: false, opencode: false };
+    return result.ok ? result.data : {};
   });
   const providersOf = deps.providers ?? (() => readDeployedProviders(reposDir()));
   return wrap(async () => {
@@ -73,7 +73,7 @@ export function overviewSummary(deps: OverviewDeps = {}): Promise<Result<Overvie
       providersConnected: providers.length,
       accountsTotal: accounts.length,
       accountsEnabled: accounts.filter((a) => a.enabled).length,
-      appsDetected: [presence.claude, presence.opencode].filter(Boolean).length,
+      appsDetected: Object.values(presence).filter(Boolean).length,
       pluginsInstalled,
       providerHealth: providerHealthOf(accounts),
       serverRunning,

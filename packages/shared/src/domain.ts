@@ -30,7 +30,7 @@ export type ProviderRow = {
   hasOAuth: boolean;
   accountCount: number;
   active: boolean;
-  exposure: { cc: boolean; oc: boolean };
+  exposure: Record<string, boolean>;
   translator?: string;
 };
 export type RoutingState = {
@@ -38,10 +38,8 @@ export type RoutingState = {
   map: ModelMap;
   catalog: ModelCatalogEntry[];
 };
-export type AppPresence = {
-  claude: boolean;
-  opencode: boolean;
-};
+export type AppPresence = Record<string, boolean>;
+export type HostApp = { id: string; label: string };
 export type CliResult = {
   stdout: string;
   stderr: string;
@@ -104,8 +102,8 @@ export type ImportableApp = { app: string; label: string; hasConfig: boolean };
 export type ImportSummary = { accounts: number; providers: number; routingImported: boolean; notes: string[] };
 export type ImportSelection = { accounts: boolean; routing: boolean; exposure: boolean };
 export type ImportPreview = { accounts: number; routingSlots: number | null; exposedProviders: number };
-export type RoutingApp = { app: "claude" | "opencode"; label: string };
-export type PluginHomeId = "cairn" | "claude" | "opencode";
+export type RoutingApp = { app: string; label: string };
+export type PluginHomeId = string;
 export type PluginHome = {
   id: PluginHomeId;
   label: string;

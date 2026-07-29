@@ -3,13 +3,14 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { getConfigDir } from "@core-auth/index.js";
 import { getPlugins } from "@plugin-updater/config.js";
+import { getAppDescriptor } from "@core/index.js";
 import type { RoutingProfile } from "@core-proxy/index.js";
 
-export type LoadedProxyDef = { app: "claude" | "opencode"; label: string; profile: () => RoutingProfile };
+export type LoadedProxyDef = { app: string; label: string; profile: () => RoutingProfile };
 
 function isProxyDef(x: unknown): x is LoadedProxyDef {
   const d = x as LoadedProxyDef | undefined;
-  return !!d && (d.app === "claude" || d.app === "opencode") && typeof d.label === "string" && typeof d.profile === "function";
+  return !!d && typeof d.app === "string" && !!getAppDescriptor(d.app) && typeof d.label === "string" && typeof d.profile === "function";
 }
 
 const cache = new Map<string, { mtimeMs: number; def: LoadedProxyDef | null }>();

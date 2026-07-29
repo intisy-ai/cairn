@@ -1,7 +1,7 @@
 import { loadInstalledProxyDefs } from "./proxyPlugins.js";
 import type { LoadedProxyDef } from "./proxyPlugins.js";
 import type { RoutingProfile } from "@core-proxy/index.js";
-import type { RoutingApp } from "../../../packages/shared/src/domain.js";
+import type { AppPresence, RoutingApp } from "../../../packages/shared/src/domain.js";
 
 export type { RoutingApp };
 
@@ -10,7 +10,7 @@ export interface ProxyRegistryDeps {
 }
 
 export async function availableRoutingApps(
-  present: { claude: boolean; opencode: boolean },
+  present: AppPresence,
   deps: ProxyRegistryDeps = {},
 ): Promise<RoutingApp[]> {
   const defs = await (deps.defs ?? loadInstalledProxyDefs)();

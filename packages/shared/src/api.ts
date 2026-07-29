@@ -1,4 +1,4 @@
-import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView } from "./domain.js";
+import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, HostApp, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -9,7 +9,7 @@ export interface CairnAPI {
   accountsRefreshQuota(provider: string): Promise<Result<AccountView[]>>;
   providersList(): Promise<Result<ProviderRow[]>>;
   providersSetActive(id: string): Promise<Result<void>>;
-  providersSetExposure(id: string, app: "cc" | "oc", on: boolean): Promise<Result<void>>;
+  providersSetExposure(id: string, app: string, on: boolean): Promise<Result<void>>;
   routingApps(): Promise<Result<RoutingApp[]>>;
   routingGet(app: string): Promise<Result<RoutingState>>;
   routingSetChain(app: string, slot: string, chain: Chain): Promise<Result<{ warnings: string[] }>>;
@@ -17,10 +17,11 @@ export interface CairnAPI {
   proxyStart(): Promise<Result<void>>;
   proxyStop(): Promise<Result<void>>;
   appsDetect(): Promise<Result<AppPresence>>;
-  appsInstallCli(app: "claude" | "opencode"): Promise<Result<CliResult>>;
-  appsInit(app: "claude" | "opencode"): Promise<Result<CliResult>>;
-  appsUninstallCli(app: "claude" | "opencode", wipeData: boolean): Promise<Result<CliResult>>;
-  appsSummary(app: "claude" | "opencode"): Promise<Result<AppSummary>>;
+  appsList(): Promise<Result<HostApp[]>>;
+  appsInstallCli(app: string): Promise<Result<CliResult>>;
+  appsInit(app: string): Promise<Result<CliResult>>;
+  appsUninstallCli(app: string, wipeData: boolean): Promise<Result<CliResult>>;
+  appsSummary(app: string): Promise<Result<AppSummary>>;
   pluginsList(): Promise<Result<HomePlugins[]>>;
   pluginsInstall(home: string, name: string, url: string): Promise<Result<void>>;
   pluginsSetEnabled(home: string, name: string, on: boolean): Promise<Result<void>>;

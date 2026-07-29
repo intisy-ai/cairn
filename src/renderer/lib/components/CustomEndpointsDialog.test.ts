@@ -4,7 +4,7 @@ import { render, fireEvent, waitFor } from "@testing-library/svelte";
 import { stubCairn } from "../testing.js";
 import TestWrapper from "./CustomEndpointsDialog.test.svelte";
 
-const CUSTOM_ROW = { id: "custom", label: "Custom endpoint", hasOAuth: false, accountCount: 0, active: false, exposure: { cc: false, oc: false }, translator: "custom" };
+const CUSTOM_ROW = { id: "custom", label: "Custom endpoint", hasOAuth: false, accountCount: 0, active: false, exposure: { claude: false, opencode: false }, translator: "custom" };
 
 describe("CustomEndpointsDialog", () => {
   it("lists endpoints with a key-set badge", async () => {

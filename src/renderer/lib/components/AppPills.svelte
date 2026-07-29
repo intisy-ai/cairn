@@ -1,28 +1,24 @@
 <script lang="ts">
-  let {
-    cc,
-    oc,
-    onToggleCc,
-    onToggleOc,
-  }: {
-    cc: boolean;
-    oc: boolean;
-    onToggleCc?: (on: boolean) => void;
-    onToggleOc?: (on: boolean) => void;
+  let { apps, values, onToggle }: {
+    apps: { id: string; label: string }[];
+    values: Record<string, boolean>;
+    onToggle?: (appId: string, on: boolean) => void;
   } = $props();
+
+  function short(label: string): string {
+    return label.replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase();
+  }
 </script>
 
 <div class="apps">
-  {#if onToggleCc}
-    <button type="button" class="app" class:on={cc} class:na={!cc} onclick={() => onToggleCc(!cc)}>CC</button>
-  {:else}
-    <span class="app" class:on={cc} class:na={!cc}>CC</span>
-  {/if}
-  {#if onToggleOc}
-    <button type="button" class="app" class:on={oc} class:na={!oc} onclick={() => onToggleOc(!oc)}>OC</button>
-  {:else}
-    <span class="app" class:on={oc} class:na={!oc}>OC</span>
-  {/if}
+  {#each apps as app (app.id)}
+    {@const on = !!values[app.id]}
+    {#if onToggle}
+      <button type="button" class="app" class:on class:na={!on} title={app.label} onclick={() => onToggle(app.id, !on)}>{short(app.label)}</button>
+    {:else}
+      <span class="app" class:on class:na={!on} title={app.label}>{short(app.label)}</span>
+    {/if}
+  {/each}
 </div>
 
 <style>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import ImportDialog from "./ImportDialog.svelte";
 
-  export let app: "claude" | "opencode" = "claude";
+  export let app: string = "claude";
   export let notes: string[] = [];
 </script>
 

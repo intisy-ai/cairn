@@ -5,7 +5,7 @@
   import { track } from "../downloads.js";
   import Button from "./Button.svelte";
 
-  let { app, label, onClose, onDone }: { app: "claude" | "opencode"; label: string; onClose: () => void; onDone: (notes: string[]) => void } = $props();
+  let { app, label, onClose, onDone }: { app: string; label: string; onClose: () => void; onDone: (notes: string[]) => void } = $props();
 
   let preview = $state<ImportPreview | null>(null);
   let error = $state("");

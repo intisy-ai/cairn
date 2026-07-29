@@ -17,6 +17,7 @@ export const IPC_CHANNELS = {
     "proxy:start",
     "proxy:stop",
     "apps:detect",
+    "apps:list",
     "apps:installCli",
     "apps:init",
     "apps:uninstallCli",

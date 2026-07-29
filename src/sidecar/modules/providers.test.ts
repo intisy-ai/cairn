@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { getConfigValue, setConfigValue } from "@core/index.js";
 
 const stubHandlerPath = fileURLToPath(new URL("../../../../../providers/stub-auth/dist/handler.js", import.meta.url));
 
@@ -42,13 +43,13 @@ describe("providers sidecar module", () => {
     expect(row.hasOAuth).toBe(true);
     expect(row.accountCount).toBe(1);
     expect(row.active).toBe(false);
-    expect(row.exposure).toEqual({ cc: true, oc: true });
+    expect(row.exposure).toEqual({ claude: true, opencode: true });
 
-    const exposed = await providersSetExposure("stub", "cc", false);
+    const exposed = await providersSetExposure("stub", "claude", false);
     expect(exposed.ok).toBe(true);
     const afterExposure = await providersList();
     if (!afterExposure.ok) throw new Error("unreachable");
-    expect(afterExposure.data[0].exposure).toEqual({ cc: false, oc: true });
+    expect(afterExposure.data[0].exposure).toEqual({ claude: false, opencode: true });
 
     const activated = await providersSetActive("stub");
     expect(activated.ok).toBe(true);
@@ -61,5 +62,24 @@ describe("providers sidecar module", () => {
     const { providersList } = await import("./providers.js");
     const result = await providersList();
     expect(result).toEqual({ ok: true, data: [] });
+  });
+
+  it("migrates a legacy {cc,oc} exposure entry to app ids on read", async () => {
+    seedStubProvider();
+    setConfigValue("dashboard-exposure", "map", { stub: { cc: true, oc: false } });
+    const { providersList } = await import("./providers.js");
+    const rows = await providersList();
+    const stub = rows.ok ? rows.data.find((r) => r.id === "stub") : undefined;
+    expect(stub?.exposure.claude).toBe(true);
+    expect(stub?.exposure.opencode).toBe(false);
+    expect((getConfigValue("dashboard-exposure", "map") as Record<string, Record<string, boolean>>).stub)
+      .toEqual({ claude: true, opencode: false });
+  });
+
+  it("providersSetExposure writes an app-id-keyed entry", async () => {
+    const { providersSetExposure } = await import("./providers.js");
+    await providersSetExposure("stub", "claude", false);
+    const map = getConfigValue("dashboard-exposure", "map") as Record<string, Record<string, boolean>>;
+    expect(map.stub.claude).toBe(false);
   });
 });

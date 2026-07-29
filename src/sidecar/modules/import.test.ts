@@ -89,8 +89,8 @@ describe("import", () => {
     expect(map.opus).toEqual([{ provider: "stub", model: "m-opus", name: "m-opus", derived: false }]);
 
     const { getConfigValue } = await import("@core/index.js");
-    const exposure = getConfigValue("dashboard-exposure", "map") as Record<string, { cc: boolean }>;
-    expect(exposure.stub.cc).toBe(true);
+    const exposure = getConfigValue("dashboard-exposure", "map") as Record<string, { claude: boolean }>;
+    expect(exposure.stub.claude).toBe(true);
   });
 
   it("previews accounts, routing slots, and exposable providers without writing", async () => {

@@ -2,7 +2,7 @@ import { getConfigDir, reposDir } from "@core-auth/index.js";
 import { readDeployedProviders } from "@core-loader/loader-runtime.js";
 import { resolveModelMap, claudeTiers, catalogEntries, normalizeChain } from "@core-proxy/model-map.js";
 import type { Chain } from "@core-proxy/index.js";
-import type { RoutingState, Result } from "../../../packages/shared/src/domain.js";
+import type { AppPresence, RoutingState, Result } from "../../../packages/shared/src/domain.js";
 import type { RoutingApp } from "../lib/proxyRegistry.js";
 import { availableRoutingApps, profileFor } from "../lib/proxyRegistry.js";
 import type { ProxyRegistryDeps } from "../lib/proxyRegistry.js";
@@ -14,9 +14,9 @@ function sanitizeChain(raw: unknown): Chain {
   return normalizeChain(raw).map(({ provider, model }) => ({ provider, model }));
 }
 
-async function presentApps(): Promise<{ claude: boolean; opencode: boolean }> {
+async function presentApps(): Promise<AppPresence> {
   const detected = await appsDetect();
-  return detected.ok ? detected.data : { claude: false, opencode: false };
+  return detected.ok ? detected.data : {};
 }
 
 export async function routingApps(deps: ProxyRegistryDeps = {}): Promise<Result<RoutingApp[]>> {
