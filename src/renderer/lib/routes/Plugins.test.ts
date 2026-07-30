@@ -312,6 +312,66 @@ describe("Plugins screen", () => {
     expect(screen.queryByText("No plugins match your filters.")).toBeNull();
   });
 
+  it("renders a view toggle and starts in grid mode when that is the stored preference, showing plugin cards", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      getConfig: async () => ({ ok: true, data: "grid" }),
+    });
+    render(Plugins);
+
+    expect(await screen.findByRole("button", { name: "Grid view" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "List view" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("plugins-grid")).toBeInTheDocument());
+    const grid = within(screen.getByTestId("plugins-grid"));
+    expect(grid.getByText("wakatime-sync")).toBeInTheDocument();
+    expect(grid.getByText("Tracks time")).toBeInTheDocument();
+  });
+
+  it("switches back to list view and persists the choice", async () => {
+    const setConfig = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      getConfig: async () => ({ ok: true, data: "grid" }),
+      setConfig,
+    });
+    render(Plugins);
+
+    await waitFor(() => expect(screen.getByTestId("plugins-grid")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByRole("button", { name: "List view" }));
+
+    await waitFor(() => expect(document.querySelector(".row")).toBeInTheDocument());
+    expect(screen.queryByTestId("plugins-grid")).toBeNull();
+    await waitFor(() => expect(setConfig).toHaveBeenCalledWith("cairn", "viewMode.plugins", "list"));
+  });
+
+  it("keeps the Engines filter, mandatory-engine lock, and empty state working in grid mode", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: [] }),
+      catalogList: async () => ({ ok: true, data: { entries: [
+        { name: "plugin-updater", url: "u", kind: "plugin", description: "engine", deprecated: false, topics: [] },
+        { name: "wakatime-sync", url: "u", kind: "plugin", description: "normal", deprecated: false, topics: [] },
+      ], source: "anonymous" } }),
+      enginesList: async () => ({ ok: true, data: [
+        { id: "plugin-updater", capability: "plugin-management", mandatory: true, homes: { claude: { installed: true, enabled: true } } },
+      ] }),
+      getConfig: async () => ({ ok: true, data: "grid" }),
+    });
+    render(Plugins);
+
+    await waitFor(() => expect(screen.getByTestId("plugins-grid")).toBeInTheDocument());
+    const lockedCard = within(await screen.findByTestId("plugin-plugin-updater"));
+    expect(lockedCard.getByTitle("Mandatory engine")).toBeInTheDocument();
+    expect(lockedCard.queryByRole("button", { name: "Remove everywhere" })).toBeNull();
+
+    const filters = within(document.querySelector(".filters")!);
+    await fireEvent.click(filters.getByRole("button", { name: "Engines" }));
+    await waitFor(() => expect(screen.queryByText("wakatime-sync")).toBeNull());
+    expect(screen.getByText("plugin-updater")).toBeInTheDocument();
+  });
+
   it("shows a loading skeleton before plugins resolve, then content", async () => {
     let resolvePlugins!: (v: { ok: true; data: HomePlugins[] }) => void;
     const pending = new Promise<{ ok: true; data: HomePlugins[] }>((r) => (resolvePlugins = r));

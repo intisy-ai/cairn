@@ -18,11 +18,13 @@
   import ConfirmDialog from "../components/ConfirmDialog.svelte";
   import Skeleton from "../components/Skeleton.svelte";
   import PageHeader from "../components/PageHeader.svelte";
-  import PluginIcon from "../components/PluginIcon.svelte";
+  import PluginIcon, { LOGO_SIZE } from "../components/PluginIcon.svelte";
   import ErrorState from "../components/ErrorState.svelte";
   import Chip from "../components/Chip.svelte";
   import PluginDetail from "../components/PluginDetail.svelte";
   import EmptyState from "../components/EmptyState.svelte";
+  import ViewToggle from "../components/ViewToggle.svelte";
+  import { loadViewMode, saveViewMode, type ViewMode } from "../viewMode.js";
 
   const VIRTUALIZE_THRESHOLD = 20;
   const ROW_HEIGHT = 96;
@@ -50,6 +52,12 @@
   type KindFilter = "all" | "provider" | "proxy" | "plugin" | "engine";
   let kindFilter = $state<KindFilter>("all");
   let installedOnly = $state(false);
+
+  let view = $state<ViewMode>("list");
+  function setView(mode: ViewMode): void {
+    view = mode;
+    void saveViewMode("plugins", mode);
+  }
 
   function isInstalled(p: UnifiedPlugin): boolean {
     return Object.values(p.homes).some((h) => h.installed);
@@ -215,6 +223,7 @@
 
   onMount(() => {
     reload();
+    loadViewMode("plugins").then((mode) => (view = mode));
     const params = consumeParams();
     // A deep link (e.g. "Add provider" from the Providers screen) can preselect
     // the category filter so you land in the right context.
@@ -237,6 +246,7 @@
   <div class="toolbar">
     <SearchField bind:value={searchRaw} placeholder="Search plugins…" />
     <Button variant="primary" onclick={() => (addOpen = true)}>+ Add from URL</Button>
+    <ViewToggle value={view} onChange={setView} />
   </div>
 
   <div class="filters">
@@ -249,7 +259,7 @@
     <Chip label={`Installed ${counts.installed}`} on={installedOnly} onclick={() => (installedOnly = !installedOnly)} />
   </div>
 
-  {#snippet unifiedRow(p: UnifiedPlugin)}
+  {#snippet installActions(p: UnifiedPlugin)}
     {#snippet installMenu()}
       <div class="install-menu">
         {#each applicableHomesFor(p) as h (h.id)}
@@ -265,6 +275,20 @@
         <Button variant="primary" onclick={() => handleInstallSelected(p)}>Install selected</Button>
       </div>
     {/snippet}
+    <div class="actions">
+      {#if p.updateAvailable}
+        <Button onclick={() => handleUpdate(p)}>Update</Button>
+      {/if}
+      {#if !isFullyInstalled(p)}
+        <SplitButton label="Install" onPrimary={() => handleInstallAll(p)} menu={installMenu} />
+      {/if}
+      {#if !mandatoryIds.has(p.name)}
+        <Button onclick={() => confirmRemoveEverywhere(p)}>Remove everywhere</Button>
+      {/if}
+    </div>
+  {/snippet}
+
+  {#snippet unifiedRow(p: UnifiedPlugin)}
     <div class="row" data-testid={"plugin-" + p.name}>
       <button class="open" title={`View ${p.displayName}`} onclick={() => (selectedName = p.name)}>
         <PluginIcon icon={p.icon} name={p.displayName} kind={p.kind} />
@@ -294,38 +318,62 @@
         values={installedMap(p)}
         onToggle={mandatoryIds.has(p.name) ? undefined : (homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
       />
-      <div class="actions">
-        {#if p.updateAvailable}
-          <Button onclick={() => handleUpdate(p)}>Update</Button>
-        {/if}
-        {#if !isFullyInstalled(p)}
-          <SplitButton label="Install" onPrimary={() => handleInstallAll(p)} menu={installMenu} />
-        {/if}
-        {#if !mandatoryIds.has(p.name)}
-          <Button onclick={() => confirmRemoveEverywhere(p)}>Remove everywhere</Button>
-        {/if}
+      {@render installActions(p)}
+    </div>
+  {/snippet}
+
+  {#snippet pluginCard(p: UnifiedPlugin)}
+    <div class="plugin-card" data-testid={"plugin-" + p.name}>
+      <button class="card-open" title={`View ${p.displayName}`} onclick={() => (selectedName = p.name)}>
+        <PluginIcon icon={p.icon} name={p.displayName} kind={p.kind} size={LOGO_SIZE.list} />
+        <div class="card-title">
+          <b>{p.displayName}</b>
+          {#if p.kind === "provider" || p.kind === "proxy"}
+            <span class="chip">{p.kind}</span>
+          {/if}
+          {#if mandatoryIds.has(p.name)}
+            <span class="chip" title="Mandatory engine">Locked</span>
+          {/if}
+        </div>
+        {#if p.description}<span class="card-desc">{p.description}</span>{/if}
+      </button>
+      <div class="card-footer">
+        {@render installActions(p)}
       </div>
     </div>
   {/snippet}
 
-  <Card>
-    {#if filtered.length > VIRTUALIZE_THRESHOLD}
-      <VirtualList items={filtered} rowHeight={ROW_HEIGHT}>
-        {#snippet row(plugin)}
-          {@render unifiedRow(plugin)}
-        {/snippet}
-      </VirtualList>
-    {:else}
-      {#each filtered as plugin (plugin.name)}
-        {@render unifiedRow(plugin)}
-      {/each}
-    {/if}
+  {#snippet emptyState()}
     {#if unified.length === 0}
       <EmptyState message="No plugins found." />
     {:else if filtered.length === 0 && isFiltering}
       <EmptyState message="No plugins match your filters." actionLabel="Clear filters" onAction={clearFilters} />
     {/if}
-  </Card>
+  {/snippet}
+
+  {#if view === "grid"}
+    <div class="plugins-grid" data-testid="plugins-grid">
+      {#each filtered as plugin (plugin.name)}
+        {@render pluginCard(plugin)}
+      {/each}
+    </div>
+    {@render emptyState()}
+  {:else}
+    <Card>
+      {#if filtered.length > VIRTUALIZE_THRESHOLD}
+        <VirtualList items={filtered} rowHeight={ROW_HEIGHT}>
+          {#snippet row(plugin)}
+            {@render unifiedRow(plugin)}
+          {/snippet}
+        </VirtualList>
+      {:else}
+        {#each filtered as plugin (plugin.name)}
+          {@render unifiedRow(plugin)}
+        {/each}
+      {/if}
+      {@render emptyState()}
+    </Card>
+  {/if}
 
   {#if addOpen}
     <AddPluginDialog home={addPluginHome} install={installFromUrl} onClose={() => (addOpen = false)} onInstalled={reload} />
@@ -376,6 +424,58 @@
     height: 18px;
     background: var(--border);
     margin: 0 3px;
+  }
+  .plugins-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+  }
+  .plugin-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .card-open {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    background: none;
+    border: 0;
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+    width: 100%;
+  }
+  .card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .card-title b {
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+  }
+  .card-desc {
+    color: var(--muted);
+    font-size: 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .card-footer {
+    display: flex;
+    justify-content: flex-end;
   }
   .row {
     display: flex;
