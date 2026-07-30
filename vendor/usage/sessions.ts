@@ -1,11 +1,21 @@
-// Session token aggregation across three sources: the OpenCode SQLite db,
-// legacy file-based OpenCode storage, and Claude Code project JSONL transcripts.
+// Session token aggregation. Each storage format has its own reader (see READERS);
+// the engine runs them in order, threading the set of already-seen session ids so a
+// session claimed by an earlier reader is not double-counted, and tags each session
+// with its reader's source.
 import { createReadStream, existsSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 import { createInterface } from "readline";
 import { openDB, readJSON } from "./db.js";
 import { opencodeStorageDir, claudeProjectsDir } from "./settings.js";
-import type { DayUsage, ModelSummary, ModelUsage, Session, TokenUsage } from "./types.js";
+import type { DayUsage, ModelSummary, ModelUsage, Session, SessionData, SessionSource, TokenUsage } from "./types.js";
+
+// A reader for one storage format. `read` returns sessions minus their source
+// (the engine stamps it), skipping any id already claimed by an earlier reader.
+export interface UsageReader {
+  format: string;
+  source: SessionSource;
+  read(knownIds: Set<string>): Promise<SessionData[]> | SessionData[];
+}
 
 function emptyTokens(): TokenUsage {
   return { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0 };
@@ -68,7 +78,7 @@ interface MessageRow {
   tok_cw: number | null;
 }
 
-function buildDbSessions(): Session[] {
+function buildDbSessions(): SessionData[] {
   const db = openDB();
   if (!db) return [];
 
@@ -103,7 +113,7 @@ function buildDbSessions(): Session[] {
       else messagesBySession.set(row.session_id, [row]);
     }
 
-    return sessions.map((session): Session => {
+    return sessions.map((session): SessionData => {
       const messages = messagesBySession.get(session.id) ?? [];
       const tokens = emptyTokens();
       const modelUsage: Record<string, ModelUsage> = {};
@@ -132,7 +142,6 @@ function buildDbSessions(): Session[] {
         modelUsage,
         costByDay,
         messageCount: messages.length,
-        source: "opencode",
       };
     });
   } catch {
@@ -162,12 +171,12 @@ interface LegacyMessageFile {
   time?: { created?: number };
 }
 
-function buildLegacyFileSessions(knownIds: Set<string>): Session[] {
+function buildLegacyFileSessions(knownIds: Set<string>): SessionData[] {
   const sessionDir = join(opencodeStorageDir(), "session");
   const messageDirBase = join(opencodeStorageDir(), "message");
   if (!existsSync(sessionDir)) return [];
 
-  const result: Session[] = [];
+  const result: SessionData[] = [];
   try {
     for (const projectDir of readdirSync(sessionDir)) {
       const fullDir = join(sessionDir, projectDir);
@@ -227,7 +236,6 @@ function buildLegacyFileSessions(knownIds: Set<string>): Session[] {
           modelUsage,
           costByDay,
           messageCount: messages.length || sessionFile.messageCount || 0,
-          source: "opencode",
         });
       }
     }
@@ -264,9 +272,9 @@ function projectTitle(projectDir: string): string {
 // utility process that allocation is a native crash, not a catchable error.
 // Per-file aggregates are cached on (mtime, size) because a full scan of a
 // large history costs many seconds and transcripts are append-only.
-const transcriptCache = new Map<string, { mtimeMs: number; size: number; session: Session | null }>();
+const transcriptCache = new Map<string, { mtimeMs: number; size: number; session: SessionData | null }>();
 
-async function readTranscriptSession(path: string, sessionId: string, projectDir: string): Promise<Session | null> {
+async function readTranscriptSession(path: string, sessionId: string, projectDir: string): Promise<SessionData | null> {
   const tokens = emptyTokens();
   const modelUsage: Record<string, ModelUsage> = {};
   const costByDay: Record<string, DayUsage> = {};
@@ -325,15 +333,14 @@ async function readTranscriptSession(path: string, sessionId: string, projectDir
     modelUsage,
     costByDay,
     messageCount,
-    source: "claude-code",
   };
 }
 
-async function buildClaudeCodeSessions(knownIds: Set<string>): Promise<Session[]> {
+async function buildClaudeCodeSessions(knownIds: Set<string>): Promise<SessionData[]> {
   const projectsDir = claudeProjectsDir();
   if (!existsSync(projectsDir)) return [];
 
-  const result: Session[] = [];
+  const result: SessionData[] = [];
   try {
     for (const projectDir of readdirSync(projectsDir)) {
       const fullProjectDir = join(projectsDir, projectDir);
@@ -350,7 +357,7 @@ async function buildClaudeCodeSessions(knownIds: Set<string>): Promise<Session[]
         if (knownIds.has(sessionId) || result.some((s) => s.id === sessionId)) continue;
 
         const path = join(fullProjectDir, file);
-        let session: Session | null;
+        let session: SessionData | null;
         try {
           const stat = statSync(path);
           const cached = transcriptCache.get(path);
@@ -373,16 +380,27 @@ async function buildClaudeCodeSessions(knownIds: Set<string>): Promise<Session[]
   return result;
 }
 
+// Registered readers, in precedence order: the OpenCode sqlite db wins over its
+// legacy file storage, and Claude Code transcripts fill in the rest. An id claimed
+// by an earlier reader is skipped by later ones.
+const READERS: UsageReader[] = [
+  { format: "opencode-sqlite", source: "opencode", read: () => buildDbSessions() },
+  { format: "opencode-legacy-files", source: "opencode", read: (knownIds) => buildLegacyFileSessions(knownIds) },
+  { format: "claude-jsonl", source: "claude-code", read: (knownIds) => buildClaudeCodeSessions(knownIds) },
+];
+
 export async function buildSessionsWithCosts(): Promise<Session[]> {
-  const dbSessions = buildDbSessions();
-  const knownIds = new Set(dbSessions.map((s) => s.id));
-
-  const legacySessions = buildLegacyFileSessions(knownIds);
-  for (const session of legacySessions) knownIds.add(session.id);
-
-  const claudeCodeSessions = await buildClaudeCodeSessions(knownIds);
-
-  return [...dbSessions, ...legacySessions, ...claudeCodeSessions].sort((a, b) => b.updated - a.updated);
+  const knownIds = new Set<string>();
+  const all: Session[] = [];
+  for (const reader of READERS) {
+    const chunk = await reader.read(knownIds);
+    for (const data of chunk) {
+      const session: Session = { ...data, source: reader.source };
+      knownIds.add(session.id);
+      all.push(session);
+    }
+  }
+  return all.sort((a, b) => b.updated - a.updated);
 }
 
 export function buildModelSummary(sessions: Session[]): ModelSummary {

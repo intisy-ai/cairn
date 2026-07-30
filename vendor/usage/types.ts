@@ -29,7 +29,9 @@ export interface DayUsage {
   messageCount: number;
 }
 
-export type SessionSource = "opencode" | "claude-code";
+// The app a session belongs to, as a free-form id. Never an enum of app names:
+// readers tag their sessions and new apps are added without touching this type.
+export type SessionSource = string;
 
 export interface Session {
   id: string;
@@ -42,6 +44,10 @@ export interface Session {
   messageCount: number;
   source: SessionSource;
 }
+
+// A parsed session before the engine stamps its source. Readers produce these;
+// the engine tags each with the reader's source when assembling the final list.
+export type SessionData = Omit<Session, "source">;
 
 export interface ModelSummaryEntry {
   tokens: ModelTokenUsage;
