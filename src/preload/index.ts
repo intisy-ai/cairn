@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
-import { IPC_CHANNELS } from "@cairn/shared";
-import type { CairnAPI, Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, HostApp, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView, InstallManyResult, SyncStatus } from "@cairn/shared";
+import { IPC_CHANNELS, INVOKE_CHANNELS } from "@cairn/shared";
+import type { CairnAPI, Result, ProxyStatus, InvokeMethod } from "@cairn/shared";
 
 const invokeChannels: readonly string[] = IPC_CHANNELS.invoke;
 const sendChannels: readonly string[] = IPC_CHANNELS.send;
@@ -26,51 +26,18 @@ export function safeOn(channel: string, listener: (...args: unknown[]) => void):
   return () => ipcRenderer.removeListener(channel, wrapped);
 }
 
+// Every request/response method is the same shape: forward its args positionally to
+// its channel. Build them from the one channel map so the bridge can never drift from
+// the allow-list. CairnAPI (checked against the map at compile time) supplies the types.
+type InvokeApi = Pick<CairnAPI, InvokeMethod>;
+const invokers = Object.fromEntries(
+  (Object.entries(INVOKE_CHANNELS) as [InvokeMethod, string][]).map(
+    ([method, channel]) => [method, (...args: unknown[]): Promise<Result<unknown>> => safeInvoke(channel, ...args)],
+  ),
+) as InvokeApi;
+
 const api: CairnAPI = {
-  getConfig: (name, key) => safeInvoke("config:get", name, key) as Promise<Result<unknown>>,
-  setConfig: (name, key, value) => safeInvoke("config:set", name, key, value) as Promise<Result<void>>,
-  overviewSummary: () => safeInvoke("overview:summary") as Promise<Result<OverviewSummary>>,
-  accountsList: (provider) => safeInvoke("accounts:list", provider) as Promise<Result<AccountView[]>>,
-  accountsEnable: (provider, id, on) => safeInvoke("accounts:enable", provider, id, on) as Promise<Result<void>>,
-  accountsRemove: (provider, id) => safeInvoke("accounts:remove", provider, id) as Promise<Result<void>>,
-  accountsRefreshQuota: (provider) => safeInvoke("accounts:refreshQuota", provider) as Promise<Result<AccountView[]>>,
-  providersList: () => safeInvoke("providers:list") as Promise<Result<ProviderRow[]>>,
-  providersSetActive: (id) => safeInvoke("providers:setActive", id) as Promise<Result<void>>,
-  providersSetExposure: (id, app, on) => safeInvoke("providers:setExposure", id, app, on) as Promise<Result<void>>,
-  routingApps: () => safeInvoke("routing:apps") as Promise<Result<RoutingApp[]>>,
-  routingGet: (app) => safeInvoke("routing:get", app) as Promise<Result<RoutingState>>,
-  routingSetChain: (app, slot, chain) => safeInvoke("routing:setChain", app, slot, chain) as Promise<Result<{ warnings: string[] }>>,
-  proxyStatus: () => safeInvoke("proxy:status") as Promise<Result<ProxyStatus>>,
-  proxyStart: () => safeInvoke("proxy:start") as Promise<Result<void>>,
-  proxyStop: () => safeInvoke("proxy:stop") as Promise<Result<void>>,
-  appsDetect: () => safeInvoke("apps:detect") as Promise<Result<AppPresence>>,
-  appsList: () => safeInvoke("apps:list") as Promise<Result<HostApp[]>>,
-  appsInstallCli: (app) => safeInvoke("apps:installCli", app) as Promise<Result<CliResult>>,
-  appsInit: (app) => safeInvoke("apps:init", app) as Promise<Result<CliResult>>,
-  appsUninstallCli: (app, wipeData) => safeInvoke("apps:uninstallCli", app, wipeData) as Promise<Result<CliResult>>,
-  appsSummary: (app) => safeInvoke("apps:summary", app) as Promise<Result<AppSummary>>,
-  pluginsList: () => safeInvoke("plugins:list") as Promise<Result<HomePlugins[]>>,
-  pluginsInstall: (home, name, url) => safeInvoke("plugins:install", home, name, url) as Promise<Result<void>>,
-  pluginsInstallMany: (name, url, homeIds) => safeInvoke("plugins:installMany", name, url, homeIds) as Promise<Result<InstallManyResult>>,
-  pluginsRemoveEverywhere: (name) => safeInvoke("plugins:removeEverywhere", name) as Promise<Result<InstallManyResult>>,
-  pluginsSetEnabled: (home, name, on) => safeInvoke("plugins:setEnabled", home, name, on) as Promise<Result<void>>,
-  pluginsDowngrade: (home, name, hash) => safeInvoke("plugins:downgrade", home, name, hash) as Promise<Result<void>>,
-  pluginsUninstall: (home, name) => safeInvoke("plugins:uninstall", home, name) as Promise<Result<void>>,
-  configSchemas: (home) => safeInvoke("config:schemas", home) as Promise<Result<PluginConfigSchema[]>>,
-  configWrite: (home, plugin, key, value) => safeInvoke("config:write", home, plugin, key, value) as Promise<Result<void>>,
-  configAction: (home, plugin, actionId) => safeInvoke("config:action", home, plugin, actionId) as Promise<Result<{ stdout: string; stderr: string }>>,
-  syncStatus: () => safeInvoke("sync:status") as Promise<Result<SyncStatus>>,
-  syncRun: () => safeInvoke("sync:run") as Promise<Result<void>>,
-  syncSetConfig: (key, value) => safeInvoke("sync:setConfig", key, value) as Promise<Result<void>>,
-  usageSnapshot: () => safeInvoke("usage:snapshot") as Promise<Result<UsageSnapshot>>,
-  importApps: () => safeInvoke("import:apps") as Promise<Result<ImportableApp[]>>,
-  importPreview: (app) => safeInvoke("import:preview", app) as Promise<Result<ImportPreview>>,
-  importRun: (app, selection) => safeInvoke("import:run", app, selection) as Promise<Result<ImportSummary>>,
-  catalogList: () => safeInvoke("catalog:list") as Promise<Result<CatalogResult>>,
-  customEndpointsList: () => safeInvoke("customEndpoints:list") as Promise<Result<CustomEndpointView[]>>,
-  customEndpointsUpsert: (endpoint) => safeInvoke("customEndpoints:upsert", endpoint) as Promise<Result<void>>,
-  customEndpointsRemove: (id) => safeInvoke("customEndpoints:remove", id) as Promise<Result<void>>,
-  customEndpointsSaveKey: (endpointId, key) => safeInvoke("customEndpoints:saveKey", endpointId, key) as Promise<Result<void>>,
+  ...invokers,
   minimize: () => safeSend("window:minimize"),
   maximize: () => safeSend("window:maximize"),
   close: () => safeSend("window:close"),
