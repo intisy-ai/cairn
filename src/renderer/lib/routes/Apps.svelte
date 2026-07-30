@@ -9,7 +9,7 @@
   import Spinner from "../components/Spinner.svelte";
   import ImportDialog from "../components/ImportDialog.svelte";
   import PageHeader from "../components/PageHeader.svelte";
-  import PluginIcon from "../components/PluginIcon.svelte";
+  import PluginIcon, { LOGO_SIZE } from "../components/PluginIcon.svelte";
   import AppDetail from "../components/AppDetail.svelte";
   import { flyMotion } from "../util/motion.js";
 
@@ -136,14 +136,14 @@
       <li data-testid={"app-" + app.id} in:flyMotion={{ y: 6 }}>
         {#if present}
           <button class="row open" onclick={() => open(app)}>
-            <PluginIcon name={app.label} icon={app.icon} size={34} />
+            <PluginIcon name={app.label} icon={app.icon} size={LOGO_SIZE.list} />
             <span class="name">{app.label}</span>
             <StatusPill variant="good" label="Detected" />
             <span class="chev" aria-hidden="true">›</span>
           </button>
         {:else}
           <div class="row">
-            <PluginIcon name={app.label} icon={app.icon} size={34} />
+            <PluginIcon name={app.label} icon={app.icon} size={LOGO_SIZE.list} />
             <span class="name">{app.label}</span>
             <StatusPill variant="off" label="Not detected" />
             <Button variant="primary" disabled={busy[app.id]} onclick={() => handleInstallCli(app)}>

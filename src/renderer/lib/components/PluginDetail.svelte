@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { UnifiedPlugin, PluginConfigSchema } from "@cairn/shared";
-  import PluginIcon from "./PluginIcon.svelte";
+  import PluginIcon, { LOGO_SIZE } from "./PluginIcon.svelte";
   import Button from "./Button.svelte";
   import PluginControls from "./PluginControls.svelte";
   import { cairn } from "../ipc.js";
@@ -65,7 +65,7 @@
   <button class="close" title="Close" aria-label="Close" onclick={onClose}>×</button>
 
   <header class="hero">
-    <PluginIcon icon={plugin.icon} name={plugin.displayName} kind={plugin.kind} size={56} />
+    <PluginIcon icon={plugin.icon} name={plugin.displayName} kind={plugin.kind} size={LOGO_SIZE.detail} />
     <div class="titles">
       <h2>{plugin.displayName}</h2>
       <div class="sub">

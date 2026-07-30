@@ -1,6 +1,14 @@
+<script lang="ts" module>
+  // The one place every plugin/app logo is rendered. A logo asset (cairn.json
+  // icon.svg) is a square SVG; this renders it in a fixed square box, scaled to
+  // fit whole (never cropped), so a stray non-square or oversized source still
+  // lays out cleanly. Renderers pass one of the standard sizes.
+  export const LOGO_SIZE = { list: 34, detail: 56, compact: 26 } as const;
+</script>
+
 <script lang="ts">
   import type { CatalogKind } from "@cairn/shared";
-  let { icon = "", name, kind, size = 34 }: { icon?: string; name: string; kind?: CatalogKind; size?: number } = $props();
+  let { icon = "", name, kind, size = LOGO_SIZE.list }: { icon?: string; name: string; kind?: CatalogKind; size?: number } = $props();
 
   // Deterministic hue from the name so each lettermark is stable and distinct.
   function hue(text: string): number {
@@ -25,7 +33,7 @@
 <style>
   .icon {
     border-radius: 8px;
-    object-fit: cover;
+    object-fit: contain;
     flex-shrink: 0;
     background: var(--surface-2);
   }

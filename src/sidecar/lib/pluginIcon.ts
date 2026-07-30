@@ -1,6 +1,8 @@
-// A plugin's icon is inlined into every payload as a base64 data URI, so an
-// oversized SVG bloats the wire and can distort layout. Cap it at a logo-sized
-// budget; an icon over the cap is dropped so the UI falls back to the lettermark.
+// Logo convention: a plugin/app icon.svg is a single square-viewBox mark. It is
+// inlined into every payload as a base64 data URI, so an oversized SVG bloats the
+// wire and can distort layout. Cap it at a logo-sized budget; an icon over the cap
+// is dropped so the UI falls back to the lettermark. The renderer's PluginIcon
+// fits it into a fixed square box (never cropped) at a canonical LOGO_SIZE.
 export const MAX_ICON_BYTES = 64 * 1024;
 
 export function svgIconDataUri(svg: string): string | undefined {

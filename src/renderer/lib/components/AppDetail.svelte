@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { HostApp, AppSummary } from "@cairn/shared";
-  import PluginIcon from "./PluginIcon.svelte";
+  import PluginIcon, { LOGO_SIZE } from "./PluginIcon.svelte";
   import Button from "./Button.svelte";
   import Chip from "./Chip.svelte";
   import Spinner from "./Spinner.svelte";
@@ -47,7 +47,7 @@
   <button class="close" title="Close" aria-label="Close" onclick={onClose}>×</button>
 
   <header class="hero">
-    <PluginIcon icon={app.icon} name={app.label} size={56} />
+    <PluginIcon icon={app.icon} name={app.label} size={LOGO_SIZE.detail} />
     <div class="titles">
       <h2>{app.label}</h2>
       <div class="sub"><span class="detected">Detected</span></div>

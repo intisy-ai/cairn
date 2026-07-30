@@ -5,7 +5,7 @@
   import Card from "../components/Card.svelte";
   import Button from "../components/Button.svelte";
   import Spinner from "../components/Spinner.svelte";
-  import PluginIcon from "../components/PluginIcon.svelte";
+  import PluginIcon, { LOGO_SIZE } from "../components/PluginIcon.svelte";
 
   let homes = $state<ConfigHomeView[]>([]);
   let error = $state("");
@@ -124,7 +124,7 @@
 {#each homes as home (home.homeId)}
   <section class="apphome" data-testid={"config-home-" + home.homeId}>
     <div class="apphead">
-      <PluginIcon icon={home.icon} name={home.label} size={26} />
+      <PluginIcon icon={home.icon} name={home.label} size={LOGO_SIZE.compact} />
       <h2>{home.label}</h2>
       {#if home.profiles.current}<span class="profile-tag">{home.profiles.current}</span>{/if}
     </div>
