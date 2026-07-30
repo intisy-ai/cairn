@@ -44,13 +44,17 @@
     applySearch(searchRaw);
   });
 
-  let addOpen = $state(false);
+  const startParams = consumeParams();
+  let addOpen = $state(!!startParams?.add);
   let selections = $state<Record<string, string[]>>({});
   let selectedName = $state<string | null>(null);
   let pendingConfirm = $state<{ title: string; message: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
 
   type KindFilter = "all" | "provider" | "proxy" | "plugin" | "engine";
-  let kindFilter = $state<KindFilter>("all");
+  const KIND_FILTERS: KindFilter[] = ["all", "provider", "proxy", "plugin", "engine"];
+  const startKind: KindFilter =
+    startParams?.kind && (KIND_FILTERS as string[]).includes(startParams.kind) ? (startParams.kind as KindFilter) : "plugin";
+  let kindFilter = $state<KindFilter>(startKind);
   let installedOnly = $state(false);
 
   let view = $state<ViewMode>("list");
@@ -219,16 +223,9 @@
     return installManyTracked(`Install ${repo.repo}`, repo.repo, repo.url, homeIds);
   }
 
-  const KIND_FILTERS: KindFilter[] = ["all", "provider", "proxy", "plugin", "engine"];
-
   onMount(() => {
     reload();
     loadViewMode("plugins").then((mode) => (view = mode));
-    const params = consumeParams();
-    // A deep link (e.g. "Add provider" from the Providers screen) can preselect
-    // the category filter so you land in the right context.
-    if (params?.kind && (KIND_FILTERS as string[]).includes(params.kind)) setKind(params.kind as KindFilter);
-    if (params?.add) addOpen = true;
   });
 </script>
 

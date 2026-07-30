@@ -4,7 +4,7 @@ import { render, fireEvent, waitFor, within, screen } from "@testing-library/sve
 import { get } from "svelte/store";
 import { stubCairn } from "../testing.js";
 import { downloads } from "../downloads.js";
-import { router } from "../router.js";
+import { router, navigate } from "../router.js";
 import Plugins from "./Plugins.svelte";
 import type { HomePlugins, PluginHome } from "@cairn/shared";
 
@@ -384,5 +384,32 @@ describe("Plugins screen", () => {
     expect(getAllByTestId("skeleton").length).toBeGreaterThan(0);
     resolvePlugins({ ok: true, data: baseSections() });
     await waitFor(() => expect(queryAllByTestId("skeleton").length).toBe(0));
+  });
+
+  it("opens on the plugin filter by default, hiding non-plugin repos", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: [] }),
+      catalogList: async () => ({ ok: true, data: { entries: [
+        { name: "acme-provider", url: "u", kind: "provider" as const, description: "a provider", deprecated: false, topics: [] },
+        { name: "demo", url: "u", kind: "plugin" as const, description: "a plugin", deprecated: false, topics: [] },
+      ], source: "gh" as const } }),
+    });
+    render(Plugins);
+    expect(await screen.findByText("demo")).toBeInTheDocument();
+    expect(screen.queryByText("acme-provider")).toBeNull();
+  });
+
+  it("preselects the provider filter when opened via an Add-provider deep link", async () => {
+    navigate("plugins", { kind: "provider" });
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: [] }),
+      catalogList: async () => ({ ok: true, data: { entries: [
+        { name: "acme-provider", url: "u", kind: "provider" as const, description: "a provider", deprecated: false, topics: [] },
+        { name: "demo", url: "u", kind: "plugin" as const, description: "a plugin", deprecated: false, topics: [] },
+      ], source: "gh" as const } }),
+    });
+    render(Plugins);
+    expect(await screen.findByText("acme-provider")).toBeInTheDocument();
+    expect(screen.queryByText("demo")).toBeNull();
   });
 });
