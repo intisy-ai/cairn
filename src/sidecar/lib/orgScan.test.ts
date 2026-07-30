@@ -76,4 +76,14 @@ describe("scanOrg", () => {
     expect(result.entries.find((e) => e.name === "old-plugin")?.deprecated).toBe(true);
     expect(result.entries.find((e) => e.name === "stub-auth")?.deprecated).toBe(false);
   });
+
+  it("scans the configured marketplace org", async () => {
+    const seen: string[] = [];
+    const fetchFn = (async (url: string) => {
+      seen.push(String(url));
+      return { ok: true, status: 200, json: async () => [] };
+    }) as unknown as typeof fetch;
+    await scanOrg({ fetchFn, getOrg: () => "acme-org", execFn: async () => "" });
+    expect(seen.some((u) => u.includes("/orgs/acme-org/repos"))).toBe(true);
+  });
 });

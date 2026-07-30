@@ -2,8 +2,8 @@ import { execFile } from "node:child_process";
 import { svgIconDataUri } from "./pluginIcon.js";
 import { classifyRepoTopics } from "../../../packages/shared/src/repoRef.js";
 import type { CatalogEntry, CatalogResult } from "../../../packages/shared/src/domain.js";
+import { ECOSYSTEM_ORG, getConfigValue } from "@core/index.js";
 
-const ORG = "intisy-ai";
 const TTL_MS = 60_000;
 
 interface RepoJson { name?: string; html_url?: string; description?: string | null; archived?: boolean; topics?: string[] }
@@ -26,7 +26,13 @@ function realExec(file: string, args: string[]): Promise<string> {
   return tryExec(file, args).catch(() => tryExec(`${file}.cmd`, args));
 }
 
-export interface OrgScanDeps { fetchFn?: typeof fetch; execFn?: (file: string, args: string[]) => Promise<string>; env?: NodeJS.ProcessEnv; now?: () => number }
+export interface OrgScanDeps { fetchFn?: typeof fetch; execFn?: (file: string, args: string[]) => Promise<string>; env?: NodeJS.ProcessEnv; now?: () => number; getOrg?: () => string }
+
+function resolveOrg(getOrg?: () => string): string {
+  if (getOrg) return getOrg();
+  const configured = getConfigValue("cairn", "marketplaceOrg");
+  return typeof configured === "string" && configured.trim() ? configured.trim() : ECOSYSTEM_ORG;
+}
 
 async function resolveToken(env: NodeJS.ProcessEnv, execFn: (f: string, a: string[]) => Promise<string>): Promise<{ token: string | null; source: CatalogResult["source"] }> {
   const envToken = env.GITHUB_TOKEN?.trim() || env.GH_TOKEN?.trim();
@@ -45,26 +51,28 @@ async function resolveToken(env: NodeJS.ProcessEnv, execFn: (f: string, a: strin
 // manifest (404) returns {}. The icon SVG is base64-encoded into a data URI.
 async function fetchManifest(
   fetchFn: typeof fetch,
+  org: string,
   repo: string,
   token: string | null,
   now: () => number,
 ): Promise<{ displayName?: string; icon?: string }> {
   const hit = manifestCache.get(repo);
   if (hit && now() - hit.at < MANIFEST_TTL_MS) return hit.value;
-  const value = await fetchManifestUncached(fetchFn, repo, token);
+  const value = await fetchManifestUncached(fetchFn, org, repo, token);
   manifestCache.set(repo, { at: now(), value });
   return value;
 }
 
 async function fetchManifestUncached(
   fetchFn: typeof fetch,
+  org: string,
   repo: string,
   token: string | null,
 ): Promise<{ displayName?: string; icon?: string }> {
   const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
   const contents = async (path: string): Promise<string | null> => {
     try {
-      const response = await fetchFn(`https://api.github.com/repos/${ORG}/${repo}/contents/${path}`, { headers });
+      const response = await fetchFn(`https://api.github.com/repos/${org}/${repo}/contents/${path}`, { headers });
       if (!response.ok) return null;
       const json = (await response.json()) as { content?: string; encoding?: string };
       if (json.encoding !== "base64" || typeof json.content !== "string") return null;
@@ -93,11 +101,12 @@ export async function scanOrg(deps: OrgScanDeps = {}): Promise<CatalogResult> {
   const now = deps.now ?? Date.now;
   if (cache && now() - cache.at < TTL_MS) return cache.result;
   const fetchFn = deps.fetchFn ?? fetch;
+  const org = resolveOrg(deps.getOrg);
   const { token, source } = await resolveToken(deps.env ?? process.env, deps.execFn ?? realExec);
   try {
     const entries: CatalogEntry[] = [];
     for (let page = 1; page <= 5; page++) {
-      const response = await fetchFn(`https://api.github.com/orgs/${ORG}/repos?per_page=100&page=${page}`, {
+      const response = await fetchFn(`https://api.github.com/orgs/${org}/repos?per_page=100&page=${page}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!response.ok) throw new Error(`org scan http ${response.status}`);
@@ -107,7 +116,7 @@ export async function scanOrg(deps: OrgScanDeps = {}): Promise<CatalogResult> {
         const topics = Array.isArray(repo.topics) ? repo.topics : [];
         const kind = classifyRepoTopics(topics);
         if (!kind) continue;
-        entries.push({ name: repo.name, url: repo.html_url ?? `https://github.com/${ORG}/${repo.name}`, kind, description: repo.description ?? "", deprecated: repo.archived === true, topics });
+        entries.push({ name: repo.name, url: repo.html_url ?? `https://github.com/${org}/${repo.name}`, kind, description: repo.description ?? "", deprecated: repo.archived === true, topics });
       }
       if (repos.length < 100) break;
     }
@@ -118,7 +127,7 @@ export async function scanOrg(deps: OrgScanDeps = {}): Promise<CatalogResult> {
       try {
         await Promise.all(
           entries.map(async (entry) => {
-            const manifest = await fetchManifest(fetchFn, entry.name, token, now);
+            const manifest = await fetchManifest(fetchFn, org, entry.name, token, now);
             if (manifest.displayName) entry.displayName = manifest.displayName;
             if (manifest.icon) entry.icon = manifest.icon;
           }),
