@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin, Result, InstallManyResult, InstallOutcome, RepoRef } from "@cairn/shared";
+  import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin, Result, InstallManyResult, InstallOutcome, RepoRef, EngineView } from "@cairn/shared";
   import { classifyRepoName } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { consumeParams } from "../router.js";
@@ -25,6 +25,7 @@
 
   let sections = $state<HomePlugins[]>([]);
   let catalog = $state<CatalogEntry[]>([]);
+  let engines = $state<EngineView[]>([]);
   let pluginsError = $state("");
   let loaded = $state(false);
 
@@ -41,7 +42,7 @@
   let selections = $state<Record<string, string[]>>({});
   let selectedName = $state<string | null>(null);
 
-  type KindFilter = "all" | "provider" | "proxy" | "plugin";
+  type KindFilter = "all" | "provider" | "proxy" | "plugin" | "engine";
   let kindFilter = $state<KindFilter>("all");
   let installedOnly = $state(false);
 
@@ -51,6 +52,8 @@
 
   const homes = $derived(sections.map((s) => s.home));
   const unified = $derived(buildUnifiedPlugins(sections, catalog, homes));
+  const engineIds = $derived(new Set(engines.map((e) => e.id)));
+  const mandatoryIds = $derived(new Set(engines.filter((e) => e.mandatory).map((e) => e.id)));
   const counts = $derived({
     all: unified.length,
     provider: unified.filter((p) => p.kind === "provider").length,
@@ -60,7 +63,11 @@
   });
   const filtered = $derived(
     unified.filter((p) => {
-      if (kindFilter !== "all" && p.kind !== kindFilter) return false;
+      if (kindFilter === "engine") {
+        if (!engineIds.has(p.name)) return false;
+      } else if (kindFilter !== "all" && p.kind !== kindFilter) {
+        return false;
+      }
       if (installedOnly && !isInstalled(p)) return false;
       const needle = search.trim().toLowerCase();
       return !needle
@@ -92,8 +99,13 @@
     if (result.ok) catalog = result.data.entries;
   }
 
+  async function loadEngines(): Promise<void> {
+    const result = await cairn.enginesList();
+    if (result.ok) engines = result.data;
+  }
+
   async function reload(): Promise<void> {
-    await Promise.all([loadPlugins(), loadCatalog()]);
+    await Promise.all([loadPlugins(), loadCatalog(), loadEngines()]);
     loaded = true;
   }
 
@@ -177,7 +189,7 @@
     return installManyTracked(`Install ${repo.repo}`, repo.repo, repo.url, homeIds);
   }
 
-  const KIND_FILTERS: KindFilter[] = ["all", "provider", "proxy", "plugin"];
+  const KIND_FILTERS: KindFilter[] = ["all", "provider", "proxy", "plugin", "engine"];
 
   onMount(() => {
     reload();
@@ -210,6 +222,7 @@
     <Chip label={`Providers ${counts.provider}`} on={kindFilter === "provider"} onclick={() => setKind("provider")} />
     <Chip label={`Proxies ${counts.proxy}`} on={kindFilter === "proxy"} onclick={() => setKind("proxy")} />
     <Chip label={`Plugins ${counts.plugin}`} on={kindFilter === "plugin"} onclick={() => setKind("plugin")} />
+    <Chip label="Engines" on={kindFilter === "engine"} onclick={() => setKind("engine")} />
     <span class="sep"></span>
     <Chip label={`Installed ${counts.installed}`} on={installedOnly} onclick={() => (installedOnly = !installedOnly)} />
   </div>
@@ -240,6 +253,9 @@
             {#if p.kind === "provider" || p.kind === "proxy"}
               <span class="chip">{p.kind}</span>
             {/if}
+            {#if mandatoryIds.has(p.name)}
+              <span class="chip" title="Mandatory engine">Locked</span>
+            {/if}
           </div>
           {#if p.description}<span class="desc">{p.description}</span>{/if}
           {#if p.topics.length > 0}
@@ -251,7 +267,11 @@
           {/if}
         </div>
       </button>
-      <AppPills apps={applicableHomesFor(p)} values={installedMap(p)} onToggle={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))} />
+      <AppPills
+        apps={applicableHomesFor(p)}
+        values={installedMap(p)}
+        onToggle={mandatoryIds.has(p.name) ? undefined : (homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
+      />
       <div class="actions">
         {#if p.updateAvailable}
           <Button onclick={() => handleUpdate(p)}>Update</Button>
@@ -259,7 +279,9 @@
         {#if !isFullyInstalled(p)}
           <SplitButton label="Install" onPrimary={() => handleInstallAll(p)} menu={installMenu} />
         {/if}
-        <Button onclick={() => handleRemoveEverywhere(p)}>Remove everywhere</Button>
+        {#if !mandatoryIds.has(p.name)}
+          <Button onclick={() => handleRemoveEverywhere(p)}>Remove everywhere</Button>
+        {/if}
       </div>
     </div>
   {/snippet}

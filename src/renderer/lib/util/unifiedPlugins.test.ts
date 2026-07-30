@@ -61,10 +61,10 @@ describe("buildUnifiedPlugins", () => {
     expect(out.find((p) => p.name === "antigravity-auth")!.topics).toEqual(["intisy-ai", "gemini"]);
   });
 
-  it("excludes plugin-updater and marks updateAvailable if any home has an update", () => {
+  it("includes every installed plugin, like any other, and marks updateAvailable if any home has an update", () => {
     const sections: HomePlugins[] = [{ home: homes[1], rows: [row("x", { updateAvailable: true }), row("plugin-updater")] }];
     const out = buildUnifiedPlugins(sections, [], homes);
-    expect(out.some((p) => p.name === "plugin-updater")).toBe(false);
+    expect(out.some((p) => p.name === "plugin-updater")).toBe(true);
     expect(out.find((p) => p.name === "x")!.updateAvailable).toBe(true);
   });
 });

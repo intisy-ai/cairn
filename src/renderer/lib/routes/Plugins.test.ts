@@ -198,6 +198,41 @@ describe("Plugins screen", () => {
     expect(chips.map((c) => c.textContent)).toEqual(expect.arrayContaining(["intisy-ai", "plugin", "typescript"]));
   });
 
+  it("offers an Engines filter and shows only engine rows when active", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: [] }),
+      catalogList: async () => ({ ok: true, data: { entries: [
+        { name: "plugin-updater", url: "u", kind: "plugin", description: "engine", deprecated: false, topics: [] },
+        { name: "wakatime-sync", url: "u", kind: "plugin", description: "normal", deprecated: false, topics: [] },
+      ], source: "anonymous" } }),
+      enginesList: async () => ({ ok: true, data: [
+        { id: "plugin-updater", capability: "plugin-management", mandatory: true, homes: { claude: { installed: true, enabled: true } } },
+      ] }),
+    });
+    const { getByRole, getByText, queryByText, container } = render(Plugins);
+    await waitFor(() => expect(getByText("wakatime-sync")).toBeTruthy());
+    const filters = within(container.querySelector(".filters")!);
+    await fireEvent.click(filters.getByRole("button", { name: "Engines" }));
+    await waitFor(() => expect(queryByText("wakatime-sync")).toBeNull());
+    expect(getByText("plugin-updater")).toBeTruthy();
+  });
+
+  it("marks a mandatory engine with a lock and hides disable/remove", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: [] }),
+      catalogList: async () => ({ ok: true, data: { entries: [
+        { name: "plugin-updater", url: "u", kind: "plugin", description: "engine", deprecated: false, topics: [] },
+      ], source: "anonymous" } }),
+      enginesList: async () => ({ ok: true, data: [
+        { id: "plugin-updater", capability: "plugin-management", mandatory: true, homes: { claude: { installed: true, enabled: true } } },
+      ] }),
+    });
+    const { findByTitle, findByTestId, queryByRole } = render(Plugins);
+    expect(await findByTitle(/engine/i)).toBeTruthy();
+    const row = within(await findByTestId("plugin-plugin-updater"));
+    expect(row.queryByRole("button", { name: "Remove everywhere" })).toBeNull();
+  });
+
   it("shows a loading skeleton before plugins resolve, then content", async () => {
     let resolvePlugins!: (v: { ok: true; data: HomePlugins[] }) => void;
     const pending = new Promise<{ ok: true; data: HomePlugins[] }>((r) => (resolvePlugins = r));

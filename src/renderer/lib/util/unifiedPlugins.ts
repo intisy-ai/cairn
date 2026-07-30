@@ -17,7 +17,6 @@ export function buildUnifiedPlugins(sections: HomePlugins[], catalog: CatalogEnt
   const names = new Set<string>();
   for (const s of sections) for (const r of s.rows) names.add(r.name);
   for (const e of catalog) names.add(e.name);
-  names.delete("plugin-updater");
 
   const out: UnifiedPlugin[] = [];
   for (const name of names) {
