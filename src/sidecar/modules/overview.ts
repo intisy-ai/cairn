@@ -6,23 +6,8 @@ import { pluginHomes } from "../lib/pluginHomes.js";
 import { appsDetect } from "./apps.js";
 import type { AccountSummary } from "../../../vendor/usage/types.js";
 import type { AppPresence, OverviewSummary, ProviderHealth, PluginHome, Result } from "../../../packages/shared/src/domain.js";
+import { PROXY_PORT, probeProxyHealth } from "../../../packages/shared/src/proxy.js";
 import { wrap } from "../result.js";
-
-const SERVER_PORT = 34567;
-const PROBE_TIMEOUT_MS = 500;
-
-async function defaultProbe(): Promise<boolean> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
-  try {
-    const response = await fetch(`http://127.0.0.1:${SERVER_PORT}/health`, { signal: controller.signal });
-    return response.ok;
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
 
 function firstQuotaPct(account: AccountSummary): number | null {
   const first = Object.values(account.quotas)[0];
@@ -53,7 +38,7 @@ export interface OverviewDeps {
 }
 
 export function overviewSummary(deps: OverviewDeps = {}): Promise<Result<OverviewSummary>> {
-  const probe = deps.probe ?? defaultProbe;
+  const probe = deps.probe ?? probeProxyHealth;
   const accountsOf = deps.accounts ?? getAccountsData;
   const homesOf = deps.homes ?? pluginHomes;
   const pluginsIn = deps.pluginsIn ?? getPlugins;
@@ -77,7 +62,7 @@ export function overviewSummary(deps: OverviewDeps = {}): Promise<Result<Overvie
       pluginsInstalled,
       providerHealth: providerHealthOf(accounts),
       serverRunning,
-      serverPort: SERVER_PORT,
+      serverPort: PROXY_PORT,
     };
   });
 }

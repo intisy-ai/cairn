@@ -2,12 +2,13 @@
   import { onMount } from "svelte";
   import { router, navigate, SCREENS } from "../router.js";
   import { serverStatus, watchServerStatus } from "../serverStatus.js";
+  import { PROXY_PORT } from "@cairn/shared";
   import CairnMark from "./CairnMark.svelte";
 
   let {
     brandName = "Cairn",
     brandTag = "AI control plane",
-    apiPort = 34567,
+    apiPort = PROXY_PORT,
     hasRouting = true,
   }: { brandName?: string; brandTag?: string; apiPort?: number; hasRouting?: boolean } = $props();
 

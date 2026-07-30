@@ -6,10 +6,8 @@ import type { RoutingProfile } from "@core-proxy/index.js";
 import { loadInstalledProxyDefs } from "../../sidecar/lib/proxyPlugins.js";
 import type { LoadedProxyDef } from "../../sidecar/lib/proxyPlugins.js";
 import type { ProxyStatus } from "../../../packages/shared/src/domain.js";
+import { PROXY_PORT, probeProxyHealth } from "../../../packages/shared/src/proxy.js";
 import { resolveStoreDir } from "../lib/storeDir.js";
-
-const PORT = 34567;
-const PROBE_TIMEOUT_MS = 500;
 
 type Starter = (options: StartLoaderProxyOptions<RoutingProfile>) => Promise<StartedLoaderProxy>;
 
@@ -29,7 +27,7 @@ export function onStatusChange(listener: StatusListener): () => void {
 }
 
 function emitStatus(): void {
-  const snapshot: ProxyStatus = { running: handle !== null, port: PORT };
+  const snapshot: ProxyStatus = { running: handle !== null, port: PROXY_PORT };
   for (const listener of statusListeners) {
     try { listener(snapshot); } catch { /* a bad listener must not break the daemon */ }
   }
@@ -37,19 +35,6 @@ function emitStatus(): void {
 
 function dashboardStoreDir(): string {
   return resolveStoreDir(process.env, process.platform, homedir());
-}
-
-async function defaultProbe(): Promise<boolean> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
-  try {
-    const response = await fetch(`http://127.0.0.1:${PORT}/health`, { signal: controller.signal });
-    return response.ok;
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timeout);
-  }
 }
 
 // App-agnostic: the local API serves whichever proxy plugin is installed. It
@@ -73,16 +58,16 @@ export function buildStartOptions(configDir: string, profile: RoutingProfile): S
     makeDynamicResolver,
     profile,
     configDir,
-    port: PORT,
+    port: PROXY_PORT,
   };
 }
 
-export function isRunning(probe: () => Promise<boolean> = defaultProbe): Promise<boolean> {
+export function isRunning(probe: () => Promise<boolean> = probeProxyHealth): Promise<boolean> {
   return probe();
 }
 
-export async function status(probe: () => Promise<boolean> = defaultProbe): Promise<ProxyStatus> {
-  return { running: await isRunning(probe), port: PORT };
+export async function status(probe: () => Promise<boolean> = probeProxyHealth): Promise<ProxyStatus> {
+  return { running: await isRunning(probe), port: PROXY_PORT };
 }
 
 export async function start(
