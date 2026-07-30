@@ -22,6 +22,7 @@
   import ErrorState from "../components/ErrorState.svelte";
   import Chip from "../components/Chip.svelte";
   import PluginDetail from "../components/PluginDetail.svelte";
+  import EmptyState from "../components/EmptyState.svelte";
 
   const VIRTUALIZE_THRESHOLD = 20;
   const ROW_HEIGHT = 96;
@@ -83,6 +84,13 @@
   );
   function setKind(kind: KindFilter): void {
     kindFilter = kind;
+  }
+  const isFiltering = $derived(search.trim() !== "" || kindFilter !== "all" || installedOnly);
+  function clearFilters(): void {
+    searchRaw = "";
+    search = "";
+    kindFilter = "all";
+    installedOnly = false;
   }
   const addPluginHome = $derived(homes[0]?.id ?? "cairn");
   // Derive from the live list by name so the open detail reflects installs/removes.
@@ -313,9 +321,11 @@
       {/each}
     {/if}
     {#if unified.length === 0}
-      <p class="empty">No plugins found.</p>
+      <EmptyState message="No plugins found." />
+    {:else if filtered.length === 0 && isFiltering}
+      <EmptyState message="No plugins match your filters." actionLabel="Clear filters" onAction={clearFilters} />
     {:else if filtered.length === 0}
-      <p class="empty">No plugins match your search.</p>
+      <EmptyState message="No plugins found." />
     {/if}
   </Card>
 
@@ -467,11 +477,5 @@
     font-size: 12.5px;
     color: var(--text);
     cursor: pointer;
-  }
-  .empty {
-    margin: 0;
-    padding: 16px 18px;
-    color: var(--faint);
-    font-size: 12.5px;
   }
 </style>

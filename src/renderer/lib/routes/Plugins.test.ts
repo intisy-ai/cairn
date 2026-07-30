@@ -291,6 +291,27 @@ describe("Plugins screen", () => {
     await waitFor(() => expect(pluginsRemoveEverywhere).toHaveBeenCalledWith("wakatime-sync"));
   });
 
+  it("shows a Clear filters empty state when the search matches nothing, and clicking it restores the rows", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+    });
+    render(Plugins);
+
+    expect(await screen.findByText("wakatime-sync")).toBeInTheDocument();
+
+    await fireEvent.input(screen.getByPlaceholderText("Search plugins…"), { target: { value: "nonexistent-plugin-xyz" } });
+
+    const clearButton = await screen.findByRole("button", { name: "Clear filters" });
+    expect(screen.getByText("No plugins match your filters.")).toBeInTheDocument();
+    expect(screen.queryByText("wakatime-sync")).toBeNull();
+
+    await fireEvent.click(clearButton);
+
+    await waitFor(() => expect(screen.getByText("wakatime-sync")).toBeInTheDocument());
+    expect(screen.queryByText("No plugins match your filters.")).toBeNull();
+  });
+
   it("shows a loading skeleton before plugins resolve, then content", async () => {
     let resolvePlugins!: (v: { ok: true; data: HomePlugins[] }) => void;
     const pending = new Promise<{ ok: true; data: HomePlugins[] }>((r) => (resolvePlugins = r));
