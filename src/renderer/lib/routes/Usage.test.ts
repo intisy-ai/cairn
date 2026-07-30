@@ -73,4 +73,31 @@ describe("Usage screen", () => {
     expect(getByText("Old work")).toBeInTheDocument();
     expect(queryByText("Recent work")).toBeNull();
   });
+
+  it("shows the estimated cost and a priced footnote when pricing data is available", async () => {
+    stubCairn({
+      usageSnapshot: async () => ({
+        ok: true,
+        data: {
+          accounts: [{ provider: "anthropic", id: "a1" }],
+          updatedAt: new Date(now).toISOString(),
+          models: {},
+          sessions: [session({ id: "recent", title: "Recent work", updated: now - day })],
+          estimatedCostUsd: 12.34,
+          pricedModels: 2,
+          unpricedModels: 1,
+          pricesUpdatedAt: "2026-01",
+        },
+      }),
+    });
+    const { getByText } = await mount();
+    expect(getByText("$12.34")).toBeInTheDocument();
+    expect(getByText((_, node) => node?.textContent === "Estimated at list prices (as of 2026-01); 1 model(s) unpriced.")).toBeInTheDocument();
+  });
+
+  it("shows an unavailable cost state instead of $0.00 when no pricing data exists", async () => {
+    const { getByText, queryByText } = await mount();
+    expect(getByText("—")).toBeInTheDocument();
+    expect(queryByText("$0.00")).toBeNull();
+  });
 });
