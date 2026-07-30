@@ -272,6 +272,25 @@ describe("Plugins screen", () => {
     expect(dialog.getByRole("button", { name: "Remove" })).toBeInTheDocument();
   });
 
+  it("confirms before removing a plugin everywhere", async () => {
+    const pluginsRemoveEverywhere = vi.fn(async () => ({ ok: true, data: { outcomes: [] } }) as const);
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      pluginsRemoveEverywhere,
+    });
+    render(Plugins);
+
+    const row = within(await screen.findByTestId("plugin-wakatime-sync"));
+    await fireEvent.click(row.getByRole("button", { name: "Remove everywhere" }));
+
+    expect(pluginsRemoveEverywhere).not.toHaveBeenCalled();
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("button", { name: "Remove everywhere" }));
+
+    await waitFor(() => expect(pluginsRemoveEverywhere).toHaveBeenCalledWith("wakatime-sync"));
+  });
+
   it("shows a loading skeleton before plugins resolve, then content", async () => {
     let resolvePlugins!: (v: { ok: true; data: HomePlugins[] }) => void;
     const pending = new Promise<{ ok: true; data: HomePlugins[] }>((r) => (resolvePlugins = r));

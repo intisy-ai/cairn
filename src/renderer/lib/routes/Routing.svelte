@@ -5,6 +5,7 @@
   import Card from "../components/Card.svelte";
   import Button from "../components/Button.svelte";
   import Skeleton from "../components/Skeleton.svelte";
+  import ConfirmDialog from "../components/ConfirmDialog.svelte";
 
   let apps = $state<RoutingApp[]>([]);
   let app = $state("");
@@ -15,6 +16,7 @@
   let warnings = $state<string[]>([]);
   let loaded = $state(false);
   let pending = $state<Record<string, string>>({});
+  let pendingConfirm = $state<{ title: string; message: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
 
   const slots = $derived(["default", ...tiers]);
 
@@ -64,6 +66,15 @@
       .filter((_, i) => i !== index)
       .map(({ provider, model }) => ({ provider, model }));
     await setChain(slot, chain);
+  }
+
+  function confirmRemoveAssignment(slot: string, index: number): void {
+    pendingConfirm = {
+      title: "Remove routing step?",
+      message: "Remove this routing step from the chain?",
+      confirmLabel: "Remove",
+      run: () => removeAssignment(slot, index),
+    };
   }
 
   onMount(async () => {
@@ -126,7 +137,7 @@
               <span class="model">{assignment.name ?? assignment.model}</span>
               <span class="provider">{assignment.provider}</span>
               {#if assignment.derived}<span class="derived">auto</span>{/if}
-              <Button onclick={() => removeAssignment(slot, index)}>Remove</Button>
+              <Button onclick={() => confirmRemoveAssignment(slot, index)}>Remove</Button>
             </div>
           {:else}
             <p class="empty">No chain assigned</p>
@@ -145,6 +156,17 @@
     </section>
     {/each}
   {/if}
+{/if}
+
+{#if pendingConfirm}
+  <ConfirmDialog
+    title={pendingConfirm.title}
+    message={pendingConfirm.message}
+    confirmLabel={pendingConfirm.confirmLabel}
+    danger
+    onConfirm={async () => { const p = pendingConfirm; pendingConfirm = null; await p!.run(); }}
+    onCancel={() => (pendingConfirm = null)}
+  />
 {/if}
 
 <style>

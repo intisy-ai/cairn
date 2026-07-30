@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent, waitFor, within } from "@testing-library/svelte";
+import { render, fireEvent, waitFor, within, screen } from "@testing-library/svelte";
 import { stubCairn } from "../testing.js";
 import Routing from "./Routing.svelte";
 
@@ -130,6 +130,33 @@ describe("Routing screen", () => {
 
     await waitFor(() => expect(getByText("opencode-tier")).toBeTruthy());
     expect(routingGet).toHaveBeenCalledWith("opencode");
+  });
+
+  it("confirms before removing a routing step from a chain", async () => {
+    const routingSetChain = vi.fn(async () => ({ ok: true, data: { warnings: [] } }) as const);
+    stubCairn({
+      routingApps: async () => ({ ok: true, data: ONE_APP }),
+      routingGet: async () => ({
+        ok: true,
+        data: {
+          tiers: ["opus"],
+          map: { default: [], opus: [{ provider: "stub", model: "m1", name: "Stub M1" }] },
+          catalog: CATALOG,
+        },
+      }),
+      routingSetChain,
+    });
+
+    const { getByText, getByRole } = render(Routing);
+    await waitFor(() => expect(getByText("Stub M1")).toBeTruthy());
+
+    await fireEvent.click(getByRole("button", { name: "Remove" }));
+    expect(routingSetChain).not.toHaveBeenCalled();
+
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(routingSetChain).toHaveBeenCalledWith("claude", "opus", []));
   });
 
   it("shows an empty state when no app has a proxy plugin installed", async () => {

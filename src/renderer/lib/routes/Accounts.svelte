@@ -11,6 +11,7 @@
   import CollapsibleGroup from "../components/CollapsibleGroup.svelte";
   import VirtualList from "../components/VirtualList.svelte";
   import Skeleton from "../components/Skeleton.svelte";
+  import ConfirmDialog from "../components/ConfirmDialog.svelte";
 
   const STATUS_INFO: Record<AccountStatus, { variant: StatusVariant; label: string }> = {
     active: { variant: "good", label: "Active" },
@@ -30,6 +31,7 @@
   let accountErrors = $state<Record<string, string>>({});
   let searchRaw = $state("");
   let search = $state("");
+  let pendingConfirm = $state<{ title: string; message: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
 
   const applySearch = debounce((value: string) => {
     search = value;
@@ -101,6 +103,15 @@
     await loadAccounts(providerId);
   }
 
+  function confirmRemove(providerId: string, account: AccountView): void {
+    pendingConfirm = {
+      title: "Remove account?",
+      message: `Remove ${accountLabel(account)}? You'll need to sign in again to use it.`,
+      confirmLabel: "Remove",
+      run: () => handleRemove(providerId, account.id),
+    };
+  }
+
   onMount(() => {
     load().finally(() => (loaded = true));
   });
@@ -160,9 +171,20 @@
     enabled={account.enabled}
     quota={account.quota ?? []}
     onToggle={(on) => handleToggle(providerId, account.id, on)}
-    onRemove={() => handleRemove(providerId, account.id)}
+    onRemove={() => confirmRemove(providerId, account)}
   />
 {/snippet}
+
+{#if pendingConfirm}
+  <ConfirmDialog
+    title={pendingConfirm.title}
+    message={pendingConfirm.message}
+    confirmLabel={pendingConfirm.confirmLabel}
+    danger
+    onConfirm={async () => { const p = pendingConfirm; pendingConfirm = null; await p!.run(); }}
+    onCancel={() => (pendingConfirm = null)}
+  />
+{/if}
 
 <style>
   .head {

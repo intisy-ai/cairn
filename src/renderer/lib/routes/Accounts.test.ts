@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, waitFor } from "@testing-library/svelte";
+import { render, fireEvent, waitFor, within, screen } from "@testing-library/svelte";
 import { get } from "svelte/store";
 import type { AccountView } from "@cairn/shared";
 import { stubCairn } from "../testing.js";
@@ -55,7 +55,10 @@ describe("Accounts screen", () => {
 
     const removeButtons = getAllByRole("button", { name: "Remove" });
     await fireEvent.click(removeButtons[0]);
-    expect(accountsRemove).toHaveBeenCalledWith("stub", "acc1");
+    expect(accountsRemove).not.toHaveBeenCalled();
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(accountsRemove).toHaveBeenCalledWith("stub", "acc1"));
   });
 
   it("shows an inline error when providersList fails", async () => {
@@ -160,6 +163,8 @@ describe("Accounts screen", () => {
     const { getAllByRole } = render(Accounts);
     const removeButtons = await waitFor(() => getAllByRole("button", { name: "Remove" }));
     await fireEvent.click(removeButtons[0]);
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("button", { name: "Remove" }));
 
     await waitFor(() => expect(get(toasts).some((t) => t.kind === "success" && t.message === "Account removed")).toBe(true));
   });
@@ -174,6 +179,8 @@ describe("Accounts screen", () => {
     const { getAllByRole } = render(Accounts);
     const removeButtons = await waitFor(() => getAllByRole("button", { name: "Remove" }));
     await fireEvent.click(removeButtons[0]);
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("button", { name: "Remove" }));
 
     await waitFor(() => expect(get(toasts).some((t) => t.kind === "error" && t.message === "remove boom")).toBe(true));
   });

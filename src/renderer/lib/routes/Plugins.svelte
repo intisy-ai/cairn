@@ -5,6 +5,7 @@
   import { cairn } from "../ipc.js";
   import { consumeParams } from "../router.js";
   import { track } from "../downloads.js";
+  import { toast } from "../toast.js";
   import { debounce } from "../util/debounce.js";
   import { buildUnifiedPlugins, applicableHomeIds } from "../util/unifiedPlugins.js";
   import Button from "../components/Button.svelte";
@@ -14,6 +15,7 @@
   import AppPills from "../components/AppPills.svelte";
   import SplitButton from "../components/SplitButton.svelte";
   import AddPluginDialog from "../components/AddPluginDialog.svelte";
+  import ConfirmDialog from "../components/ConfirmDialog.svelte";
   import Skeleton from "../components/Skeleton.svelte";
   import PageHeader from "../components/PageHeader.svelte";
   import PluginIcon from "../components/PluginIcon.svelte";
@@ -41,6 +43,7 @@
   let addOpen = $state(false);
   let selections = $state<Record<string, string[]>>({});
   let selectedName = $state<string | null>(null);
+  let pendingConfirm = $state<{ title: string; message: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
 
   type KindFilter = "all" | "provider" | "proxy" | "plugin" | "engine";
   let kindFilter = $state<KindFilter>("all");
@@ -178,10 +181,20 @@
   }
   async function handleRemoveEverywhere(p: UnifiedPlugin): Promise<void> {
     const homeIds = installedApplicable(p);
-    await track(`Remove ${p.name} everywhere`, homeIds.join(", ") || "all homes", () => cairn.pluginsRemoveEverywhere(p.name), (data) =>
+    const result = await track(`Remove ${p.name} everywhere`, homeIds.join(", ") || "all homes", () => cairn.pluginsRemoveEverywhere(p.name), (data) =>
       outcomesError(data.outcomes),
     );
+    if (result.ok) toast.success(`${p.displayName} removed`);
+    else toast.error(result.error);
     await reload();
+  }
+  function confirmRemoveEverywhere(p: UnifiedPlugin): void {
+    pendingConfirm = {
+      title: "Remove everywhere?",
+      message: `Remove ${p.displayName} from every app it's installed in? This can't be undone.`,
+      confirmLabel: "Remove everywhere",
+      run: () => handleRemoveEverywhere(p),
+    };
   }
   async function installFromUrl(repo: RepoRef): Promise<Result<unknown>> {
     const kind = classifyRepoName(repo.repo) ?? "plugin";
@@ -280,7 +293,7 @@
           <SplitButton label="Install" onPrimary={() => handleInstallAll(p)} menu={installMenu} />
         {/if}
         {#if !mandatoryIds.has(p.name)}
-          <Button onclick={() => handleRemoveEverywhere(p)}>Remove everywhere</Button>
+          <Button onclick={() => confirmRemoveEverywhere(p)}>Remove everywhere</Button>
         {/if}
       </div>
     </div>
@@ -316,9 +329,20 @@
       mandatory={mandatoryIds.has(selectedPlugin.name)}
       onClose={() => (selectedName = null)}
       onInstallAll={() => handleInstallAll(selectedPlugin)}
-      onRemoveEverywhere={() => handleRemoveEverywhere(selectedPlugin)}
+      onRemoveEverywhere={() => confirmRemoveEverywhere(selectedPlugin)}
       onUpdate={() => handleUpdate(selectedPlugin)}
       onToggleHome={(homeId, on) => (on ? addHome(selectedPlugin, homeId) : removeHome(selectedPlugin, homeId))}
+    />
+  {/if}
+
+  {#if pendingConfirm}
+    <ConfirmDialog
+      title={pendingConfirm.title}
+      message={pendingConfirm.message}
+      confirmLabel={pendingConfirm.confirmLabel}
+      danger
+      onConfirm={async () => { const p = pendingConfirm; pendingConfirm = null; await p!.run(); }}
+      onCancel={() => (pendingConfirm = null)}
     />
   {/if}
 {/if}
