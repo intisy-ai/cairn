@@ -10,6 +10,7 @@ import { getConfigDir } from "@core-auth/index.js";
 import { getConfigValue } from "@core/index.js";
 import { getPlugins, getPluginsPath } from "@plugin-updater/config.js";
 import { readUpdateCache } from "@plugin-updater/cache.js";
+import { svgIconDataUri } from "../lib/pluginIcon.js";
 import { syncPluginsAcrossApps as realSyncPluginsAcrossApps } from "@plugin-updater/syncbridge.js";
 import { setEarlyLaunchConfigDir } from "@plugin-updater/env.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
@@ -68,8 +69,7 @@ function readManifest(homeDirPath: string, name: string): { displayName?: string
     if (typeof manifest.displayName === "string" && manifest.displayName) out.displayName = manifest.displayName;
     if (typeof manifest.icon === "string" && manifest.icon.endsWith(".svg")) {
       try {
-        const svg = readFileSync(join(repoDir, manifest.icon), "utf-8");
-        out.icon = "data:image/svg+xml;base64," + Buffer.from(svg, "utf-8").toString("base64");
+        out.icon = svgIconDataUri(readFileSync(join(repoDir, manifest.icon), "utf-8"));
       } catch { /* icon file missing */ }
     }
     return out;

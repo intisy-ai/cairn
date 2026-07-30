@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { svgIconDataUri } from "./pluginIcon.js";
 import { classifyRepoName } from "../../../packages/shared/src/repoRef.js";
 import type { CatalogEntry, CatalogKind, CatalogResult } from "../../../packages/shared/src/domain.js";
 
@@ -86,7 +87,7 @@ async function fetchManifestUncached(
     if (typeof manifest.displayName === "string" && manifest.displayName) out.displayName = manifest.displayName;
     if (typeof manifest.icon === "string" && manifest.icon.endsWith(".svg")) {
       const iconB64 = await contents(manifest.icon);
-      if (iconB64) out.icon = "data:image/svg+xml;base64," + iconB64;
+      if (iconB64) out.icon = svgIconDataUri(Buffer.from(iconB64, "base64").toString("utf-8"));
     }
     return out;
   } catch {
