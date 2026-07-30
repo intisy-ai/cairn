@@ -213,7 +213,7 @@
     <StatCard label="Total tokens" value={formatTokens(totalTokens)} />
     <StatCard label="Models" value={String(modelBars.length)} />
     <StatCard label="Accounts tracked" value={String(snapshot.accounts.length)} />
-    <StatCard label="Est. cost" value={costAvailable ? formatUsd(snapshot.estimatedCostUsd ?? 0) : "—"} unit={costAvailable ? "" : "unavailable"} />
+    <StatCard label="Est. cost" value={costAvailable ? formatUsd(snapshot.estimatedCostUsd ?? 0) : "n/a"} unit={costAvailable ? "" : "unavailable"} />
   </section>
 
   <section class="panel">

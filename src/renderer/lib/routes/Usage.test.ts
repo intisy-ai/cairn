@@ -97,7 +97,7 @@ describe("Usage screen", () => {
 
   it("shows an unavailable cost state instead of $0.00 when no pricing data exists", async () => {
     const { getByText, queryByText } = await mount();
-    expect(getByText("—")).toBeInTheDocument();
+    expect(getByText("n/a")).toBeInTheDocument();
     expect(queryByText("$0.00")).toBeNull();
   });
 });
