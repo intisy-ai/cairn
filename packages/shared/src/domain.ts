@@ -188,3 +188,5 @@ export type ConfigHomeView = {
 };
 export type ProfileSwitchResult = { ok: boolean; reason?: string };
 export type BusEvent = { topic: string; source: string; ts: number; payload: unknown };
+export type LoginBegin = { url: string; instructions: string; loopback?: boolean };
+export type LoginComplete = { added: boolean; label?: string };

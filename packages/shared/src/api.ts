@@ -1,4 +1,4 @@
-import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, HostApp, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView, InstallManyResult, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView } from "./domain.js";
+import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, HostApp, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView, InstallManyResult, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -7,6 +7,9 @@ export interface CairnAPI {
   accountsEnable(provider: string, id: string, on: boolean): Promise<Result<void>>;
   accountsRemove(provider: string, id: string): Promise<Result<void>>;
   accountsRefreshQuota(provider: string): Promise<Result<AccountView[]>>;
+  accountsLoginBegin(provider: string): Promise<Result<LoginBegin>>;
+  accountsLoginComplete(provider: string, input: string): Promise<Result<LoginComplete>>;
+  accountsLoginCancel(provider: string): Promise<Result<void>>;
   providersList(): Promise<Result<ProviderRow[]>>;
   providersSetActive(id: string): Promise<Result<void>>;
   providersSetExposure(id: string, app: string, on: boolean): Promise<Result<void>>;
