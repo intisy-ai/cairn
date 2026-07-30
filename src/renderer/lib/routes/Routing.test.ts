@@ -235,14 +235,14 @@ describe("Routing screen", () => {
     });
 
     const { getByLabelText } = render(Routing);
-    await waitFor(() => expect(getByLabelText("Move m1 up")).toBeTruthy());
+    await waitFor(() => expect(getByLabelText(/Move m1 up/)).toBeTruthy());
 
-    expect(getByLabelText("Move m1 up")).toBeDisabled();
-    expect(getByLabelText("Move m2 down")).toBeDisabled();
-    expect(getByLabelText("Move m1 down")).not.toBeDisabled();
-    expect(getByLabelText("Move m2 up")).not.toBeDisabled();
+    expect(getByLabelText(/Move m1 up/)).toBeDisabled();
+    expect(getByLabelText(/Move m2 down/)).toBeDisabled();
+    expect(getByLabelText(/Move m1 down/)).not.toBeDisabled();
+    expect(getByLabelText(/Move m2 up/)).not.toBeDisabled();
 
-    await fireEvent.click(getByLabelText("Move m1 down"));
+    await fireEvent.click(getByLabelText(/Move m1 down/));
 
     await waitFor(() =>
       expect(routingSetChain).toHaveBeenCalledWith("claude", "opus", [

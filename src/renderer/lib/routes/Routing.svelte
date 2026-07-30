@@ -122,7 +122,7 @@
   <EmptyState
     message="Install a proxy in Plugins to configure routing."
     actionLabel="Browse proxies"
-    onAction={() => navigate("plugins", { kind: "proxy" })}
+    onAction={() => navigate("plugins", { kind: "proxy" }, { redirect: true })}
   />
 {:else}
   {#if apps.length > 1}
@@ -160,13 +160,13 @@
               <div class="reorder">
                 <button
                   class="mv"
-                  aria-label={`Move ${assignment.name ?? assignment.model} up`}
+                  aria-label={`Move ${assignment.name ?? assignment.model} up (position ${index + 1})`}
                   disabled={index === 0}
                   onclick={() => moveAssignment(slot, index, -1)}
                 >▲</button>
                 <button
                   class="mv"
-                  aria-label={`Move ${assignment.name ?? assignment.model} down`}
+                  aria-label={`Move ${assignment.name ?? assignment.model} down (position ${index + 1})`}
                   disabled={index === (map[slot] ?? []).length - 1}
                   onclick={() => moveAssignment(slot, index, 1)}
                 >▼</button>
