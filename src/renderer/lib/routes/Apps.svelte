@@ -11,7 +11,9 @@
   import PageHeader from "../components/PageHeader.svelte";
   import PluginIcon, { LOGO_SIZE } from "../components/PluginIcon.svelte";
   import AppDetail from "../components/AppDetail.svelte";
+  import ViewToggle from "../components/ViewToggle.svelte";
   import { flyMotion } from "../util/motion.js";
+  import { loadViewMode, saveViewMode, type ViewMode } from "../viewMode.js";
 
   let apps = $state<HostApp[]>([]);
   let presence = $state<AppPresence>({});
@@ -28,6 +30,13 @@
   let importable = $state<ImportableApp[]>([]);
   let importApp = $state<string | null>(null);
   let importAppLabel = $state("");
+
+  let view = $state<ViewMode>("list");
+
+  function setView(mode: ViewMode): void {
+    view = mode;
+    void saveViewMode("apps", mode);
+  }
 
   const visibleApps = $derived(apps.filter((app) => app.id !== "cairn"));
   const selectedApp = $derived(visibleApps.find((a) => a.id === selected) ?? null);
@@ -111,6 +120,7 @@
 
   onMount(() => {
     Promise.all([loadApps(), loadPresence(), loadImportable()]).finally(() => (loaded = true));
+    loadViewMode("apps").then((mode) => (view = mode));
   });
 </script>
 
@@ -120,37 +130,56 @@
   <p class="error">Could not load app status: {appsError}</p>
 {/if}
 
+{#snippet appTile(app: HostApp, present: boolean)}
+  {#if present}
+    <button class="row open" onclick={() => open(app)}>
+      <PluginIcon name={app.label} icon={app.icon} size={LOGO_SIZE.list} />
+      <span class="name">{app.label}</span>
+      <StatusPill variant="good" label="Detected" />
+      <span class="chev" aria-hidden="true">›</span>
+    </button>
+  {:else}
+    <div class="row">
+      <PluginIcon name={app.label} icon={app.icon} size={LOGO_SIZE.list} />
+      <span class="name">{app.label}</span>
+      <StatusPill variant="off" label="Not detected" />
+      <Button variant="primary" disabled={busy[app.id]} onclick={() => handleInstallCli(app)}>
+        {#if busy[app.id]}<Spinner />{/if}
+        Install CLI
+      </Button>
+    </div>
+  {/if}
+{/snippet}
+
 {#if !loaded}
   <div class="skeletons">
     <Skeleton height="56px" radius="10px" />
     <Skeleton height="56px" radius="10px" />
   </div>
 {:else}
-  <ul class="list">
-    {#each visibleApps as app (app.id)}
-      {@const present = presence[app.id] ?? false}
-      <li data-testid={"app-" + app.id} in:flyMotion={{ y: 6 }}>
-        {#if present}
-          <button class="row open" onclick={() => open(app)}>
-            <PluginIcon name={app.label} icon={app.icon} size={LOGO_SIZE.list} />
-            <span class="name">{app.label}</span>
-            <StatusPill variant="good" label="Detected" />
-            <span class="chev" aria-hidden="true">›</span>
-          </button>
-        {:else}
-          <div class="row">
-            <PluginIcon name={app.label} icon={app.icon} size={LOGO_SIZE.list} />
-            <span class="name">{app.label}</span>
-            <StatusPill variant="off" label="Not detected" />
-            <Button variant="primary" disabled={busy[app.id]} onclick={() => handleInstallCli(app)}>
-              {#if busy[app.id]}<Spinner />{/if}
-              Install CLI
-            </Button>
-          </div>
-        {/if}
-      </li>
-    {/each}
-  </ul>
+  <div class="toolbar">
+    <ViewToggle value={view} onChange={setView} />
+  </div>
+
+  {#if view === "grid"}
+    <div class="apps-grid" data-testid="apps-grid">
+      {#each visibleApps as app (app.id)}
+        {@const present = presence[app.id] ?? false}
+        <div data-testid={"app-" + app.id} in:flyMotion={{ y: 6 }}>
+          {@render appTile(app, present)}
+        </div>
+      {/each}
+    </div>
+  {:else}
+    <ul class="list">
+      {#each visibleApps as app (app.id)}
+        {@const present = presence[app.id] ?? false}
+        <li data-testid={"app-" + app.id} in:flyMotion={{ y: 6 }}>
+          {@render appTile(app, present)}
+        </li>
+      {/each}
+    </ul>
+  {/if}
 {/if}
 
 {#if selectedApp}
@@ -183,6 +212,11 @@
 {/if}
 
 <style>
+  .toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 12px;
+  }
   .list {
     list-style: none;
     margin: 0;
@@ -190,6 +224,11 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+  }
+  .apps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
   }
   .row {
     display: flex;

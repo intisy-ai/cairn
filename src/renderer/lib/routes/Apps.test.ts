@@ -148,4 +148,37 @@ describe("Apps screen", () => {
     await waitFor(() => expect(dialog.getByTestId("stat-providers")).toBeInTheDocument());
     expect(dialog.queryByRole("button", { name: /import config/i })).toBeNull();
   });
+
+  it("renders a view toggle and starts in grid mode when that is the stored preference", async () => {
+    stubCairn({
+      ...TWO_APPS,
+      appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
+      getConfig: async () => ({ ok: true, data: "grid" }),
+    });
+    render(Apps);
+
+    expect(await screen.findByRole("button", { name: "Grid view" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "List view" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("apps-grid")).toBeInTheDocument());
+    expect(await screen.findByText("Claude Code")).toBeInTheDocument();
+  });
+
+  it("switches back to list view and persists the choice", async () => {
+    const setConfig = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    stubCairn({
+      ...TWO_APPS,
+      appsDetect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
+      getConfig: async () => ({ ok: true, data: "grid" }),
+      setConfig,
+    });
+    render(Apps);
+
+    await waitFor(() => expect(screen.getByTestId("apps-grid")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByRole("button", { name: "List view" }));
+
+    await waitFor(() => expect(document.querySelector("ul.list")).toBeInTheDocument());
+    expect(screen.queryByTestId("apps-grid")).toBeNull();
+    await waitFor(() => expect(setConfig).toHaveBeenCalledWith("cairn", "viewMode.apps", "list"));
+  });
 });
