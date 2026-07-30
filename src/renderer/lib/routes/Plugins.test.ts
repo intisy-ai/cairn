@@ -233,6 +233,45 @@ describe("Plugins screen", () => {
     expect(row.queryByRole("button", { name: "Remove everywhere" })).toBeNull();
   });
 
+  it("hides remove controls in the detail pane for a mandatory engine", async () => {
+    stubCairn({
+      pluginsList: async () => ({
+        ok: true,
+        data: [
+          { home: CAIRN, rows: [] },
+          { home: CLAUDE, rows: [{ name: "plugin-updater", kind: "git", enabled: true, updateAvailable: false, description: "engine" }] },
+          { home: OPENCODE, rows: [] },
+        ],
+      }),
+      catalogList: async () => ({ ok: true, data: { entries: [], source: "gh" } }),
+      enginesList: async () => ({ ok: true, data: [
+        { id: "plugin-updater", capability: "plugin-management", mandatory: true, homes: { claude: { installed: true, enabled: true } } },
+      ] }),
+    });
+    render(Plugins);
+
+    const engineRow = within(await screen.findByTestId("plugin-plugin-updater"));
+    await fireEvent.click(engineRow.getByTitle("View plugin-updater"));
+    const engineDialog = within(await screen.findByRole("dialog"));
+    expect(engineDialog.queryByRole("button", { name: "Remove everywhere" })).toBeNull();
+    expect(engineDialog.queryByRole("button", { name: "Remove" })).toBeNull();
+    expect(engineDialog.getAllByTitle("Mandatory engine").length).toBeGreaterThan(0);
+  });
+
+  it("keeps remove controls in the detail pane for a non-mandatory plugin", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+    });
+    render(Plugins);
+
+    const row = within(await screen.findByTestId("plugin-wakatime-sync"));
+    await fireEvent.click(row.getByTitle("View wakatime-sync"));
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.getByRole("button", { name: "Remove everywhere" })).toBeInTheDocument();
+    expect(dialog.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+  });
+
   it("shows a loading skeleton before plugins resolve, then content", async () => {
     let resolvePlugins!: (v: { ok: true; data: HomePlugins[] }) => void;
     const pending = new Promise<{ ok: true; data: HomePlugins[] }>((r) => (resolvePlugins = r));

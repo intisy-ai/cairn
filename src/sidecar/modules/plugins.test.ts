@@ -301,6 +301,10 @@ describe("plugins sidecar module", () => {
 
   it("still allows disabling a normal plugin", async () => {
     expect(isMandatoryEngine("wakatime-sync")).toBe(false);
+    seedPlugins(claudeDir, [{ name: "wakatime-sync", url: "https://github.com/intisy-ai/wakatime-sync", enabled: true }]);
+    const { pluginsSetEnabled } = await import("./plugins.js");
+    const res = await pluginsSetEnabled("claude", "wakatime-sync", false, { homes: fakeHomes });
+    expect(res.ok).toBe(true);
   });
 
   it("refuses to remove the mandatory engine everywhere", async () => {

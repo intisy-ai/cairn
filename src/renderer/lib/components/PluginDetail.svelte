@@ -9,6 +9,7 @@
   let {
     plugin,
     homes,
+    mandatory = false,
     onClose,
     onInstallAll,
     onRemoveEverywhere,
@@ -17,6 +18,7 @@
   }: {
     plugin: UnifiedPlugin;
     homes: { id: string; label: string; icon?: string }[];
+    mandatory?: boolean;
     onClose: () => void;
     onInstallAll: () => void;
     onRemoveEverywhere: () => void;
@@ -71,6 +73,7 @@
       <div class="sub">
         {#if plugin.displayName !== plugin.name}<span class="repo">{plugin.name}</span>{/if}
         <span class="kind">{plugin.kind}</span>
+        {#if mandatory}<span class="kind" title="Mandatory engine">Locked</span>{/if}
         {#if plugin.updateAvailable}<span class="update">Update available</span>{/if}
       </div>
     </div>
@@ -98,7 +101,11 @@
           </span>
           <span class="appname">{h.label}</span>
           <span class="state">{on ? "Installed" : "Not installed"}</span>
-          <button class="toggle" class:on onclick={() => onToggleHome(h.id, !on)}>{on ? "Remove" : "Install"}</button>
+          {#if mandatory}
+            <span class="toggle locked" title="Mandatory engine">Locked</span>
+          {:else}
+            <button class="toggle" class:on onclick={() => onToggleHome(h.id, !on)}>{on ? "Remove" : "Install"}</button>
+          {/if}
         </li>
       {/each}
     </ul>
@@ -131,7 +138,7 @@
     {#if !fullyInstalled}
       <Button variant="primary" onclick={onInstallAll}>Install everywhere</Button>
     {/if}
-    {#if installedCount > 0}
+    {#if installedCount > 0 && !mandatory}
       <Button onclick={onRemoveEverywhere}>Remove everywhere</Button>
     {/if}
   </footer>
@@ -311,6 +318,10 @@
   .toggle.on {
     color: var(--crit);
     border-color: var(--crit);
+  }
+  .toggle.locked {
+    color: var(--faint);
+    cursor: default;
   }
   .controls {
     display: flex;

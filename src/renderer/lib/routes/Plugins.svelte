@@ -313,6 +313,7 @@
     <PluginDetail
       plugin={selectedPlugin}
       homes={applicableHomesFor(selectedPlugin)}
+      mandatory={mandatoryIds.has(selectedPlugin.name)}
       onClose={() => (selectedName = null)}
       onInstallAll={() => handleInstallAll(selectedPlugin)}
       onRemoveEverywhere={() => handleRemoveEverywhere(selectedPlugin)}
