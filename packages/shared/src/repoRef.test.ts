@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseRepoRef, classifyRepoName } from "./repoRef.js";
+import { parseRepoRef, classifyRepoName, classifyRepoTopics } from "./repoRef.js";
 
 describe("parseRepoRef", () => {
   it("parses a full github url", () => {
@@ -40,5 +40,19 @@ describe("classifyRepoName", () => {
     expect(classifyRepoName("core-proxy")).toBeNull();
     expect(classifyRepoName("openai-translator")).toBeNull();
     expect(classifyRepoName("anthropic-translator")).toBeNull();
+  });
+});
+
+describe("classifyRepoTopics", () => {
+  it("maps an installable category topic to its kind", () => {
+    expect(classifyRepoTopics(["intisy-ai", "ai-provider"])).toBe("provider");
+    expect(classifyRepoTopics(["app-proxy"])).toBe("proxy");
+    expect(classifyRepoTopics(["plugin", "typescript"])).toBe("plugin");
+  });
+  it("returns null when no installable category topic is present", () => {
+    expect(classifyRepoTopics([])).toBeNull();
+    expect(classifyRepoTopics(["core-library"])).toBeNull();
+    expect(classifyRepoTopics(["app-loader"])).toBeNull();
+    expect(classifyRepoTopics(["vendor-translator", "runtime", "dashboard"])).toBeNull();
   });
 });

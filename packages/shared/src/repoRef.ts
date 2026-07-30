@@ -22,3 +22,15 @@ export function classifyRepoName(name: string): CatalogKind | null {
   if (name.endsWith("-auth")) return "provider";
   return "plugin";
 }
+
+// Classify a repo by its GitHub category topic (the single category tag every
+// org repo carries via repo-metadata). A repo with none of the installable
+// category topics is not a marketplace entry, so it is left out entirely.
+// This is stricter than name-matching, which had a catch-all that swept in
+// every untagged repo.
+export function classifyRepoTopics(topics: string[]): CatalogKind | null {
+  if (topics.includes("ai-provider")) return "provider";
+  if (topics.includes("app-proxy")) return "proxy";
+  if (topics.includes("plugin")) return "plugin";
+  return null;
+}

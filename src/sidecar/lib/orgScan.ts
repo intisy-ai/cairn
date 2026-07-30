@@ -1,16 +1,10 @@
 import { execFile } from "node:child_process";
 import { svgIconDataUri } from "./pluginIcon.js";
-import { classifyRepoName } from "../../../packages/shared/src/repoRef.js";
-import type { CatalogEntry, CatalogKind, CatalogResult } from "../../../packages/shared/src/domain.js";
+import { classifyRepoTopics } from "../../../packages/shared/src/repoRef.js";
+import type { CatalogEntry, CatalogResult } from "../../../packages/shared/src/domain.js";
 
 const ORG = "intisy-ai";
 const TTL_MS = 60_000;
-const EXCLUDED_EXACT = new Set(["ai-java", "workflows", "cairn", "agentbox", "core"]);
-
-export function classifyRepo(name: string): CatalogKind | null {
-  if (EXCLUDED_EXACT.has(name)) return null;
-  return classifyRepoName(name);
-}
 
 interface RepoJson { name?: string; html_url?: string; description?: string | null; archived?: boolean; topics?: string[] }
 
@@ -110,9 +104,10 @@ export async function scanOrg(deps: OrgScanDeps = {}): Promise<CatalogResult> {
       const repos = (await response.json()) as RepoJson[];
       for (const repo of repos) {
         if (!repo.name) continue;
-        const kind = classifyRepo(repo.name);
+        const topics = Array.isArray(repo.topics) ? repo.topics : [];
+        const kind = classifyRepoTopics(topics);
         if (!kind) continue;
-        entries.push({ name: repo.name, url: repo.html_url ?? `https://github.com/${ORG}/${repo.name}`, kind, description: repo.description ?? "", deprecated: repo.archived === true, topics: Array.isArray(repo.topics) ? repo.topics : [] });
+        entries.push({ name: repo.name, url: repo.html_url ?? `https://github.com/${ORG}/${repo.name}`, kind, description: repo.description ?? "", deprecated: repo.archived === true, topics });
       }
       if (repos.length < 100) break;
     }
