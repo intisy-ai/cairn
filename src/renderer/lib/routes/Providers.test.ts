@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, waitFor, within } from "@testing-library/svelte";
+import { render, fireEvent, waitFor, within, screen } from "@testing-library/svelte";
 import { get } from "svelte/store";
 import { stubCairn } from "../testing.js";
 import { router, consumeParams } from "../router.js";
@@ -295,5 +295,72 @@ describe("Providers screen", () => {
     expect(getAllByTestId("skeleton").length).toBeGreaterThan(0);
     resolveProviders({ ok: true, data: [] });
     await waitFor(() => expect(queryAllByTestId("skeleton").length).toBe(0));
+  });
+
+  it("renders a view toggle and starts in grid mode when that is the stored preference, showing compact provider cards", async () => {
+    stubCairn({
+      providersList: async () => ({
+        ok: true,
+        data: [
+          { id: "stub", label: "Stub", hasOAuth: true, accountCount: 2, active: true, exposure: { claude: true, opencode: false } },
+        ],
+      }),
+      getConfig: async () => ({ ok: true, data: "grid" }),
+    });
+
+    render(Providers);
+
+    expect(await screen.findByRole("button", { name: "Grid view" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "List view" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("providers-grid")).toBeInTheDocument());
+    const grid = within(screen.getByTestId("providers-grid"));
+    expect(grid.getByText("Stub")).toBeInTheDocument();
+    expect(grid.getByText(/2 accounts/i)).toBeInTheDocument();
+    expect(grid.getByRole("switch", { name: /Stub enabled/i })).toBeInTheDocument();
+  });
+
+  it("switches back to list view and persists the choice", async () => {
+    const setConfig = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    stubCairn({
+      providersList: async () => ({
+        ok: true,
+        data: [
+          { id: "stub", label: "Stub", hasOAuth: true, accountCount: 2, active: true, exposure: { claude: true, opencode: false } },
+        ],
+      }),
+      getConfig: async () => ({ ok: true, data: "grid" }),
+      setConfig,
+    });
+
+    render(Providers);
+
+    await waitFor(() => expect(screen.getByTestId("providers-grid")).toBeInTheDocument());
+
+    await fireEvent.click(screen.getByRole("button", { name: "List view" }));
+
+    await waitFor(() => expect(screen.queryByTestId("providers-grid")).toBeNull());
+    expect(screen.getByText("Stub")).toBeInTheDocument();
+    await waitFor(() => expect(setConfig).toHaveBeenCalledWith("cairn", "viewMode.providers", "list"));
+  });
+
+  it("grid mode's enable switch reuses the same providersSetActive wiring", async () => {
+    const providersSetActive = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    stubCairn({
+      providersList: async () => ({
+        ok: true,
+        data: [
+          { id: "stub", label: "Stub", hasOAuth: true, accountCount: 2, active: true, exposure: { claude: true, opencode: false } },
+        ],
+      }),
+      getConfig: async () => ({ ok: true, data: "grid" }),
+      providersSetActive,
+    });
+
+    render(Providers);
+
+    const enabledSwitch = await waitFor(() => screen.getByRole("switch", { name: /Stub enabled/i }));
+    await fireEvent.click(enabledSwitch);
+
+    await waitFor(() => expect(providersSetActive).toHaveBeenCalledWith("stub"));
   });
 });

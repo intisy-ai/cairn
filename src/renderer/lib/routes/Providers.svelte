@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { ProviderRow as ProviderRowData, HostApp } from "@cairn/shared";
-  import type { StatusVariant } from "../components/StatusPill.svelte";
+  import StatusPill, { type StatusVariant } from "../components/StatusPill.svelte";
   import { cairn } from "../ipc.js";
   import { toast } from "../toast.js";
   import { navigate } from "../router.js";
@@ -18,6 +18,10 @@
   import VirtualList from "../components/VirtualList.svelte";
   import Skeleton from "../components/Skeleton.svelte";
   import ErrorState from "../components/ErrorState.svelte";
+  import ToggleSwitch from "../components/ToggleSwitch.svelte";
+  import PluginIcon, { LOGO_SIZE } from "../components/PluginIcon.svelte";
+  import ViewToggle from "../components/ViewToggle.svelte";
+  import { loadViewMode, saveViewMode, type ViewMode } from "../viewMode.js";
 
   // API key / Local chips can return once ProviderRow carries a real connection-kind field.
   type Filter = "all" | "connected" | "oauth";
@@ -45,6 +49,12 @@
   let connectedOpen = $state(true);
   let availableOpen = $state(true);
   let customEndpointsOpen = $state(false);
+  let view = $state<ViewMode>("list");
+
+  function setView(mode: ViewMode): void {
+    view = mode;
+    void saveViewMode("providers", mode);
+  }
 
   const applySearch = debounce((value: string) => {
     search = value;
@@ -150,6 +160,9 @@
 
   onMount(load);
   onMount(loadApps);
+  onMount(() => {
+    loadViewMode("providers").then((mode) => (view = mode));
+  });
 </script>
 
 <div class="head">
@@ -193,43 +206,53 @@
     {#each FILTERS as f (f.id)}
       <Chip label={f.label} on={filter === f.id} onclick={() => (filter = f.id)} />
     {/each}
+    <span class="spacer"></span>
+    <ViewToggle value={view} onChange={setView} />
   </div>
 
-  <CollapsibleGroup label="Connected" count={connectedRows.length} bind:open={connectedOpen}>
-    {#snippet body()}
-      <Card>
-        {#if connectedRows.length > VIRTUALIZE_THRESHOLD}
-          <VirtualList items={connectedRows} rowHeight={PROVIDER_ROW_HEIGHT}>
-            {#snippet row(item)}
+  {#if view === "grid"}
+    <div class="providers-grid" data-testid="providers-grid">
+      {#each filtered as item (item.id)}
+        {@render providerCard(item)}
+      {/each}
+    </div>
+  {:else}
+    <CollapsibleGroup label="Connected" count={connectedRows.length} bind:open={connectedOpen}>
+      {#snippet body()}
+        <Card>
+          {#if connectedRows.length > VIRTUALIZE_THRESHOLD}
+            <VirtualList items={connectedRows} rowHeight={PROVIDER_ROW_HEIGHT}>
+              {#snippet row(item)}
+                {@render providerRow(item)}
+              {/snippet}
+            </VirtualList>
+          {:else}
+            {#each connectedRows as item (item.id)}
               {@render providerRow(item)}
-            {/snippet}
-          </VirtualList>
-        {:else}
-          {#each connectedRows as item (item.id)}
-            {@render providerRow(item)}
-          {/each}
-        {/if}
-      </Card>
-    {/snippet}
-  </CollapsibleGroup>
+            {/each}
+          {/if}
+        </Card>
+      {/snippet}
+    </CollapsibleGroup>
 
-  <CollapsibleGroup label="Available" count={availableRows.length} bind:open={availableOpen}>
-    {#snippet body()}
-      <Card>
-        {#if availableRows.length > VIRTUALIZE_THRESHOLD}
-          <VirtualList items={availableRows} rowHeight={PROVIDER_ROW_HEIGHT}>
-            {#snippet row(item)}
+    <CollapsibleGroup label="Available" count={availableRows.length} bind:open={availableOpen}>
+      {#snippet body()}
+        <Card>
+          {#if availableRows.length > VIRTUALIZE_THRESHOLD}
+            <VirtualList items={availableRows} rowHeight={PROVIDER_ROW_HEIGHT}>
+              {#snippet row(item)}
+                {@render providerRow(item)}
+              {/snippet}
+            </VirtualList>
+          {:else}
+            {#each availableRows as item (item.id)}
               {@render providerRow(item)}
-            {/snippet}
-          </VirtualList>
-        {:else}
-          {#each availableRows as item (item.id)}
-            {@render providerRow(item)}
-          {/each}
-        {/if}
-      </Card>
-    {/snippet}
-  </CollapsibleGroup>
+            {/each}
+          {/if}
+        </Card>
+      {/snippet}
+    </CollapsibleGroup>
+  {/if}
 {/if}
 
 {#if importApp}
@@ -259,6 +282,18 @@
     onToggle={() => handleSetActive(row.id)}
     onToggleExposure={(appId, on) => handleSetExposure(row.id, appId, on)}
   />
+{/snippet}
+
+{#snippet providerCard(row: ProviderRowData)}
+  <div class="provider-card" data-testid={"provider-" + row.id}>
+    <PluginIcon name={row.label} size={LOGO_SIZE.list} />
+    <div class="card-info">
+      <b>{row.label}</b>
+      <StatusPill variant={statusFor(row).variant} label={statusFor(row).label} />
+      <span class="card-accounts">{accountLabel(row)}</span>
+    </div>
+    <ToggleSwitch checked={row.active} label={`${row.label} enabled`} onchange={() => handleSetActive(row.id)} />
+  </div>
 {/snippet}
 
 <style>
@@ -292,6 +327,9 @@
     margin-bottom: 18px;
     flex-wrap: wrap;
   }
+  .spacer {
+    flex: 1;
+  }
   .error {
     color: var(--crit);
     font-size: 13px;
@@ -301,5 +339,38 @@
     padding: 0 0 0 18px;
     color: var(--muted);
     font-size: 12.5px;
+  }
+  .providers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+  }
+  .provider-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    flex: 1;
+  }
+  .card-info b {
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .card-accounts {
+    color: var(--muted);
+    font-size: 11.5px;
   }
 </style>
