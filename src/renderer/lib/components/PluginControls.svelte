@@ -38,7 +38,18 @@
     if (field.type === "multiline") return raw === undefined ? "" : typeof raw === "string" ? raw : JSON.stringify(raw, null, 2);
     if (field.type === "list") return Array.isArray(raw) ? raw : [];
     if (field.type === "secret") return "";
+    if (field.type === "select") return raw === undefined ? "" : String(raw);
     return raw;
+  }
+
+  // A <select>'s option values are strings; coerce the obvious primitives back so
+  // an option value of "true"/"false"/"null"/"42" is stored with its real type.
+  function coercePrimitive(value: string): unknown {
+    if (value === "true") return true;
+    if (value === "false") return false;
+    if (value === "null") return null;
+    if (value !== "" && !Number.isNaN(Number(value))) return Number(value);
+    return value;
   }
 
   let values = $state<Record<string, unknown>>({});
@@ -57,6 +68,7 @@
 
   function coerceForSave(field: FieldSpec, value: unknown): unknown {
     if (field.type === "number") return Number(value);
+    if (field.type === "select") return coercePrimitive(String(value));
     if (field.type === "multiline") {
       const text = String(value ?? "");
       const trimmed = text.trim();
