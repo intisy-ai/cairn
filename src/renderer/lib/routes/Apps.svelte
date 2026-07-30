@@ -101,10 +101,6 @@
     await refresh();
   }
 
-  async function handleInit(app: HostApp): Promise<void> {
-    await withBusy(app.id, () => track("Initialize plugin-updater", app.id, () => cairn.appsInit(app.id)));
-  }
-
   async function handleUninstall(app: HostApp, wipe: boolean): Promise<void> {
     await track(`Uninstall ${app.label}`, app.id, () => cairn.appsUninstallCli(app.id, wipe));
     const { [app.id]: _removed, ...rest } = summaries;
@@ -118,7 +114,7 @@
   });
 </script>
 
-<PageHeader title="Apps" subtitle="Install, initialize, and manage the host CLIs Cairn connects to." />
+<PageHeader title="Apps" subtitle="Install and manage the host CLIs Cairn connects to." />
 
 {#if appsError}
   <p class="error">Could not load app status: {appsError}</p>
@@ -163,10 +159,8 @@
     summary={summaries[selectedApp.id] ?? null}
     summaryError={summaryErrors[selectedApp.id] ?? ""}
     canImport={canImport(selectedApp.id)}
-    busy={busy[selectedApp.id] ?? false}
     onClose={() => (selected = null)}
     onImport={() => selectedApp && openImport(selectedApp)}
-    onInit={() => selectedApp && handleInit(selectedApp)}
     onUninstall={(wipe) => selectedApp && handleUninstall(selectedApp, wipe)}
   />
 {/if}

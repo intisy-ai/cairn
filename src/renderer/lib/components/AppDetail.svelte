@@ -3,7 +3,6 @@
   import PluginIcon, { LOGO_SIZE } from "./PluginIcon.svelte";
   import Button from "./Button.svelte";
   import Chip from "./Chip.svelte";
-  import Spinner from "./Spinner.svelte";
   import { fadeMotion, flyMotion } from "../util/motion.js";
 
   const PROVIDER_BREAKDOWN_CAP = 6;
@@ -13,20 +12,16 @@
     summary,
     summaryError,
     canImport,
-    busy = false,
     onClose,
     onImport,
-    onInit,
     onUninstall,
   }: {
     app: HostApp;
     summary: AppSummary | null;
     summaryError: string;
     canImport: boolean;
-    busy?: boolean;
     onClose: () => void;
     onImport: () => void;
-    onInit: () => void;
     onUninstall: (wipe: boolean) => void;
   } = $props();
 
@@ -95,15 +90,11 @@
     <p class="muted">Loading summary…</p>
   {/if}
 
-  <footer class="actions">
-    {#if canImport}
+  {#if canImport}
+    <footer class="actions">
       <Button onclick={onImport}>Import config</Button>
-    {/if}
-    <Button disabled={busy} onclick={onInit}>
-      {#if busy}<Spinner />{/if}
-      Initialize plugin-updater
-    </Button>
-  </footer>
+    </footer>
+  {/if}
 
   <section class="dangerzone">
     {#if !confirmingUninstall}
