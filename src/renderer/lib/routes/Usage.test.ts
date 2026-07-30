@@ -92,7 +92,8 @@ describe("Usage screen", () => {
     });
     const { getByText } = await mount();
     expect(getByText("$12.34")).toBeInTheDocument();
-    expect(getByText((_, node) => node?.textContent === "Estimated at list prices (as of 2026-01); 1 model(s) unpriced.")).toBeInTheDocument();
+    expect(getByText("Est. cost (all-time)")).toBeInTheDocument();
+    expect(getByText((_, node) => node?.textContent === "All-time estimate at list prices (as of 2026-01); 1 model(s) unpriced.")).toBeInTheDocument();
   });
 
   it("shows an unavailable cost state instead of $0.00 when no pricing data exists", async () => {
