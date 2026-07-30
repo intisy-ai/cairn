@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, waitFor, within, screen } from "@testing-library/svelte";
+import { get } from "svelte/store";
 import { stubCairn } from "../testing.js";
+import { toasts, toast } from "../toast.js";
 import Routing from "./Routing.svelte";
 
 const CATALOG = [
@@ -16,6 +18,10 @@ const TWO_APPS = [
 ];
 
 describe("Routing screen", () => {
+  beforeEach(() => {
+    get(toasts).slice().forEach((t) => toast.dismiss(t.id));
+  });
+
   it("renders a tier with its current chain", async () => {
     stubCairn({
       routingApps: async () => ({ ok: true, data: ONE_APP }),
@@ -157,6 +163,32 @@ describe("Routing screen", () => {
     await fireEvent.click(dialog.getByRole("button", { name: "Remove" }));
 
     await waitFor(() => expect(routingSetChain).toHaveBeenCalledWith("claude", "opus", []));
+  });
+
+  it("toasts an error when removing a routing step fails, without a success toast", async () => {
+    const routingSetChain = vi.fn(async () => ({ ok: false, error: "chain boom" }) as const);
+    stubCairn({
+      routingApps: async () => ({ ok: true, data: ONE_APP }),
+      routingGet: async () => ({
+        ok: true,
+        data: {
+          tiers: ["opus"],
+          map: { default: [], opus: [{ provider: "stub", model: "m1", name: "Stub M1" }] },
+          catalog: CATALOG,
+        },
+      }),
+      routingSetChain,
+    });
+
+    const { getByText, getByRole } = render(Routing);
+    await waitFor(() => expect(getByText("Stub M1")).toBeTruthy());
+
+    await fireEvent.click(getByRole("button", { name: "Remove" }));
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(get(toasts).some((t) => t.kind === "error" && t.message === "chain boom")).toBe(true));
+    expect(get(toasts).some((t) => t.kind === "success")).toBe(false);
   });
 
   it("shows an empty state when no app has a proxy plugin installed", async () => {

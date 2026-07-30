@@ -182,7 +182,7 @@
     message={pendingConfirm.message}
     confirmLabel={pendingConfirm.confirmLabel}
     danger
-    onConfirm={async () => { const p = pendingConfirm; pendingConfirm = null; await p!.run(); }}
+    onConfirm={async () => { const p = pendingConfirm; pendingConfirm = null; if (!p) return; await p.run(); }}
     onCancel={() => (pendingConfirm = null)}
   />
 {/if}

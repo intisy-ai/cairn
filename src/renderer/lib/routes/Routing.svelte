@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import type { Chain, ModelCatalogEntry, RoutingApp } from "@cairn/shared";
   import { cairn } from "../ipc.js";
+  import { toast } from "../toast.js";
   import Card from "../components/Card.svelte";
   import Button from "../components/Button.svelte";
   import Skeleton from "../components/Skeleton.svelte";
@@ -50,7 +51,11 @@
 
   async function setChain(slot: string, chain: { provider: string; model: string }[]): Promise<void> {
     const result = await cairn.routingSetChain(app, slot, chain);
-    warnings = result.ok ? result.data.warnings : [];
+    if (!result.ok) {
+      toast.error(result.error);
+    } else {
+      warnings = result.data.warnings;
+    }
     await load();
   }
 
@@ -165,7 +170,7 @@
     message={pendingConfirm.message}
     confirmLabel={pendingConfirm.confirmLabel}
     danger
-    onConfirm={async () => { const p = pendingConfirm; pendingConfirm = null; await p!.run(); }}
+    onConfirm={async () => { const p = pendingConfirm; pendingConfirm = null; if (!p) return; await p.run(); }}
     onCancel={() => (pendingConfirm = null)}
   />
 {/if}
