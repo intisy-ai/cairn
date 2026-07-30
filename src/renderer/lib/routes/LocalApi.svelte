@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import type { ProxyStatus, ProxyView } from "@cairn/shared";
   import { cairn } from "../ipc.js";
+  import { navigate } from "../router.js";
   import { toast } from "../toast.js";
   import Card from "../components/Card.svelte";
   import Button from "../components/Button.svelte";
@@ -148,30 +149,21 @@
   </Card>
 
   <section class="panel">
-    <p class="ptitle">Proxies</p>
+    <div class="panelhead">
+      <p class="ptitle">Proxies</p>
+      <Button onclick={() => navigate("plugins", { kind: "proxy" }, { redirect: true })}>+ Add proxy</Button>
+    </div>
     <Card>
       {#if proxies.length === 0}
-        <p class="empty">No proxies installed. Install one from the Plugins tab.</p>
+        <p class="empty">No proxies installed. Add one to route an app through the local API.</p>
       {:else}
         {#each proxies as proxy (proxy.name)}
-          <div class="proxyrow">
-            <div class="optrow">
-              <div class="optlabel">
-                <span class="k">{proxy.appLabel}</span>
-                {#if proxy.setup}
-                  <span class="desc">{proxy.setup}</span>
-                {:else}
-                  <span class="desc">Point {proxy.appLabel} at the local API base URL:</span>
-                {/if}
-              </div>
-              <ToggleSwitch checked={proxy.enabled} label={`${proxy.appLabel} enabled`} onchange={(on) => toggleProxy(proxy.name, on)} />
+          <div class="optrow">
+            <div class="optlabel">
+              <span class="k">{proxy.appLabel}</span>
+              <span class="desc">{proxy.setup ?? "Point this app at the local API base URL below."}</span>
             </div>
-            {#if !proxy.setup}
-              <button class="snippet" title="Copy" onclick={() => copy(baseUrl, proxy.name)}>
-                <code>{baseUrl}</code>
-                <span class="copy">{copied === proxy.name ? "copied" : "copy"}</span>
-              </button>
-            {/if}
+            <ToggleSwitch checked={proxy.enabled} label={`${proxy.appLabel} enabled`} onchange={(on) => toggleProxy(proxy.name, on)} />
           </div>
         {/each}
       {/if}
@@ -293,15 +285,15 @@
     gap: 16px;
     padding: 14px 18px;
   }
-  .proxyrow {
-    border-bottom: 1px solid var(--border);
+  .panelhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
   }
-  .proxyrow:last-child {
-    border-bottom: none;
-  }
-  .proxyrow .snippet {
-    margin: 0 18px 14px;
-    width: calc(100% - 36px);
+  .panelhead .ptitle {
+    margin: 0 0 0 2px;
   }
   .empty {
     margin: 0;

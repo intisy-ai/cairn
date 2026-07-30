@@ -4,6 +4,7 @@ import { render, fireEvent, waitFor } from "@testing-library/svelte";
 import { get } from "svelte/store";
 import { stubCairn } from "../testing.js";
 import { toasts, toast } from "../toast.js";
+import { router, consumeParams } from "../router.js";
 import LocalApi from "./LocalApi.svelte";
 
 describe("LocalApi screen", () => {
@@ -149,6 +150,19 @@ describe("LocalApi screen", () => {
     await waitFor(() => expect(getByText(/No proxies installed/)).toBeTruthy());
   });
 
+  it("navigates to the Plugins proxy filter when Add proxy is clicked", async () => {
+    stubCairn({
+      proxyStatus: async () => ({ ok: true, data: { running: false, port: 34567 } }),
+      proxiesList: async () => ({ ok: true, data: [] }),
+    });
+    router.set({ screen: "localApi" });
+    const { getByText } = render(LocalApi);
+    await waitFor(() => expect(getByText("+ Add proxy")).toBeTruthy());
+    await fireEvent.click(getByText("+ Add proxy"));
+    expect(get(router).screen).toBe("plugins");
+    expect(consumeParams()).toEqual({ kind: "proxy" });
+  });
+
   it("renders each installed proxy with its own setup instructions and toggle", async () => {
     stubCairn({
       proxyStatus: async () => ({ ok: true, data: { running: false, port: 34567 } }),
@@ -166,7 +180,7 @@ describe("LocalApi screen", () => {
 
     expect(getByText("Run `some-app configure --local-api`.")).toBeTruthy();
     expect(getByText("Other App")).toBeTruthy();
-    expect(getByText("Point Other App at the local API base URL:")).toBeTruthy();
+    expect(getByText("Point this app at the local API base URL below.")).toBeTruthy();
 
     const someToggle = getByRole("switch", { name: "Some App enabled" });
     const otherToggle = getByRole("switch", { name: "Other App enabled" });
