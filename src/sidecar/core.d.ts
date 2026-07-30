@@ -19,6 +19,7 @@ declare module "@core/index.js" {
     integration: "env-baseurl" | "native";
     wireFormat: string;
     builtin: boolean;
+    usage?: { formats: string[] };
   }
   export function getApps(env?: NodeJS.ProcessEnv, home?: string): AppDescriptor[];
   export function getAppDescriptor(id: string, env?: NodeJS.ProcessEnv, home?: string): AppDescriptor | undefined;

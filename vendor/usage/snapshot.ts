@@ -2,8 +2,8 @@
 // plus sessions and models (from buildSessionsWithCosts/buildModelSummary),
 // bucketed by day.
 import { join } from "path";
+import { configFolder } from "@core-auth/index.js";
 import { readJSON } from "./db.js";
-import { accountsConfigFolder } from "./settings.js";
 import { buildSessionsWithCosts, buildModelSummary } from "./sessions.js";
 import type { AccountSummary, DayUsage, QuotaInfo, RateLimitInfo, UsageSnapshotData } from "./types.js";
 
@@ -113,7 +113,7 @@ interface AccountsStore {
 
 export function getAccountsData(): AccountSummary[] {
   const now = Date.now();
-  const store = readJSON<AccountsStore>(join(accountsConfigFolder(), "accounts.json"));
+  const store = readJSON<AccountsStore>(join(configFolder(), "accounts.json"));
   const accounts: AccountSummary[] = [];
   if (store?.providers) {
     for (const [provider, pool] of Object.entries(store.providers)) {

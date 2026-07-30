@@ -129,7 +129,7 @@ describe("usage sidecar module", () => {
     expect(result.data.sessions).toHaveLength(1);
     const session = result.data.sessions[0];
     expect(session.id).toBe("session-abc");
-    expect(session.source).toBe("claude-code");
+    expect(session.source).toBe("claude");
     expect(session.messageCount).toBe(2);
     expect(session.tokens).toEqual({ input: 1010, output: 205, reasoning: 0, cacheRead: 50, cacheWrite: 10 });
     expect(session.title).toBe("my test project");

@@ -36,7 +36,7 @@ beforeEach(() => {
             title: "Latest session",
             tokens: { input: 50, output: 50, reasoning: 0, cacheRead: 0, cacheWrite: 0 },
             messageCount: 3,
-            source: "claude-code",
+            source: "claude",
             updated: now,
             costByDay: {},
             models: [{ id: "sonnet", provider: "anthropic", tokens: 100 }],

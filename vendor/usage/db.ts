@@ -4,11 +4,20 @@
 // have it) and a static specifier would also be mis-resolved by bundlers that
 // apply a browser resolution condition to this file.
 import { existsSync, readFileSync } from "fs";
+import { homedir } from "os";
 import { join } from "path";
 import { createRequire } from "module";
-import { defaultDbPath } from "./settings.js";
 
 const requireModule = createRequire(import.meta.url);
+
+// The OpenCode sqlite db lives outside the app home (its default is under
+// ~/.local/share, not ~/.config/opencode), so this reader owns its own path
+// logic rather than deriving from resolveHome.
+function defaultDbPath(): string {
+  const forced = process.env.HUB_OPENCODE_DATA_DIR;
+  if (forced && forced.trim()) return join(forced.trim(), "opencode.db");
+  return join(homedir(), ".local", "share", "opencode", "opencode.db");
+}
 
 export interface SqliteRows {
   all(): unknown[];

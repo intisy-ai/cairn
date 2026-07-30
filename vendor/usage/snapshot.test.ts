@@ -62,7 +62,7 @@ describe("normalizeQuotas", () => {
     expect(quotas["gemini-3-pro"].resetTime).toBe(new Date("2026-01-01T00:00:00.000Z").getTime());
   });
 
-  it("normalizes the cachedQuota.pools utilization shape (claude-code-style)", () => {
+  it("normalizes the cachedQuota.pools utilization shape", () => {
     const quotas = normalizeQuotas({
       cachedQuota: { pools: { "5-hour": { utilization: 0.4, reset: 12345 } } },
     });
@@ -148,7 +148,7 @@ describe("buildSnapshot", () => {
     expect(typeof snapshot.updatedAt).toBe("number");
     expect(snapshot.accounts).toHaveLength(1);
     expect(snapshot.sessions).toHaveLength(1);
-    expect(snapshot.sessions[0].source).toBe("claude-code");
+    expect(snapshot.sessions[0].source).toBe("claude");
     expect(Object.keys(snapshot.models)).toEqual(["claude-sonnet-5"]);
     expect(snapshot.costByDay["2026-02-02"]).toEqual({
       tokens: 120,

@@ -11,7 +11,7 @@ function session(over: Partial<UsageSession> & { id: string; updated: number }):
     title: over.title ?? over.id,
     tokens: over.tokens ?? { input: 10, output: 10, reasoning: 0, cacheRead: 0, cacheWrite: 0 },
     messageCount: over.messageCount ?? 2,
-    source: over.source ?? "claude-code",
+    source: over.source ?? "claude",
     updated: over.updated,
     costByDay: over.costByDay ?? {},
     models: over.models ?? [{ id: "sonnet", provider: "anthropic", tokens: 20 }],

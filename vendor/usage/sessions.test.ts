@@ -186,7 +186,7 @@ describe("buildSessionsWithCosts: Claude Code JSONL wire-to-neutral token mappin
     expect(sessions).toHaveLength(1);
     const session = sessions[0];
     expect(session.id).toBe("session-abc");
-    expect(session.source).toBe("claude-code");
+    expect(session.source).toBe("claude");
     expect(session.messageCount).toBe(2);
     // Anthropic wire names (input_tokens/output_tokens/cache_read_input_tokens/
     // cache_creation_input_tokens) must map onto the neutral internal shape.
@@ -332,7 +332,7 @@ describe("buildModelSummary", () => {
         },
         costByDay: {},
         messageCount: 1,
-        source: "claude-code",
+        source: "claude",
       },
     ];
 

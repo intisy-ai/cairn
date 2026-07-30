@@ -1,21 +1,19 @@
-// Session token aggregation. Each storage format has its own reader (see READERS);
-// the engine runs them in order, threading the set of already-seen session ids so a
-// session claimed by an earlier reader is not double-counted, and tags each session
-// with its reader's source.
+// Session token aggregation. Discovery is registry-driven: each app declares the
+// session-storage formats it writes (AppDescriptor.usage.formats), the engine
+// resolves the app's home and runs the matching format reader, threading the set
+// of already-seen session ids so a session claimed by an earlier reader is not
+// double-counted, and stamps each session with the app's id as its source.
 import { createReadStream, existsSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 import { createInterface } from "readline";
+import { getApps, resolveHome } from "@core/index.js";
 import { openDB, readJSON } from "./db.js";
-import { opencodeStorageDir, claudeProjectsDir } from "./settings.js";
-import type { DayUsage, ModelSummary, ModelUsage, Session, SessionData, SessionSource, TokenUsage } from "./types.js";
+import type { DayUsage, ModelSummary, ModelUsage, Session, SessionData, TokenUsage } from "./types.js";
 
-// A reader for one storage format. `read` returns sessions minus their source
-// (the engine stamps it), skipping any id already claimed by an earlier reader.
-export interface UsageReader {
-  format: string;
-  source: SessionSource;
-  read(knownIds: Set<string>): Promise<SessionData[]> | SessionData[];
-}
+// A reader for one storage format, given the resolving app's home. Returns
+// sessions minus their source (the engine stamps it), skipping any id already
+// claimed by an earlier reader.
+type FormatReader = (home: string, knownIds: Set<string>) => Promise<SessionData[]> | SessionData[];
 
 function emptyTokens(): TokenUsage {
   return { input: 0, output: 0, reasoning: 0, cacheRead: 0, cacheWrite: 0 };
@@ -171,9 +169,10 @@ interface LegacyMessageFile {
   time?: { created?: number };
 }
 
-function buildLegacyFileSessions(knownIds: Set<string>): SessionData[] {
-  const sessionDir = join(opencodeStorageDir(), "session");
-  const messageDirBase = join(opencodeStorageDir(), "message");
+function buildLegacyFileSessions(home: string, knownIds: Set<string>): SessionData[] {
+  const storageDir = join(home, "data", "storage");
+  const sessionDir = join(storageDir, "session");
+  const messageDirBase = join(storageDir, "message");
   if (!existsSync(sessionDir)) return [];
 
   const result: SessionData[] = [];
@@ -258,10 +257,9 @@ interface ClaudeJsonlEntry {
   message?: { model?: string; usage?: ClaudeJsonlUsage };
 }
 
-// Derives a friendly title from the Claude Code project directory name (e.g.
-// "C--Users-jane-myapp" -> "Users jane myapp"), matching the original
-// metric-dashboard behavior. Falls back to a generic title when the derived
-// name is empty.
+// Derives a friendly title from the transcript project directory name (e.g.
+// "C--Users-jane-myapp" -> "Users jane myapp"). Falls back to a generic title
+// when the derived name is empty.
 function projectTitle(projectDir: string): string {
   const cleaned = projectDir.replace(/^[A-Z]--/, "").replace(/-/g, " ").trim();
   return cleaned || "Claude Code Session";
@@ -336,8 +334,8 @@ async function readTranscriptSession(path: string, sessionId: string, projectDir
   };
 }
 
-async function buildClaudeCodeSessions(knownIds: Set<string>): Promise<SessionData[]> {
-  const projectsDir = claudeProjectsDir();
+async function buildTranscriptSessions(home: string, knownIds: Set<string>): Promise<SessionData[]> {
+  const projectsDir = join(home, "projects");
   if (!existsSync(projectsDir)) return [];
 
   const result: SessionData[] = [];
@@ -375,29 +373,37 @@ async function buildClaudeCodeSessions(knownIds: Set<string>): Promise<SessionDa
       }
     }
   } catch {
-    // no readable Claude Code projects directory
+    // no readable transcript projects directory
   }
   return result;
 }
 
-// Registered readers, in precedence order: the OpenCode sqlite db wins over its
-// legacy file storage, and Claude Code transcripts fill in the rest. An id claimed
-// by an earlier reader is skipped by later ones.
-const READERS: UsageReader[] = [
-  { format: "opencode-sqlite", source: "opencode", read: () => buildDbSessions() },
-  { format: "opencode-legacy-files", source: "opencode", read: (knownIds) => buildLegacyFileSessions(knownIds) },
-  { format: "claude-jsonl", source: "claude-code", read: (knownIds) => buildClaudeCodeSessions(knownIds) },
-];
+// One parser per storage-format id. An app's descriptor lists which formats it
+// writes; a format shared by several apps needs no new reader. When an app lists
+// several formats they run in order, so the earlier one wins on a shared id (the
+// sqlite db over its own legacy file storage). The sqlite reader ignores `home`:
+// its db lives outside the app home (see db.ts).
+const FORMAT_READERS: Record<string, FormatReader> = {
+  "opencode-sqlite": () => buildDbSessions(),
+  "opencode-legacy-files": (home, knownIds) => buildLegacyFileSessions(home, knownIds),
+  "claude-jsonl": (home, knownIds) => buildTranscriptSessions(home, knownIds),
+};
 
 export async function buildSessionsWithCosts(): Promise<Session[]> {
   const knownIds = new Set<string>();
   const all: Session[] = [];
-  for (const reader of READERS) {
-    const chunk = await reader.read(knownIds);
-    for (const data of chunk) {
-      const session: Session = { ...data, source: reader.source };
-      knownIds.add(session.id);
-      all.push(session);
+  for (const app of getApps()) {
+    if (!app.usage) continue;
+    const home = resolveHome(app);
+    for (const format of app.usage.formats) {
+      const reader = FORMAT_READERS[format];
+      if (!reader) continue;
+      const chunk = await reader(home, knownIds);
+      for (const data of chunk) {
+        const session: Session = { ...data, source: app.id };
+        knownIds.add(session.id);
+        all.push(session);
+      }
     }
   }
   return all.sort((a, b) => b.updated - a.updated);
