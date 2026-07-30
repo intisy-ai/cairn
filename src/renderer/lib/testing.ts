@@ -64,6 +64,7 @@ function defaultCairn(): CairnAPI {
     pluginsUninstall: async (_home, _name) => ({ ok: true, data: undefined }),
     configSchemas: async () => ({ ok: true, data: [] }),
     configWrite: async (_home, _plugin, _key, _value) => ({ ok: true, data: undefined }),
+    configAction: async (_home, _plugin, _actionId) => ({ ok: true, data: { stdout: "", stderr: "" } }),
     syncStatus: async () => ({ ok: true, data: { enabled: true, categories: { accounts: true, plugins: true, settings: true, pluginConfigs: true }, exclude: [], homes: [], pluginConfigs: [] } }),
     syncRun: async () => ({ ok: true, data: undefined }),
     syncSetConfig: async () => ({ ok: true, data: undefined }),

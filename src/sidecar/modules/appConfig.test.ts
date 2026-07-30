@@ -131,4 +131,66 @@ describe("appConfig sidecar module", () => {
     if (result.ok) throw new Error("unreachable");
     expect(result.error).toContain("invalid config key");
   });
+
+  it("configAction runs a declared action and returns its output", async () => {
+    const { dir, home } = makeHome("claude", "Claude Code");
+    writeFileSync(join(dir, "plugin", "plugin-a.js"), "// bundle", "utf8");
+    seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
+
+    const probe = async (): Promise<PluginConfigSchema> => ({ plugin: "plugin-a", defaults: {}, current: {}, actions: [{ id: "ping", label: "Ping" }] });
+    const run = vi.fn(async () => ({ stdout: "pong", stderr: "" }));
+
+    const { configAction } = await import("./appConfig.js");
+    const result = await configAction("claude", "plugin-a", "ping", { homes: [home], probe, run });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data).toEqual({ stdout: "pong", stderr: "" });
+    expect(run).toHaveBeenCalledOnce();
+  });
+
+  it("configAction rejects an action id the plugin never declared, without running it", async () => {
+    const { dir, home } = makeHome("claude", "Claude Code");
+    writeFileSync(join(dir, "plugin", "plugin-a.js"), "// bundle", "utf8");
+    seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
+
+    const probe = async (): Promise<PluginConfigSchema> => ({ plugin: "plugin-a", defaults: {}, current: {}, actions: [{ id: "ping", label: "Ping" }] });
+    const run = vi.fn(async () => ({ stdout: "", stderr: "" }));
+
+    const { configAction } = await import("./appConfig.js");
+    const result = await configAction("claude", "plugin-a", "danger", { homes: [home], probe, run });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("unknown action");
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("configAction returns an error for a plugin not installed in the home", async () => {
+    const { home } = makeHome("claude", "Claude Code");
+    const { configAction } = await import("./appConfig.js");
+    const result = await configAction("claude", "ghost", "ping", { homes: [home], probe: async () => null, run: async () => ({ stdout: "", stderr: "" }) });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("plugin not found");
+  });
+
+  it("realProbe path carries declared fields and actions through when present", async () => {
+    const { dir, home } = makeHome("claude", "Claude Code");
+    writeFileSync(join(dir, "plugin", "plugin-a.js"), "// bundle", "utf8");
+    seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
+
+    const probe = async (): Promise<PluginConfigSchema> => ({
+      plugin: "plugin-a", defaults: { x: 1 }, current: {},
+      fields: [{ key: "x", type: "number" }], actions: [{ id: "go", label: "Go" }],
+    });
+
+    const { configSchemas } = await import("./appConfig.js");
+    const result = await configSchemas("claude", { homes: [home], probe });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data[0].fields).toEqual([{ key: "x", type: "number" }]);
+    expect(result.data[0].actions).toEqual([{ id: "go", label: "Go" }]);
+  });
 });

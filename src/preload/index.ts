@@ -58,6 +58,7 @@ const api: CairnAPI = {
   pluginsUninstall: (home, name) => safeInvoke("plugins:uninstall", home, name) as Promise<Result<void>>,
   configSchemas: (home) => safeInvoke("config:schemas", home) as Promise<Result<PluginConfigSchema[]>>,
   configWrite: (home, plugin, key, value) => safeInvoke("config:write", home, plugin, key, value) as Promise<Result<void>>,
+  configAction: (home, plugin, actionId) => safeInvoke("config:action", home, plugin, actionId) as Promise<Result<{ stdout: string; stderr: string }>>,
   syncStatus: () => safeInvoke("sync:status") as Promise<Result<SyncStatus>>,
   syncRun: () => safeInvoke("sync:run") as Promise<Result<void>>,
   syncSetConfig: (key, value) => safeInvoke("sync:setConfig", key, value) as Promise<Result<void>>,

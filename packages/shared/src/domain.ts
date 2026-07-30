@@ -133,7 +133,28 @@ export type UnifiedPlugin = {
 };
 export type InstallOutcome = { home: string; ok: boolean; error?: string };
 export type InstallManyResult = { outcomes: InstallOutcome[] };
-export type PluginConfigSchema = { plugin: string; defaults: Record<string, unknown>; current: Record<string, unknown> };
+export type FieldType = "boolean" | "number" | "string" | "secret" | "select" | "multiline" | "list";
+export type FieldSpec = {
+  key: string;
+  type: FieldType;
+  label?: string;
+  description?: string;
+  group?: string;
+  options?: { value: string; label: string }[];
+  min?: number;
+  max?: number;
+  step?: number;
+  itemType?: "string" | "number";
+  placeholder?: string;
+};
+export type ActionSpec = { id: string; label: string; description?: string; confirm?: string; danger?: boolean };
+export type PluginConfigSchema = {
+  plugin: string;
+  defaults: Record<string, unknown>;
+  current: Record<string, unknown>;
+  fields?: FieldSpec[];
+  actions?: ActionSpec[];
+};
 export type AppAccountSummary = { provider: string; label: string; enabled: boolean; quotaPct: number | null };
 export type AppProviderAgg = { provider: string; accounts: number; enabled: number };
 export type AppSummary = {

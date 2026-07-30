@@ -28,6 +28,7 @@ const CHANNEL_TIMEOUTS: Record<string, number> = {
   "apps:uninstallCli": LONG_MS,
   "sync:run": LONG_MS,
   "import:run": LONG_MS,
+  "config:action": LONG_MS,
 };
 
 export function registerHandlers(supervisor: RpcSupervisor): void {

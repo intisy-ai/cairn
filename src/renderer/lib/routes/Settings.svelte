@@ -8,9 +8,7 @@
   import ToggleSwitch from "../components/ToggleSwitch.svelte";
   import Button from "../components/Button.svelte";
   import Spinner from "../components/Spinner.svelte";
-
-  type FieldKind = "boolean" | "number" | "string" | "json";
-  type Field = { key: string; value: unknown; kind: FieldKind };
+  import PluginControls from "../components/PluginControls.svelte";
 
   let themeSetting = $state<ThemeSetting>("system");
   let showDeprecated = $state(true);
@@ -22,24 +20,7 @@
   let sectionsError = $state("");
   let schemasByHome = $state<Record<string, PluginConfigSchema[]>>({});
 
-  let fieldError = $state<Record<string, string>>({});
-  let fieldSaved = $state<Record<string, boolean>>({});
-
   const appGroups = $derived(sections.filter((s) => s.home.id === "cairn" || s.home.present));
-
-  function fieldsFor(schema: PluginConfigSchema): Field[] {
-    const keys = [...new Set([...Object.keys(schema.defaults), ...Object.keys(schema.current)])].sort();
-    return keys.map((key) => {
-      const value = key in schema.current ? schema.current[key] : schema.defaults[key];
-      const kind: FieldKind =
-        typeof value === "boolean" ? "boolean" : typeof value === "number" ? "number" : typeof value === "string" ? "string" : "json";
-      return { key, value, kind };
-    });
-  }
-
-  function fieldId(homeId: string, plugin: string, key: string): string {
-    return `${homeId}/${plugin}/${key}`;
-  }
 
   async function loadCairnSettings(): Promise<void> {
     const [theme, deprecated, autoUpdate, autostart, consoleMirror] = await Promise.all([
@@ -132,24 +113,6 @@
       await loadSync();
     } finally {
       syncRunning = false;
-    }
-  }
-
-  async function handleFieldChange(homeId: string, plugin: string, key: string, value: unknown): Promise<void> {
-    const id = fieldId(homeId, plugin, key);
-    const result = await cairn.configWrite(homeId, plugin, key, value);
-    if (result.ok) {
-      fieldError = { ...fieldError, [id]: "" };
-      fieldSaved = { ...fieldSaved, [id]: true };
-      schemasByHome = {
-        ...schemasByHome,
-        [homeId]: (schemasByHome[homeId] ?? []).map((s) =>
-          s.plugin === plugin ? { ...s, current: { ...s.current, [key]: value } } : s,
-        ),
-      };
-    } else {
-      fieldSaved = { ...fieldSaved, [id]: false };
-      fieldError = { ...fieldError, [id]: result.error };
     }
   }
 
@@ -292,42 +255,7 @@
           <details class="plugin">
             <summary>{schema.plugin}</summary>
             <div class="fields">
-              {#each fieldsFor(schema) as field (field.key)}
-                {@const id = fieldId(group.home.id, schema.plugin, field.key)}
-                <div class="field">
-                  <span class="key">{field.key}</span>
-                  {#if field.kind === "boolean"}
-                    <ToggleSwitch
-                      checked={field.value as boolean}
-                      label={`${schema.plugin} ${field.key}`}
-                      onchange={(on) => handleFieldChange(group.home.id, schema.plugin, field.key, on)}
-                    />
-                  {:else if field.kind === "number"}
-                    <input
-                      type="number"
-                      aria-label={`${schema.plugin} ${field.key}`}
-                      value={field.value as number}
-                      onchange={(event) =>
-                        handleFieldChange(group.home.id, schema.plugin, field.key, Number((event.currentTarget as HTMLInputElement).value))}
-                    />
-                  {:else if field.kind === "string"}
-                    <input
-                      type="text"
-                      aria-label={`${schema.plugin} ${field.key}`}
-                      value={field.value as string}
-                      onchange={(event) =>
-                        handleFieldChange(group.home.id, schema.plugin, field.key, (event.currentTarget as HTMLInputElement).value)}
-                    />
-                  {:else}
-                    <pre class="json">{JSON.stringify(field.value, null, 2)}</pre>
-                  {/if}
-                  {#if fieldError[id]}
-                    <span class="fielderror">{fieldError[id]}</span>
-                  {:else if fieldSaved[id]}
-                    <span class="fieldsaved">Saved</span>
-                  {/if}
-                </div>
-              {/each}
+              <PluginControls homeId={group.home.id} {schema} />
             </div>
           </details>
         {/each}
@@ -428,48 +356,6 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-  }
-  .field {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .field .key {
-    flex: 1;
-    min-width: 0;
-    font-family: var(--mono);
-    font-size: 11.5px;
-    color: var(--muted);
-  }
-  .field input[type="text"],
-  .field input[type="number"] {
-    font-family: var(--ui);
-    font-size: 12.5px;
-    padding: 6px 9px;
-    border-radius: 7px;
-    border: 1px solid var(--border-strong);
-    background: var(--surface);
-    color: var(--text);
-    width: 160px;
-  }
-  .field .json {
-    margin: 0;
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--faint);
-    background: var(--surface-2);
-    border-radius: 7px;
-    padding: 6px 9px;
-    max-width: 260px;
-    overflow: auto;
-  }
-  .fielderror {
-    color: var(--crit);
-    font-size: 11px;
-  }
-  .fieldsaved {
-    color: var(--good);
-    font-size: 11px;
   }
   .empty {
     margin: 0;

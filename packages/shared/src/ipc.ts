@@ -31,6 +31,7 @@ export const IPC_CHANNELS = {
     "plugins:uninstall",
     "config:schemas",
     "config:write",
+    "config:action",
     "sync:status",
     "sync:run",
     "sync:setConfig",

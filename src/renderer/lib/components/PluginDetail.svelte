@@ -1,7 +1,9 @@
 <script lang="ts">
-  import type { UnifiedPlugin } from "@cairn/shared";
+  import type { UnifiedPlugin, PluginConfigSchema } from "@cairn/shared";
   import PluginIcon from "./PluginIcon.svelte";
   import Button from "./Button.svelte";
+  import PluginControls from "./PluginControls.svelte";
+  import { cairn } from "../ipc.js";
   import { fadeMotion, flyMotion } from "../util/motion.js";
 
   let {
@@ -24,6 +26,30 @@
 
   const installedCount = $derived(homes.filter((h) => plugin.homes[h.id]?.installed).length);
   const fullyInstalled = $derived(installedCount === homes.length && homes.length > 0);
+
+  const installedHomes = $derived(homes.filter((h) => plugin.homes[h.id]?.installed));
+  let controlsHome = $state<string>("");
+  let controlsSchema = $state<PluginConfigSchema | null>(null);
+  let controlsLoading = $state(false);
+
+  $effect(() => {
+    if (installedHomes.length > 0 && !installedHomes.some((h) => h.id === controlsHome)) {
+      controlsHome = installedHomes[0].id;
+    }
+  });
+
+  // Fetch the selected home's schema for this plugin on demand.
+  $effect(() => {
+    const home = controlsHome;
+    const name = plugin.name;
+    if (!home) { controlsSchema = null; return; }
+    controlsLoading = true;
+    cairn.configSchemas(home).then((result) => {
+      if (controlsHome !== home) return;
+      controlsSchema = result.ok ? (result.data.find((s) => s.plugin === name) ?? null) : null;
+      controlsLoading = false;
+    });
+  });
 
   function letters(label: string): string {
     return label.replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase();
@@ -77,6 +103,26 @@
       {/each}
     </ul>
   </section>
+
+  {#if installedHomes.length > 0}
+    <section class="controls">
+      <p class="label">Controls</p>
+      {#if installedHomes.length > 1}
+        <div class="homeswitch">
+          {#each installedHomes as h (h.id)}
+            <button class="hchip" class:on={controlsHome === h.id} onclick={() => (controlsHome = h.id)}>{h.label}</button>
+          {/each}
+        </div>
+      {/if}
+      {#if controlsSchema}
+        <PluginControls homeId={controlsHome} schema={controlsSchema} />
+      {:else if controlsLoading}
+        <p class="cmuted">Loading controls…</p>
+      {:else}
+        <p class="cmuted">No controls.</p>
+      {/if}
+    </section>
+  {/if}
 
   <footer class="actions">
     {#if plugin.updateAvailable}
@@ -265,6 +311,35 @@
   .toggle.on {
     color: var(--crit);
     border-color: var(--crit);
+  }
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .homeswitch {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .hchip {
+    font-size: 11.5px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--muted);
+    border-radius: 20px;
+    padding: 3px 11px;
+    cursor: pointer;
+  }
+  .hchip.on {
+    background: var(--accent-weak);
+    color: var(--accent);
+    border-color: var(--accent-border);
+  }
+  .cmuted {
+    margin: 0;
+    color: var(--faint);
+    font-size: 12.5px;
   }
   .actions {
     display: flex;
