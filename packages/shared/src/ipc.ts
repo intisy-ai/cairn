@@ -29,6 +29,8 @@ export const INVOKE_CHANNELS = {
   appsUninstallCli: "apps:uninstallCli",
   appsSummary: "apps:summary",
   pluginsList: "plugins:list",
+  enginesList: "engines:list",
+  enginesEnsure: "engines:ensure",
   pluginsInstall: "plugins:install",
   pluginsInstallMany: "plugins:installMany",
   pluginsRemoveEverywhere: "plugins:removeEverywhere",

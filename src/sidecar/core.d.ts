@@ -26,4 +26,18 @@ declare module "@core/index.js" {
   export function resolveHome(desc: AppDescriptor, env?: NodeJS.ProcessEnv, home?: string): string;
   export interface EventEnvelope<T = unknown> { v: 1; id: string; ts: number; topic: string; source: string; payload: T; }
   export function drainHomes(homes: string[], consumerId: string, handler: (e: EventEnvelope) => void): number;
+  export interface EngineDescriptor {
+    id: string;
+    url: string;
+    capability: string;
+    mandatory: boolean;
+    autoInstall: "startup" | "on-demand";
+    target: "all-apps" | "cairn";
+    meta?: Record<string, string>;
+  }
+  export function getEngines(): EngineDescriptor[];
+  export function engineByCapability(capability: string): EngineDescriptor | undefined;
+  export function engineById(id: string): EngineDescriptor | undefined;
+  export function isEngine(id: string): boolean;
+  export function isMandatoryEngine(id: string): boolean;
 }
