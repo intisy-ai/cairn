@@ -10,15 +10,15 @@ describe("PluginControls", () => {
     const writes: unknown[][] = [];
     stubCairn({ configWrite: async (...args: unknown[]) => { writes.push(args); return { ok: true, data: undefined }; } });
     const schema: PluginConfigSchema = {
-      plugin: "p", defaults: { "sel.mode": "fast" }, current: {},
-      fields: [{ key: "sel.mode", type: "select", label: "Mode", group: "Routing", options: [{ value: "fast", label: "Fast" }, { value: "cheap", label: "Cheap" }] }],
+      plugin: "p", defaults: { mode: "fast" }, current: {},
+      fields: [{ key: "mode", type: "select", label: "Mode", group: "Routing", options: [{ value: "fast", label: "Fast" }, { value: "cheap", label: "Cheap" }] }],
     };
     render(PluginControls, { homeId: "claude", schema });
 
     const select = (await screen.findByLabelText("p Mode")) as HTMLSelectElement;
     expect(select.value).toBe("fast");
     await fireEvent.change(select, { target: { value: "cheap" } });
-    await waitFor(() => expect(writes).toContainEqual(["claude", "p", "sel.mode", "cheap"]));
+    await waitFor(() => expect(writes).toContainEqual(["claude", "p", "mode", "cheap"]));
   });
 
   it("renders a number field honoring bounds and writes a number", async () => {
@@ -60,6 +60,20 @@ describe("PluginControls", () => {
     await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(action).toHaveBeenCalledWith("claude", "p", "ping"));
     await waitFor(() => expect(screen.getByText("pinged")).toBeInTheDocument());
+  });
+
+  it("resolves a dot-path field's initial value from nested current/defaults", async () => {
+    const writes: unknown[][] = [];
+    stubCairn({ configWrite: async (...args: unknown[]) => { writes.push(args); return { ok: true, data: undefined }; } });
+    const schema: PluginConfigSchema = {
+      plugin: "p", defaults: { categories: { accounts: true } }, current: { categories: { accounts: false } },
+      fields: [{ key: "categories.accounts", type: "boolean", label: "Accounts" }],
+    };
+    render(PluginControls, { homeId: "claude", schema });
+    const toggle = await screen.findByRole("switch", { name: "p Accounts" });
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    await fireEvent.click(toggle);
+    await waitFor(() => expect(writes).toContainEqual(["claude", "p", "categories.accounts", true]));
   });
 
   it("adds a list item and writes the grown array", async () => {

@@ -33,8 +33,19 @@
     return order.map((g) => ({ name: g, fields: byGroup.get(g)! }));
   });
 
+  // Resolve a dot-path key against nested current/defaults (e.g. "categories.accounts").
+  function dig(obj: Record<string, unknown>, dotKey: string): unknown {
+    let node: unknown = obj;
+    for (const part of dotKey.split(".")) {
+      if (node && typeof node === "object" && part in (node as Record<string, unknown>)) node = (node as Record<string, unknown>)[part];
+      else return undefined;
+    }
+    return node;
+  }
+
   function initialValue(field: FieldSpec): unknown {
-    const raw = field.key in schema.current ? schema.current[field.key] : schema.defaults[field.key];
+    const fromCurrent = dig(schema.current, field.key);
+    const raw = fromCurrent !== undefined ? fromCurrent : dig(schema.defaults, field.key);
     if (field.type === "multiline") return raw === undefined ? "" : typeof raw === "string" ? raw : JSON.stringify(raw, null, 2);
     if (field.type === "list") return Array.isArray(raw) ? raw : [];
     if (field.type === "secret") return "";
