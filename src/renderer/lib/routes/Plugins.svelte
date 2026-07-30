@@ -177,9 +177,14 @@
     return installManyTracked(`Install ${repo.repo}`, repo.repo, repo.url, homeIds);
   }
 
+  const KIND_FILTERS: KindFilter[] = ["all", "provider", "proxy", "plugin"];
+
   onMount(() => {
     reload();
     const params = consumeParams();
+    // A deep link (e.g. "Add provider" from the Providers screen) can preselect
+    // the category filter so you land in the right context.
+    if (params?.kind && (KIND_FILTERS as string[]).includes(params.kind)) setKind(params.kind as KindFilter);
     if (params?.add) addOpen = true;
   });
 </script>
