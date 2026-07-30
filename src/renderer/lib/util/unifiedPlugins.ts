@@ -9,7 +9,7 @@ function kindOf(name: string, catalog: CatalogEntry[]): CatalogKind {
 
 export function applicableHomeIds(kind: CatalogKind, homes: PluginHome[]): string[] {
   return homes
-    .filter((h) => (h.id === "cairn" ? kind !== "plugin" : kind !== "proxy"))
+    .filter((h) => (h.id === "cairn" ? kind !== "plugin" && kind !== "loader" : kind !== "proxy"))
     .map((h) => h.id);
 }
 

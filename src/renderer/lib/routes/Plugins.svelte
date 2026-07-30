@@ -50,8 +50,8 @@
   let selectedName = $state<string | null>(null);
   let pendingConfirm = $state<{ title: string; message: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
 
-  type KindFilter = "all" | "provider" | "proxy" | "plugin" | "engine";
-  const KIND_FILTERS: KindFilter[] = ["all", "provider", "proxy", "plugin", "engine"];
+  type KindFilter = "all" | "provider" | "proxy" | "plugin" | "loader" | "engine";
+  const KIND_FILTERS: KindFilter[] = ["all", "provider", "proxy", "plugin", "loader", "engine"];
   const startKind: KindFilter =
     startParams?.kind && (KIND_FILTERS as string[]).includes(startParams.kind) ? (startParams.kind as KindFilter) : "plugin";
   let kindFilter = $state<KindFilter>(startKind);
@@ -76,6 +76,7 @@
     provider: unified.filter((p) => p.kind === "provider").length,
     proxy: unified.filter((p) => p.kind === "proxy").length,
     plugin: unified.filter((p) => p.kind === "plugin").length,
+    loader: unified.filter((p) => p.kind === "loader").length,
     installed: unified.filter(isInstalled).length,
   });
   const filtered = $derived(
@@ -251,6 +252,7 @@
     <Chip label={`Providers ${counts.provider}`} on={kindFilter === "provider"} onclick={() => setKind("provider")} />
     <Chip label={`Proxies ${counts.proxy}`} on={kindFilter === "proxy"} onclick={() => setKind("proxy")} />
     <Chip label={`Plugins ${counts.plugin}`} on={kindFilter === "plugin"} onclick={() => setKind("plugin")} />
+    <Chip label={`Loaders ${counts.loader}`} on={kindFilter === "loader"} onclick={() => setKind("loader")} />
     <Chip label="Engines" on={kindFilter === "engine"} onclick={() => setKind("engine")} />
     <span class="sep"></span>
     <Chip label={`Installed ${counts.installed}`} on={installedOnly} onclick={() => (installedOnly = !installedOnly)} />
@@ -293,7 +295,7 @@
           <div class="name-with-chip">
             <b>{p.displayName}</b>
             {#if p.displayName !== p.name}<span class="repo">{p.name}</span>{/if}
-            {#if p.kind === "provider" || p.kind === "proxy"}
+            {#if p.kind === "provider" || p.kind === "proxy" || p.kind === "loader"}
               <span class="chip">{p.kind}</span>
             {/if}
             {#if mandatoryIds.has(p.name)}
@@ -325,7 +327,7 @@
         <PluginIcon icon={p.icon} name={p.displayName} kind={p.kind} size={LOGO_SIZE.list} />
         <div class="card-title">
           <b>{p.displayName}</b>
-          {#if p.kind === "provider" || p.kind === "proxy"}
+          {#if p.kind === "provider" || p.kind === "proxy" || p.kind === "loader"}
             <span class="chip">{p.kind}</span>
           {/if}
           {#if mandatoryIds.has(p.name)}
