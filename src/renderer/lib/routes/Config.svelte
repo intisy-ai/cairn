@@ -101,6 +101,22 @@
   function shortHash(hash: string): string {
     return hash.slice(0, 7);
   }
+
+  const MAX_VALUE = 72;
+  function truncate(value: string): string {
+    return value.length > MAX_VALUE ? value.slice(0, MAX_VALUE - 1) + "…" : value;
+  }
+
+  type PendingGroup = { file: string; rows: ConfigHomeView["pending"] };
+  function groupByFile(rows: ConfigHomeView["pending"]): PendingGroup[] {
+    const byFile = new Map<string, ConfigHomeView["pending"]>();
+    for (const row of rows) {
+      const list = byFile.get(row.file) ?? [];
+      list.push(row);
+      byFile.set(row.file, list);
+    }
+    return [...byFile.entries()].map(([file, r]) => ({ file, rows: r })).sort((a, b) => a.file.localeCompare(b.file));
+  }
 </script>
 
 <div class="head">
@@ -132,7 +148,7 @@
     <Card>
       <div class="block">
         <div class="block-head">
-          <b>Pending changes</b>
+          <b>Pending changes{#if home.pending.length > 0} <span class="count">{home.pending.length}</span>{/if}</b>
           <div class="commit">
             <input
               class="reason"
@@ -149,11 +165,21 @@
         {#if home.pending.length === 0}
           <p class="muted">No uncommitted changes.</p>
         {:else}
-          <ul class="diff">
-            {#each home.pending as row (row.file + row.key)}
-              <li><span class="file">{row.file}</span> <span class="key">{row.key}</span>: <span class="old">{row.old}</span> → <span class="new">{row.new}</span></li>
-            {/each}
-          </ul>
+          {#each groupByFile(home.pending) as group (group.file)}
+            <details class="pfile" open={group.rows.length <= 8}>
+              <summary><span class="fname">{group.file}</span> <span class="count">{group.rows.length}</span></summary>
+              <ul class="diff">
+                {#each group.rows as row (row.key)}
+                  <li>
+                    <span class="key">{row.key}</span>
+                    <span class="old" title={row.old}>{truncate(row.old)}</span>
+                    <span class="arrow">→</span>
+                    <span class="new" title={row.new}>{truncate(row.new)}</span>
+                  </li>
+                {/each}
+              </ul>
+            </details>
+          {/each}
         {/if}
       </div>
 
@@ -299,20 +325,65 @@
     gap: 6px;
   }
   .diff li {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 6px;
     font-size: 12px;
     font-family: var(--mono, monospace);
   }
-  .diff .file {
-    color: var(--muted);
-  }
   .diff .key {
     font-weight: 600;
+    min-width: 0;
   }
   .diff .old {
     color: var(--crit);
+    max-width: 40ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .diff .arrow {
+    color: var(--faint);
   }
   .diff .new {
     color: var(--accent);
+    max-width: 40ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pfile {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px 0;
+  }
+  .pfile summary {
+    cursor: pointer;
+    padding: 6px 12px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    list-style: none;
+  }
+  .pfile summary::-webkit-details-marker {
+    display: none;
+  }
+  .pfile .fname {
+    font-family: var(--mono, monospace);
+    font-weight: 600;
+  }
+  .pfile .diff {
+    padding: 4px 12px 8px;
+  }
+  .count {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--muted);
+    background: var(--surface-2);
+    border-radius: 999px;
+    padding: 1px 7px;
   }
   .snaps li {
     display: flex;
