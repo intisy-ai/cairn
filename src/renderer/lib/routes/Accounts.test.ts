@@ -204,4 +204,52 @@ describe("Accounts screen", () => {
 
     await waitFor(() => expect(get(toasts).some((t) => t.kind === "error" && t.message === "remove boom")).toBe(true));
   });
+
+  it("opens the add-account dialog for a provider chosen from the top-level control", async () => {
+    const accountsLoginBegin = vi.fn(async () => ({ ok: true, data: { url: "https://x/login", instructions: "" } }) as const);
+    stubCairn({
+      providersList: async () => ({ ok: true, data: PROVIDERS }),
+      accountsList: async (provider) => (provider === "stub" ? { ok: true, data: ACCOUNTS } : { ok: true, data: [] }),
+      accountsLoginBegin,
+    });
+
+    const { getByText, getAllByRole, findByRole } = render(Accounts);
+    await waitFor(() => expect(getByText("a@stub.test")).toBeTruthy());
+
+    const addButtons = getAllByRole("button", { name: "Add account" });
+    expect(addButtons.length).toBeGreaterThanOrEqual(2);
+    await fireEvent.click(addButtons[0]);
+
+    const menuItem = await findByRole("menuitem", { name: "Stub" });
+    await fireEvent.click(menuItem);
+
+    await findByRole("dialog", { name: /add stub account/i });
+    await waitFor(() => expect(accountsLoginBegin).toHaveBeenCalledWith("stub"));
+  });
+
+  it("shows an Add account affordance for every provider group, including an empty one, and opens its dialog", async () => {
+    const providersWithEmpty = [
+      { id: "stub", label: "Stub", hasOAuth: true, accountCount: 2, active: true, exposure: { claude: true, opencode: false } },
+      { id: "ghost", label: "Ghost", hasOAuth: true, accountCount: 0, active: true, exposure: { claude: true, opencode: false } },
+    ];
+    const accountsLoginBegin = vi.fn(async () => ({ ok: true, data: { url: "https://x/login", instructions: "" } }) as const);
+    stubCairn({
+      providersList: async () => ({ ok: true, data: providersWithEmpty }),
+      accountsList: async (provider) => (provider === "stub" ? { ok: true, data: ACCOUNTS } : { ok: true, data: [] }),
+      accountsLoginBegin,
+    });
+
+    const { getByText, container, findByRole } = render(Accounts);
+    await waitFor(() => expect(getByText("a@stub.test")).toBeTruthy());
+    await waitFor(() => expect(getByText(/no accounts yet/i)).toBeTruthy());
+
+    const groups = Array.from(container.querySelectorAll("section.grp"));
+    const ghostGroup = groups.find((g) => g.querySelector(".lbl")?.textContent === "Ghost");
+    expect(ghostGroup).toBeTruthy();
+    const addButton = within(ghostGroup as HTMLElement).getByRole("button", { name: "Add account" });
+    await fireEvent.click(addButton);
+
+    await findByRole("dialog", { name: /add ghost account/i });
+    await waitFor(() => expect(accountsLoginBegin).toHaveBeenCalledWith("ghost"));
+  });
 });

@@ -6,6 +6,7 @@
   import { toast } from "../toast.js";
   import { debounce } from "../util/debounce.js";
   import AccountRow from "../components/AccountRow.svelte";
+  import Button from "../components/Button.svelte";
   import Card from "../components/Card.svelte";
   import SearchField from "../components/SearchField.svelte";
   import CollapsibleGroup from "../components/CollapsibleGroup.svelte";
@@ -13,6 +14,7 @@
   import Skeleton from "../components/Skeleton.svelte";
   import ConfirmDialog from "../components/ConfirmDialog.svelte";
   import ErrorState from "../components/ErrorState.svelte";
+  import AddAccountDialog from "../components/AddAccountDialog.svelte";
 
   const STATUS_INFO: Record<AccountStatus, { variant: StatusVariant; label: string }> = {
     active: { variant: "good", label: "Active" },
@@ -33,6 +35,8 @@
   let searchRaw = $state("");
   let search = $state("");
   let pendingConfirm = $state<{ title: string; message: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
+  let addFor = $state<{ id: string; label: string } | null>(null);
+  let pickerOpen = $state(false);
 
   const applySearch = debounce((value: string) => {
     search = value;
@@ -55,6 +59,8 @@
     if (provider.label.toLowerCase().includes(term)) return true;
     return accountLabel(account).toLowerCase().includes(term);
   }
+
+  const searching = $derived(search.trim().length > 0);
 
   const filteredAccountsByProvider = $derived.by(() => {
     const term = search.trim().toLowerCase();
@@ -113,6 +119,11 @@
     };
   }
 
+  function pickProvider(provider: ProviderRowData): void {
+    pickerOpen = false;
+    addFor = { id: provider.id, label: provider.label };
+  }
+
   onMount(() => {
     load().finally(() => (loaded = true));
   });
@@ -123,6 +134,18 @@
     <h1>Accounts</h1>
     <p>Signed-in accounts across every provider, with quota and status at a glance.</p>
   </div>
+  {#if loaded && !providersError && providers.length > 0}
+    <div class="picker">
+      <Button variant="primary" onclick={() => (pickerOpen = !pickerOpen)}>Add account</Button>
+      {#if pickerOpen}
+        <div class="menu" role="menu">
+          {#each providers as provider (provider.id)}
+            <button role="menuitem" onclick={() => pickProvider(provider)}>{provider.label}</button>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  {/if}
 </div>
 
 {#if providersError}
@@ -145,19 +168,26 @@
         {#if accountErrors[provider.id]}
           <p class="error">Could not load accounts for {provider.label}: {accountErrors[provider.id]}</p>
         {:else}
-          <Card>
-            {#if providerAccounts.length > VIRTUALIZE_THRESHOLD}
-              <VirtualList items={providerAccounts} rowHeight={ACCOUNT_ROW_HEIGHT}>
-                {#snippet row(account)}
+          <div class="grouptools">
+            <Button onclick={() => (addFor = { id: provider.id, label: provider.label })}>Add account</Button>
+          </div>
+          {#if providerAccounts.length === 0}
+            <p class="empty">{searching ? "No accounts match your search." : "No accounts yet."}</p>
+          {:else}
+            <Card>
+              {#if providerAccounts.length > VIRTUALIZE_THRESHOLD}
+                <VirtualList items={providerAccounts} rowHeight={ACCOUNT_ROW_HEIGHT}>
+                  {#snippet row(account)}
+                    {@render accountRow(provider.id, account)}
+                  {/snippet}
+                </VirtualList>
+              {:else}
+                {#each providerAccounts as account (account.id)}
                   {@render accountRow(provider.id, account)}
-                {/snippet}
-              </VirtualList>
-            {:else}
-              {#each providerAccounts as account (account.id)}
-                {@render accountRow(provider.id, account)}
-              {/each}
-            {/if}
-          </Card>
+                {/each}
+              {/if}
+            </Card>
+          {/if}
         {/if}
       {/snippet}
     </CollapsibleGroup>
@@ -187,10 +217,19 @@
   />
 {/if}
 
+{#if addFor}
+  <AddAccountDialog
+    provider={addFor}
+    onClose={() => (addFor = null)}
+    onAdded={() => { addFor = null; load(); }}
+  />
+{/if}
+
 <style>
   .head {
     display: flex;
     align-items: flex-start;
+    justify-content: space-between;
     gap: 16px;
     margin-bottom: 20px;
   }
@@ -211,6 +250,48 @@
     gap: 10px;
     margin-bottom: 18px;
     flex-wrap: wrap;
+  }
+  .picker {
+    position: relative;
+    flex: none;
+  }
+  .menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 20;
+    min-width: 180px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .menu button {
+    all: unset;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .menu button:hover {
+    background: var(--surface-2);
+  }
+  .grouptools {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 8px;
+  }
+  .empty {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12.5px;
   }
   .error {
     color: var(--crit);
