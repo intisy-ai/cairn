@@ -24,8 +24,9 @@
   }
 
   async function refresh(): Promise<void> {
-    const providers = await cairn.providersList();
-    installed = providers.ok && providers.data.some((p) => p.id === "custom");
+    const engines = await cairn.enginesList();
+    const engine = engines.ok ? engines.data.find((e) => e.capability === "custom-endpoints") : undefined;
+    installed = !!engine && Object.values(engine.homes).some((h) => h.installed);
     if (!installed) { endpoints = []; return; }
     const list = await cairn.customEndpointsList();
     if (list.ok) endpoints = list.data;
@@ -36,7 +37,7 @@
     if (busy) return;
     busy = true;
     error = "";
-    const result = await track("Install custom-auth", "cairn", () => cairn.pluginsInstall("cairn", "custom-auth", "intisy-ai/custom-auth"));
+    const result = await track("Install engine", "cairn", () => cairn.enginesEnsure("custom-endpoints"));
     busy = false;
     if (result.ok) await refresh();
     else error = result.error;
@@ -91,8 +92,8 @@
 <div class="dialog" role="dialog" aria-modal="true" aria-label="Manage custom endpoints" tabindex="-1" bind:this={panel} transition:flyMotion={{ y: 8 }}>
   <h3>Custom endpoints</h3>
   {#if !installed}
-    <p class="hint">The custom-auth provider is not installed. It serves your configured endpoints.</p>
-    <div class="actions"><Button variant="primary" disabled={busy} onclick={install}>Install custom-auth</Button></div>
+    <p class="hint">The custom endpoints engine is not installed. It serves your configured endpoints.</p>
+    <div class="actions"><Button variant="primary" disabled={busy} onclick={install}>Install engine</Button></div>
   {:else}
     <div class="list">
       {#each endpoints as ep (ep.id)}
