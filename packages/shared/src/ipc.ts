@@ -46,6 +46,6 @@ export const IPC_CHANNELS = {
     "customEndpoints:saveKey",
   ] as const,
   send: ["window:minimize", "window:maximize", "window:close"] as const,
-  receive: ["server:status", "provider:updated"] as const,
+  receive: ["server:status"] as const,
 };
 export type InvokeChannel = (typeof IPC_CHANNELS.invoke)[number];

@@ -3,7 +3,7 @@ import { createProxyServer, makeDynamicResolver } from "@core-proxy/index.js";
 import type { RoutingProfile } from "@core-proxy/index.js";
 import type { StartedLoaderProxy } from "@core-loader/proxy-runner.js";
 import type { LoadedProxyDef } from "../../sidecar/lib/proxyPlugins.js";
-import { buildStartOptions, isRunning, resolveProxyProfile, start, stop } from "./proxyDaemon.js";
+import { buildStartOptions, isRunning, onStatusChange, resolveProxyProfile, start, stop } from "./proxyDaemon.js";
 
 describe("buildStartOptions", () => {
   it("assembles the startLoaderProxy options for the given configDir and profile", () => {
@@ -26,6 +26,18 @@ describe("resolveProxyProfile", () => {
     const profile = { marker: 1 } as unknown as RoutingProfile;
     const defs: LoadedProxyDef[] = [{ app: "some-app", label: "S", profile: () => profile }];
     await expect(resolveProxyProfile({ defs: async () => defs })).resolves.toBe(profile);
+  });
+});
+
+describe("onStatusChange", () => {
+  it("pushes running on start and stopped on stop", async () => {
+    const seen: boolean[] = [];
+    const off = onStatusChange((s) => seen.push(s.running));
+    const fakeHandle = { server: { close: async () => {} } } as unknown as StartedLoaderProxy;
+    await start(async () => fakeHandle, async () => ({ marker: 1 } as unknown as RoutingProfile));
+    await stop();
+    off();
+    expect(seen).toEqual([true, false]);
   });
 });
 

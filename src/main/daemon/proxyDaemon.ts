@@ -17,6 +17,24 @@ let handle: StartedLoaderProxy | null = null;
 let startingPromise: Promise<void> | null = null;
 let stoppingPromise: Promise<void> | null = null;
 
+type StatusListener = (status: ProxyStatus) => void;
+const statusListeners = new Set<StatusListener>();
+
+// Push proxy up/down transitions instead of making the UI poll for them. `running`
+// reflects this process's own daemon handle (the daemon is main-resident), which is
+// exactly the lifecycle the dashboard cares about.
+export function onStatusChange(listener: StatusListener): () => void {
+  statusListeners.add(listener);
+  return () => { statusListeners.delete(listener); };
+}
+
+function emitStatus(): void {
+  const snapshot: ProxyStatus = { running: handle !== null, port: PORT };
+  for (const listener of statusListeners) {
+    try { listener(snapshot); } catch { /* a bad listener must not break the daemon */ }
+  }
+}
+
 function dashboardStoreDir(): string {
   return resolveStoreDir(process.env, process.platform, homedir());
 }
@@ -81,6 +99,7 @@ export async function start(
   })();
   try {
     await startingPromise;
+    emitStatus();
   } finally {
     startingPromise = null;
   }
@@ -95,6 +114,7 @@ export async function stop(): Promise<void> {
   })();
   try {
     await stoppingPromise;
+    emitStatus();
   } finally {
     stoppingPromise = null;
   }

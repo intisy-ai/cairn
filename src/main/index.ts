@@ -111,6 +111,7 @@ if (!app.requestSingleInstanceLock()) {
     supervisor = createSupervisor({ sidecarPath: join(dirName, "sidecar.js"), storeDir });
     registerHandlers(supervisor);
     registerWindowControls();
+    proxyDaemon.onStatusChange((status) => mainWindow?.webContents.send("server:status", status));
     autostartProxyIfConfigured(storeDir);
 
     createWindow();
