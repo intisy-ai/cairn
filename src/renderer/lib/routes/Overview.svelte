@@ -40,11 +40,12 @@
         reasoning[i] += usage.tokensReasoning;
       }
     }
-    return [
+    const all = [
       { key: "input", color: SERIES_COLORS.input, values: input },
       { key: "output", color: SERIES_COLORS.output, values: output },
       { key: "reasoning", color: SERIES_COLORS.reasoning, values: reasoning },
     ];
+    return all.filter((s) => s.values.some((v) => v > 0));
   });
   const hasSparkData = $derived(sparkSeries.some((s) => s.values.some((v) => v > 0)));
 
