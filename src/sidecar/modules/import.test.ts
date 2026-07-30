@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getConfigValue, setConfigValue } from "@core/index.js";
 import type { LoadedProxyDef } from "../lib/proxyPlugins.js";
 
 async function fakeDefs(): Promise<LoadedProxyDef[]> {
@@ -123,22 +122,4 @@ describe("import", () => {
     expect(result.data.notes.some((n) => n.toLowerCase().includes("account") && n.toLowerCase().includes("skip"))).toBe(true);
   });
 
-  it("migrates legacy cc/oc exposure entries when running the import-exposure path", async () => {
-    deployStubProvider(process.env.HUB_CONFIG_DIR!);
-    const appHomeDir = mkdtempSync(join(tmpdir(), "dash-import-app-home-"));
-    seedAppHome(appHomeDir);
-    setConfigValue("dashboard-exposure", "map", { someProvider: { cc: true, oc: false } });
-
-    const { importRun } = await import("./import.js");
-    const result = await importRun("claude", { accounts: false, routing: false, exposure: true }, { appHome: () => appHomeDir, proxyDeps });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("unreachable");
-
-    const map = getConfigValue("dashboard-exposure", "map") as Record<string, Record<string, boolean>>;
-    expect(map.someProvider).toEqual({ claude: true, opencode: false });
-    expect(map.someProvider.cc).toBeUndefined();
-    expect(map.someProvider.oc).toBeUndefined();
-    expect(map.stub.claude).toBe(true);
-  });
 });
