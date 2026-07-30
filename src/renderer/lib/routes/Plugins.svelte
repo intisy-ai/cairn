@@ -324,8 +324,6 @@
       <EmptyState message="No plugins found." />
     {:else if filtered.length === 0 && isFiltering}
       <EmptyState message="No plugins match your filters." actionLabel="Clear filters" onAction={clearFilters} />
-    {:else if filtered.length === 0}
-      <EmptyState message="No plugins found." />
     {/if}
   </Card>
 
