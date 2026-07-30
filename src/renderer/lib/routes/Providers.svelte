@@ -155,7 +155,7 @@
   }
 
   function handleAddProvider(): void {
-    navigate("plugins", { add: "1", kind: "provider" }, { redirect: true });
+    navigate("plugins", { kind: "provider" }, { redirect: true });
   }
 
   onMount(load);
