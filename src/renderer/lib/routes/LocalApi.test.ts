@@ -73,6 +73,23 @@ describe("LocalApi screen", () => {
     await waitFor(() => expect(getByText(/boom/i)).toBeTruthy());
   });
 
+  it("retries proxyStatus when the retry button is clicked", async () => {
+    const proxyStatus = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, error: "boom" })
+      .mockResolvedValueOnce({ ok: true, data: { running: false, port: 34567 } });
+    stubCairn({ proxyStatus });
+
+    const { getByText, getByRole } = render(LocalApi);
+    await waitFor(() => expect(getByText(/boom/i)).toBeTruthy());
+
+    const retryButton = getByRole("button", { name: /retry/i });
+    await fireEvent.click(retryButton);
+
+    expect(proxyStatus).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(getByText("Stopped")).toBeTruthy());
+  });
+
   it("shows the start error when proxyStart fails", async () => {
     const proxyStart = vi.fn(async () => ({ ok: false, error: "no proxy plugin installed" }) as const);
     stubCairn({

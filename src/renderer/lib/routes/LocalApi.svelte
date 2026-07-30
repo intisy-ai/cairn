@@ -9,6 +9,7 @@
   import Skeleton from "../components/Skeleton.svelte";
   import PageHeader from "../components/PageHeader.svelte";
   import ToggleSwitch from "../components/ToggleSwitch.svelte";
+  import ErrorState from "../components/ErrorState.svelte";
 
   let status = $state<ProxyStatus | null>(null);
   let loadError = $state("");
@@ -111,7 +112,7 @@
 <PageHeader title="Local API" subtitle="Controls the local proxy your apps connect through." />
 
 {#if loadError}
-  <p class="error">Could not load the local API status: {loadError}</p>
+  <ErrorState message={`Could not load the local API status: ${loadError}`} onRetry={load} />
 {:else if status}
   <Card>
     <div class="row">

@@ -67,6 +67,26 @@ describe("Accounts screen", () => {
     await waitFor(() => expect(getByText(/boom/i)).toBeTruthy());
   });
 
+  it("retries providersList when the retry button is clicked", async () => {
+    const providersList = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, error: "boom" })
+      .mockResolvedValueOnce({ ok: true, data: PROVIDERS });
+    stubCairn({
+      providersList,
+      accountsList: async (provider) => (provider === "stub" ? { ok: true, data: ACCOUNTS } : { ok: true, data: [] }),
+    });
+
+    const { getByText, getByRole } = render(Accounts);
+    await waitFor(() => expect(getByText(/boom/i)).toBeTruthy());
+
+    const retryButton = getByRole("button", { name: /retry/i });
+    await fireEvent.click(retryButton);
+
+    expect(providersList).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(getByText("a@stub.test")).toBeTruthy());
+  });
+
   it("shows an inline error when accountsList fails for a provider", async () => {
     stubCairn({
       providersList: async () => ({ ok: true, data: PROVIDERS }),

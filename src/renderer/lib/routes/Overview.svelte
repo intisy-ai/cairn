@@ -7,6 +7,7 @@
   import StatCard from "../components/StatCard.svelte";
   import Card from "../components/Card.svelte";
   import Skeleton from "../components/Skeleton.svelte";
+  import ErrorState from "../components/ErrorState.svelte";
   import AreaChart from "../charts/AreaChart.svelte";
   import { dayRange, dayKey, SERIES_COLORS, type SeriesInput } from "../charts/chartMath.js";
 
@@ -58,14 +59,20 @@
     return value.toLocaleString("en-US");
   }
 
-  onMount(async () => {
+  async function load(): Promise<void> {
     const summaryResult = await cairn.overviewSummary();
-    if (summaryResult.ok) summary = summaryResult.data;
-    else loadError = summaryResult.error;
+    if (summaryResult.ok) {
+      summary = summaryResult.data;
+      loadError = "";
+    } else {
+      loadError = summaryResult.error;
+    }
 
     const usageResult = await cairn.usageSnapshot();
     if (usageResult.ok) snapshot = usageResult.data;
-  });
+  }
+
+  onMount(load);
 </script>
 
 <div class="head">
@@ -76,7 +83,7 @@
 </div>
 
 {#if loadError}
-  <p class="error">Could not load the overview: {loadError}</p>
+  <ErrorState message={`Could not load the overview: ${loadError}`} onRetry={load} />
 {:else if summary}
   <section class="summary">
     <StatCard label="Providers connected" value={String(summary.providersConnected)} />
@@ -244,9 +251,5 @@
     font-size: 12.5px;
     padding: 14px 4px;
     margin: 0;
-  }
-  .error {
-    color: var(--crit);
-    font-size: 13px;
   }
 </style>

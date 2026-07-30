@@ -12,6 +12,7 @@
   import VirtualList from "../components/VirtualList.svelte";
   import Skeleton from "../components/Skeleton.svelte";
   import ConfirmDialog from "../components/ConfirmDialog.svelte";
+  import ErrorState from "../components/ErrorState.svelte";
 
   const STATUS_INFO: Record<AccountStatus, { variant: StatusVariant; label: string }> = {
     active: { variant: "good", label: "Active" },
@@ -125,7 +126,7 @@
 </div>
 
 {#if providersError}
-  <p class="error">Could not load providers: {providersError}</p>
+  <ErrorState message={"Could not load providers: " + providersError} onRetry={load} />
 {:else if !loaded}
   <div class="skeletons">
     {#each Array(5) as _}

@@ -17,6 +17,7 @@
   import CollapsibleGroup from "../components/CollapsibleGroup.svelte";
   import VirtualList from "../components/VirtualList.svelte";
   import Skeleton from "../components/Skeleton.svelte";
+  import ErrorState from "../components/ErrorState.svelte";
 
   // API key / Local chips can return once ProviderRow carries a real connection-kind field.
   type Filter = "all" | "connected" | "oauth";
@@ -171,7 +172,7 @@
 {/if}
 
 {#if loadError}
-  <p class="error">Could not load providers: {loadError}</p>
+  <ErrorState message={`Could not load providers: ${loadError}`} onRetry={load} />
 {:else if !loaded}
   <div class="skeletons">
     <Skeleton height="64px" radius="10px" />

@@ -7,6 +7,7 @@
   import Card from "../components/Card.svelte";
   import SearchField from "../components/SearchField.svelte";
   import Skeleton from "../components/Skeleton.svelte";
+  import ErrorState from "../components/ErrorState.svelte";
   import AreaChart from "../charts/AreaChart.svelte";
   import BarChart from "../charts/BarChart.svelte";
   import Donut from "../charts/Donut.svelte";
@@ -159,11 +160,17 @@
     return sortDesc ? " ↓" : " ↑";
   }
 
-  onMount(async () => {
+  async function load(): Promise<void> {
     const result = await cairn.usageSnapshot();
-    if (result.ok) snapshot = result.data;
-    else loadError = result.error;
-  });
+    if (result.ok) {
+      snapshot = result.data;
+      loadError = "";
+    } else {
+      loadError = result.error;
+    }
+  }
+
+  onMount(load);
 </script>
 
 <div class="head">
@@ -179,7 +186,7 @@
 </div>
 
 {#if loadError}
-  <p class="error">Could not load usage: {loadError}</p>
+  <ErrorState message={`Could not load usage: ${loadError}`} onRetry={load} />
 {:else if !snapshot}
   <div class="skeletons">
     <Skeleton width="200px" height="30px" />
@@ -426,9 +433,5 @@
   .pbtns button:disabled {
     opacity: 0.45;
     cursor: default;
-  }
-  .error {
-    color: var(--crit);
-    font-size: 13px;
   }
 </style>

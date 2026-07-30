@@ -19,6 +19,7 @@
   import Skeleton from "../components/Skeleton.svelte";
   import PageHeader from "../components/PageHeader.svelte";
   import PluginIcon from "../components/PluginIcon.svelte";
+  import ErrorState from "../components/ErrorState.svelte";
   import Chip from "../components/Chip.svelte";
   import PluginDetail from "../components/PluginDetail.svelte";
 
@@ -217,7 +218,7 @@
 <PageHeader title="Plugins" subtitle="Every provider, proxy, and plugin across your apps, in one place." />
 
 {#if pluginsError}
-  <p class="error">Could not load plugins: {pluginsError}</p>
+  <ErrorState message={`Could not load plugins: ${pluginsError}`} onRetry={reload} />
 {:else if !loaded}
   <div class="skeletons">
     {#each Array(5) as _}
@@ -472,9 +473,5 @@
     padding: 16px 18px;
     color: var(--faint);
     font-size: 12.5px;
-  }
-  .error {
-    color: var(--crit);
-    font-size: 13px;
   }
 </style>

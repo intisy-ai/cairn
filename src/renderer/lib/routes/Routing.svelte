@@ -6,6 +6,7 @@
   import Button from "../components/Button.svelte";
   import Skeleton from "../components/Skeleton.svelte";
   import ConfirmDialog from "../components/ConfirmDialog.svelte";
+  import ErrorState from "../components/ErrorState.svelte";
 
   let apps = $state<RoutingApp[]>([]);
   let app = $state("");
@@ -114,7 +115,7 @@
   {/if}
 
   {#if loadError}
-    <p class="error">Could not load routing: {loadError}</p>
+    <ErrorState message={`Could not load routing: ${loadError}`} onRetry={load} />
   {:else}
     {#if warnings.length > 0}
       <div class="warnings">
@@ -276,10 +277,6 @@
     border: 1px solid var(--border-strong);
     border-radius: 8px;
     padding: 7px 10px;
-  }
-  .error {
-    color: var(--crit);
-    font-size: 13px;
   }
   .apptabs {
     display: flex;
