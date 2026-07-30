@@ -84,6 +84,27 @@ describe("router", () => {
     expect(get(router).screen).toBe("accounts");
   });
 
+  it("marks a screen redirected only when navigate is asked to redirect", () => {
+    navigate("overview");
+    navigate("providers");
+    expect(get(nav).redirected).toBe(false);
+
+    navigate("plugins", { add: "1" }, { redirect: true });
+    expect(get(nav).redirected).toBe(true);
+    expect(get(nav).redirectLabel).toBe("Providers");
+
+    navigate("accounts");
+    expect(get(nav).redirected).toBe(false);
+  });
+
+  it("clears the redirected flag on back", () => {
+    navigate("overview");
+    navigate("usage", undefined, { redirect: true });
+    expect(get(nav).redirected).toBe(true);
+    back();
+    expect(get(nav).redirected).toBe(false);
+  });
+
   it("navigating to the same screen does not add a history entry", () => {
     navigate("overview");
     navigate("providers");

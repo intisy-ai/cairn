@@ -52,8 +52,8 @@
     <main class="main">
       {#key screen}
         <div class="screen" in:fadeMotion={{ duration: 120 }}>
-          {#if $nav.canBack}
-            <button class="backbar" onclick={back} title="Go back">‹ Back to {$nav.backLabel}</button>
+          {#if $nav.redirected}
+            <button class="backbar" onclick={back} title="Go back">‹ Back to {$nav.redirectLabel}</button>
           {/if}
           {#await routeModule}
             <div class="route-loading"><Skeleton height="80px" radius="12px" /></div>

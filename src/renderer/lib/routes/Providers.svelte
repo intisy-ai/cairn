@@ -134,7 +134,7 @@
       return;
     }
     if (importable.length > 1) {
-      navigate("apps");
+      navigate("apps", undefined, { redirect: true });
       return;
     }
     importApp = importable[0].app;
@@ -142,7 +142,7 @@
   }
 
   function handleAddProvider(): void {
-    navigate("plugins", { add: "1" });
+    navigate("plugins", { add: "1" }, { redirect: true });
   }
 
   onMount(load);

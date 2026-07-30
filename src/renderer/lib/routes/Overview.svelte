@@ -95,7 +95,7 @@
   <section class="panel">
     <div class="phead">
       <p class="ptitle">Tokens, last 14 days</p>
-      <button class="link" onclick={() => navigate("usage")}>Usage →</button>
+      <button class="link" onclick={() => navigate("usage", undefined, { redirect: true })}>Usage →</button>
     </div>
     <Card>
       <div class="pad">
@@ -112,7 +112,7 @@
     <section class="panel">
       <div class="phead">
         <p class="ptitle">Providers</p>
-        <button class="link" onclick={() => navigate("providers")}>Providers →</button>
+        <button class="link" onclick={() => navigate("providers", undefined, { redirect: true })}>Providers →</button>
       </div>
       <Card>
         <div class="list">
@@ -131,7 +131,7 @@
     <section class="panel">
       <div class="phead">
         <p class="ptitle">Recent sessions</p>
-        <button class="link" onclick={() => navigate("usage")}>Usage →</button>
+        <button class="link" onclick={() => navigate("usage", undefined, { redirect: true })}>Usage →</button>
       </div>
       <Card>
         <div class="list">

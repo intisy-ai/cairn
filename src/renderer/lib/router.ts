@@ -27,11 +27,16 @@ export const SCREENS: readonly ScreenDef[] = [
 
 export const router = writable<RouterState>({ screen: "overview" });
 
-export type NavState = { canBack: boolean; canForward: boolean; backLabel: string };
-export const nav = writable<NavState>({ canBack: false, canForward: false, backLabel: "" });
+// `redirected` marks screens reached by an in-app redirect (a link/action jumping
+// from a different screen), as opposed to picking a destination from the sidebar.
+// The in-content "Back to X" affordance shows only for redirects; the titlebar
+// arrows track all history regardless.
+export type NavState = { canBack: boolean; canForward: boolean; backLabel: string; redirected: boolean; redirectLabel: string };
+export const nav = writable<NavState>({ canBack: false, canForward: false, backLabel: "", redirected: false, redirectLabel: "" });
 
 const past: RouterState[] = [];
 const future: RouterState[] = [];
+let redirectedFrom: ScreenId | null = null;
 
 function labelOf(id: ScreenId): string {
   return SCREENS.find((screen) => screen.id === id)?.label ?? "";
@@ -48,14 +53,17 @@ function syncNav(): void {
     canBack: past.length > 0,
     canForward: future.length > 0,
     backLabel: past.length > 0 ? labelOf(past[past.length - 1].screen) : "",
+    redirected: redirectedFrom !== null,
+    redirectLabel: redirectedFrom !== null ? labelOf(redirectedFrom) : "",
   });
 }
 
-export function navigate(screen: ScreenId, params?: Record<string, string>): void {
+export function navigate(screen: ScreenId, params?: Record<string, string>, opts?: { redirect?: boolean }): void {
   const current = currentState();
   if (current.screen !== screen) {
     past.push(current);
     future.length = 0;
+    redirectedFrom = opts?.redirect ? current.screen : null;
   }
   router.set({ screen, params });
   syncNav();
@@ -64,6 +72,7 @@ export function navigate(screen: ScreenId, params?: Record<string, string>): voi
 export function back(): void {
   if (past.length === 0) return;
   future.push(currentState());
+  redirectedFrom = null;
   router.set(past.pop() as RouterState);
   syncNav();
 }
@@ -71,6 +80,7 @@ export function back(): void {
 export function forward(): void {
   if (future.length === 0) return;
   past.push(currentState());
+  redirectedFrom = null;
   router.set(future.pop() as RouterState);
   syncNav();
 }
