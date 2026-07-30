@@ -1,6 +1,7 @@
 <script lang="ts">
   import { theme, setTheme } from "../theme.js";
   import { cairn } from "../ipc.js";
+  import { nav, back, forward } from "../router.js";
   import CairnMark from "./CairnMark.svelte";
   import DownloadManager from "./DownloadManager.svelte";
 
@@ -15,6 +16,10 @@
 
 <div class="titlebar" class:mac={isMac}>
   {#if isMac}<div class="mac-space"></div>{/if}
+  <div class="navbtns">
+    <button class="navbtn" title="Back" aria-label="Go back" disabled={!$nav.canBack} onclick={back}>‹</button>
+    <button class="navbtn" title="Forward" aria-label="Go forward" disabled={!$nav.canForward} onclick={forward}>›</button>
+  </div>
   <CairnMark size={18} />
   <div class="wm">
     <span class="bname">{title}</span>
@@ -54,6 +59,37 @@
   .mac-space {
     width: 54px;
     flex: none;
+  }
+  .navbtns {
+    display: flex;
+    gap: 2px;
+    -webkit-app-region: no-drag;
+  }
+  .navbtn {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    font-size: 17px;
+    line-height: 1;
+  }
+  .navbtn:hover:not(:disabled) {
+    background: var(--surface);
+    border-color: var(--border);
+    color: var(--text);
+  }
+  .navbtn:disabled {
+    opacity: .35;
+    cursor: default;
+  }
+  .navbtn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
   }
   .wm {
     display: flex;

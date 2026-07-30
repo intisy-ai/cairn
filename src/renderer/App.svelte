@@ -3,7 +3,7 @@
   import Titlebar from "./lib/components/Titlebar.svelte";
   import Sidebar from "./lib/components/Sidebar.svelte";
   import Skeleton from "./lib/components/Skeleton.svelte";
-  import { router, SCREENS } from "./lib/router.js";
+  import { router, nav, back, SCREENS } from "./lib/router.js";
   import type { ScreenId } from "./lib/router.js";
 
   // Routes load on first visit (code-split) instead of all up front.
@@ -52,6 +52,9 @@
     <main class="main">
       {#key screen}
         <div class="screen" in:fadeMotion={{ duration: 120 }}>
+          {#if $nav.canBack}
+            <button class="backbar" onclick={back} title="Go back">‹ Back to {$nav.backLabel}</button>
+          {/if}
           {#await routeModule}
             <div class="route-loading"><Skeleton height="80px" radius="12px" /></div>
           {:then module}
@@ -89,6 +92,29 @@
   .main {
     padding: 22px 26px;
     overflow: auto;
+  }
+  .backbar {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 14px;
+    padding: 5px 12px 5px 9px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--muted);
+    font-family: var(--ui);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .backbar:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+  .backbar:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
   }
   .route-loading {
     padding: 8px 0;

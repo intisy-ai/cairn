@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { get } from "svelte/store";
-import { router, navigate, consumeParams, SCREENS } from "./router.js";
+import { router, navigate, consumeParams, back, forward, nav, SCREENS } from "./router.js";
 
 describe("router", () => {
   it("defaults to the overview screen", () => {
@@ -49,5 +49,46 @@ describe("router", () => {
 
     navigate("overview");
     expect(get(router).params).toBeUndefined();
+  });
+
+  it("back and forward move through navigation history and expose can-back/can-forward", () => {
+    navigate("overview");
+    navigate("providers");
+    navigate("usage");
+    expect(get(nav).canBack).toBe(true);
+    expect(get(nav).canForward).toBe(false);
+    expect(get(nav).backLabel).toBe("Providers");
+
+    back();
+    expect(get(router).screen).toBe("providers");
+    expect(get(nav).canForward).toBe(true);
+
+    back();
+    expect(get(router).screen).toBe("overview");
+
+    forward();
+    expect(get(router).screen).toBe("providers");
+
+    forward();
+    expect(get(router).screen).toBe("usage");
+    expect(get(nav).canForward).toBe(false);
+  });
+
+  it("navigating after going back drops the forward history", () => {
+    navigate("overview");
+    navigate("providers");
+    back();
+    expect(get(nav).canForward).toBe(true);
+    navigate("accounts");
+    expect(get(nav).canForward).toBe(false);
+    expect(get(router).screen).toBe("accounts");
+  });
+
+  it("navigating to the same screen does not add a history entry", () => {
+    navigate("overview");
+    navigate("providers");
+    navigate("providers");
+    back();
+    expect(get(router).screen).toBe("overview");
   });
 });
