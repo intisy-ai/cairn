@@ -167,7 +167,7 @@ describe("Providers screen", () => {
 
     expect(get(router).screen).toBe("plugins");
     const params = consumeParams();
-    expect(params).toEqual({ add: "1" });
+    expect(params).toEqual({ add: "1", kind: "provider" });
   });
 
   it("filters rows by id or by label as the debounced search settles", async () => {
