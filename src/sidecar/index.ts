@@ -9,6 +9,7 @@ import { routingApps, routingGet, routingSetChain } from "./modules/routing.js";
 import { appsDetect, appsList, appsInstallCli, appsInit, appsUninstallCli, appsSummary } from "./modules/apps.js";
 import { pluginsList, pluginsInstall, pluginsInstallMany, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
 import { enginesList, ensureEngines, ensureEngine } from "./modules/engines.js";
+import { proxiesList, proxiesSetEnabled } from "./modules/proxies.js";
 import { configSchemas, configWrite, configAction } from "./modules/appConfig.js";
 import { syncStatus, syncRun, syncSetConfig } from "./modules/sync.js";
 import { ledgerHomes, ledgerCommit, ledgerRestore, ledgerDiffRefs, ledgerProfileCreate, ledgerProfileSwitch } from "./modules/ledger.js";
@@ -73,6 +74,8 @@ registerHandler("plugins:removeEverywhere", (name) => pluginsRemoveEverywhere(na
 registerHandler("plugins:setEnabled", (home, name, on) => pluginsSetEnabled(home as PluginHomeId, name as string, on as boolean));
 registerHandler("plugins:downgrade", (home, name, hash) => pluginsDowngrade(home as PluginHomeId, name as string, hash as string));
 registerHandler("plugins:uninstall", (home, name) => pluginsUninstall(home as string, name as string));
+registerHandler("proxies:list", () => proxiesList());
+registerHandler("proxies:setEnabled", (name, on) => proxiesSetEnabled(name as string, on as boolean));
 registerHandler("config:schemas", (home) => configSchemas(home as string));
 registerHandler("config:write", (home, plugin, key, value) => configWrite(home as string, plugin as string, key as string, value));
 registerHandler("config:action", (home, plugin, actionId) => configAction(home as string, plugin as string, actionId as string));

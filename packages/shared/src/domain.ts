@@ -24,6 +24,7 @@ export type ProxyStatus = {
   running: boolean;
   port: number;
 };
+export type ProxyView = { name: string; app: string; appLabel: string; enabled: boolean; setup?: string };
 export type ProviderRow = {
   id: string;
   label: string;

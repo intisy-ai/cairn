@@ -25,6 +25,8 @@ export const INVOKE_CHANNELS = {
   proxyStatus: "proxy:status",
   proxyStart: "proxy:start",
   proxyStop: "proxy:stop",
+  proxiesList: "proxies:list",
+  proxiesSetEnabled: "proxies:setEnabled",
   appsDetect: "apps:detect",
   appsList: "apps:list",
   appsInstallCli: "apps:installCli",

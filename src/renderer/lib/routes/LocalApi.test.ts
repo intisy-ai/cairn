@@ -138,4 +138,74 @@ describe("LocalApi screen", () => {
 
     await waitFor(() => expect(get(toasts).some((t) => t.kind === "success" && t.message === "Local API port saved")).toBe(true));
   });
+
+  it("shows a muted message when no proxies are installed", async () => {
+    stubCairn({
+      proxyStatus: async () => ({ ok: true, data: { running: false, port: 34567 } }),
+      proxiesList: async () => ({ ok: true, data: [] }),
+    });
+
+    const { getByText } = render(LocalApi);
+    await waitFor(() => expect(getByText(/No proxies installed/)).toBeTruthy());
+  });
+
+  it("renders each installed proxy with its own setup instructions and toggle", async () => {
+    stubCairn({
+      proxyStatus: async () => ({ ok: true, data: { running: false, port: 34567 } }),
+      proxiesList: async () => ({
+        ok: true,
+        data: [
+          { name: "some-proxy", app: "some-app", appLabel: "Some App", enabled: true, setup: "Run `some-app configure --local-api`." },
+          { name: "other-proxy", app: "other-app", appLabel: "Other App", enabled: false },
+        ],
+      }),
+    });
+
+    const { getByText, getByRole } = render(LocalApi);
+    await waitFor(() => expect(getByText("Some App")).toBeTruthy());
+
+    expect(getByText("Run `some-app configure --local-api`.")).toBeTruthy();
+    expect(getByText("Other App")).toBeTruthy();
+    expect(getByText("Point Other App at the local API base URL:")).toBeTruthy();
+
+    const someToggle = getByRole("switch", { name: "Some App enabled" });
+    const otherToggle = getByRole("switch", { name: "Other App enabled" });
+    expect(someToggle.getAttribute("aria-checked")).toBe("true");
+    expect(otherToggle.getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("calls proxiesSetEnabled when a proxy toggle is flipped", async () => {
+    const proxiesSetEnabled = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    stubCairn({
+      proxyStatus: async () => ({ ok: true, data: { running: false, port: 34567 } }),
+      proxiesList: async () => ({
+        ok: true,
+        data: [{ name: "some-proxy", app: "some-app", appLabel: "Some App", enabled: false }],
+      }),
+      proxiesSetEnabled,
+    });
+
+    const { getByRole } = render(LocalApi);
+    await waitFor(() => expect(getByRole("switch", { name: "Some App enabled" })).toBeTruthy());
+
+    await fireEvent.click(getByRole("switch", { name: "Some App enabled" }));
+    await waitFor(() => expect(proxiesSetEnabled).toHaveBeenCalledWith("some-proxy", true));
+  });
+
+  it("toasts an error when toggling a proxy fails", async () => {
+    stubCairn({
+      proxyStatus: async () => ({ ok: true, data: { running: false, port: 34567 } }),
+      proxiesList: async () => ({
+        ok: true,
+        data: [{ name: "some-proxy", app: "some-app", appLabel: "Some App", enabled: false }],
+      }),
+      proxiesSetEnabled: async () => ({ ok: false, error: "boom" }),
+    });
+
+    const { getByRole } = render(LocalApi);
+    await waitFor(() => expect(getByRole("switch", { name: "Some App enabled" })).toBeTruthy());
+
+    await fireEvent.click(getByRole("switch", { name: "Some App enabled" }));
+    await waitFor(() => expect(get(toasts).some((t) => t.kind === "error" && t.message === "boom")).toBe(true));
+  });
 });

@@ -34,6 +34,8 @@ function defaultCairn(): CairnAPI {
     proxyStatus: async () => ({ ok: true, data: { running: false, port: 34567 } }),
     proxyStart: async () => ({ ok: true, data: undefined }),
     proxyStop: async () => ({ ok: true, data: undefined }),
+    proxiesList: async () => ({ ok: true, data: [] }),
+    proxiesSetEnabled: async () => ({ ok: true, data: undefined }),
     appsDetect: async () => ({ ok: true, data: { claude: false, opencode: false } }),
     appsList: async () => ({
       ok: true,

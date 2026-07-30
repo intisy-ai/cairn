@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { ProxyStatus } from "@cairn/shared";
+  import type { ProxyStatus, ProxyView } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { toast } from "../toast.js";
   import Card from "../components/Card.svelte";
@@ -21,6 +21,7 @@
   let portInput = $state<number | null>(null);
   let portError = $state("");
   let savingPort = $state(false);
+  let proxies = $state<ProxyView[]>([]);
 
   const baseUrl = $derived(status ? `http://127.0.0.1:${status.port}` : "");
   const portDirty = $derived(status !== null && portInput !== null && portInput !== status.port);
@@ -71,6 +72,17 @@
     autostart = result.ok && result.data === true;
   }
 
+  async function loadProxies(): Promise<void> {
+    const result = await cairn.proxiesList();
+    if (result.ok) proxies = result.data;
+  }
+
+  async function toggleProxy(name: string, on: boolean): Promise<void> {
+    const result = await cairn.proxiesSetEnabled(name, on);
+    if (!result.ok) toast.error(result.error);
+    await loadProxies();
+  }
+
   async function toggle(): Promise<void> {
     if (busy || !status) return;
     busy = true;
@@ -106,6 +118,7 @@
   onMount(() => {
     load();
     loadAutostart();
+    loadProxies();
   });
 </script>
 
@@ -133,6 +146,37 @@
       <p class="error">{actionError}</p>
     {/if}
   </Card>
+
+  <section class="panel">
+    <p class="ptitle">Proxies</p>
+    <Card>
+      {#if proxies.length === 0}
+        <p class="empty">No proxies installed. Install one from the Plugins tab.</p>
+      {:else}
+        {#each proxies as proxy (proxy.name)}
+          <div class="proxyrow">
+            <div class="optrow">
+              <div class="optlabel">
+                <span class="k">{proxy.appLabel}</span>
+                {#if proxy.setup}
+                  <span class="desc">{proxy.setup}</span>
+                {:else}
+                  <span class="desc">Point {proxy.appLabel} at the local API base URL:</span>
+                {/if}
+              </div>
+              <ToggleSwitch checked={proxy.enabled} label={`${proxy.appLabel} enabled`} onchange={(on) => toggleProxy(proxy.name, on)} />
+            </div>
+            {#if !proxy.setup}
+              <button class="snippet" title="Copy" onclick={() => copy(baseUrl, proxy.name)}>
+                <code>{baseUrl}</code>
+                <span class="copy">{copied === proxy.name ? "copied" : "copy"}</span>
+              </button>
+            {/if}
+          </div>
+        {/each}
+      {/if}
+    </Card>
+  </section>
 
   <section class="panel">
     <p class="ptitle">Options</p>
@@ -248,6 +292,22 @@
     justify-content: space-between;
     gap: 16px;
     padding: 14px 18px;
+  }
+  .proxyrow {
+    border-bottom: 1px solid var(--border);
+  }
+  .proxyrow:last-child {
+    border-bottom: none;
+  }
+  .proxyrow .snippet {
+    margin: 0 18px 14px;
+    width: calc(100% - 36px);
+  }
+  .empty {
+    margin: 0;
+    padding: 14px 18px;
+    font-size: 12.5px;
+    color: var(--muted);
   }
   .optlabel {
     display: flex;
