@@ -136,12 +136,18 @@ describe("usage sidecar module", () => {
     expect("cost" in session).toBe(false);
 
     expect(Object.keys(result.data.models)).toEqual(["claude-sonnet-5"]);
-    expect(result.data.models["claude-sonnet-5"]).toEqual({
-      provider: "anthropic",
-      tokens: { input: 1010, output: 205, reasoning: 0 },
-      sessionCount: 1,
-      messageCount: 2,
-    });
+    const model = result.data.models["claude-sonnet-5"];
+    expect(model.provider).toBe("anthropic");
+    expect(model.tokens).toEqual({ input: 1010, output: 205, reasoning: 0 });
+    expect(model.sessionCount).toBe(1);
+    expect(model.messageCount).toBe(2);
+    expect(model.priced).toBe(true);
+    expect(model.estimatedCostUsd).toBeCloseTo((1010 * 3 + 205 * 15) / 1_000_000, 9);
+
+    expect(result.data.pricedModels).toBe(1);
+    expect(result.data.unpricedModels).toBe(0);
+    expect(result.data.estimatedCostUsd).toBeCloseTo(model.estimatedCostUsd ?? 0, 9);
+    expect(typeof result.data.pricesUpdatedAt).toBe("string");
 
     expect(typeof result.data.updatedAt).toBe("string");
     expect(result.data.updatedAt.length).toBeGreaterThan(0);

@@ -94,12 +94,18 @@ export type UsageModel = {
   tokens: { input: number; output: number; reasoning: number };
   sessionCount: number;
   messageCount: number;
+  estimatedCostUsd?: number;
+  priced?: boolean;
 };
 export type UsageSnapshot = {
   accounts: UsageAccount[];
   sessions: UsageSession[];
   models: Record<string, UsageModel>;
   updatedAt: string;
+  estimatedCostUsd?: number;
+  pricedModels?: number;
+  unpricedModels?: number;
+  pricesUpdatedAt?: string;
 };
 export type ImportableApp = { app: string; label: string; hasConfig: boolean };
 export type ImportSummary = { accounts: number; providers: number; routingImported: boolean; notes: string[] };

@@ -12,6 +12,8 @@ import type {
   Result,
 } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
+import { loadPrices, estimateModelCost } from "../lib/cost.js";
+import type { PriceTable } from "../lib/cost.js";
 
 function deployedAccounts(): UsageAccount[] {
   const accounts: UsageAccount[] = [];
@@ -55,14 +57,17 @@ function mapSession(session: Session): UsageSession {
   };
 }
 
-function mapModels(models: ModelSummary): Record<string, UsageModel> {
+function mapModels(models: ModelSummary, table: PriceTable): Record<string, UsageModel> {
   const mapped: Record<string, UsageModel> = {};
   for (const [modelId, entry] of Object.entries(models)) {
+    const cost = estimateModelCost(modelId, entry.tokens, table);
     mapped[modelId] = {
       provider: entry.provider,
       tokens: entry.tokens,
       sessionCount: entry.sessionCount,
       messageCount: entry.messageCount,
+      estimatedCostUsd: cost.usd,
+      priced: cost.priced,
     };
   }
   return mapped;
@@ -83,10 +88,18 @@ export function usageSnapshot(): Promise<Result<UsageSnapshot>> {
 function usageSnapshotOnce(): Promise<Result<UsageSnapshot>> {
   return wrap(async () => {
     const snapshot = await buildSnapshot();
+    const table = loadPrices();
+    const models = mapModels(snapshot.models, table);
+    const priced = Object.values(models).filter((m) => m.priced);
+    const estimatedCostUsd = priced.reduce((sum, m) => sum + (m.estimatedCostUsd ?? 0), 0);
     return {
       accounts: deployedAccounts(),
       sessions: snapshot.sessions.map(mapSession),
-      models: mapModels(snapshot.models),
+      models,
+      estimatedCostUsd,
+      pricedModels: priced.length,
+      unpricedModels: Object.keys(models).length - priced.length,
+      pricesUpdatedAt: table.updatedAt || undefined,
       updatedAt: new Date(snapshot.updatedAt).toISOString(),
     };
   });
