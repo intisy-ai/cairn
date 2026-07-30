@@ -25,6 +25,7 @@
   }
   import { cairn } from "./lib/ipc.js";
   import { fadeMotion } from "./lib/util/motion.js";
+  import ToastHost from "./lib/components/ToastHost.svelte";
 
   const activeLabel = $derived(SCREENS.find((screen) => screen.id === $router.screen)?.label ?? "");
 
@@ -68,6 +69,7 @@
       {/key}
     </main>
   </div>
+  <ToastHost />
 </div>
 
 <style>
