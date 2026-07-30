@@ -6,7 +6,8 @@ import { pluginHomes } from "../lib/pluginHomes.js";
 import { appsDetect } from "./apps.js";
 import type { AccountSummary } from "../../../vendor/usage/types.js";
 import type { AppPresence, OverviewSummary, ProviderHealth, PluginHome, Result } from "../../../packages/shared/src/domain.js";
-import { PROXY_PORT, probeProxyHealth } from "../../../packages/shared/src/proxy.js";
+import { probeProxyHealth } from "../../../packages/shared/src/proxy.js";
+import { resolveLocalApiPort } from "../lib/localApiPort.js";
 import { wrap } from "../result.js";
 
 function firstQuotaPct(account: AccountSummary): number | null {
@@ -38,7 +39,8 @@ export interface OverviewDeps {
 }
 
 export function overviewSummary(deps: OverviewDeps = {}): Promise<Result<OverviewSummary>> {
-  const probe = deps.probe ?? probeProxyHealth;
+  const localApiPort = resolveLocalApiPort();
+  const probe = deps.probe ?? (() => probeProxyHealth(localApiPort));
   const accountsOf = deps.accounts ?? getAccountsData;
   const homesOf = deps.homes ?? pluginHomes;
   const pluginsIn = deps.pluginsIn ?? getPlugins;
@@ -62,7 +64,7 @@ export function overviewSummary(deps: OverviewDeps = {}): Promise<Result<Overvie
       pluginsInstalled,
       providerHealth: providerHealthOf(accounts),
       serverRunning,
-      serverPort: PROXY_PORT,
+      serverPort: localApiPort,
     };
   });
 }

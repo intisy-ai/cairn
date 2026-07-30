@@ -6,7 +6,8 @@ import type { RoutingProfile } from "@core-proxy/index.js";
 import { loadInstalledProxyDefs } from "../../sidecar/lib/proxyPlugins.js";
 import type { LoadedProxyDef } from "../../sidecar/lib/proxyPlugins.js";
 import type { ProxyStatus } from "../../../packages/shared/src/domain.js";
-import { PROXY_PORT, probeProxyHealth } from "../../../packages/shared/src/proxy.js";
+import { probeProxyHealth } from "../../../packages/shared/src/proxy.js";
+import { resolveLocalApiPort } from "../../sidecar/lib/localApiPort.js";
 import { resolveStoreDir } from "../lib/storeDir.js";
 
 type Starter = (options: StartLoaderProxyOptions<RoutingProfile>) => Promise<StartedLoaderProxy>;
@@ -27,7 +28,7 @@ export function onStatusChange(listener: StatusListener): () => void {
 }
 
 function emitStatus(): void {
-  const snapshot: ProxyStatus = { running: handle !== null, port: PROXY_PORT };
+  const snapshot: ProxyStatus = { running: handle !== null, port: resolveLocalApiPort(dashboardStoreDir()) };
   for (const listener of statusListeners) {
     try { listener(snapshot); } catch { /* a bad listener must not break the daemon */ }
   }
@@ -58,16 +59,18 @@ export function buildStartOptions(configDir: string, profile: RoutingProfile): S
     makeDynamicResolver,
     profile,
     configDir,
-    port: PROXY_PORT,
+    port: resolveLocalApiPort(configDir),
   };
 }
 
-export function isRunning(probe: () => Promise<boolean> = probeProxyHealth): Promise<boolean> {
+export function isRunning(probe: () => Promise<boolean> = () => probeProxyHealth(resolveLocalApiPort(dashboardStoreDir()))): Promise<boolean> {
   return probe();
 }
 
-export async function status(probe: () => Promise<boolean> = probeProxyHealth): Promise<ProxyStatus> {
-  return { running: await isRunning(probe), port: PROXY_PORT };
+export async function status(probe?: () => Promise<boolean>): Promise<ProxyStatus> {
+  const port = resolveLocalApiPort(dashboardStoreDir());
+  const check = probe ?? (() => probeProxyHealth(port));
+  return { running: await isRunning(check), port };
 }
 
 export async function start(

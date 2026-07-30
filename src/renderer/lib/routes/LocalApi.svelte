@@ -16,16 +16,42 @@
   let autostart = $state(false);
   let copied = $state<string | null>(null);
   let copyTimer: ReturnType<typeof setTimeout> | undefined;
+  let portInput = $state<number | null>(null);
+  let portError = $state("");
+  let savingPort = $state(false);
 
   const baseUrl = $derived(status ? `http://127.0.0.1:${status.port}` : "");
+  const portDirty = $derived(status !== null && portInput !== null && portInput !== status.port);
 
   async function load(): Promise<void> {
     const result = await cairn.proxyStatus();
     if (result.ok) {
       status = result.data;
+      if (portInput === null) portInput = result.data.port;
       loadError = "";
     } else {
       loadError = result.error;
+    }
+  }
+
+  async function savePort(): Promise<void> {
+    if (savingPort || portInput === null || !status) return;
+    if (!Number.isInteger(portInput) || portInput < 1 || portInput > 65535) {
+      portError = "Enter a port between 1 and 65535.";
+      return;
+    }
+    savingPort = true;
+    portError = "";
+    try {
+      await cairn.setConfig("cairn", "localApiPort", portInput);
+      // Apply immediately: a running daemon must rebind to the new port.
+      if (status.running) {
+        await cairn.proxyStop();
+        await cairn.proxyStart();
+      }
+      await load();
+    } finally {
+      savingPort = false;
     }
   }
 
@@ -107,6 +133,24 @@
         </div>
         <ToggleSwitch checked={autostart} label="Start on launch" onchange={setAutostart} />
       </div>
+      <div class="optrow">
+        <div class="optlabel">
+          <span class="k">Port</span>
+          <span class="desc">The port the local API listens on. Changing it rebinds a running server.</span>
+        </div>
+        <div class="portedit">
+          <input
+            class="portfield"
+            type="number"
+            min="1"
+            max="65535"
+            aria-label="Local API port"
+            bind:value={portInput}
+          />
+          <Button disabled={savingPort || !portDirty} onclick={savePort}>Save</Button>
+        </div>
+      </div>
+      {#if portError}<p class="error">{portError}</p>{/if}
     </Card>
   </section>
 
@@ -206,6 +250,21 @@
   .optlabel .desc {
     font-size: 11.5px;
     color: var(--muted);
+  }
+  .portedit {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .portfield {
+    width: 96px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
   }
   .connect {
     padding: 14px 18px;
