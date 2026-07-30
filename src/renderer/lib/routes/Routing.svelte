@@ -3,11 +3,13 @@
   import type { Chain, ModelCatalogEntry, RoutingApp } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { toast } from "../toast.js";
+  import { navigate } from "../router.js";
   import Card from "../components/Card.svelte";
   import Button from "../components/Button.svelte";
   import Skeleton from "../components/Skeleton.svelte";
   import ConfirmDialog from "../components/ConfirmDialog.svelte";
   import ErrorState from "../components/ErrorState.svelte";
+  import EmptyState from "../components/EmptyState.svelte";
 
   let apps = $state<RoutingApp[]>([]);
   let app = $state("");
@@ -74,6 +76,14 @@
     await setChain(slot, chain);
   }
 
+  async function moveAssignment(slot: string, index: number, delta: -1 | 1): Promise<void> {
+    const current = (map[slot] ?? []).map(({ provider, model }) => ({ provider, model }));
+    const target = index + delta;
+    if (target < 0 || target >= current.length) return;
+    [current[index], current[target]] = [current[target], current[index]];
+    await setChain(slot, current);
+  }
+
   function confirmRemoveAssignment(slot: string, index: number): void {
     pendingConfirm = {
       title: "Remove routing step?",
@@ -109,7 +119,11 @@
     {/each}
   </div>
 {:else if apps.length === 0}
-  <p class="hint">Install a proxy in Plugins to configure routing.</p>
+  <EmptyState
+    message="Install a proxy in Plugins to configure routing."
+    actionLabel="Browse proxies"
+    onAction={() => navigate("plugins", { kind: "proxy" })}
+  />
 {:else}
   {#if apps.length > 1}
     <div class="apptabs">
@@ -143,6 +157,20 @@
               <span class="model">{assignment.name ?? assignment.model}</span>
               <span class="provider">{assignment.provider}</span>
               {#if assignment.derived}<span class="derived">auto</span>{/if}
+              <div class="reorder">
+                <button
+                  class="mv"
+                  aria-label={`Move ${assignment.name ?? assignment.model} up`}
+                  disabled={index === 0}
+                  onclick={() => moveAssignment(slot, index, -1)}
+                >▲</button>
+                <button
+                  class="mv"
+                  aria-label={`Move ${assignment.name ?? assignment.model} down`}
+                  disabled={index === (map[slot] ?? []).length - 1}
+                  onclick={() => moveAssignment(slot, index, 1)}
+                >▼</button>
+              </div>
               <Button onclick={() => confirmRemoveAssignment(slot, index)}>Remove</Button>
             </div>
           {:else}
@@ -251,20 +279,29 @@
     border-radius: 5px;
     padding: 1px 5px;
   }
-  .chain-row :global(button) {
+  .reorder {
     margin-left: auto;
+    display: flex;
+    gap: 2px;
+  }
+  .mv {
+    background: none;
+    border: none;
+    color: var(--faint);
+    font-size: 11px;
+    line-height: 1;
+    padding: 4px;
+    cursor: pointer;
+  }
+  .mv:disabled {
+    opacity: .35;
+    cursor: default;
   }
   .empty {
     color: var(--faint);
     font-size: 12.5px;
     padding: 8px 0;
     margin: 0;
-  }
-  .hint {
-    margin: 0;
-    padding: 16px 18px;
-    color: var(--faint);
-    font-size: 12.5px;
   }
   .add-row {
     display: flex;

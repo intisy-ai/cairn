@@ -4,6 +4,7 @@ import { render, fireEvent, waitFor, within, screen } from "@testing-library/sve
 import { get } from "svelte/store";
 import { stubCairn } from "../testing.js";
 import { toasts, toast } from "../toast.js";
+import { consumeParams } from "../router.js";
 import Routing from "./Routing.svelte";
 
 const CATALOG = [
@@ -197,5 +198,57 @@ describe("Routing screen", () => {
     const { getByText } = render(Routing);
 
     await waitFor(() => expect(getByText(/install a proxy in plugins to configure routing/i)).toBeTruthy());
+    expect(getByText("Browse proxies")).toBeTruthy();
+  });
+
+  it("navigates to Plugins filtered to proxies from the empty-state CTA", async () => {
+    stubCairn({ routingApps: async () => ({ ok: true, data: [] }) });
+
+    const { getByText } = render(Routing);
+
+    await waitFor(() => expect(getByText("Browse proxies")).toBeTruthy());
+    await fireEvent.click(getByText("Browse proxies"));
+
+    const params = consumeParams();
+    expect(params).toEqual({ kind: "proxy" });
+  });
+
+  it("reorders chain entries with the up/down controls", async () => {
+    const routingSetChain = vi.fn(async () => ({ ok: true, data: { warnings: [] } }) as const);
+    stubCairn({
+      routingApps: async () => ({ ok: true, data: ONE_APP }),
+      routingGet: async () => ({
+        ok: true,
+        data: {
+          tiers: ["opus"],
+          map: {
+            default: [],
+            opus: [
+              { provider: "a", model: "m1" },
+              { provider: "b", model: "m2" },
+            ],
+          },
+          catalog: CATALOG,
+        },
+      }),
+      routingSetChain,
+    });
+
+    const { getByLabelText } = render(Routing);
+    await waitFor(() => expect(getByLabelText("Move m1 up")).toBeTruthy());
+
+    expect(getByLabelText("Move m1 up")).toBeDisabled();
+    expect(getByLabelText("Move m2 down")).toBeDisabled();
+    expect(getByLabelText("Move m1 down")).not.toBeDisabled();
+    expect(getByLabelText("Move m2 up")).not.toBeDisabled();
+
+    await fireEvent.click(getByLabelText("Move m1 down"));
+
+    await waitFor(() =>
+      expect(routingSetChain).toHaveBeenCalledWith("claude", "opus", [
+        { provider: "b", model: "m2" },
+        { provider: "a", model: "m1" },
+      ]),
+    );
   });
 });
