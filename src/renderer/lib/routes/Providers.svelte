@@ -3,6 +3,7 @@
   import type { ProviderRow as ProviderRowData, HostApp } from "@cairn/shared";
   import type { StatusVariant } from "../components/StatusPill.svelte";
   import { cairn } from "../ipc.js";
+  import { toast } from "../toast.js";
   import { navigate } from "../router.js";
   import { debounce } from "../util/debounce.js";
   import StatCard from "../components/StatCard.svelte";
@@ -106,7 +107,8 @@
   }
 
   async function handleSetActive(id: string): Promise<void> {
-    await cairn.providersSetActive(id);
+    const result = await cairn.providersSetActive(id);
+    if (!result.ok) toast.error(result.error);
     await load();
   }
 

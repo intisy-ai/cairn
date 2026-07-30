@@ -1,12 +1,17 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, waitFor, within } from "@testing-library/svelte";
 import { get } from "svelte/store";
 import { stubCairn } from "../testing.js";
 import { router, consumeParams } from "../router.js";
+import { toasts, toast } from "../toast.js";
 import Providers from "./Providers.svelte";
 
 describe("Providers screen", () => {
+  beforeEach(() => {
+    get(toasts).slice().forEach((t) => toast.dismiss(t.id));
+  });
+
   it("renders a provider row from providersList and toggles exposure", async () => {
     const providersSetExposure = vi.fn(async () => ({ ok: true, data: undefined }) as const);
     stubCairn({
@@ -257,6 +262,25 @@ describe("Providers screen", () => {
     await fireEvent.click(availableButton);
 
     await waitFor(() => expect(queryByText("Available Provider")).toBeNull());
+  });
+
+  it("toasts an error when setting a provider active fails, without a success toast", async () => {
+    stubCairn({
+      providersList: async () => ({
+        ok: true,
+        data: [
+          { id: "stub", label: "Stub", hasOAuth: true, accountCount: 2, active: true, exposure: { claude: true, opencode: false } },
+        ],
+      }),
+      providersSetActive: async () => ({ ok: false, error: "set-active boom" }),
+    });
+
+    const { getByRole } = render(Providers);
+    const enabledSwitch = await waitFor(() => getByRole("switch", { name: /Stub enabled/i }));
+    await fireEvent.click(enabledSwitch);
+
+    await waitFor(() => expect(get(toasts).some((t) => t.kind === "error" && t.message === "set-active boom")).toBe(true));
+    expect(get(toasts).some((t) => t.kind === "success")).toBe(false);
   });
 
   it("shows a loading skeleton before providers resolve, then content", async () => {

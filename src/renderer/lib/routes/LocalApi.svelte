@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import type { ProxyStatus } from "@cairn/shared";
   import { cairn } from "../ipc.js";
+  import { toast } from "../toast.js";
   import Card from "../components/Card.svelte";
   import Button from "../components/Button.svelte";
   import StatusPill from "../components/StatusPill.svelte";
@@ -43,12 +44,21 @@
     savingPort = true;
     portError = "";
     try {
-      await cairn.setConfig("cairn", "localApiPort", portInput);
+      const setResult = await cairn.setConfig("cairn", "localApiPort", portInput);
+      if (!setResult.ok) {
+        toast.error(setResult.error);
+        return;
+      }
       // Apply immediately: a running daemon must rebind to the new port.
       if (status.running) {
         await cairn.proxyStop();
-        await cairn.proxyStart();
+        const startResult = await cairn.proxyStart();
+        if (!startResult.ok) {
+          toast.error(startResult.error);
+          return;
+        }
       }
+      toast.success("Local API port saved");
       await load();
     } finally {
       savingPort = false;

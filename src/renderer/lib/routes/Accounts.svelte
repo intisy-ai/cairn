@@ -3,6 +3,7 @@
   import type { ProviderRow as ProviderRowData, AccountView, AccountStatus } from "@cairn/shared";
   import type { StatusVariant } from "../components/StatusPill.svelte";
   import { cairn } from "../ipc.js";
+  import { toast } from "../toast.js";
   import { debounce } from "../util/debounce.js";
   import AccountRow from "../components/AccountRow.svelte";
   import Card from "../components/Card.svelte";
@@ -85,12 +86,18 @@
   }
 
   async function handleToggle(providerId: string, id: string, on: boolean): Promise<void> {
-    await cairn.accountsEnable(providerId, id, on);
+    const result = await cairn.accountsEnable(providerId, id, on);
+    if (!result.ok) toast.error(result.error);
     await loadAccounts(providerId);
   }
 
   async function handleRemove(providerId: string, id: string): Promise<void> {
-    await cairn.accountsRemove(providerId, id);
+    const result = await cairn.accountsRemove(providerId, id);
+    if (result.ok) {
+      toast.success("Account removed");
+    } else {
+      toast.error(result.error);
+    }
     await loadAccounts(providerId);
   }
 

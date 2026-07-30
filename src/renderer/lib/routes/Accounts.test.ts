@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, waitFor } from "@testing-library/svelte";
+import { get } from "svelte/store";
 import type { AccountView } from "@cairn/shared";
 import { stubCairn } from "../testing.js";
+import { toasts, toast } from "../toast.js";
 import Accounts from "./Accounts.svelte";
 
 const PROVIDERS = [
@@ -27,6 +29,10 @@ const ACCOUNTS = [
 ];
 
 describe("Accounts screen", () => {
+  beforeEach(() => {
+    get(toasts).slice().forEach((t) => toast.dismiss(t.id));
+  });
+
   it("renders account rows per provider, toggles enable, and removes an account", async () => {
     const accountsEnable = vi.fn(async () => ({ ok: true, data: undefined }) as const);
     const accountsRemove = vi.fn(async () => ({ ok: true, data: undefined }) as const);
@@ -127,5 +133,48 @@ describe("Accounts screen", () => {
     const renderedRows = container.querySelectorAll(".row").length;
     expect(renderedRows).toBeGreaterThan(0);
     expect(renderedRows).toBeLessThan(25);
+  });
+
+  it("toasts an error when toggling an account fails, without a success toast", async () => {
+    stubCairn({
+      providersList: async () => ({ ok: true, data: PROVIDERS }),
+      accountsList: async (provider) => (provider === "stub" ? { ok: true, data: ACCOUNTS } : { ok: true, data: [] }),
+      accountsEnable: async () => ({ ok: false, error: "toggle boom" }),
+    });
+
+    const { getByRole } = render(Accounts);
+    const acc2Switch = await waitFor(() => getByRole("switch", { name: /b@stub.test enabled/i }));
+    await fireEvent.click(acc2Switch);
+
+    await waitFor(() => expect(get(toasts).some((t) => t.kind === "error" && t.message === "toggle boom")).toBe(true));
+    expect(get(toasts).some((t) => t.kind === "success")).toBe(false);
+  });
+
+  it("toasts success when removing an account succeeds", async () => {
+    stubCairn({
+      providersList: async () => ({ ok: true, data: PROVIDERS }),
+      accountsList: async (provider) => (provider === "stub" ? { ok: true, data: ACCOUNTS } : { ok: true, data: [] }),
+      accountsRemove: async () => ({ ok: true, data: undefined }),
+    });
+
+    const { getAllByRole } = render(Accounts);
+    const removeButtons = await waitFor(() => getAllByRole("button", { name: "Remove" }));
+    await fireEvent.click(removeButtons[0]);
+
+    await waitFor(() => expect(get(toasts).some((t) => t.kind === "success" && t.message === "Account removed")).toBe(true));
+  });
+
+  it("toasts an error when removing an account fails", async () => {
+    stubCairn({
+      providersList: async () => ({ ok: true, data: PROVIDERS }),
+      accountsList: async (provider) => (provider === "stub" ? { ok: true, data: ACCOUNTS } : { ok: true, data: [] }),
+      accountsRemove: async () => ({ ok: false, error: "remove boom" }),
+    });
+
+    const { getAllByRole } = render(Accounts);
+    const removeButtons = await waitFor(() => getAllByRole("button", { name: "Remove" }));
+    await fireEvent.click(removeButtons[0]);
+
+    await waitFor(() => expect(get(toasts).some((t) => t.kind === "error" && t.message === "remove boom")).toBe(true));
   });
 });

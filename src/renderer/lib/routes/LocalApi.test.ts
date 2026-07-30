@@ -1,10 +1,16 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, waitFor } from "@testing-library/svelte";
+import { get } from "svelte/store";
 import { stubCairn } from "../testing.js";
+import { toasts, toast } from "../toast.js";
 import LocalApi from "./LocalApi.svelte";
 
 describe("LocalApi screen", () => {
+  beforeEach(() => {
+    get(toasts).slice().forEach((t) => toast.dismiss(t.id));
+  });
+
   it("shows a start affordance when stopped and calls proxyStart on click", async () => {
     const proxyStart = vi.fn(async () => ({ ok: true, data: undefined }) as const);
     stubCairn({
@@ -82,5 +88,37 @@ describe("LocalApi screen", () => {
       expect(getByText(/no proxy plugin installed/i)).toBeTruthy();
       expect(getByText("Start local API")).toBeTruthy();
     });
+  });
+
+  it("toasts an error when saving the port fails", async () => {
+    stubCairn({
+      proxyStatus: async () => ({ ok: true, data: { running: false, port: 34567 } }),
+      setConfig: async () => ({ ok: false, error: "boom" }),
+    });
+
+    const { getByLabelText, getByText } = render(LocalApi);
+    await waitFor(() => expect(getByText("Stopped")).toBeTruthy());
+
+    const input = getByLabelText("Local API port") as HTMLInputElement;
+    await fireEvent.input(input, { target: { value: "8080" } });
+    await fireEvent.click(getByText("Save"));
+
+    await waitFor(() => expect(get(toasts).some((t) => t.kind === "error" && t.message === "boom")).toBe(true));
+  });
+
+  it("toasts success when saving the port succeeds", async () => {
+    stubCairn({
+      proxyStatus: async () => ({ ok: true, data: { running: false, port: 34567 } }),
+      setConfig: async () => ({ ok: true, data: undefined }),
+    });
+
+    const { getByLabelText, getByText } = render(LocalApi);
+    await waitFor(() => expect(getByText("Stopped")).toBeTruthy());
+
+    const input = getByLabelText("Local API port") as HTMLInputElement;
+    await fireEvent.input(input, { target: { value: "8080" } });
+    await fireEvent.click(getByText("Save"));
+
+    await waitFor(() => expect(get(toasts).some((t) => t.kind === "success" && t.message === "Local API port saved")).toBe(true));
   });
 });
