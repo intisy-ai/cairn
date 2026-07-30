@@ -16,7 +16,8 @@
       "@core-proxy/*": ["../../libs/core-proxy/dist/*"],
       "@claude-code-proxy/*": ["../../libs/claude-code-proxy/dist/*"],
       "@opencode-proxy/*": ["../../libs/opencode-proxy/dist/*"],
-      "@plugin-updater/*": ["../../tools/plugin-updater/dist/*"]
+      "@plugin-updater/*": ["../../tools/plugin-updater/dist/*"],
+      "@config-ledger/*": ["../../plugins/config-ledger/dist/*"]
     }
   }
 }

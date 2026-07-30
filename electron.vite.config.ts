@@ -13,6 +13,7 @@ export default defineConfig({
         "@claude-code-proxy": fileURLToPath(new URL("../../libs/claude-code-proxy/dist", import.meta.url)),
         "@opencode-proxy": fileURLToPath(new URL("../../libs/opencode-proxy/dist", import.meta.url)),
         "@plugin-updater": fileURLToPath(new URL("../../tools/plugin-updater/dist", import.meta.url)),
+        "@config-ledger": fileURLToPath(new URL("../../plugins/config-ledger/dist", import.meta.url)),
       },
     },
     build: {

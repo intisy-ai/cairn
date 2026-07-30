@@ -171,3 +171,18 @@ export const SUPPORTED_ENDPOINT_FORMATS = ["openai"] as const;
 export type EndpointFormat = (typeof SUPPORTED_ENDPOINT_FORMATS)[number];
 export type CustomEndpoint = { id: string; label: string; baseUrl: string; format: string; models: string[] };
 export type CustomEndpointView = CustomEndpoint & { hasKey: boolean };
+
+export type ConfigSnapshot = { hash: string; date: string; subject: string };
+export type ConfigDiffRow = { file: string; key: string; old: string; new: string };
+export type ConfigProfilesView = { list: string[]; current: string };
+export type ConfigHomeView = {
+  homeId: PluginHomeId;
+  label: string;
+  icon?: string;
+  present: boolean;
+  snapshots: ConfigSnapshot[];
+  pending: ConfigDiffRow[];
+  profiles: ConfigProfilesView;
+};
+export type ProfileSwitchResult = { ok: boolean; reason?: string };
+export type BusEvent = { topic: string; source: string; ts: number; payload: unknown };

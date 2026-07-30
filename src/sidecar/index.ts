@@ -9,6 +9,8 @@ import { appsDetect, appsList, appsInstallCli, appsInit, appsUninstallCli, appsS
 import { pluginsList, pluginsInstall, pluginsInstallMany, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
 import { configSchemas, configWrite, configAction } from "./modules/appConfig.js";
 import { syncStatus, syncRun, syncSetConfig } from "./modules/sync.js";
+import { ledgerHomes, ledgerCommit, ledgerRestore, ledgerDiffRefs, ledgerProfileCreate, ledgerProfileSwitch } from "./modules/ledger.js";
+import { busDrain } from "./modules/bus.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
 import { usageSnapshot } from "./modules/usage.js";
 import { importApps, importPreview, importRun } from "./modules/import.js";
@@ -70,6 +72,13 @@ registerHandler("config:action", (home, plugin, actionId) => configAction(home a
 registerHandler("sync:status", () => syncStatus());
 registerHandler("sync:run", () => syncRun());
 registerHandler("sync:setConfig", (key, value) => syncSetConfig(key as string, value));
+registerHandler("ledger:homes", () => ledgerHomes());
+registerHandler("ledger:commit", (home, reason) => ledgerCommit(home as string, reason as string));
+registerHandler("ledger:restore", (home, ref) => ledgerRestore(home as string, ref as string));
+registerHandler("ledger:diffRefs", (home, refA, refB) => ledgerDiffRefs(home as string, refA as string, refB as string));
+registerHandler("ledger:profileCreate", (home, name) => ledgerProfileCreate(home as string, name as string));
+registerHandler("ledger:profileSwitch", (home, name) => ledgerProfileSwitch(home as string, name as string));
+registerHandler("bus:drain", () => busDrain());
 registerHandler("usage:snapshot", () => usageSnapshot());
 registerHandler("import:apps", () => importApps());
 registerHandler("import:preview", (app) => importPreview(app as string));

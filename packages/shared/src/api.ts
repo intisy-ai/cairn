@@ -1,4 +1,4 @@
-import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, HostApp, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView, InstallManyResult, SyncStatus } from "./domain.js";
+import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, HostApp, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView, InstallManyResult, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -35,6 +35,13 @@ export interface CairnAPI {
   syncStatus(): Promise<Result<SyncStatus>>;
   syncRun(): Promise<Result<void>>;
   syncSetConfig(key: string, value: unknown): Promise<Result<void>>;
+  ledgerHomes(): Promise<Result<ConfigHomeView[]>>;
+  ledgerCommit(home: string, reason: string): Promise<Result<boolean>>;
+  ledgerRestore(home: string, ref: string): Promise<Result<number>>;
+  ledgerDiffRefs(home: string, refA: string, refB: string): Promise<Result<ConfigDiffRow[]>>;
+  ledgerProfileCreate(home: string, name: string): Promise<Result<void>>;
+  ledgerProfileSwitch(home: string, name: string): Promise<Result<ProfileSwitchResult>>;
+  busDrain(): Promise<Result<BusEvent[]>>;
   usageSnapshot(): Promise<Result<UsageSnapshot>>;
   importApps(): Promise<Result<ImportableApp[]>>;
   importPreview(app: string): Promise<Result<ImportPreview>>;
