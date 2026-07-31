@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
 
@@ -39,10 +39,23 @@ function persist(configDir: string, data: CacheFile): void {
   const path = cachePath(configDir);
   try {
     mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, JSON.stringify(data), "utf8");
+    // Write to a temp file then rename: a rename is atomic, so a crash or a
+    // concurrent read can never observe a half-written (unparseable) cache file,
+    // which would otherwise wipe every entry on the next load.
+    const tmp = `${path}.tmp`;
+    writeFileSync(tmp, JSON.stringify(data), "utf8");
+    renameSync(tmp, path);
   } catch {
     // best-effort: an unwritable cache just means the next load is a miss
   }
+}
+
+function set<T>(configDir: string, namespace: string, key: string, value: T, at: number): boolean {
+  const data = load(configDir);
+  const ns = (data[namespace] ??= {});
+  if (ns[key] && JSON.stringify(ns[key].value) === JSON.stringify(value)) return false;
+  ns[key] = { value, at };
+  return true;
 }
 
 export function readCache<T>(namespace: string, key: string, configDir: string = getConfigDir()): CacheEntry<T> | null {
@@ -60,12 +73,19 @@ export function readNamespace<T>(namespace: string, configDir: string = getConfi
 // neither rewrites the file nor bumps timestamps. Returns whether anything changed.
 export function writeCache<T>(namespace: string, key: string, value: T, configDir: string = getConfigDir(), at: number = Date.now()): boolean {
   if (!configDir) return false;
-  const data = load(configDir);
-  const ns = (data[namespace] ??= {});
-  if (ns[key] && JSON.stringify(ns[key].value) === JSON.stringify(value)) return false;
-  ns[key] = { value, at };
-  persist(configDir, data);
-  return true;
+  const changed = set(configDir, namespace, key, value, at);
+  if (changed) persist(configDir, load(configDir));
+  return changed;
+}
+
+// Writes a whole namespace's worth of entries with a single persist, so refreshing
+// N plugins' versions is one file write instead of N. Returns whether anything changed.
+export function writeCacheMany<T>(namespace: string, entries: Record<string, T>, configDir: string = getConfigDir(), at: number = Date.now()): boolean {
+  if (!configDir) return false;
+  let changed = false;
+  for (const [key, value] of Object.entries(entries)) changed = set(configDir, namespace, key, value, at) || changed;
+  if (changed) persist(configDir, load(configDir));
+  return changed;
 }
 
 export function dropCache(namespace: string, key: string, configDir: string = getConfigDir()): void {

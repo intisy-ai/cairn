@@ -135,11 +135,16 @@
 
   // Show cached versions instantly, then overwrite with the freshly computed ones
   // (a git describe per plugin) so only rows whose version changed visibly update.
+  // The fresh pass runs in parallel; the cache only fills in until it arrives.
   async function loadVersions(): Promise<void> {
+    let freshDone = false;
+    const fresh = cairn.pluginVersionsAll().then((result) => {
+      freshDone = true;
+      if (result.ok) versions = result.data;
+    });
     const cached = await cairn.pluginVersionsCached();
-    if (cached.ok && Object.keys(cached.data).length > 0) versions = cached.data;
-    const fresh = await cairn.pluginVersionsAll();
-    if (fresh.ok) versions = fresh.data;
+    if (!freshDone && cached.ok && Object.keys(cached.data).length > 0) versions = cached.data;
+    await fresh;
   }
 
   async function reload(): Promise<void> {

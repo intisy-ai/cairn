@@ -5,7 +5,10 @@
 process.env.PLUGIN_UPDATER_LIBRARY_MODE = "1";
 
 import { existsSync, readFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 import { join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
 import { getConfigValue, isEngine } from "@core/index.js";
@@ -18,7 +21,7 @@ import type { UpdateCache } from "@plugin-updater/cache.js";
 import type { Plugin, NpmPlugin } from "@plugin-updater/types.js";
 import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, PluginVersion, Result, CliResult, InstallManyResult, InstallOutcome } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir, updaterInstalled } from "../lib/pluginHomes.js";
-import { readNamespace, writeCache } from "../lib/cache.js";
+import { readNamespace, writeCacheMany } from "../lib/cache.js";
 import { wrap } from "../result.js";
 
 const VERSIONS_NS = "versions";
@@ -136,13 +139,13 @@ export function pluginsList(deps: PluginsDeps = {}): Promise<Result<HomePlugins[
   });
 }
 
-function realDescribe(dir: string): string | null {
+// Async so a git subprocess never blocks the single-threaded sidecar event loop;
+// blocking here previously stalled every other request (readmes, the plugin list)
+// while the whole plugin set was described.
+async function realDescribe(dir: string): Promise<string | null> {
   try {
-    const out = execFileSync("git", ["-C", dir, "describe", "--tags", "--always"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    });
-    return out.trim() || null;
+    const { stdout } = await execFileAsync("git", ["-C", dir, "describe", "--tags", "--always"]);
+    return stdout.trim() || null;
   } catch {
     return null;
   }
@@ -160,7 +163,7 @@ export function formatGitVersion(describe: string | null): string | null {
 export interface PluginVersionsDeps {
   homes?: PluginHome[];
   readCache?: (dir: string) => UpdateCache;
-  describe?: (dir: string) => string | null;
+  describe?: (dir: string) => string | null | Promise<string | null>;
   exists?: (path: string) => boolean;
   getPlugins?: (dir: string) => Plugin[];
   npmPlugins?: (dir: string) => Promise<NpmPlugin[]>;
@@ -180,8 +183,8 @@ export function pluginVersionsCached(deps: PluginVersionsDeps = {}): Promise<Res
   });
 }
 
-function gitVersionFor(repoDir: string, entry: UpdateCache["plugins"][string] | undefined, describe: (dir: string) => string | null, autoUpdate: boolean): PluginVersion {
-  const label = formatGitVersion(describe(repoDir)) ?? (entry?.localHead ? entry.localHead.slice(0, 7) : null);
+async function gitVersionFor(repoDir: string, entry: UpdateCache["plugins"][string] | undefined, describe: (dir: string) => string | null | Promise<string | null>, autoUpdate: boolean): Promise<PluginVersion> {
+  const label = formatGitVersion(await describe(repoDir)) ?? (entry?.localHead ? entry.localHead.slice(0, 7) : null);
   return { kind: "git", label, updateAvailable: entry?.updateAvailable ?? false, autoUpdate };
 }
 
@@ -209,7 +212,7 @@ export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Pro
       const autoUpdate = gitEntry ? gitEntry.autoUpdate !== false : true;
       const repoDir = join(home.dir, "repos", name);
       if (exists(repoDir)) {
-        out[home.id] = gitVersionFor(repoDir, entry, describe, autoUpdate);
+        out[home.id] = await gitVersionFor(repoDir, entry, describe, autoUpdate);
       } else if (entry?.kind === "npm") {
         out[home.id] = { kind: "npm", label: entry.installedVersion, updateAvailable: entry.updateAvailable, autoUpdate: true };
       } else if (gitEntry) {
@@ -236,15 +239,20 @@ export function pluginVersionsAll(deps: PluginVersionsDeps = {}): Promise<Result
     for (const home of homes) {
       if (!home.present) continue;
       const cache = readCache(home.dir);
-      for (const p of listGit(home.dir)) {
-        const autoUpdate = p.autoUpdate !== false;
-        const repoDir = join(home.dir, "repos", p.name);
-        if (exists(repoDir)) {
-          (out[p.name] ??= {})[home.id] = gitVersionFor(repoDir, cache.plugins[p.name], describe, autoUpdate);
-        } else {
-          out[p.name] ??= {};
-          missing.push({ name: p.name, homeId: home.id, autoUpdate });
-        }
+      // Describe every cloned git plugin in this home in parallel so the whole
+      // home is one batch of concurrent git subprocesses, not a serial chain.
+      const gitEntries = listGit(home.dir);
+      const described = await Promise.all(
+        gitEntries.map(async (p) => {
+          const repoDir = join(home.dir, "repos", p.name);
+          if (!exists(repoDir)) return { p, version: null };
+          return { p, version: await gitVersionFor(repoDir, cache.plugins[p.name], describe, p.autoUpdate !== false) };
+        }),
+      );
+      for (const { p, version } of described) {
+        out[p.name] ??= {};
+        if (version) out[p.name][home.id] = version;
+        else missing.push({ name: p.name, homeId: home.id, autoUpdate: p.autoUpdate !== false });
       }
       for (const p of await listNpm(home.dir)) {
         const entry = cache.plugins[p.name];
@@ -254,10 +262,9 @@ export function pluginVersionsAll(deps: PluginVersionsDeps = {}): Promise<Result
     for (const { name, homeId, autoUpdate } of missing) {
       if (!out[name][homeId]) markUnknown(out[name], [{ id: homeId, autoUpdate }]);
     }
-    // Persist each plugin's versions (write-on-change) so the next load renders
-    // instantly from cache and only rows that actually changed update.
-    const cacheDir = deps.cacheDir ?? getConfigDir();
-    for (const [name, perHome] of Object.entries(out)) writeCache(VERSIONS_NS, name, perHome, cacheDir);
+    // Persist all plugins' versions in a single cache write so the next load
+    // renders instantly and only rows that actually changed update.
+    writeCacheMany(VERSIONS_NS, out, deps.cacheDir ?? getConfigDir());
     return out;
   });
 }
