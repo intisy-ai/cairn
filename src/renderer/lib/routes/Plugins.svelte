@@ -19,6 +19,7 @@
   import Skeleton from "../components/Skeleton.svelte";
   import PageHeader from "../components/PageHeader.svelte";
   import PluginIcon, { LOGO_SIZE } from "../components/PluginIcon.svelte";
+  import GitHubConnection from "../components/GitHubConnection.svelte";
   import ErrorState from "../components/ErrorState.svelte";
   import Chip from "../components/Chip.svelte";
   import PluginDetail from "../components/PluginDetail.svelte";
@@ -295,6 +296,8 @@
     {/each}
   </div>
 {:else}
+  <GitHubConnection onChanged={loadCatalog} />
+
   <div class="toolbar">
     <SearchField bind:value={searchRaw} placeholder="Search plugins…" />
     <Button variant="primary" onclick={() => (addOpen = true)}>+ Add from URL</Button>

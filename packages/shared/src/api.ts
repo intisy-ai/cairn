@@ -1,4 +1,4 @@
-import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete } from "./domain.js";
+import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -62,6 +62,8 @@ export interface CairnAPI {
   importPreview(app: string): Promise<Result<ImportPreview>>;
   importRun(app: string, selection?: ImportSelection): Promise<Result<ImportSummary>>;
   catalogList(): Promise<Result<CatalogResult>>;
+  githubStatus(): Promise<Result<GithubStatus>>;
+  githubSetToken(token: string): Promise<Result<void>>;
   customEndpointsList(): Promise<Result<CustomEndpointView[]>>;
   customEndpointsUpsert(endpoint: CustomEndpoint): Promise<Result<void>>;
   customEndpointsRemove(id: string): Promise<Result<void>>;

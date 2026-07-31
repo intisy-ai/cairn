@@ -4,7 +4,9 @@ import type { ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/in
 export type CatalogKind = "provider" | "proxy" | "plugin" | "loader";
 export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string; deprecated: boolean; topics: string[]; displayName?: string; icon?: string };
 export type RepoMeta = { owner: string; repo: string; htmlUrl: string; stars: number | null; description: string; topics: string[]; readme: string | null };
-export type CatalogResult = { entries: CatalogEntry[]; source: "env" | "gh" | "anonymous"; org: string };
+export type CatalogTokenSource = "env" | "config" | "gh" | "anonymous";
+export type CatalogResult = { entries: CatalogEntry[]; source: CatalogTokenSource; org: string };
+export type GithubStatus = { source: CatalogTokenSource; connected: boolean; login: string | null; ghCliDetected: boolean };
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 export type ProviderHealth = {
   provider: string;

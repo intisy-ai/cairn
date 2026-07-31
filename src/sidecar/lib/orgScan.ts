@@ -11,7 +11,7 @@ interface RepoJson { name?: string; html_url?: string; description?: string | nu
 let cache: { at: number; result: CatalogResult } | null = null;
 const MANIFEST_TTL_MS = 1_800_000;
 const manifestCache = new Map<string, { at: number; value: { displayName?: string; icon?: string } }>();
-export function resetOrgScanCacheForTests(): void { cache = null; manifestCache.clear(); }
+export function resetOrgScanCache(): void { cache = null; manifestCache.clear(); }
 
 function tryExec(exe: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -37,6 +37,8 @@ function resolveOrg(getOrg?: () => string): string {
 export async function resolveToken(env: NodeJS.ProcessEnv, execFn: (f: string, a: string[]) => Promise<string>): Promise<{ token: string | null; source: CatalogResult["source"] }> {
   const envToken = env.GITHUB_TOKEN?.trim() || env.GH_TOKEN?.trim();
   if (envToken) return { token: envToken, source: "env" };
+  const configured = getConfigValue("cairn", "githubToken");
+  if (typeof configured === "string" && configured.trim()) return { token: configured.trim(), source: "config" };
   try {
     const out = (await execFn("gh", ["auth", "token"])).trim();
     if (out) return { token: out, source: "gh" };

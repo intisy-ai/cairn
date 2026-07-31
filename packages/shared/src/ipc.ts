@@ -68,6 +68,8 @@ export const INVOKE_CHANNELS = {
   importPreview: "import:preview",
   importRun: "import:run",
   catalogList: "catalog:list",
+  githubStatus: "github:status",
+  githubSetToken: "github:set-token",
   customEndpointsList: "customEndpoints:list",
   customEndpointsUpsert: "customEndpoints:upsert",
   customEndpointsRemove: "customEndpoints:remove",
