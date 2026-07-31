@@ -21,7 +21,7 @@ import { discoverApps } from "./lib/appDiscovery.js";
 import { importApps, importPreview, importRun } from "./modules/import.js";
 import type { ImportSelection } from "../../packages/shared/src/domain.js";
 import { catalogList } from "./modules/catalog.js";
-import { githubStatus, githubAddAccount, githubSwitchAccount, githubRemoveAccount } from "./modules/github.js";
+import { githubStatus, githubAddAccount, githubSwitchAccount, githubRemoveAccount, githubConnectGhCli } from "./modules/github.js";
 import { customEndpointsList, customEndpointsUpsert, customEndpointsRemove, customEndpointsSaveKey } from "./modules/customEndpoints.js";
 import type { CustomEndpoint } from "../../packages/shared/src/domain.js";
 
@@ -116,6 +116,7 @@ registerHandler("github:status", () => githubStatus());
 registerHandler("github:add-account", (token) => githubAddAccount(token as string));
 registerHandler("github:switch-account", (login) => githubSwitchAccount(login as string));
 registerHandler("github:remove-account", (login) => githubRemoveAccount(login as string));
+registerHandler("github:connect-gh", () => githubConnectGhCli());
 registerHandler("customEndpoints:list", () => customEndpointsList());
 registerHandler("customEndpoints:upsert", (endpoint) => customEndpointsUpsert(endpoint as CustomEndpoint));
 registerHandler("customEndpoints:remove", (id) => customEndpointsRemove(id as string));

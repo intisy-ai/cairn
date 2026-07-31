@@ -72,6 +72,7 @@ export const INVOKE_CHANNELS = {
   githubAddAccount: "github:add-account",
   githubSwitchAccount: "github:switch-account",
   githubRemoveAccount: "github:remove-account",
+  githubConnectGhCli: "github:connect-gh",
   customEndpointsList: "customEndpoints:list",
   customEndpointsUpsert: "customEndpoints:upsert",
   customEndpointsRemove: "customEndpoints:remove",

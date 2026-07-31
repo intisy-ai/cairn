@@ -9,26 +9,50 @@ export interface GithubDeps {
   env?: NodeJS.ProcessEnv;
 }
 
-interface StoredGithubAccount { login: string; token: string }
+interface StoredGithubAccount { login: string; token: string; name?: string | null; avatarUrl?: string | null }
+interface GithubUser { login: string; name: string | null; avatarUrl: string | null }
 
-async function detectGhCli(execFn: (file: string, args: string[]) => Promise<string>): Promise<boolean> {
+function toView(a: StoredGithubAccount): GithubAccountView {
+  return { login: a.login, name: a.name ?? null, avatarUrl: a.avatarUrl ?? null };
+}
+
+async function validateToken(fetchFn: typeof fetch, token: string): Promise<Result<GithubUser>> {
   try {
-    const out = (await execFn("gh", ["auth", "token"])).trim();
-    return out.length > 0;
-  } catch {
-    return false;
+    const response = await fetchFn("https://api.github.com/user", { headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok) return err(`GitHub rejected the token (${response.status})`);
+    const json = (await response.json()) as { login?: string; name?: string | null; avatar_url?: string | null };
+    if (typeof json.login !== "string" || !json.login) return err("GitHub response had no login");
+    return ok({
+      login: json.login,
+      name: typeof json.name === "string" && json.name ? json.name : null,
+      avatarUrl: typeof json.avatar_url === "string" && json.avatar_url ? json.avatar_url : null,
+    });
+  } catch (e) {
+    return err(e instanceof Error ? e.message : String(e));
   }
 }
 
-async function fetchLogin(fetchFn: typeof fetch, token: string): Promise<string | null> {
+async function fetchUserBestEffort(fetchFn: typeof fetch, token: string): Promise<GithubUser | null> {
+  const result = await validateToken(fetchFn, token);
+  return result.ok ? result.data : null;
+}
+
+// Resolves the locally-signed-in GitHub CLI account, independent of whichever
+// source actually wins the active token. detected is true once `gh` reports a
+// token; account is best-effort (null if the /user fetch fails).
+async function resolveGhCli(
+  execFn: (file: string, args: string[]) => Promise<string>,
+  fetchFn: typeof fetch,
+): Promise<{ detected: boolean; account: GithubAccountView | null }> {
+  let token: string;
   try {
-    const response = await fetchFn("https://api.github.com/user", { headers: { Authorization: `Bearer ${token}` } });
-    if (!response.ok) return null;
-    const json = (await response.json()) as { login?: string };
-    return typeof json.login === "string" ? json.login : null;
+    token = (await execFn("gh", ["auth", "token"])).trim();
   } catch {
-    return null;
+    return { detected: false, account: null };
   }
+  if (!token) return { detected: false, account: null };
+  const user = await fetchUserBestEffort(fetchFn, token);
+  return { detected: true, account: user ? { login: user.login, name: user.name, avatarUrl: user.avatarUrl } : null };
 }
 
 function storedAccounts(): StoredGithubAccount[] {
@@ -42,17 +66,57 @@ function activeLoginOf(accounts: StoredGithubAccount[]): string | null {
   return accounts[0]?.login ?? null;
 }
 
+function storeAccount(user: GithubUser, token: string): void {
+  const accounts = storedAccounts().filter((a) => a.login !== user.login);
+  accounts.push({ login: user.login, token, name: user.name, avatarUrl: user.avatarUrl });
+  setConfigValue("cairn", "githubAccounts", accounts);
+  setConfigValue("cairn", "githubActiveLogin", user.login);
+  resetOrgScanCache();
+}
+
 export function githubStatus(deps: GithubDeps = {}): Promise<Result<GithubStatus>> {
   return wrap(async () => {
     const env = deps.env ?? process.env;
     const execFn = deps.execFn ?? realExec;
     const fetchFn = deps.fetchFn ?? fetch;
     const { token, source } = await resolveToken(env, execFn);
-    const ghCliDetected = await detectGhCli(execFn);
-    const login = token ? await fetchLogin(fetchFn, token) : null;
     const accounts = storedAccounts();
-    const accountViews: GithubAccountView[] = accounts.map((a) => ({ login: a.login }));
-    return { source, connected: token !== null, login, ghCliDetected, accounts: accountViews, activeLogin: activeLoginOf(accounts) };
+    const activeLogin = activeLoginOf(accounts);
+
+    let login: string | null = null;
+    let name: string | null = null;
+    let avatarUrl: string | null = null;
+    if (token) {
+      if (source === "config") {
+        const active = accounts.find((a) => a.login === activeLogin) ?? accounts[0] ?? null;
+        if (active) {
+          login = active.login;
+          name = active.name ?? null;
+          avatarUrl = active.avatarUrl ?? null;
+        }
+      } else {
+        const user = await fetchUserBestEffort(fetchFn, token);
+        if (user) {
+          login = user.login;
+          name = user.name;
+          avatarUrl = user.avatarUrl;
+        }
+      }
+    }
+
+    const ghCli = await resolveGhCli(execFn, fetchFn);
+
+    return {
+      source,
+      connected: token !== null,
+      login,
+      name,
+      avatarUrl,
+      ghCliDetected: ghCli.detected,
+      ghCli: ghCli.account,
+      accounts: accounts.map(toView),
+      activeLogin,
+    };
   });
 }
 
@@ -60,22 +124,26 @@ export async function githubAddAccount(token: string, deps: GithubDeps = {}): Pr
   const fetchFn = deps.fetchFn ?? fetch;
   const trimmed = token.trim();
   if (!trimmed) return err("token is required");
-  let login: string;
+  const validated = await validateToken(fetchFn, trimmed);
+  if (!validated.ok) return validated;
+  storeAccount(validated.data, trimmed);
+  return ok({ login: validated.data.login });
+}
+
+export async function githubConnectGhCli(deps: GithubDeps = {}): Promise<Result<{ login: string }>> {
+  const execFn = deps.execFn ?? realExec;
+  const fetchFn = deps.fetchFn ?? fetch;
+  let token: string;
   try {
-    const response = await fetchFn("https://api.github.com/user", { headers: { Authorization: `Bearer ${trimmed}` } });
-    if (!response.ok) return err(`GitHub rejected the token (${response.status})`);
-    const json = (await response.json()) as { login?: string };
-    if (typeof json.login !== "string" || !json.login) return err("GitHub response had no login");
-    login = json.login;
-  } catch (e) {
-    return err(e instanceof Error ? e.message : String(e));
+    token = (await execFn("gh", ["auth", "token"])).trim();
+  } catch {
+    return err("GitHub CLI has no token");
   }
-  const accounts = storedAccounts().filter((a) => a.login !== login);
-  accounts.push({ login, token: trimmed });
-  setConfigValue("cairn", "githubAccounts", accounts);
-  setConfigValue("cairn", "githubActiveLogin", login);
-  resetOrgScanCache();
-  return ok({ login });
+  if (!token) return err("GitHub CLI has no token");
+  const validated = await validateToken(fetchFn, token);
+  if (!validated.ok) return validated;
+  storeAccount(validated.data, token);
+  return ok({ login: validated.data.login });
 }
 
 export async function githubSwitchAccount(login: string, _deps: GithubDeps = {}): Promise<Result<void>> {
