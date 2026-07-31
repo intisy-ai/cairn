@@ -4,20 +4,27 @@
 // the lazy dynamic import() of index.js later in this module runs it.
 process.env.PLUGIN_UPDATER_LIBRARY_MODE = "1";
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
+import { join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
-import { getConfigValue } from "@core/index.js";
-import { getPlugins, getPluginsPath } from "@plugin-updater/config.js";
+import { getConfigValue, isEngine } from "@core/index.js";
+import { getPlugins, registerPlugin, setPluginEnabled, setPluginAutoUpdate } from "@plugin-updater/config.js";
 import { readUpdateCache } from "@plugin-updater/cache.js";
 import { svgIconDataUri } from "../lib/pluginIcon.js";
 import { syncPluginsAcrossApps as realSyncPluginsAcrossApps } from "@plugin-updater/syncbridge.js";
 import { setEarlyLaunchConfigDir } from "@plugin-updater/env.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
 import type { Plugin, NpmPlugin } from "@plugin-updater/types.js";
-import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, Result, CliResult, InstallManyResult, InstallOutcome } from "../../../packages/shared/src/domain.js";
-import { pluginHomes, homeDir } from "../lib/pluginHomes.js";
+import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, PluginVersion, Result, CliResult, InstallManyResult, InstallOutcome } from "../../../packages/shared/src/domain.js";
+import { pluginHomes, homeDir, updaterInstalled } from "../lib/pluginHomes.js";
+import { readNamespace, writeCacheMany } from "../lib/cache.js";
 import { wrap } from "../result.js";
+
+const VERSIONS_NS = "versions";
 
 type UpdatePluginPublicFn = (name: string, url: string, branch?: string, commitHash?: string) => Promise<void | object>;
 type SyncPluginsAcrossAppsFn = (configDir: string) => Promise<void>;
@@ -105,6 +112,9 @@ export interface PluginsDeps {
   hasUpdater?: HasUpdaterFn;
   initApp?: InitAppFn;
   getPlugins?: (dir: string) => Plugin[];
+  // Called at each phase boundary so a download row can show live progress;
+  // percent is coarse phase-based progress 0..100.
+  report?: (step: string, percent: number) => void;
 }
 
 async function resolveHomes(deps: PluginsDeps): Promise<PluginHome[]> {
@@ -129,19 +139,134 @@ export function pluginsList(deps: PluginsDeps = {}): Promise<Result<HomePlugins[
   });
 }
 
-// plugin-updater only clones+builds the repo; registering it in plugins.json
-// (so getPlugins/pluginsList and proxy discovery pick it up) is the caller's job.
-function registerPlugin(dir: string, name: string, url: string, autoUpdateDefault: boolean = true): void {
-  const file = getPluginsPath(dir);
-  const entries = existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Plugin[]) : [];
-  const entry = entries.find((e) => e.name === name);
-  if (entry) {
-    entry.url = url;
-  } else {
-    entries.push({ name, url, enabled: true, autoUpdate: autoUpdateDefault });
+// Async so a git subprocess never blocks the single-threaded sidecar event loop;
+// blocking here previously stalled every other request (readmes, the plugin list)
+// while the whole plugin set was described.
+async function realDescribe(dir: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync("git", ["-C", dir, "describe", "--tags", "--always"]);
+    return stdout.trim() || null;
+  } catch {
+    return null;
   }
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, JSON.stringify(entries, null, 2), "utf8");
+}
+
+// A full clone carries every release tag, so `git describe` yields the last tag
+// plus how far ahead HEAD is: "v1.2.3" on a tag, "v1.2.3 +5" five commits later,
+// and a bare short SHA when the repo has no tags at all.
+export function formatGitVersion(describe: string | null): string | null {
+  if (!describe) return null;
+  const ahead = describe.match(/^(.*)-(\d+)-g[0-9a-f]+$/);
+  return ahead ? `${ahead[1]} +${ahead[2]}` : describe;
+}
+
+export interface PluginVersionsDeps {
+  homes?: PluginHome[];
+  readCache?: (dir: string) => UpdateCache;
+  describe?: (dir: string) => string | null | Promise<string | null>;
+  exists?: (path: string) => boolean;
+  getPlugins?: (dir: string) => Plugin[];
+  npmPlugins?: (dir: string) => Promise<NpmPlugin[]>;
+  // Where the persistent version cache lives; "" disables it (used in tests).
+  cacheDir?: string;
+}
+
+// The last-known versions from the persistent cache, so the Plugins list shows
+// versions instantly on load while pluginVersionsAll() recomputes in the
+// background. Returns an empty map on a cold cache.
+export function pluginVersionsCached(deps: PluginVersionsDeps = {}): Promise<Result<Record<string, Record<string, PluginVersion>>>> {
+  return wrap(async () => {
+    const ns = readNamespace<Record<string, PluginVersion>>(VERSIONS_NS, deps.cacheDir ?? getConfigDir());
+    const out: Record<string, Record<string, PluginVersion>> = {};
+    for (const [name, entry] of Object.entries(ns)) out[name] = entry.value;
+    return out;
+  });
+}
+
+async function gitVersionFor(repoDir: string, entry: UpdateCache["plugins"][string] | undefined, describe: (dir: string) => string | null | Promise<string | null>, autoUpdate: boolean): Promise<PluginVersion> {
+  const label = formatGitVersion(await describe(repoDir)) ?? (entry?.localHead ? entry.localHead.slice(0, 7) : null);
+  return { kind: "git", label, updateAvailable: entry?.updateAvailable ?? false, autoUpdate };
+}
+
+// A plugin can be registered in a home's plugins.json but not yet cloned there
+// (plugin-updater materializes it on that app's next launch). Its version there is
+// genuinely unknown until it is cloned, so report it as such (label null) rather
+// than borrowing another home's version and implying a certainty we don't have.
+function markUnknown(perHome: Record<string, PluginVersion>, homes: { id: string; autoUpdate: boolean }[]): void {
+  for (const h of homes) perHome[h.id] = { kind: "git", label: null, updateAvailable: false, autoUpdate: h.autoUpdate };
+}
+
+export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Promise<Result<Record<string, PluginVersion>>> {
+  return wrap(async () => {
+    const homes = await resolveHomes(deps);
+    const readCache = deps.readCache ?? readUpdateCache;
+    const describe = deps.describe ?? realDescribe;
+    const exists = deps.exists ?? existsSync;
+    const listGit = deps.getPlugins ?? getPlugins;
+    const out: Record<string, PluginVersion> = {};
+    const registeredWithoutClone: { id: string; autoUpdate: boolean }[] = [];
+    for (const home of homes) {
+      if (!home.present) continue;
+      const entry = readCache(home.dir).plugins[name];
+      const gitEntry = listGit(home.dir).find((p) => p.name === name);
+      const autoUpdate = gitEntry ? gitEntry.autoUpdate !== false : true;
+      const repoDir = join(home.dir, "repos", name);
+      if (exists(repoDir)) {
+        out[home.id] = await gitVersionFor(repoDir, entry, describe, autoUpdate);
+      } else if (entry?.kind === "npm") {
+        out[home.id] = { kind: "npm", label: entry.installedVersion, updateAvailable: entry.updateAvailable, autoUpdate: true };
+      } else if (gitEntry) {
+        registeredWithoutClone.push({ id: home.id, autoUpdate });
+      }
+    }
+    markUnknown(out, registeredWithoutClone);
+    return out;
+  });
+}
+
+// One pass over every home computes the version of each installed plugin, so the
+// Plugins list can show versions without a per-row round-trip.
+export function pluginVersionsAll(deps: PluginVersionsDeps = {}): Promise<Result<Record<string, Record<string, PluginVersion>>>> {
+  return wrap(async () => {
+    const homes = await resolveHomes(deps);
+    const readCache = deps.readCache ?? readUpdateCache;
+    const describe = deps.describe ?? realDescribe;
+    const exists = deps.exists ?? existsSync;
+    const listGit = deps.getPlugins ?? getPlugins;
+    const listNpm = deps.npmPlugins ?? getNpmPlugins;
+    const out: Record<string, Record<string, PluginVersion>> = {};
+    const missing: Array<{ name: string; homeId: string; autoUpdate: boolean }> = [];
+    for (const home of homes) {
+      if (!home.present) continue;
+      const cache = readCache(home.dir);
+      // Describe every cloned git plugin in this home in parallel so the whole
+      // home is one batch of concurrent git subprocesses, not a serial chain.
+      const gitEntries = listGit(home.dir);
+      const described = await Promise.all(
+        gitEntries.map(async (p) => {
+          const repoDir = join(home.dir, "repos", p.name);
+          if (!exists(repoDir)) return { p, version: null };
+          return { p, version: await gitVersionFor(repoDir, cache.plugins[p.name], describe, p.autoUpdate !== false) };
+        }),
+      );
+      for (const { p, version } of described) {
+        out[p.name] ??= {};
+        if (version) out[p.name][home.id] = version;
+        else missing.push({ name: p.name, homeId: home.id, autoUpdate: p.autoUpdate !== false });
+      }
+      for (const p of await listNpm(home.dir)) {
+        const entry = cache.plugins[p.name];
+        (out[p.name] ??= {})[home.id] = { kind: "npm", label: entry?.installedVersion ?? null, updateAvailable: entry?.updateAvailable ?? false, autoUpdate: true };
+      }
+    }
+    for (const { name, homeId, autoUpdate } of missing) {
+      if (!out[name][homeId]) markUnknown(out[name], [{ id: homeId, autoUpdate }]);
+    }
+    // Persist all plugins' versions in a single cache write so the next load
+    // renders instantly and only rows that actually changed update.
+    writeCacheMany(VERSIONS_NS, out, deps.cacheDir ?? getConfigDir());
+    return out;
+  });
 }
 
 export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, deps: PluginsDeps = {}): Promise<Result<void>> {
@@ -149,9 +274,15 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
     const homes = await resolveHomes(deps);
     const dir = homeDir(homeId, homes);
 
-    if (homeId !== "cairn") {
-      const hasUpdater = deps.hasUpdater ?? ((d: string) => existsSync(getPluginsPath(d)));
-      if (!hasUpdater(dir)) {
+    const report = deps.report;
+    const hasUpdater = deps.hasUpdater ?? updaterInstalled;
+    if (!hasUpdater(dir)) {
+      // Every home (Cairn included) needs plugin-updater before it takes a
+      // non-engine; an engine may install to bootstrap it. An app home gets the
+      // updater set up via its CLI; Cairn clones directly with its bundled copy.
+      if (!isEngine(name)) throw new Error("install plugin-updater in this app before adding plugins");
+      if (homeId !== "cairn") {
+        report?.("Setting up plugin-updater", 10);
         const initApp = deps.initApp ?? (await import("./apps.js")).appsInit;
         const result = await initApp(homeId);
         if (!result.ok) throw new Error(result.error);
@@ -162,11 +293,14 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
     let autoUpdateDefault = true;
     const val = getConfigValue("cairn", "autoUpdateDefault");
     if (typeof val === "boolean") autoUpdateDefault = val;
+    report?.("Downloading and building", 40);
     await withHome(dir, async () => {
       await updatePluginPublic(name, url);
+      report?.("Registering", 90);
       registerPlugin(dir, name, url, autoUpdateDefault);
     });
     if (homeId !== "cairn") {
+      report?.("Syncing to other apps", 95);
       const syncPluginsAcrossApps = deps.syncPluginsAcrossApps ?? realSyncPluginsAcrossApps;
       await syncPluginsAcrossApps(dir);
     }
@@ -176,8 +310,18 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
 export function pluginsInstallMany(name: string, url: string, homeIds: string[], deps: PluginsDeps = {}): Promise<Result<InstallManyResult>> {
   return wrap(async () => {
     const outcomes: InstallOutcome[] = [];
-    for (const homeId of homeIds) {
-      const res = await pluginsInstall(homeId, name, url, deps);
+    for (let i = 0; i < homeIds.length; i++) {
+      const homeId = homeIds[i];
+      const base = deps.report;
+      // Spread each home's 0..100 across its slice of the overall bar so the
+      // percentage advances smoothly through a multi-home install.
+      const report = base
+        ? (step: string, percent: number) => {
+            const overall = Math.round(((i + Math.max(percent, 0) / 100) / homeIds.length) * 100);
+            base(homeIds.length > 1 ? `${homeId} (${i + 1}/${homeIds.length}): ${step}` : step, overall);
+          }
+        : undefined;
+      const res = await pluginsInstall(homeId, name, url, { ...deps, report });
       outcomes.push(res.ok ? { home: homeId, ok: true } : { home: homeId, ok: false, error: res.error });
     }
     return { outcomes };
@@ -200,14 +344,15 @@ export function pluginsRemoveEverywhere(name: string, deps: PluginsDeps = {}): P
 
 export function pluginsSetEnabled(homeId: PluginHomeId, name: string, on: boolean, deps: PluginsDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
-    const homes = await resolveHomes(deps);
-    const dir = homeDir(homeId, homes);
-    const file = getPluginsPath(dir);
-    const entries = existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Plugin[]) : [];
-    const entry = entries.find((e) => e.name === name);
-    if (!entry) throw new Error(`plugin not found: ${name}`);
-    entry.enabled = on;
-    writeFileSync(file, JSON.stringify(entries, null, 2), "utf8");
+    const dir = homeDir(homeId, await resolveHomes(deps));
+    if (!setPluginEnabled(dir, name, on)) throw new Error(`plugin not found: ${name}`);
+  });
+}
+
+export function pluginsSetAutoUpdate(homeId: PluginHomeId, name: string, on: boolean, deps: PluginsDeps = {}): Promise<Result<void>> {
+  return wrap(async () => {
+    const dir = homeDir(homeId, await resolveHomes(deps));
+    if (!setPluginAutoUpdate(dir, name, on)) throw new Error(`plugin not found: ${name}`);
   });
 }
 
@@ -225,7 +370,6 @@ export function pluginsDowngrade(homeId: PluginHomeId, name: string, hash: strin
 
 export function pluginsUninstall(homeId: string, name: string, deps: PluginsDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
-    if (name === "plugin-updater") throw new Error("refusing to uninstall the plugin machinery");
     const homes = await resolveHomes(deps);
     const dir = homeDir(homeId as PluginHomeId, homes);
     if (getPlugins(dir).some((p) => p.name === name)) {

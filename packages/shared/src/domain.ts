@@ -1,9 +1,13 @@
 export type { AccountView, AccountQuota, AccountStatus } from "@core-auth/index.js";
 export type { Chain, ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/index.js";
 import type { ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/index.js";
-export type CatalogKind = "provider" | "proxy" | "plugin";
-export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string; deprecated: boolean; topics: string[]; displayName?: string; icon?: string };
-export type CatalogResult = { entries: CatalogEntry[]; source: "env" | "gh" | "anonymous" };
+import type { AppDescriptor } from "@core/index.js";
+export type CatalogKind = "provider" | "proxy" | "plugin" | "loader";
+export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string; deprecated: boolean; topics: string[]; displayName?: string; icon?: string; app?: AppDescriptor };
+export type RepoMeta = { owner: string; repo: string; htmlUrl: string; stars: number | null; description: string; topics: string[]; readme: string | null };
+export type CatalogTokenSource = "env" | "config" | "gh" | "anonymous";
+export type CatalogResult = { entries: CatalogEntry[]; source: CatalogTokenSource; org: string };
+export type GithubStatus = { source: CatalogTokenSource; connected: boolean; login: string | null; ghCliDetected: boolean };
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 export type ProviderHealth = {
   provider: string;
@@ -24,6 +28,7 @@ export type ProxyStatus = {
   running: boolean;
   port: number;
 };
+export type ProxyView = { name: string; app: string; appLabel: string; enabled: boolean; setup?: string };
 export type ProviderRow = {
   id: string;
   label: string;
@@ -40,6 +45,7 @@ export type RoutingState = {
 };
 export type AppPresence = Record<string, boolean>;
 export type HostApp = { id: string; label: string; icon?: string };
+export type AppConnection = { app: string; cliPresent: boolean; loaderId: string | null; loaderUrl: string | null; loaderInstalled: boolean };
 export type CliResult = {
   stdout: string;
   stderr: string;
@@ -94,12 +100,18 @@ export type UsageModel = {
   tokens: { input: number; output: number; reasoning: number };
   sessionCount: number;
   messageCount: number;
+  estimatedCostUsd?: number;
+  priced?: boolean;
 };
 export type UsageSnapshot = {
   accounts: UsageAccount[];
   sessions: UsageSession[];
   models: Record<string, UsageModel>;
   updatedAt: string;
+  estimatedCostUsd?: number;
+  pricedModels?: number;
+  unpricedModels?: number;
+  pricesUpdatedAt?: string;
 };
 export type ImportableApp = { app: string; label: string; hasConfig: boolean };
 export type ImportSummary = { accounts: number; providers: number; routingImported: boolean; notes: string[] };
@@ -119,6 +131,9 @@ export type PluginHome = {
   hasUpdater: boolean;
 };
 export type HomePlugins = { home: PluginHome; rows: PluginRow[] };
+export type PluginVersion = { kind: "git" | "npm"; label: string | null; updateAvailable: boolean; autoUpdate: boolean };
+export type EngineHomeState = { installed: boolean; enabled: boolean };
+export type EngineView = { id: string; capability: string; url: string; homes: Record<string, EngineHomeState> };
 export type UnifiedHomeState = { installed: boolean; version?: string | null };
 export type UnifiedPlugin = {
   name: string;
@@ -130,9 +145,16 @@ export type UnifiedPlugin = {
   topics: string[];
   displayName: string;
   icon: string;
+  // True when the plugin's repo owner is not the configured marketplace org, i.e.
+  // it was installed from an outside source rather than the trusted catalog.
+  external: boolean;
 };
 export type InstallOutcome = { home: string; ok: boolean; error?: string };
 export type InstallManyResult = { outcomes: InstallOutcome[] };
+// Pushed from the sidecar during an install so a download row can show its live
+// step; id correlates to the caller's download-task id. percent is coarse
+// phase-based progress 0..100 (-1 when indeterminate).
+export type DownloadProgress = { id: number; step: string; percent: number };
 export type FieldType = "boolean" | "number" | "string" | "secret" | "select" | "multiline" | "list";
 export type FieldSpec = {
   key: string;
@@ -186,3 +208,5 @@ export type ConfigHomeView = {
 };
 export type ProfileSwitchResult = { ok: boolean; reason?: string };
 export type BusEvent = { topic: string; source: string; ts: number; payload: unknown };
+export type LoginBegin = { url: string; instructions: string; loopback?: boolean };
+export type LoginComplete = { added: boolean; label?: string };

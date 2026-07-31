@@ -1,13 +1,18 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, dirname, resolve, sep } from "node:path";
 import { getConfigDir, listAccounts as realListAccounts, addAccount as realAddAccount, removeAccount as realRemoveAccount } from "@core-auth/index.js";
+import { engineByCapability } from "@core/index.js";
 import type { CustomEndpoint, CustomEndpointView, Result } from "../../../packages/shared/src/domain.js";
 import { SUPPORTED_ENDPOINT_FORMATS } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
 
-const CONFIG_NAME = "custom-auth";
-const PROVIDER = "custom";
 const ID_RE = /^[A-Za-z0-9._-]+$/;
+
+function engineMeta(): { providerId: string; configName: string } {
+  const meta = engineByCapability("custom-endpoints")?.meta;
+  if (!meta?.providerId || !meta?.configName) throw new Error("custom-endpoints engine is not registered");
+  return { providerId: meta.providerId, configName: meta.configName };
+}
 
 type Account = { enabled?: boolean; meta?: { endpointId?: string } };
 export interface CustomEndpointsDeps {
@@ -18,9 +23,10 @@ export interface CustomEndpointsDeps {
 }
 
 function configFile(dir: string): string {
-  const file = join(dir, "config", CONFIG_NAME + ".json");
+  const { configName } = engineMeta();
+  const file = join(dir, "config", configName + ".json");
   const base = resolve(dir, "config") + sep;
-  if (!resolve(file).startsWith(base)) throw new Error("custom-auth config path escapes the config directory");
+  if (!resolve(file).startsWith(base)) throw new Error("custom endpoints config path escapes the config directory");
   return file;
 }
 
@@ -60,9 +66,10 @@ export function customEndpointsList(deps: CustomEndpointsDeps = {}): Promise<Res
   const dir = deps.dir ?? getConfigDir();
   const list = deps.listAccounts ?? ((p) => realListAccounts(p, undefined) as Account[]);
   return wrap(async () => {
+    const { providerId } = engineMeta();
     const endpoints = readEndpoints(configFile(dir));
     const keyed = new Set(
-      list(PROVIDER)
+      list(providerId)
         .filter((a) => a.enabled !== false && a.meta?.endpointId)
         .map((a) => a.meta!.endpointId as string),
     );
@@ -88,9 +95,10 @@ export function customEndpointsRemove(id: string, deps: CustomEndpointsDeps = {}
   const dir = deps.dir ?? getConfigDir();
   const remove = deps.removeAccount ?? ((p, i) => realRemoveAccount(p, i, undefined));
   return wrap(async () => {
+    const { providerId } = engineMeta();
     const file = configFile(dir);
     writeEndpoints(file, readEndpoints(file).filter((e) => e.id !== id));
-    remove(PROVIDER, id);
+    remove(providerId, id);
   });
 }
 
@@ -98,9 +106,10 @@ export function customEndpointsSaveKey(endpointId: string, key: string, deps: Cu
   const dir = deps.dir ?? getConfigDir();
   const add = deps.addAccount ?? ((p, a) => realAddAccount(p, a, undefined));
   return wrap(async () => {
+    const { providerId } = engineMeta();
     if (!endpointId) throw new Error("endpointId is required");
     if (!key) throw new Error("key is required");
     if (!readEndpoints(configFile(dir)).some((e) => e.id === endpointId)) throw new Error("unknown endpoint: " + endpointId);
-    add(PROVIDER, { id: endpointId, refresh: key, enabled: true, meta: { endpointId } });
+    add(providerId, { id: endpointId, refresh: key, enabled: true, meta: { endpointId } });
   });
 }

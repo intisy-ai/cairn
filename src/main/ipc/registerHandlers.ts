@@ -18,6 +18,8 @@ const MAIN_HANDLED = new Set(["proxy:status", "proxy:start", "proxy:stop"]);
 const LONG_MS = 600000;
 const CHANNEL_TIMEOUTS: Record<string, number> = {
   "usage:snapshot": 120000,
+  "plugins:versionsAll": 120000,
+  "repo:meta": 60000,
   "plugins:install": LONG_MS,
   "plugins:installMany": LONG_MS,
   "plugins:removeEverywhere": LONG_MS,

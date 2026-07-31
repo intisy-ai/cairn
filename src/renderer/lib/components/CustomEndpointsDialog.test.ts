@@ -4,12 +4,13 @@ import { render, fireEvent, waitFor } from "@testing-library/svelte";
 import { stubCairn } from "../testing.js";
 import TestWrapper from "./CustomEndpointsDialog.test.svelte";
 
-const CUSTOM_ROW = { id: "custom", label: "Custom endpoint", hasOAuth: false, accountCount: 0, active: false, exposure: { claude: false, opencode: false }, translator: "custom" };
+const INSTALLED_ENGINE = { id: "engine-a", capability: "custom-endpoints", url: "https://github.com/intisy-ai/custom-auth", homes: { cairn: { installed: true, enabled: true } } };
+const UNINSTALLED_ENGINE = { id: "engine-a", capability: "custom-endpoints", url: "https://github.com/intisy-ai/custom-auth", homes: { cairn: { installed: false, enabled: false } } };
 
 describe("CustomEndpointsDialog", () => {
   it("lists endpoints with a key-set badge", async () => {
     stubCairn({
-      providersList: async () => ({ ok: true, data: [CUSTOM_ROW] }),
+      enginesList: async () => ({ ok: true, data: [INSTALLED_ENGINE] }),
       customEndpointsList: async () => ({ ok: true, data: [{ id: "local", label: "Local", baseUrl: "https://ep/v1", format: "openai", models: ["gpt-4o"], hasKey: true }] }),
     });
     const { findByText } = render(TestWrapper);
@@ -19,7 +20,7 @@ describe("CustomEndpointsDialog", () => {
 
   it("adds an endpoint via upsert", async () => {
     const customEndpointsUpsert = vi.fn(async () => ({ ok: true, data: undefined }) as const);
-    stubCairn({ providersList: async () => ({ ok: true, data: [CUSTOM_ROW] }), customEndpointsUpsert });
+    stubCairn({ enginesList: async () => ({ ok: true, data: [INSTALLED_ENGINE] }), customEndpointsUpsert });
     const { getByLabelText, getByRole } = render(TestWrapper);
     await fireEvent.input(getByLabelText(/endpoint id/i), { target: { value: "prod" } });
     await fireEvent.input(getByLabelText(/label/i), { target: { value: "Prod" } });
@@ -32,7 +33,7 @@ describe("CustomEndpointsDialog", () => {
   it("saves a key write-only (never rendered back)", async () => {
     const customEndpointsSaveKey = vi.fn(async () => ({ ok: true, data: undefined }) as const);
     stubCairn({
-      providersList: async () => ({ ok: true, data: [CUSTOM_ROW] }),
+      enginesList: async () => ({ ok: true, data: [INSTALLED_ENGINE] }),
       customEndpointsList: async () => ({ ok: true, data: [{ id: "local", label: "Local", baseUrl: "https://ep/v1", format: "openai", models: ["m"], hasKey: false }] }),
       customEndpointsSaveKey,
     });
@@ -44,12 +45,12 @@ describe("CustomEndpointsDialog", () => {
     await waitFor(() => expect(customEndpointsSaveKey).toHaveBeenCalledWith("local", "sk-xyz"));
   });
 
-  it("offers to install custom-auth when it is not a provider", async () => {
-    const pluginsInstall = vi.fn(async () => ({ ok: true, data: undefined }) as const);
-    stubCairn({ providersList: async () => ({ ok: true, data: [] }), pluginsInstall });
+  it("offers to install the engine when it is not installed", async () => {
+    const enginesEnsure = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    stubCairn({ enginesList: async () => ({ ok: true, data: [UNINSTALLED_ENGINE] }), enginesEnsure });
     const { findByRole } = render(TestWrapper);
-    const installBtn = await findByRole("button", { name: /install custom-auth/i });
+    const installBtn = await findByRole("button", { name: /install engine/i });
     await fireEvent.click(installBtn);
-    await waitFor(() => expect(pluginsInstall).toHaveBeenCalledWith("cairn", "custom-auth", "intisy-ai/custom-auth"));
+    await waitFor(() => expect(enginesEnsure).toHaveBeenCalledWith("custom-endpoints"));
   });
 });

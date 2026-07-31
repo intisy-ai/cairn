@@ -33,10 +33,10 @@ describe("classifyRepoName", () => {
   it("classifies by suffix", () => {
     expect(classifyRepoName("foo-proxy")).toBe("proxy");
     expect(classifyRepoName("foo-auth")).toBe("provider");
+    expect(classifyRepoName("claude-code-loader")).toBe("loader");
     expect(classifyRepoName("some-plugin")).toBe("plugin");
   });
-  it("returns null for loaders, core libraries, and vendor translators", () => {
-    expect(classifyRepoName("claude-code-loader")).toBeNull();
+  it("returns null for core libraries and vendor translators", () => {
     expect(classifyRepoName("core-proxy")).toBeNull();
     expect(classifyRepoName("openai-translator")).toBeNull();
     expect(classifyRepoName("anthropic-translator")).toBeNull();
@@ -47,12 +47,12 @@ describe("classifyRepoTopics", () => {
   it("maps an installable category topic to its kind", () => {
     expect(classifyRepoTopics(["intisy-ai", "ai-provider"])).toBe("provider");
     expect(classifyRepoTopics(["app-proxy"])).toBe("proxy");
+    expect(classifyRepoTopics(["app-loader"])).toBe("loader");
     expect(classifyRepoTopics(["plugin", "typescript"])).toBe("plugin");
   });
   it("returns null when no installable category topic is present", () => {
     expect(classifyRepoTopics([])).toBeNull();
     expect(classifyRepoTopics(["core-library"])).toBeNull();
-    expect(classifyRepoTopics(["app-loader"])).toBeNull();
     expect(classifyRepoTopics(["vendor-translator", "runtime", "dashboard"])).toBeNull();
   });
 });

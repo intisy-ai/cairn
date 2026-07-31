@@ -1,9 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { createProxyServer, makeDynamicResolver } from "@core-proxy/index.js";
 import type { RoutingProfile } from "@core-proxy/index.js";
 import type { StartedLoaderProxy } from "@core-loader/proxy-runner.js";
 import type { LoadedProxyDef } from "../../sidecar/lib/proxyPlugins.js";
-import { buildStartOptions, isRunning, onStatusChange, resolveProxyProfile, start, stop } from "./proxyDaemon.js";
+import { buildStartOptions, onStatusChange, resolveProxyProfile, start, status, stop } from "./proxyDaemon.js";
 
 describe("buildStartOptions", () => {
   it("assembles the startLoaderProxy options for the given configDir and profile", () => {
@@ -41,13 +41,23 @@ describe("onStatusChange", () => {
   });
 });
 
-describe("isRunning", () => {
-  it("resolves true when the probe succeeds", async () => {
-    expect(await isRunning(async () => true)).toBe(true);
+describe("status", () => {
+  afterEach(async () => {
+    await stop();
+    vi.unstubAllGlobals();
   });
 
-  it("resolves false when the probe fails", async () => {
-    expect(await isRunning(async () => false)).toBe(false);
+  it("reports not running when there is no Cairn daemon handle, even if a probe would find the port held by something else", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 200 })));
+    const result = await status();
+    expect(result.running).toBe(false);
+  });
+
+  it("reports running once the daemon's own handle is set, with no probe involved", async () => {
+    const fakeHandle = { server: { close: async () => {} } } as unknown as StartedLoaderProxy;
+    await start(async () => fakeHandle, async () => ({ marker: 1 } as unknown as RoutingProfile));
+    const result = await status();
+    expect(result.running).toBe(true);
   });
 });
 

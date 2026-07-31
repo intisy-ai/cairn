@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getAccountsData, normalizeQuotas, buildSnapshot } from "./snapshot.js";
+import type { AppDescriptor } from "@core/index.js";
 
 const ENV_KEYS = [
   "OPENCODE_DIR",
@@ -14,15 +15,43 @@ const ENV_KEYS = [
   "HUB_CLAUDE_DIR",
   "CLAUDE_CONFIG_DIR",
   "HUB_CONFIG_DIR",
+  "HUB_APPS_FILE",
 ] as const;
 const savedEnv: Record<string, string | undefined> = {};
 
 let tempDir: string;
 
-// buildSnapshot() pulls in session data from all three sources too, so every
-// test pins the OpenCode/Claude Code homes to empty temp dirs by default (see
-// sessions.test.ts for why), even though most tests here only care about the
-// accounts side.
+// buildSnapshot() -> buildSessionsWithCosts() reads app.usage.formats off
+// getApps() (see sessions.test.ts), which now comes solely from the apps.json
+// registry, so claude/opencode need seeding with the same home fields and
+// usage formats as the real loader descriptors (loaders/*/cairn.json).
+const claudeApp: AppDescriptor = {
+  id: "claude",
+  label: "Claude Code",
+  home: { envOverride: "HUB_CLAUDE_DIR", nativeEnv: "CLAUDE_CONFIG_DIR", candidates: ["~/.claude", "~/.config/claude"] },
+  detect: { binary: "claude", pkg: "@anthropic-ai/claude-code" },
+  commandsSubdir: "commands",
+  proxyPort: 34567,
+  integration: "env-baseurl",
+  wireFormat: "anthropic",
+  usage: { formats: ["claude-jsonl"] },
+};
+
+const opencodeApp: AppDescriptor = {
+  id: "opencode",
+  label: "OpenCode",
+  home: { envOverride: "HUB_OPENCODE_DIR", nativeEnv: "OPENCODE_CONFIG_DIR", xdgSubdir: "opencode", candidates: ["~/.config/opencode", "~/.opencode"] },
+  detect: { binary: "opencode", pkg: "opencode-ai" },
+  commandsSubdir: "command",
+  proxyPort: 34568,
+  integration: "native",
+  wireFormat: "anthropic",
+  usage: { formats: ["opencode-sqlite", "opencode-legacy-files"] },
+};
+
+// buildSnapshot() calls getApps() with no args (real env/home), so the
+// registry also needs a temp-file location per test to stay isolated from the
+// real ~/.config/cairn.
 beforeEach(() => {
   tempDir = mkdtempSync(join(tmpdir(), "vendor-usage-snapshot-"));
   for (const key of ENV_KEYS) {
@@ -32,6 +61,8 @@ beforeEach(() => {
   process.env.HUB_OPENCODE_DIR = join(tempDir, "opencode-home");
   process.env.HUB_OPENCODE_DATA_DIR = join(tempDir, "opencode-data-home");
   process.env.HUB_CLAUDE_DIR = join(tempDir, "claude-home");
+  process.env.HUB_APPS_FILE = join(tempDir, "apps.json");
+  writeFileSync(process.env.HUB_APPS_FILE, JSON.stringify({ claude: claudeApp, opencode: opencodeApp }));
 });
 
 afterEach(() => {

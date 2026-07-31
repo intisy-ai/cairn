@@ -2,8 +2,23 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getConfigValue, setConfigValue } from "@core/index.js";
 import type { LoadedProxyDef } from "../lib/proxyPlugins.js";
+import type { AppDescriptor } from "@core/index.js";
+
+// getApps()/getAppDescriptor() now read solely from the apps.json registry (see
+// libs/core/src/apps.ts), so these tests need a seeded "claude" entry. Its home
+// candidate points at the OS temp dir, which always exists, so appsDetect()'s
+// real (non-injected) presence check is stable across machines.
+const claudeApp: AppDescriptor = {
+  id: "claude",
+  label: "Claude Code",
+  home: { candidates: [tmpdir()] },
+  detect: { binary: "claude", pkg: "claude-code" },
+  commandsSubdir: "commands",
+  proxyPort: 41101,
+  integration: "native",
+  wireFormat: "anthropic",
+};
 
 async function fakeDefs(): Promise<LoadedProxyDef[]> {
   const { anthropicProfile } = await import("@claude-code-proxy/index.js");
@@ -44,6 +59,8 @@ function seedAppHome(homeDir: string): void {
 
 beforeEach(() => {
   process.env.HUB_CONFIG_DIR = mkdtempSync(join(tmpdir(), "dash-import-"));
+  process.env.HUB_APPS_FILE = join(process.env.HUB_CONFIG_DIR, "apps.json");
+  writeFileSync(process.env.HUB_APPS_FILE, JSON.stringify({ claude: claudeApp }));
 });
 
 describe("import", () => {
@@ -123,22 +140,4 @@ describe("import", () => {
     expect(result.data.notes.some((n) => n.toLowerCase().includes("account") && n.toLowerCase().includes("skip"))).toBe(true);
   });
 
-  it("migrates legacy cc/oc exposure entries when running the import-exposure path", async () => {
-    deployStubProvider(process.env.HUB_CONFIG_DIR!);
-    const appHomeDir = mkdtempSync(join(tmpdir(), "dash-import-app-home-"));
-    seedAppHome(appHomeDir);
-    setConfigValue("dashboard-exposure", "map", { someProvider: { cc: true, oc: false } });
-
-    const { importRun } = await import("./import.js");
-    const result = await importRun("claude", { accounts: false, routing: false, exposure: true }, { appHome: () => appHomeDir, proxyDeps });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("unreachable");
-
-    const map = getConfigValue("dashboard-exposure", "map") as Record<string, Record<string, boolean>>;
-    expect(map.someProvider).toEqual({ claude: true, opencode: false });
-    expect(map.someProvider.cc).toBeUndefined();
-    expect(map.someProvider.oc).toBeUndefined();
-    expect(map.stub.claude).toBe(true);
-  });
 });

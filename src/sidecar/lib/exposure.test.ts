@@ -39,4 +39,9 @@ describe("provider exposure defaults (works-everywhere)", () => {
     expect(exposure.newapp).toBe(true); // new app inherits the provider
     expect(exposure.opencode).toBe(false); // the explicit opt-out is preserved
   });
+
+  it("readExposureMap returns stored entries unchanged", () => {
+    state.store["dashboard-exposure:map"] = { "wakatime-sync": { claude: false } };
+    expect(readExposureMap()).toEqual({ "wakatime-sync": { claude: false } });
+  });
 });

@@ -28,6 +28,31 @@ describe("buildUnifiedPlugins", () => {
     expect(wk.homes.opencode.installed).toBe(false);
   });
 
+  it("lists an engine the catalog omits, in every home, with its registry url", () => {
+    const out = buildUnifiedPlugins([], [], homes, [{ name: "plugin-updater", url: "https://github.com/intisy-ai/plugin-updater" }]);
+    const pu = out.find((p) => p.name === "plugin-updater")!;
+    expect(pu.url).toBe("https://github.com/intisy-ai/plugin-updater");
+    expect(Object.keys(pu.homes).sort()).toEqual(["cairn", "claude", "opencode"]);
+  });
+
+  it("marks a plugin external when its installed repo owner is not the marketplace org", () => {
+    const sections: HomePlugins[] = [
+      { home: homes[1], rows: [row("outsider", { url: "https://github.com/someone-else/outsider" }), row("wakatime-sync", { url: "https://github.com/intisy-ai/wakatime-sync" })] },
+    ];
+    const out = buildUnifiedPlugins(sections, [], homes, [], "intisy-ai");
+    expect(out.find((p) => p.name === "outsider")!.external).toBe(true);
+    expect(out.find((p) => p.name === "wakatime-sync")!.external).toBe(false);
+  });
+
+  it("never marks catalog or engine plugins external, and none when no org is known", () => {
+    const catalog: CatalogEntry[] = [{ name: "a-plugin", url: "https://github.com/intisy-ai/a-plugin", kind: "plugin", description: "", deprecated: false }];
+    const withOrg = buildUnifiedPlugins([], catalog, homes, [{ name: "plugin-updater", url: "https://github.com/intisy-ai/plugin-updater" }], "intisy-ai");
+    expect(withOrg.find((p) => p.name === "a-plugin")!.external).toBe(false);
+    expect(withOrg.find((p) => p.name === "plugin-updater")!.external).toBe(false);
+    const noOrg = buildUnifiedPlugins([{ home: homes[1], rows: [row("x", { url: "https://github.com/someone/x" })] }], [], homes);
+    expect(noOrg.find((p) => p.name === "x")!.external).toBe(false);
+  });
+
   it("routes a provider to host apps + cairn and a proxy to cairn only", () => {
     const catalog: CatalogEntry[] = [
       { name: "antigravity-auth", url: "u", kind: "provider", description: "prov", deprecated: false },
@@ -61,10 +86,10 @@ describe("buildUnifiedPlugins", () => {
     expect(out.find((p) => p.name === "antigravity-auth")!.topics).toEqual(["intisy-ai", "gemini"]);
   });
 
-  it("excludes plugin-updater and marks updateAvailable if any home has an update", () => {
+  it("includes every installed plugin, like any other, and marks updateAvailable if any home has an update", () => {
     const sections: HomePlugins[] = [{ home: homes[1], rows: [row("x", { updateAvailable: true }), row("plugin-updater")] }];
     const out = buildUnifiedPlugins(sections, [], homes);
-    expect(out.some((p) => p.name === "plugin-updater")).toBe(false);
+    expect(out.some((p) => p.name === "plugin-updater")).toBe(true);
     expect(out.find((p) => p.name === "x")!.updateAvailable).toBe(true);
   });
 });

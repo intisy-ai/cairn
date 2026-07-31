@@ -6,11 +6,12 @@ import { getPlugins } from "@plugin-updater/config.js";
 import { getAppDescriptor } from "@core/index.js";
 import type { RoutingProfile } from "@core-proxy/index.js";
 
-export type LoadedProxyDef = { app: string; label: string; profile: () => RoutingProfile };
+export type LoadedProxyDef = { app: string; label: string; profile: () => RoutingProfile; setup?: string };
 
 function isProxyDef(x: unknown): x is LoadedProxyDef {
   const d = x as LoadedProxyDef | undefined;
-  return !!d && typeof d.app === "string" && !!getAppDescriptor(d.app) && typeof d.label === "string" && typeof d.profile === "function";
+  if (!d || typeof d.app !== "string" || !getAppDescriptor(d.app) || typeof d.label !== "string" || typeof d.profile !== "function") return false;
+  return d.setup === undefined || typeof d.setup === "string";
 }
 
 const cache = new Map<string, { mtimeMs: number; def: LoadedProxyDef | null }>();
@@ -22,32 +23,45 @@ export interface ProxyPluginsDeps {
   importFn?: (url: string) => Promise<unknown>;
 }
 
-export async function loadInstalledProxyDefs(storeDir: string = getConfigDir(), deps: ProxyPluginsDeps = {}): Promise<LoadedProxyDef[]> {
+export type InstalledProxy = { name: string; enabled: boolean; def: LoadedProxyDef | null };
+
+async function loadProxyDef(storeDir: string, name: string, importFn: (url: string) => Promise<unknown>): Promise<LoadedProxyDef | null> {
+  const distPath = join(storeDir, "repos", name, "dist", "index.js");
+  let mtimeMs: number;
+  try {
+    mtimeMs = statSync(distPath).mtimeMs;
+  } catch {
+    return null;
+  }
+  const cached = cache.get(distPath);
+  if (cached && cached.mtimeMs === mtimeMs) return cached.def;
+  let def: LoadedProxyDef | null = null;
+  try {
+    const mod = (await importFn(pathToFileURL(distPath).href + "?v=" + mtimeMs)) as { proxyDef?: unknown };
+    if (isProxyDef(mod.proxyDef)) def = mod.proxyDef;
+  } catch {
+    def = null;
+  }
+  cache.set(distPath, { mtimeMs, def });
+  return def;
+}
+
+export async function listInstalledProxies(storeDir: string = getConfigDir(), deps: ProxyPluginsDeps = {}): Promise<InstalledProxy[]> {
   const importFn = deps.importFn ?? ((url: string) => import(/* @vite-ignore */ url));
-  const defs: LoadedProxyDef[] = [];
+  const proxies: InstalledProxy[] = [];
   for (const plugin of getPlugins(storeDir)) {
     if (!plugin.name.endsWith("-proxy")) continue;
-    const distPath = join(storeDir, "repos", plugin.name, "dist", "index.js");
-    let mtimeMs: number;
-    try {
-      mtimeMs = statSync(distPath).mtimeMs;
-    } catch {
-      continue;
-    }
-    const cached = cache.get(distPath);
-    if (cached && cached.mtimeMs === mtimeMs) {
-      if (cached.def) defs.push(cached.def);
-      continue;
-    }
-    let def: LoadedProxyDef | null = null;
-    try {
-      const mod = (await importFn(pathToFileURL(distPath).href + "?v=" + mtimeMs)) as { proxyDef?: unknown };
-      if (isProxyDef(mod.proxyDef)) def = mod.proxyDef;
-    } catch {
-      def = null;
-    }
-    cache.set(distPath, { mtimeMs, def });
-    if (def) defs.push(def);
+    const def = await loadProxyDef(storeDir, plugin.name, importFn);
+    proxies.push({ name: plugin.name, enabled: plugin.enabled !== false, def });
+  }
+  return proxies;
+}
+
+export async function loadInstalledProxyDefs(storeDir: string = getConfigDir(), deps: ProxyPluginsDeps = {}): Promise<LoadedProxyDef[]> {
+  const proxies = await listInstalledProxies(storeDir, deps);
+  const defs: LoadedProxyDef[] = [];
+  for (const proxy of proxies) {
+    if (proxy.def) defs.push(proxy.def);
   }
   return defs;
 }

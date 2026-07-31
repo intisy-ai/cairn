@@ -2,62 +2,110 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { appsDetect, appsInstallCli, appsInit, appsUninstallCli, appsSummary } from "./apps.js";
+import { appsDetect, appsInstallCli, appsInit, appsUninstallCli, appsSummary, appsConnection, appsInstallLoader } from "./apps.js";
+import type { AppDescriptor } from "@core/index.js";
+
+function descWithLoader(loaderId: string): AppDescriptor {
+  return { loader: { id: loaderId, url: `org/${loaderId}` } } as unknown as AppDescriptor;
+}
+
+const loaderUrl = (loaderId: string): string => `org/${loaderId}`;
+
+// getAppDescriptor/getApps now read solely from apps.json (see libs/core/src/apps.ts),
+// so every test exercising a real (non-injected) descriptor lookup needs a seeded
+// registry with generic fixture apps instead of relying on a builtin app list.
+const alphaApp: AppDescriptor = {
+  id: "alpha",
+  label: "Alpha CLI",
+  home: { candidates: ["/nonexistent/alpha-home"] },
+  detect: { binary: "alpha", pkg: "alpha-cli" },
+  commandsSubdir: "commands",
+  proxyPort: 41001,
+  integration: "env-baseurl",
+  wireFormat: "generic-wire",
+};
+
+const betaApp: AppDescriptor = {
+  id: "beta",
+  label: "Beta CLI",
+  home: { candidates: ["/nonexistent/beta-home"] },
+  detect: { binary: "beta", pkg: "beta-cli" },
+  commandsSubdir: "commands",
+  proxyPort: 41002,
+  integration: "env-baseurl",
+  wireFormat: "generic-wire",
+};
+
+let appsRegistryDir: string;
+let savedHubAppsFile: string | undefined;
+
+beforeEach(() => {
+  appsRegistryDir = mkdtempSync(join(tmpdir(), "apps-registry-"));
+  savedHubAppsFile = process.env.HUB_APPS_FILE;
+  process.env.HUB_APPS_FILE = join(appsRegistryDir, "apps.json");
+  writeFileSync(process.env.HUB_APPS_FILE, JSON.stringify({ alpha: alphaApp, beta: betaApp }));
+});
+
+afterEach(() => {
+  rmSync(appsRegistryDir, { recursive: true, force: true });
+  if (savedHubAppsFile === undefined) delete process.env.HUB_APPS_FILE;
+  else process.env.HUB_APPS_FILE = savedHubAppsFile;
+});
 
 describe("apps sidecar module", () => {
-  it("detects claude present via binary and opencode absent", async () => {
+  it("detects alpha present via binary and beta absent", async () => {
     const result = await appsDetect({
-      binaryExists: (name) => name === "claude",
+      binaryExists: (name) => name === "alpha",
       fsExists: () => false,
     });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data).toEqual({ claude: true, opencode: false });
+    expect(result.data).toEqual({ alpha: true, beta: false });
   });
 
-  it("detects opencode present via config dir when no binary is on PATH", async () => {
+  it("detects beta present via config dir when no binary is on PATH", async () => {
     const result = await appsDetect({
       binaryExists: () => false,
-      fsExists: (path) => path.includes("opencode"),
+      fsExists: (path) => path.includes("beta"),
     });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data).toEqual({ claude: false, opencode: true });
+    expect(result.data).toEqual({ alpha: false, beta: true });
   });
 
   it("reports both absent when neither the binary nor the config dir is found", async () => {
     const result = await appsDetect({ binaryExists: () => false, fsExists: () => false });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data).toEqual({ claude: false, opencode: false });
+    expect(result.data).toEqual({ alpha: false, beta: false });
   });
 
-  it("installs the claude-code npm package as an arg-array spawn, not a shell string", async () => {
+  it("installs an app's npm package as an arg-array spawn, not a shell string", async () => {
     const calls: Array<{ file: string; args: string[] }> = [];
     const fakeSpawn = async (file: string, args: string[]) => {
       calls.push({ file, args });
       return { stdout: "installed", stderr: "" };
     };
-    const result = await appsInstallCli("claude", fakeSpawn);
+    const result = await appsInstallCli("alpha", fakeSpawn);
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data).toEqual({ stdout: "installed", stderr: "" });
     expect(calls).toHaveLength(1);
     expect(calls[0].file).toBe("npm");
-    expect(calls[0].args).toEqual(["install", "-g", "@anthropic-ai/claude-code"]);
+    expect(calls[0].args).toEqual(["install", "-g", "alpha-cli"]);
   });
 
-  it("installs the opencode-ai npm package as an arg-array spawn", async () => {
+  it("installs another app's npm package as an arg-array spawn", async () => {
     const calls: Array<{ file: string; args: string[] }> = [];
     const fakeSpawn = async (file: string, args: string[]) => {
       calls.push({ file, args });
       return { stdout: "", stderr: "" };
     };
-    const result = await appsInstallCli("opencode", fakeSpawn);
+    const result = await appsInstallCli("beta", fakeSpawn);
     expect(result.ok).toBe(true);
     expect(calls).toHaveLength(1);
     expect(calls[0].file).toBe("npm");
-    expect(calls[0].args).toContain("opencode-ai");
+    expect(calls[0].args).toContain("beta-cli");
   });
 
   it("returns an error for an unknown app instead of spawning", async () => {
@@ -77,11 +125,11 @@ describe("apps sidecar module", () => {
       calls.push({ file, args });
       return { stdout: "", stderr: "" };
     };
-    const result = await appsInit("opencode", fakeSpawn);
+    const result = await appsInit("beta", fakeSpawn);
     expect(result.ok).toBe(true);
     expect(calls).toHaveLength(1);
     expect(calls[0].file).toBe("npx");
-    expect(calls[0].args).toEqual(["plugin-updater", "init", "--app", "opencode"]);
+    expect(calls[0].args).toEqual(["plugin-updater", "init", "--app", "beta"]);
   });
 
   it("returns an error for an unknown app on init instead of spawning", async () => {
@@ -100,28 +148,28 @@ describe("appsUninstallCli", () => {
   it("uninstalls the CLI package and keeps data by default", async () => {
     const spawned: string[][] = [];
     const removed: string[] = [];
-    const result = await appsUninstallCli("claude", false, {
+    const result = await appsUninstallCli("alpha", false, {
       spawn: async (f, a) => {
         spawned.push([f, ...a]);
         return { stdout: "", stderr: "" };
       },
       rm: (p) => removed.push(p),
-      appHome: () => "/fake/claude-home",
+      appHome: () => "/fake/alpha-home",
     });
     expect(result.ok).toBe(true);
-    expect(spawned[0]).toEqual(["npm", "uninstall", "-g", "@anthropic-ai/claude-code"]);
+    expect(spawned[0]).toEqual(["npm", "uninstall", "-g", "alpha-cli"]);
     expect(removed).toEqual([]);
   });
 
   it("wipes the app home when asked", async () => {
     const removed: string[] = [];
-    const result = await appsUninstallCli("opencode", true, {
+    const result = await appsUninstallCli("beta", true, {
       spawn: async () => ({ stdout: "", stderr: "" }),
       rm: (p) => removed.push(p),
-      appHome: () => "/fake/oc-home",
+      appHome: () => "/fake/beta-home",
     });
     expect(result.ok).toBe(true);
-    expect(removed).toEqual(["/fake/oc-home"]);
+    expect(removed).toEqual(["/fake/beta-home"]);
   });
 
   it("returns an error for an unknown app instead of spawning or removing", async () => {
@@ -188,7 +236,7 @@ describe("appsSummary", () => {
       "utf8",
     );
 
-    const result = await appsSummary("claude", { appHome: () => tempHome });
+    const result = await appsSummary("alpha", { appHome: () => tempHome });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data.configDir).toBe(tempHome);
@@ -225,7 +273,7 @@ describe("appsSummary", () => {
       "utf8",
     );
 
-    const result = await appsSummary("claude", { appHome: () => tempHome });
+    const result = await appsSummary("alpha", { appHome: () => tempHome });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data.providerCount).toBe(2);
@@ -238,7 +286,7 @@ describe("appsSummary", () => {
   });
 
   it("returns an empty summary when there is no accounts.json or plugins.json", async () => {
-    const result = await appsSummary("opencode", { appHome: () => tempHome });
+    const result = await appsSummary("beta", { appHome: () => tempHome });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data.accounts).toEqual([]);
@@ -253,5 +301,65 @@ describe("appsSummary", () => {
   it("returns an error for an unknown app", async () => {
     const result = await appsSummary("bogus" as never, { appHome: () => tempHome });
     expect(result.ok).toBe(false);
+  });
+
+  it("reports cli presence and a loader installed in the app home", async () => {
+    const result = await appsConnection("app1", {
+      getDescriptor: () => descWithLoader("app1-loader"),
+      detect: async () => ({ ok: true, data: { app1: true } }),
+      appHome: (app) => `/home/${app}`,
+      listPlugins: (dir) => (dir === "/home/app1" ? [{ name: "app1-loader" } as never] : []),
+    });
+    expect(result).toEqual({ ok: true, data: { app: "app1", cliPresent: true, loaderId: "app1-loader", loaderUrl: loaderUrl("app1-loader"), loaderInstalled: true } });
+  });
+
+  it("reports the loader not installed when its plugin is absent from the home", async () => {
+    const result = await appsConnection("app1", {
+      getDescriptor: () => descWithLoader("app1-loader"),
+      detect: async () => ({ ok: true, data: { app1: false } }),
+      appHome: () => "/home/app1",
+      listPlugins: () => [],
+    });
+    expect(result).toEqual({ ok: true, data: { app: "app1", cliPresent: false, loaderId: "app1-loader", loaderUrl: loaderUrl("app1-loader"), loaderInstalled: false } });
+  });
+
+  it("reports loaderId null for an app that declares no loader", async () => {
+    const result = await appsConnection("app1", {
+      getDescriptor: () => ({} as unknown as AppDescriptor),
+      detect: async () => ({ ok: true, data: { app1: true } }),
+      appHome: () => "/home/app1",
+      listPlugins: () => [{ name: "unrelated" } as never],
+    });
+    expect(result).toEqual({ ok: true, data: { app: "app1", cliPresent: true, loaderId: null, loaderUrl: null, loaderInstalled: false } });
+  });
+
+  it("appsConnection errors for an unknown app", async () => {
+    const result = await appsConnection("nope", { getDescriptor: () => undefined });
+    expect(result.ok).toBe(false);
+  });
+
+  it("installs the loader into the app home using the descriptor id and url", async () => {
+    const calls: Array<[string, string, string]> = [];
+    const result = await appsInstallLoader("app1", {
+      getDescriptor: () => descWithLoader("app1-loader"),
+      install: async (home, name, url) => { calls.push([home, name, url]); return { ok: true, data: undefined }; },
+    });
+    expect(result.ok).toBe(true);
+    expect(calls).toEqual([["app1", "app1-loader", "org/app1-loader"]]);
+  });
+
+  it("appsInstallLoader errors when the app declares no loader", async () => {
+    const result = await appsInstallLoader("app1", { getDescriptor: () => ({} as unknown as AppDescriptor) });
+    expect(result.ok).toBe(false);
+  });
+
+  it("appsInstallLoader propagates an install failure", async () => {
+    const result = await appsInstallLoader("app1", {
+      getDescriptor: () => descWithLoader("app1-loader"),
+      install: async () => ({ ok: false, error: "boom" }),
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("boom");
   });
 });

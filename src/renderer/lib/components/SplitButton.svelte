@@ -4,11 +4,20 @@
   let {
     label,
     disabled = false,
+    danger = false,
+    block = false,
+    progress = -1,
+    title,
     onPrimary,
     menu,
   }: {
     label: string;
     disabled?: boolean;
+    danger?: boolean;
+    block?: boolean;
+    // 0..100 paints a progress fill behind the primary label; <0 hides it.
+    progress?: number;
+    title?: string;
     onPrimary?: () => void;
     menu?: Snippet;
   } = $props();
@@ -29,11 +38,17 @@
 
 <svelte:window onclick={onWindowClick} onkeydown={onKey} />
 
-<div class="split" bind:this={root}>
-  <button type="button" class="btn primary" {disabled} onclick={() => onPrimary?.()}>{label}</button>
+<div class="split" class:block bind:this={root}>
+  <button type="button" class="btn primary" class:danger {disabled} {title} onclick={() => onPrimary?.()}>
+    {#if progress >= 0}
+      <span class="fill" style={`width:${Math.max(4, progress)}%`}></span>
+    {/if}
+    <span class="lbl">{label}</span>
+  </button>
   <button
     type="button"
     class="btn caret"
+    class:danger
     {disabled}
     aria-label="More install options"
     aria-expanded={open}
@@ -50,6 +65,14 @@
   .split {
     position: relative;
     display: inline-flex;
+  }
+  .split.block {
+    display: flex;
+    width: 100%;
+  }
+  .split.block .primary {
+    flex: 1;
+    justify-content: center;
   }
   .btn {
     font-family: var(--ui);
@@ -75,9 +98,33 @@
     opacity: 0.5;
     cursor: not-allowed;
   }
+  .btn.danger {
+    background: transparent;
+    border-color: color-mix(in srgb, var(--crit) 40%, var(--border));
+    color: var(--crit);
+  }
+  .btn.danger:hover {
+    background: color-mix(in srgb, var(--crit) 12%, transparent);
+    filter: none;
+  }
+  .caret.danger {
+    border-left-color: color-mix(in srgb, var(--crit) 40%, var(--border));
+  }
   .primary {
+    position: relative;
+    overflow: hidden;
     padding: 8px 13px;
     border-radius: 8px 0 0 8px;
+  }
+  .primary .fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: rgba(255, 255, 255, 0.22);
+    transition: width 0.25s ease;
+    pointer-events: none;
+  }
+  .primary .lbl {
+    position: relative;
   }
   .caret {
     padding: 8px 8px;

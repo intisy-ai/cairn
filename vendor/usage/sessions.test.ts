@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { createRequire } from "node:module";
 import { buildSessionsWithCosts, buildModelSummary } from "./sessions.js";
 import type { Session } from "./types.js";
+import type { AppDescriptor } from "@core/index.js";
 
 // See db.test.ts for why node:sqlite is loaded via createRequire instead of a
 // static import.
@@ -26,16 +27,44 @@ const ENV_KEYS = [
   "XDG_CONFIG_HOME",
   "HUB_CLAUDE_DIR",
   "CLAUDE_CONFIG_DIR",
+  "HUB_APPS_FILE",
 ] as const;
 const savedEnv: Record<string, string | undefined> = {};
 
 let tempDir: string;
 
-// buildSessionsWithCosts() always reads all three sources together, so every
-// test must pin BOTH the OpenCode home and the Claude home to empty temp
-// directories, even when only one source is under test, otherwise a source
-// nobody set up here falls back to this machine's real ~/.config/opencode or
-// ~/.claude and the test silently asserts on real user data.
+// buildSessionsWithCosts() reads app.usage.formats off getApps() (see
+// vendor/usage/sessions.ts), which now comes solely from the apps.json
+// registry, so every test needs claude/opencode seeded with the same home
+// fields and usage formats as the real loader descriptors (loaders/*/cairn.json),
+// matching the HUB_*_DIR overrides this file drives.
+const claudeApp: AppDescriptor = {
+  id: "claude",
+  label: "Claude Code",
+  home: { envOverride: "HUB_CLAUDE_DIR", nativeEnv: "CLAUDE_CONFIG_DIR", candidates: ["~/.claude", "~/.config/claude"] },
+  detect: { binary: "claude", pkg: "@anthropic-ai/claude-code" },
+  commandsSubdir: "commands",
+  proxyPort: 34567,
+  integration: "env-baseurl",
+  wireFormat: "anthropic",
+  usage: { formats: ["claude-jsonl"] },
+};
+
+const opencodeApp: AppDescriptor = {
+  id: "opencode",
+  label: "OpenCode",
+  home: { envOverride: "HUB_OPENCODE_DIR", nativeEnv: "OPENCODE_CONFIG_DIR", xdgSubdir: "opencode", candidates: ["~/.config/opencode", "~/.opencode"] },
+  detect: { binary: "opencode", pkg: "opencode-ai" },
+  commandsSubdir: "command",
+  proxyPort: 34568,
+  integration: "native",
+  wireFormat: "anthropic",
+  usage: { formats: ["opencode-sqlite", "opencode-legacy-files"] },
+};
+
+// buildSessionsWithCosts() is called with no args (real env/home), so the
+// registry file also needs a stable, HUB_APPS_FILE-independent location; a
+// fresh temp file per test keeps it isolated from the real ~/.config/cairn.
 beforeEach(() => {
   tempDir = mkdtempSync(join(tmpdir(), "vendor-usage-sessions-"));
   for (const key of ENV_KEYS) {
@@ -45,6 +74,8 @@ beforeEach(() => {
   process.env.HUB_OPENCODE_DIR = join(tempDir, "opencode-home");
   process.env.HUB_OPENCODE_DATA_DIR = join(tempDir, "opencode-data-home");
   process.env.HUB_CLAUDE_DIR = join(tempDir, "claude-home");
+  process.env.HUB_APPS_FILE = join(tempDir, "apps.json");
+  writeFileSync(process.env.HUB_APPS_FILE, JSON.stringify({ claude: claudeApp, opencode: opencodeApp }));
 });
 
 afterEach(() => {

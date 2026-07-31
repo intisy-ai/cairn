@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { HostApp, AppPresence, AppSummary, ImportableApp } from "@cairn/shared";
+  import type { HostApp, AppConnection, AppSummary, ImportableApp } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { track } from "../downloads.js";
   import StatusPill from "../components/StatusPill.svelte";
@@ -8,14 +8,17 @@
   import Skeleton from "../components/Skeleton.svelte";
   import Spinner from "../components/Spinner.svelte";
   import ImportDialog from "../components/ImportDialog.svelte";
+  import ConfirmDialog from "../components/ConfirmDialog.svelte";
   import PageHeader from "../components/PageHeader.svelte";
   import PluginIcon, { LOGO_SIZE } from "../components/PluginIcon.svelte";
   import AppDetail from "../components/AppDetail.svelte";
+  import ViewToggle from "../components/ViewToggle.svelte";
   import { flyMotion } from "../util/motion.js";
+  import { loadViewMode, saveViewMode, type ViewMode } from "../viewMode.js";
 
   let apps = $state<HostApp[]>([]);
-  let presence = $state<AppPresence>({});
-  let appsError = $state("");
+  let conns = $state<Record<string, AppConnection | null>>({});
+  let connError = $state("");
   let loaded = $state(false);
 
   let busy = $state<Record<string, boolean>>({});
@@ -24,13 +27,40 @@
   const summaryGen: Record<string, number> = {};
 
   let selected = $state<string | null>(null);
+  let uninstalling = $state<HostApp | null>(null);
 
   let importable = $state<ImportableApp[]>([]);
   let importApp = $state<string | null>(null);
   let importAppLabel = $state("");
 
+  let view = $state<ViewMode>("list");
+
   const visibleApps = $derived(apps.filter((app) => app.id !== "cairn"));
   const selectedApp = $derived(visibleApps.find((a) => a.id === selected) ?? null);
+
+  function setView(mode: ViewMode): void {
+    view = mode;
+    void saveViewMode("apps", mode);
+  }
+
+  // Fully connected means the app runs through the local API: its CLI is present
+  // and, where it declares a loader, that loader is installed.
+  function isConnected(c: AppConnection | null | undefined): boolean {
+    if (!c) return false;
+    return c.cliPresent && (c.loaderId ? c.loaderInstalled : true);
+  }
+
+  function statusLabel(c: AppConnection | null | undefined): string {
+    if (isConnected(c)) return "Connected";
+    if (c?.cliPresent) return "Loader not installed";
+    return "Not detected";
+  }
+
+  function ctaLabel(c: AppConnection | null | undefined): string {
+    if (!c?.loaderId) return "Install CLI";
+    if (c.cliPresent && !c.loaderInstalled) return "Install loader";
+    return "Connect";
+  }
 
   function canImport(appId: string): boolean {
     return importable.some((a) => a.app === appId && a.hasConfig);
@@ -46,13 +76,13 @@
     if (result.ok) apps = result.data;
   }
 
-  async function loadPresence(): Promise<void> {
-    const result = await cairn.appsDetect();
+  async function loadConn(app: string): Promise<void> {
+    const result = await cairn.appsConnection(app);
     if (result.ok) {
-      presence = result.data;
-      appsError = "";
+      conns = { ...conns, [app]: result.data };
+      connError = "";
     } else {
-      appsError = result.error;
+      connError = result.error;
     }
   }
 
@@ -82,10 +112,6 @@
     if (!(app.id in summaries)) loadSummary(app.id);
   }
 
-  async function refresh(): Promise<void> {
-    await Promise.all([loadApps(), loadPresence()]);
-  }
-
   async function withBusy(app: string, action: () => Promise<unknown>): Promise<void> {
     if (busy[app]) return;
     busy = { ...busy, [app]: true };
@@ -96,13 +122,21 @@
     }
   }
 
-  async function handleInstallCli(app: HostApp): Promise<void> {
-    await withBusy(app.id, () => track(`Install ${app.label} CLI`, app.id, () => cairn.appsInstallCli(app.id)));
-    await refresh();
+  // The loader carries app-install: connecting installs the loader, which pulls
+  // in its own CLI. Apps without a loader fall back to a direct CLI install.
+  async function handlePrimary(app: HostApp): Promise<void> {
+    if (conns[app.id]?.loaderId) {
+      await withBusy(app.id, () => track(`Connect ${app.label}`, app.id, () => cairn.appsInstallLoader(app.id)));
+    } else {
+      await withBusy(app.id, () => track(`Install ${app.label} CLI`, app.id, () => cairn.appsInstallCli(app.id)));
+    }
+    await loadConn(app.id);
   }
 
-  async function handleInit(app: HostApp): Promise<void> {
-    await withBusy(app.id, () => track("Initialize plugin-updater", app.id, () => cairn.appsInit(app.id)));
+  async function confirmUninstall(): Promise<void> {
+    const app = uninstalling;
+    uninstalling = null;
+    if (app) await handleUninstall(app, false);
   }
 
   async function handleUninstall(app: HostApp, wipe: boolean): Promise<void> {
@@ -110,51 +144,80 @@
     const { [app.id]: _removed, ...rest } = summaries;
     summaries = rest;
     selected = null;
-    await refresh();
+    await loadConn(app.id);
   }
 
   onMount(() => {
-    Promise.all([loadApps(), loadPresence(), loadImportable()]).finally(() => (loaded = true));
+    Promise.all([loadApps(), loadImportable()])
+      .then(() => Promise.all(apps.filter((a) => a.id !== "cairn").map((a) => loadConn(a.id))))
+      .finally(() => (loaded = true));
+    loadViewMode("apps").then((mode) => (view = mode));
   });
 </script>
 
-<PageHeader title="Apps" subtitle="Install, initialize, and manage the host CLIs Cairn connects to." />
+<PageHeader title="Apps" subtitle="Connect the host CLIs Cairn routes through the local API." />
 
-{#if appsError}
-  <p class="error">Could not load app status: {appsError}</p>
+{#if connError}
+  <p class="error">Could not load app status: {connError}</p>
 {/if}
+
+{#snippet appEntry(app: HostApp)}
+  {@const c = conns[app.id]}
+  {@const connected = isConnected(c)}
+  <div class="approw" class:connected>
+    <button class="rowmain" onclick={() => open(app)} title={`Open ${app.label}`}>
+      <PluginIcon name={app.label} icon={app.icon} size={LOGO_SIZE.compact} />
+      <span class="rtext">
+        <span class="rname">{app.label}</span>
+        <span class="rsub">{c?.loaderId ?? "No loader"}</span>
+      </span>
+      <span class="rchips">
+        <span class="rchip" class:on={c?.cliPresent}>CLI</span>
+        {#if c?.loaderId}<span class="rchip" class:on={c?.loaderInstalled}>Loader</span>{/if}
+      </span>
+      <StatusPill variant={connected ? "good" : "off"} label={statusLabel(c)} />
+      <span class="chev" aria-hidden="true">›</span>
+    </button>
+    <div class="rowact">
+      {#if !connected}
+        <Button variant="primary" disabled={busy[app.id]} onclick={() => handlePrimary(app)}>
+          {#if busy[app.id]}<Spinner />{/if}
+          {ctaLabel(c)}
+        </Button>
+      {:else}
+        <Button variant="danger" onclick={() => (uninstalling = app)}>Uninstall</Button>
+      {/if}
+    </div>
+  </div>
+{/snippet}
 
 {#if !loaded}
   <div class="skeletons">
-    <Skeleton height="56px" radius="10px" />
-    <Skeleton height="56px" radius="10px" />
+    <Skeleton height="60px" radius="12px" />
+    <Skeleton height="60px" radius="12px" />
   </div>
 {:else}
-  <ul class="list">
-    {#each visibleApps as app (app.id)}
-      {@const present = presence[app.id] ?? false}
-      <li data-testid={"app-" + app.id} in:flyMotion={{ y: 6 }}>
-        {#if present}
-          <button class="row open" onclick={() => open(app)}>
-            <PluginIcon name={app.label} icon={app.icon} size={LOGO_SIZE.list} />
-            <span class="name">{app.label}</span>
-            <StatusPill variant="good" label="Detected" />
-            <span class="chev" aria-hidden="true">›</span>
-          </button>
-        {:else}
-          <div class="row">
-            <PluginIcon name={app.label} icon={app.icon} size={LOGO_SIZE.list} />
-            <span class="name">{app.label}</span>
-            <StatusPill variant="off" label="Not detected" />
-            <Button variant="primary" disabled={busy[app.id]} onclick={() => handleInstallCli(app)}>
-              {#if busy[app.id]}<Spinner />{/if}
-              Install CLI
-            </Button>
-          </div>
-        {/if}
-      </li>
-    {/each}
-  </ul>
+  <div class="toolbar">
+    <ViewToggle value={view} onChange={setView} />
+  </div>
+
+  {#if view === "grid"}
+    <div class="apps-grid" data-testid="apps-grid">
+      {#each visibleApps as app (app.id)}
+        <div data-testid={"app-" + app.id} in:flyMotion={{ y: 6 }}>
+          {@render appEntry(app)}
+        </div>
+      {/each}
+    </div>
+  {:else}
+    <ul class="list">
+      {#each visibleApps as app (app.id)}
+        <li data-testid={"app-" + app.id} in:flyMotion={{ y: 6 }}>
+          {@render appEntry(app)}
+        </li>
+      {/each}
+    </ul>
+  {/if}
 {/if}
 
 {#if selectedApp}
@@ -162,12 +225,24 @@
     app={selectedApp}
     summary={summaries[selectedApp.id] ?? null}
     summaryError={summaryErrors[selectedApp.id] ?? ""}
-    canImport={canImport(selectedApp.id)}
+    connection={conns[selectedApp.id] ?? null}
     busy={busy[selectedApp.id] ?? false}
+    canImport={canImport(selectedApp.id)}
     onClose={() => (selected = null)}
     onImport={() => selectedApp && openImport(selectedApp)}
-    onInit={() => selectedApp && handleInit(selectedApp)}
+    onPrimary={() => selectedApp && handlePrimary(selectedApp)}
     onUninstall={(wipe) => selectedApp && handleUninstall(selectedApp, wipe)}
+  />
+{/if}
+
+{#if uninstalling}
+  <ConfirmDialog
+    title={`Uninstall ${uninstalling.label}?`}
+    message={`This removes the ${uninstalling.label} CLI from this machine. Plugins and configuration stay in place.`}
+    confirmLabel="Uninstall"
+    danger
+    onCancel={() => (uninstalling = null)}
+    onConfirm={confirmUninstall}
   />
 {/if}
 
@@ -182,13 +257,18 @@
         const { [target]: _removed, ...rest } = summaries;
         summaries = rest;
         if (selected === target) loadSummary(target);
+        loadConn(target);
       }
-      loadPresence();
     }}
   />
 {/if}
 
 <style>
+  .toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 12px;
+  }
   .list {
     list-style: none;
     margin: 0;
@@ -197,43 +277,105 @@
     flex-direction: column;
     gap: 8px;
   }
-  .row {
+  .apps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 10px;
+  }
+  .approw {
     display: flex;
     align-items: center;
-    gap: 12px;
-    width: 100%;
-    padding: 12px 16px;
+    gap: 10px;
+    padding: 8px 12px 8px 10px;
     background: var(--surface-2);
     border: 1px solid var(--border);
-    border-radius: 10px;
-    text-align: left;
+    border-radius: 11px;
   }
-  button.row.open {
+  .approw:hover {
+    border-color: var(--border-strong);
+  }
+  .approw.connected {
+    border-color: var(--border-strong);
+  }
+  .apps-grid .approw {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .rowmain {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    padding: 0;
     cursor: pointer;
+    text-align: left;
     font-family: var(--ui);
     color: var(--text);
   }
-  button.row.open:hover {
-    border-color: var(--border-strong);
-  }
-  button.row.open:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
-  }
-  .name {
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: -.01em;
+  .rtext {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
     flex: 1;
     min-width: 0;
+  }
+  .rname {
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: -.01em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .rsub {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .rchips {
+    display: flex;
+    gap: 5px;
+    flex: none;
+  }
+  .rchip {
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--faint);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 2px 6px;
+  }
+  .rchip.on {
+    color: var(--good);
+    border-color: color-mix(in srgb, var(--good) 40%, var(--border));
+  }
   .chev {
     color: var(--faint);
-    font-size: 18px;
+    font-size: 17px;
     flex: none;
+  }
+  .apps-grid .chev {
+    display: none;
+  }
+  .rowact {
+    flex: none;
+    display: flex;
+  }
+  .apps-grid .rowact {
+    margin-top: 10px;
+  }
+  .apps-grid .rowact :global(button) {
+    width: 100%;
+    justify-content: center;
   }
   .skeletons {
     display: flex;

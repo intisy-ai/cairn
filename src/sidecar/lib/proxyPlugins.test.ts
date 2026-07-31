@@ -1,8 +1,39 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadInstalledProxyDefs, resetProxyDefCacheForTests } from "./proxyPlugins.js";
+import type { AppDescriptor } from "@core/index.js";
+
+// isProxyDef (see proxyPlugins.ts) validates a loaded proxyDef's `app` id against
+// getAppDescriptor(), which now reads solely from the apps.json registry, so
+// these fixtures need a seeded "claude" entry for the proxyDef.app to resolve.
+const claudeApp: AppDescriptor = {
+  id: "claude",
+  label: "Claude Code",
+  home: { candidates: ["/nonexistent/claude-home"] },
+  detect: { binary: "claude", pkg: "claude-code" },
+  commandsSubdir: "commands",
+  proxyPort: 41101,
+  integration: "native",
+  wireFormat: "anthropic",
+};
+
+let appsRegistryDir: string;
+let savedHubAppsFile: string | undefined;
+
+beforeEach(() => {
+  appsRegistryDir = mkdtempSync(join(tmpdir(), "proxy-plugins-registry-"));
+  savedHubAppsFile = process.env.HUB_APPS_FILE;
+  process.env.HUB_APPS_FILE = join(appsRegistryDir, "apps.json");
+  writeFileSync(process.env.HUB_APPS_FILE, JSON.stringify({ claude: claudeApp }));
+});
+
+afterEach(() => {
+  rmSync(appsRegistryDir, { recursive: true, force: true });
+  if (savedHubAppsFile === undefined) delete process.env.HUB_APPS_FILE;
+  else process.env.HUB_APPS_FILE = savedHubAppsFile;
+});
 
 function seedStore(storeDir: string, names: string[]): void {
   mkdirSync(join(storeDir, "config"), { recursive: true });

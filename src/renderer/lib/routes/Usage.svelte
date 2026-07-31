@@ -3,10 +3,12 @@
   import type { UsageSnapshot, UsageSession } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { humanizeId } from "../util/appLabel.js";
+  import { formatUsd } from "../util/format.js";
   import StatCard from "../components/StatCard.svelte";
   import Card from "../components/Card.svelte";
   import SearchField from "../components/SearchField.svelte";
   import Skeleton from "../components/Skeleton.svelte";
+  import ErrorState from "../components/ErrorState.svelte";
   import AreaChart from "../charts/AreaChart.svelte";
   import BarChart from "../charts/BarChart.svelte";
   import Donut from "../charts/Donut.svelte";
@@ -74,7 +76,20 @@
         byModel.set(model.id, entry);
       }
     }
-    return Array.from(byModel.entries()).map(([id, e]) => ({ label: id, value: e.tokens, meta: e.provider }));
+    return Array.from(byModel.entries()).map(([id, e]) => {
+      const priced = snapshot?.models[id];
+      const meta = priced?.priced && priced.estimatedCostUsd !== undefined ? `${e.provider} · ${formatUsd(priced.estimatedCostUsd)}` : e.provider;
+      return { label: id, value: e.tokens, meta };
+    });
+  });
+
+  const costAvailable = $derived((snapshot?.pricedModels ?? 0) > 0 && (snapshot?.estimatedCostUsd ?? 0) > 0);
+
+  const costFootnote = $derived.by(() => {
+    if (!snapshot) return "";
+    const asOf = snapshot.pricesUpdatedAt ? ` (as of ${snapshot.pricesUpdatedAt})` : "";
+    const unpriced = snapshot.unpricedModels ? `; ${snapshot.unpricedModels} model(s) unpriced` : "";
+    return `All-time estimate at list prices${asOf}${unpriced}.`;
   });
 
   const providerSlices = $derived.by<SliceInput[]>(() => {
@@ -159,11 +174,17 @@
     return sortDesc ? " ↓" : " ↑";
   }
 
-  onMount(async () => {
+  async function load(): Promise<void> {
     const result = await cairn.usageSnapshot();
-    if (result.ok) snapshot = result.data;
-    else loadError = result.error;
-  });
+    if (result.ok) {
+      snapshot = result.data;
+      loadError = "";
+    } else {
+      loadError = result.error;
+    }
+  }
+
+  onMount(load);
 </script>
 
 <div class="head">
@@ -179,7 +200,7 @@
 </div>
 
 {#if loadError}
-  <p class="error">Could not load usage: {loadError}</p>
+  <ErrorState message={`Could not load usage: ${loadError}`} onRetry={load} />
 {:else if !snapshot}
   <div class="skeletons">
     <Skeleton width="200px" height="30px" />
@@ -192,6 +213,7 @@
     <StatCard label="Total tokens" value={formatTokens(totalTokens)} />
     <StatCard label="Models" value={String(modelBars.length)} />
     <StatCard label="Accounts tracked" value={String(snapshot.accounts.length)} />
+    <StatCard label="Est. cost (all-time)" value={costAvailable ? formatUsd(snapshot.estimatedCostUsd ?? 0) : "n/a"} unit={costAvailable ? "" : "unavailable"} />
   </section>
 
   <section class="panel">
@@ -203,6 +225,7 @@
     <section class="panel">
       <p class="ptitle">By model{modelFilter ? ` · filtering ${modelFilter}` : ""}</p>
       <Card><div class="pad"><BarChart items={modelBars} selected={modelFilter} onselect={toggleModel} /></div></Card>
+      {#if costAvailable}<p class="footnote">{costFootnote}</p>{/if}
     </section>
     <section class="panel">
       <p class="ptitle">By provider</p>
@@ -317,6 +340,11 @@
     font-weight: 600;
     margin: 0 2px 10px;
   }
+  .footnote {
+    margin: 8px 2px 0;
+    font-size: 11px;
+    color: var(--faint);
+  }
   .pad {
     padding: 14px 16px;
   }
@@ -426,9 +454,5 @@
   .pbtns button:disabled {
     opacity: 0.45;
     cursor: default;
-  }
-  .error {
-    color: var(--crit);
-    font-size: 13px;
   }
 </style>

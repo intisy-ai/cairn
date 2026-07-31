@@ -28,6 +28,7 @@ const READ_TTL: Record<string, number> = {
   catalogList: 60000,
   customEndpointsList: 30000,
   syncStatus: 15000,
+  githubStatus: 15000,
 };
 
 export const cairn: CairnAPI = new Proxy({} as CairnAPI, {

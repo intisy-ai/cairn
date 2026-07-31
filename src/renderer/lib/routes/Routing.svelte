@@ -2,9 +2,14 @@
   import { onMount } from "svelte";
   import type { Chain, ModelCatalogEntry, RoutingApp } from "@cairn/shared";
   import { cairn } from "../ipc.js";
+  import { toast } from "../toast.js";
+  import { navigate } from "../router.js";
   import Card from "../components/Card.svelte";
   import Button from "../components/Button.svelte";
   import Skeleton from "../components/Skeleton.svelte";
+  import ConfirmDialog from "../components/ConfirmDialog.svelte";
+  import ErrorState from "../components/ErrorState.svelte";
+  import EmptyState from "../components/EmptyState.svelte";
 
   let apps = $state<RoutingApp[]>([]);
   let app = $state("");
@@ -15,6 +20,7 @@
   let warnings = $state<string[]>([]);
   let loaded = $state(false);
   let pending = $state<Record<string, string>>({});
+  let pendingConfirm = $state<{ title: string; message: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
 
   const slots = $derived(["default", ...tiers]);
 
@@ -47,7 +53,11 @@
 
   async function setChain(slot: string, chain: { provider: string; model: string }[]): Promise<void> {
     const result = await cairn.routingSetChain(app, slot, chain);
-    warnings = result.ok ? result.data.warnings : [];
+    if (!result.ok) {
+      toast.error(result.error);
+    } else {
+      warnings = result.data.warnings;
+    }
     await load();
   }
 
@@ -64,6 +74,23 @@
       .filter((_, i) => i !== index)
       .map(({ provider, model }) => ({ provider, model }));
     await setChain(slot, chain);
+  }
+
+  async function moveAssignment(slot: string, index: number, delta: -1 | 1): Promise<void> {
+    const current = (map[slot] ?? []).map(({ provider, model }) => ({ provider, model }));
+    const target = index + delta;
+    if (target < 0 || target >= current.length) return;
+    [current[index], current[target]] = [current[target], current[index]];
+    await setChain(slot, current);
+  }
+
+  function confirmRemoveAssignment(slot: string, index: number): void {
+    pendingConfirm = {
+      title: "Remove routing step?",
+      message: "Remove this routing step from the chain?",
+      confirmLabel: "Remove",
+      run: () => removeAssignment(slot, index),
+    };
   }
 
   onMount(async () => {
@@ -92,7 +119,11 @@
     {/each}
   </div>
 {:else if apps.length === 0}
-  <p class="hint">Install a proxy in Plugins to configure routing.</p>
+  <EmptyState
+    message="Install a proxy in Plugins to configure routing."
+    actionLabel="Browse proxies"
+    onAction={() => navigate("plugins", { kind: "proxy" }, { redirect: true })}
+  />
 {:else}
   {#if apps.length > 1}
     <div class="apptabs">
@@ -103,7 +134,7 @@
   {/if}
 
   {#if loadError}
-    <p class="error">Could not load routing: {loadError}</p>
+    <ErrorState message={`Could not load routing: ${loadError}`} onRetry={load} />
   {:else}
     {#if warnings.length > 0}
       <div class="warnings">
@@ -126,7 +157,21 @@
               <span class="model">{assignment.name ?? assignment.model}</span>
               <span class="provider">{assignment.provider}</span>
               {#if assignment.derived}<span class="derived">auto</span>{/if}
-              <Button onclick={() => removeAssignment(slot, index)}>Remove</Button>
+              <div class="reorder">
+                <button
+                  class="mv"
+                  aria-label={`Move ${assignment.name ?? assignment.model} up (position ${index + 1})`}
+                  disabled={index === 0}
+                  onclick={() => moveAssignment(slot, index, -1)}
+                >▲</button>
+                <button
+                  class="mv"
+                  aria-label={`Move ${assignment.name ?? assignment.model} down (position ${index + 1})`}
+                  disabled={index === (map[slot] ?? []).length - 1}
+                  onclick={() => moveAssignment(slot, index, 1)}
+                >▼</button>
+              </div>
+              <Button onclick={() => confirmRemoveAssignment(slot, index)}>Remove</Button>
             </div>
           {:else}
             <p class="empty">No chain assigned</p>
@@ -145,6 +190,17 @@
     </section>
     {/each}
   {/if}
+{/if}
+
+{#if pendingConfirm}
+  <ConfirmDialog
+    title={pendingConfirm.title}
+    message={pendingConfirm.message}
+    confirmLabel={pendingConfirm.confirmLabel}
+    danger
+    onConfirm={async () => { const p = pendingConfirm; pendingConfirm = null; if (!p) return; await p.run(); }}
+    onCancel={() => (pendingConfirm = null)}
+  />
 {/if}
 
 <style>
@@ -223,20 +279,29 @@
     border-radius: 5px;
     padding: 1px 5px;
   }
-  .chain-row :global(button) {
+  .reorder {
     margin-left: auto;
+    display: flex;
+    gap: 2px;
+  }
+  .mv {
+    background: none;
+    border: none;
+    color: var(--faint);
+    font-size: 11px;
+    line-height: 1;
+    padding: 4px;
+    cursor: pointer;
+  }
+  .mv:disabled {
+    opacity: .35;
+    cursor: default;
   }
   .empty {
     color: var(--faint);
     font-size: 12.5px;
     padding: 8px 0;
     margin: 0;
-  }
-  .hint {
-    margin: 0;
-    padding: 16px 18px;
-    color: var(--faint);
-    font-size: 12.5px;
   }
   .add-row {
     display: flex;
@@ -254,10 +319,6 @@
     border: 1px solid var(--border-strong);
     border-radius: 8px;
     padding: 7px 10px;
-  }
-  .error {
-    color: var(--crit);
-    font-size: 13px;
   }
   .apptabs {
     display: flex;

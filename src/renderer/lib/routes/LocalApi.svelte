@@ -1,13 +1,16 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { ProxyStatus } from "@cairn/shared";
+  import type { ProxyStatus, ProxyView } from "@cairn/shared";
   import { cairn } from "../ipc.js";
+  import { navigate } from "../router.js";
+  import { toast } from "../toast.js";
   import Card from "../components/Card.svelte";
   import Button from "../components/Button.svelte";
   import StatusPill from "../components/StatusPill.svelte";
   import Skeleton from "../components/Skeleton.svelte";
   import PageHeader from "../components/PageHeader.svelte";
   import ToggleSwitch from "../components/ToggleSwitch.svelte";
+  import ErrorState from "../components/ErrorState.svelte";
 
   let status = $state<ProxyStatus | null>(null);
   let loadError = $state("");
@@ -19,6 +22,7 @@
   let portInput = $state<number | null>(null);
   let portError = $state("");
   let savingPort = $state(false);
+  let proxies = $state<ProxyView[]>([]);
 
   const baseUrl = $derived(status ? `http://127.0.0.1:${status.port}` : "");
   const portDirty = $derived(status !== null && portInput !== null && portInput !== status.port);
@@ -43,12 +47,21 @@
     savingPort = true;
     portError = "";
     try {
-      await cairn.setConfig("cairn", "localApiPort", portInput);
+      const setResult = await cairn.setConfig("cairn", "localApiPort", portInput);
+      if (!setResult.ok) {
+        toast.error(setResult.error);
+        return;
+      }
       // Apply immediately: a running daemon must rebind to the new port.
       if (status.running) {
         await cairn.proxyStop();
-        await cairn.proxyStart();
+        const startResult = await cairn.proxyStart();
+        if (!startResult.ok) {
+          toast.error(startResult.error);
+          return;
+        }
       }
+      toast.success("Local API port saved");
       await load();
     } finally {
       savingPort = false;
@@ -58,6 +71,17 @@
   async function loadAutostart(): Promise<void> {
     const result = await cairn.getConfig("cairn", "proxyAutostart");
     autostart = result.ok && result.data === true;
+  }
+
+  async function loadProxies(): Promise<void> {
+    const result = await cairn.proxiesList();
+    if (result.ok) proxies = result.data;
+  }
+
+  async function toggleProxy(name: string, on: boolean): Promise<void> {
+    const result = await cairn.proxiesSetEnabled(name, on);
+    if (!result.ok) toast.error(result.error);
+    await loadProxies();
   }
 
   async function toggle(): Promise<void> {
@@ -95,13 +119,14 @@
   onMount(() => {
     load();
     loadAutostart();
+    loadProxies();
   });
 </script>
 
 <PageHeader title="Local API" subtitle="Controls the local proxy your apps connect through." />
 
 {#if loadError}
-  <p class="error">Could not load the local API status: {loadError}</p>
+  <ErrorState message={`Could not load the local API status: ${loadError}`} onRetry={load} />
 {:else if status}
   <Card>
     <div class="row">
@@ -122,6 +147,28 @@
       <p class="error">{actionError}</p>
     {/if}
   </Card>
+
+  <section class="panel">
+    <div class="panelhead">
+      <p class="ptitle">Proxies</p>
+      <Button onclick={() => navigate("plugins", { kind: "proxy" }, { redirect: true })}>+ Add proxy</Button>
+    </div>
+    <Card>
+      {#if proxies.length === 0}
+        <p class="empty">No proxies installed. Add one to route an app through the local API.</p>
+      {:else}
+        {#each proxies as proxy (proxy.name)}
+          <div class="optrow">
+            <div class="optlabel">
+              <span class="k">{proxy.appLabel}</span>
+              <span class="desc">{proxy.setup ?? "Point this app at the local API base URL below."}</span>
+            </div>
+            <ToggleSwitch checked={proxy.enabled} label={`${proxy.appLabel} enabled`} onchange={(on) => toggleProxy(proxy.name, on)} />
+          </div>
+        {/each}
+      {/if}
+    </Card>
+  </section>
 
   <section class="panel">
     <p class="ptitle">Options</p>
@@ -237,6 +284,22 @@
     justify-content: space-between;
     gap: 16px;
     padding: 14px 18px;
+  }
+  .panelhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .panelhead .ptitle {
+    margin: 0 0 0 2px;
+  }
+  .empty {
+    margin: 0;
+    padding: 14px 18px;
+    font-size: 12.5px;
+    color: var(--muted);
   }
   .optlabel {
     display: flex;

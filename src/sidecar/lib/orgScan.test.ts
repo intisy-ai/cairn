@@ -1,7 +1,15 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { scanOrg, resetOrgScanCacheForTests } from "./orgScan.js";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { scanOrg, resetOrgScanCache } from "./orgScan.js";
 
-beforeEach(() => resetOrgScanCacheForTests());
+beforeEach(() => {
+  resetOrgScanCache();
+  // resolveToken now falls through to a Cairn-config token, so isolate every test
+  // from whatever real config dir the developer/CI machine happens to have.
+  process.env.HUB_CONFIG_DIR = mkdtempSync(join(tmpdir(), "dash-orgscan-"));
+});
 
 const repo = (name: string, topics: string[] = ["plugin"], archived = false) => ({
   name,
@@ -41,12 +49,23 @@ describe("scanOrg", () => {
     expect(afterFail.entries).toHaveLength(1);
   });
 
-  it("falls back env -> gh -> anonymous", async () => {
+  it("falls back env -> config -> gh -> anonymous", async () => {
     const viaGh = await scanOrg({ fetchFn: okFetch([]), env: {}, execFn: async (f, a) => (f === "gh" && a[0] === "auth" ? "ghtoken\n" : "") });
     expect(viaGh.source).toBe("gh");
-    resetOrgScanCacheForTests();
+    resetOrgScanCache();
     const anon = await scanOrg({ fetchFn: okFetch([]), env: {}, execFn: async () => { throw new Error("no gh"); } });
     expect(anon.source).toBe("anonymous");
+  });
+
+  it("prefers a configured token over the gh CLI when there is no env token", async () => {
+    const { setConfigValue } = await import("@core/index.js");
+    setConfigValue("cairn", "githubToken", "cfg-token");
+    const result = await scanOrg({
+      fetchFn: okFetch([]),
+      env: {},
+      execFn: async (f, a) => (f === "gh" && a[0] === "auth" ? "ghtoken\n" : ""),
+    });
+    expect(result.source).toBe("config");
   });
 
   it("carries repo topics onto the catalog entry", async () => {
@@ -75,5 +94,15 @@ describe("scanOrg", () => {
     });
     expect(result.entries.find((e) => e.name === "old-plugin")?.deprecated).toBe(true);
     expect(result.entries.find((e) => e.name === "stub-auth")?.deprecated).toBe(false);
+  });
+
+  it("scans the configured marketplace org", async () => {
+    const seen: string[] = [];
+    const fetchFn = (async (url: string) => {
+      seen.push(String(url));
+      return { ok: true, status: 200, json: async () => [] };
+    }) as unknown as typeof fetch;
+    await scanOrg({ fetchFn, getOrg: () => "acme-org", execFn: async () => "" });
+    expect(seen.some((u) => u.includes("/orgs/acme-org/repos"))).toBe(true);
   });
 });

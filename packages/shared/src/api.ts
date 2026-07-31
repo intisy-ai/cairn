@@ -1,4 +1,4 @@
-import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, RoutingState, RoutingApp, Chain, AppPresence, HostApp, CliResult, HomePlugins, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView, InstallManyResult, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent } from "./domain.js";
+import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -7,6 +7,9 @@ export interface CairnAPI {
   accountsEnable(provider: string, id: string, on: boolean): Promise<Result<void>>;
   accountsRemove(provider: string, id: string): Promise<Result<void>>;
   accountsRefreshQuota(provider: string): Promise<Result<AccountView[]>>;
+  accountsLoginBegin(provider: string): Promise<Result<LoginBegin>>;
+  accountsLoginComplete(provider: string, input: string): Promise<Result<LoginComplete>>;
+  accountsLoginCancel(provider: string): Promise<Result<void>>;
   providersList(): Promise<Result<ProviderRow[]>>;
   providersSetActive(id: string): Promise<Result<void>>;
   providersSetExposure(id: string, app: string, on: boolean): Promise<Result<void>>;
@@ -16,17 +19,29 @@ export interface CairnAPI {
   proxyStatus(): Promise<Result<ProxyStatus>>;
   proxyStart(): Promise<Result<void>>;
   proxyStop(): Promise<Result<void>>;
+  proxiesList(): Promise<Result<ProxyView[]>>;
+  proxiesSetEnabled(name: string, on: boolean): Promise<Result<void>>;
   appsDetect(): Promise<Result<AppPresence>>;
   appsList(): Promise<Result<HostApp[]>>;
   appsInstallCli(app: string): Promise<Result<CliResult>>;
   appsInit(app: string): Promise<Result<CliResult>>;
   appsUninstallCli(app: string, wipeData: boolean): Promise<Result<CliResult>>;
   appsSummary(app: string): Promise<Result<AppSummary>>;
+  appsConnection(app: string): Promise<Result<AppConnection>>;
+  appsInstallLoader(app: string): Promise<Result<void>>;
+  repoMeta(url: string): Promise<Result<RepoMeta>>;
+  repoMetaCached(url: string): Promise<Result<RepoMeta | null>>;
   pluginsList(): Promise<Result<HomePlugins[]>>;
-  pluginsInstall(home: string, name: string, url: string): Promise<Result<void>>;
-  pluginsInstallMany(name: string, url: string, homeIds: string[]): Promise<Result<InstallManyResult>>;
+  pluginVersions(name: string): Promise<Result<Record<string, PluginVersion>>>;
+  pluginVersionsAll(): Promise<Result<Record<string, Record<string, PluginVersion>>>>;
+  pluginVersionsCached(): Promise<Result<Record<string, Record<string, PluginVersion>>>>;
+  enginesList(): Promise<Result<EngineView[]>>;
+  enginesEnsure(capability: string): Promise<Result<void>>;
+  pluginsInstall(home: string, name: string, url: string, progressId?: number): Promise<Result<void>>;
+  pluginsInstallMany(name: string, url: string, homeIds: string[], progressId?: number): Promise<Result<InstallManyResult>>;
   pluginsRemoveEverywhere(name: string): Promise<Result<InstallManyResult>>;
   pluginsSetEnabled(home: string, name: string, on: boolean): Promise<Result<void>>;
+  pluginsSetAutoUpdate(home: string, name: string, on: boolean): Promise<Result<void>>;
   pluginsDowngrade(home: string, name: string, hash: string): Promise<Result<void>>;
   pluginsUninstall(home: string, name: string): Promise<Result<void>>;
   configSchemas(home: string): Promise<Result<PluginConfigSchema[]>>;
@@ -47,6 +62,8 @@ export interface CairnAPI {
   importPreview(app: string): Promise<Result<ImportPreview>>;
   importRun(app: string, selection?: ImportSelection): Promise<Result<ImportSummary>>;
   catalogList(): Promise<Result<CatalogResult>>;
+  githubStatus(): Promise<Result<GithubStatus>>;
+  githubSetToken(token: string): Promise<Result<void>>;
   customEndpointsList(): Promise<Result<CustomEndpointView[]>>;
   customEndpointsUpsert(endpoint: CustomEndpoint): Promise<Result<void>>;
   customEndpointsRemove(id: string): Promise<Result<void>>;
@@ -55,6 +72,7 @@ export interface CairnAPI {
   maximize(): void;
   close(): void;
   onServerStatus(listener: (status: ProxyStatus) => void): () => void;
+  onDownloadProgress(listener: (progress: DownloadProgress) => void): () => void;
   isElectron: true;
   platform: NodeJS.Platform;
 }

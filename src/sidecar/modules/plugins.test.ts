@@ -166,6 +166,15 @@ describe("plugins sidecar module", () => {
     expect(cairnOnDisk.find((p) => p.name === "plugin-a")?.enabled).toBe(true);
   });
 
+  it("setAutoUpdate writes the target home's plugins.json entry", async () => {
+    seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true, autoUpdate: true }]);
+    const { pluginsSetAutoUpdate } = await import("./plugins.js");
+    const result = await pluginsSetAutoUpdate("claude", "plugin-a", false, { homes: fakeHomes });
+    expect(result.ok).toBe(true);
+    const onDisk = JSON.parse(readFileSync(join(claudeDir, "config", "plugins.json"), "utf8")) as Plugin[];
+    expect(onDisk.find((p) => p.name === "plugin-a")?.autoUpdate).toBe(false);
+  });
+
   it("setEnabled returns ok:false for an unknown plugin", async () => {
     seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
     const { pluginsSetEnabled } = await import("./plugins.js");
@@ -219,6 +228,33 @@ describe("plugins sidecar module", () => {
     ]);
   });
 
+  it("reports install phases in order through the report hook", async () => {
+    const steps: string[] = [];
+    const { pluginsInstall } = await import("./plugins.js");
+    await pluginsInstall("claude", "plugin-p", "https://github.com/intisy-ai/plugin-p", {
+      updatePluginPublic: async () => {},
+      homes: fakeHomes,
+      syncPluginsAcrossApps: async () => {},
+      hasUpdater: () => true,
+      report: (step) => steps.push(step),
+    });
+    expect(steps).toEqual(["Downloading and building", "Registering", "Syncing to other apps"]);
+  });
+
+  it("reports the plugin-updater bootstrap phase for an app home that lacks it", async () => {
+    const steps: string[] = [];
+    const { pluginsInstall } = await import("./plugins.js");
+    await pluginsInstall("claude", "custom-auth", "https://github.com/intisy-ai/custom-auth", {
+      updatePluginPublic: async () => {},
+      homes: fakeHomes,
+      syncPluginsAcrossApps: async () => {},
+      hasUpdater: () => false,
+      initApp: async () => ({ ok: true, data: { stdout: "", stderr: "" } }),
+      report: (step) => steps.push(step),
+    });
+    expect(steps[0]).toBe("Setting up plugin-updater");
+  });
+
   it("install does not duplicate an existing entry and preserves its other fields", async () => {
     seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: false, autoUpdate: false }]);
 
@@ -227,6 +263,7 @@ describe("plugins sidecar module", () => {
       updatePluginPublic: async () => {},
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
+      hasUpdater: () => true,
     });
     expect(result.ok).toBe(true);
 
@@ -283,11 +320,15 @@ describe("plugins sidecar module", () => {
     expect(result.error).toBe("npm exploded");
   });
 
-  it("refuses to uninstall plugin-updater", async () => {
-    const { pluginsUninstall } = await import("./plugins.js");
-    const result = await pluginsUninstall("claude", "plugin-updater", { homes: fakeHomes });
-    expect(result.ok).toBe(false);
-    expect(result.error).toBe("refusing to uninstall the plugin machinery");
+  it("disables and uninstalls any plugin now that nothing is locked, including the engine", async () => {
+    seedPlugins(claudeDir, [
+      { name: "wakatime-sync", url: "https://github.com/intisy-ai/wakatime-sync", enabled: true },
+      { name: "plugin-updater", url: "https://github.com/intisy-ai/plugin-updater", enabled: true },
+    ]);
+    const { pluginsSetEnabled, pluginsUninstall } = await import("./plugins.js");
+    expect((await pluginsSetEnabled("claude", "wakatime-sync", false, { homes: fakeHomes })).ok).toBe(true);
+    expect((await pluginsSetEnabled("claude", "plugin-updater", false, { homes: fakeHomes })).ok).toBe(true);
+    expect((await pluginsUninstall("claude", "plugin-updater", { homes: fakeHomes })).ok).toBe(true);
   });
 
   it("rejects an unknown home id on uninstall", async () => {
@@ -296,10 +337,10 @@ describe("plugins sidecar module", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("auto-inits an app home missing the updater before installing", async () => {
+  it("bootstraps an engine into an app home missing the updater by initializing it first", async () => {
     const order: string[] = [];
     const { pluginsInstall } = await import("./plugins.js");
-    const result = await pluginsInstall("claude", "plugin-a", "https://github.com/intisy-ai/plugin-a", {
+    const result = await pluginsInstall("claude", "plugin-updater", "https://github.com/intisy-ai/plugin-updater", {
       homes: fakeHomes,
       hasUpdater: () => false,
       initApp: async (app) => { order.push("init:" + app); return { ok: true, data: { stdout: "", stderr: "" } }; },
@@ -310,20 +351,43 @@ describe("plugins sidecar module", () => {
     expect(order).toEqual(["init:claude", "install"]);
   });
 
-  it("does not init the cairn home or an app home that already has the updater", async () => {
-    const inits: string[] = [];
+  it("refuses to install a non-engine into an app home without plugin-updater", async () => {
     const { pluginsInstall } = await import("./plugins.js");
-    const deps = {
+    const result = await pluginsInstall("claude", "plugin-a", "https://github.com/intisy-ai/plugin-a", {
       homes: fakeHomes,
-      initApp: async (a: string) => { inits.push(a); return { ok: true, data: { stdout: "", stderr: "" } }; },
+      hasUpdater: () => false,
+      initApp: async () => ({ ok: true, data: { stdout: "", stderr: "" } }),
       updatePluginPublic: async () => {},
       syncPluginsAcrossApps: async () => {},
-    };
+    });
+    expect(result.ok).toBe(false);
+  });
 
-    await pluginsInstall("cairn", "x", "u", { ...deps, hasUpdater: () => false });
-    await pluginsInstall("claude", "x", "u", { ...deps, hasUpdater: () => true });
-
+  it("bootstraps an engine into the cairn home by cloning directly, never initializing it", async () => {
+    const inits: string[] = [];
+    const installed: string[] = [];
+    const { pluginsInstall } = await import("./plugins.js");
+    const result = await pluginsInstall("cairn", "plugin-updater", "https://github.com/intisy-ai/plugin-updater", {
+      homes: fakeHomes,
+      hasUpdater: () => false,
+      initApp: async (a) => { inits.push(a); return { ok: true, data: { stdout: "", stderr: "" } }; },
+      updatePluginPublic: async () => { installed.push("plugin-updater"); },
+      syncPluginsAcrossApps: async () => {},
+    });
+    expect(result.ok).toBe(true);
     expect(inits).toEqual([]);
+    expect(installed).toEqual(["plugin-updater"]);
+  });
+
+  it("refuses to install a non-engine into the cairn home without plugin-updater", async () => {
+    const { pluginsInstall } = await import("./plugins.js");
+    const result = await pluginsInstall("cairn", "some-provider", "u", {
+      homes: fakeHomes,
+      hasUpdater: () => false,
+      updatePluginPublic: async () => {},
+      syncPluginsAcrossApps: async () => {},
+    });
+    expect(result.ok).toBe(false);
   });
 
   it("new installs honor the autoUpdateDefault setting", async () => {
@@ -412,5 +476,112 @@ describe("plugins sidecar module", () => {
       const row = res.data[0].rows.find((r) => r.name === "demo");
       expect(row?.description).toBe("A demo plugin");
     }
+  });
+});
+
+describe("plugin versions", () => {
+  it("formats git describe output into tag, ahead, and bare-sha forms", async () => {
+    const { formatGitVersion } = await import("./plugins.js");
+    expect(formatGitVersion("v1.2.3")).toBe("v1.2.3");
+    expect(formatGitVersion("v1.2.3-5-gabc1234")).toBe("v1.2.3 +5");
+    expect(formatGitVersion("abc1234")).toBe("abc1234");
+    expect(formatGitVersion(null)).toBeNull();
+  });
+
+  it("reports a git plugin's version from describe and update state from the cache", async () => {
+    seedCache(claudeDir, {
+      checkedAt: "",
+      plugins: { "plugin-a": { kind: "git", installedVersion: null, localHead: "aaa", remoteHead: "bbb", latestVersion: null, updateAvailable: true, updatedAt: null } },
+    });
+    const { pluginVersions } = await import("./plugins.js");
+    const result = await pluginVersions("plugin-a", {
+      homes: fakeHomes,
+      describe: (dir) => (dir.includes("claude") ? "v1.2.3-5-gabc1234" : null),
+      exists: (p) => p.includes("claude") && p.endsWith(join("repos", "plugin-a")),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data.claude).toEqual({ kind: "git", label: "v1.2.3 +5", updateAvailable: true, autoUpdate: true });
+    expect(result.data.cairn).toBeUndefined();
+  });
+
+  it("reports an npm plugin's installed version from the cache", async () => {
+    seedCache(claudeDir, {
+      checkedAt: "",
+      plugins: { "npm-x": { kind: "npm", installedVersion: "2.0.1", localHead: null, remoteHead: null, latestVersion: "2.1.0", updateAvailable: true, updatedAt: null } },
+    });
+    const { pluginVersions } = await import("./plugins.js");
+    const result = await pluginVersions("npm-x", { homes: fakeHomes, describe: () => null, exists: () => false });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data.claude).toEqual({ kind: "npm", label: "2.0.1", updateAvailable: true, autoUpdate: true });
+  });
+
+  it("falls back to the short commit sha for a git repo with no describe output", async () => {
+    seedCache(claudeDir, {
+      checkedAt: "",
+      plugins: { "plugin-a": { kind: "git", installedVersion: null, localHead: "abcdef1234567890", remoteHead: "abcdef1234567890", latestVersion: null, updateAvailable: false, updatedAt: null } },
+    });
+    const { pluginVersions } = await import("./plugins.js");
+    const result = await pluginVersions("plugin-a", { homes: fakeHomes, describe: () => null, exists: (p) => p.includes("claude") });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data.claude).toEqual({ kind: "git", label: "abcdef1", updateAvailable: false, autoUpdate: true });
+  });
+
+  it("reports a registered-but-not-cloned home's version as unknown, not borrowed", async () => {
+    seedPlugins(opencodeDir, [{ name: "plugin-a", url: "u", enabled: true }]);
+    seedCache(claudeDir, {
+      checkedAt: "",
+      plugins: { "plugin-a": { kind: "git", installedVersion: null, localHead: "aaa", remoteHead: "aaa", latestVersion: null, updateAvailable: false, updatedAt: null } },
+    });
+    const { pluginVersions } = await import("./plugins.js");
+    const result = await pluginVersions("plugin-a", {
+      homes: fakeHomes,
+      describe: (dir) => (dir.includes("claude") ? "v0.2.0-5-g7c588d8" : null),
+      exists: (p) => p.includes("claude") && p.endsWith(join("repos", "plugin-a")),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data.claude).toEqual({ kind: "git", label: "v0.2.0 +5", updateAvailable: false, autoUpdate: true });
+    expect(result.data.opencode).toEqual({ kind: "git", label: null, updateAvailable: false, autoUpdate: true });
+  });
+
+  it("persists computed versions so a later cached read returns them instantly", async () => {
+    const { resetCacheForTests } = await import("../lib/cache.js");
+    resetCacheForTests();
+    const { pluginVersionsAll, pluginVersionsCached } = await import("./plugins.js");
+    const deps = {
+      homes: fakeHomes,
+      getPlugins: (dir: string) => (dir === claudeDir ? [{ name: "plugin-a", url: "u", enabled: true }] : []),
+      npmPlugins: async () => [],
+      describe: () => "v3.1.0",
+      exists: () => true,
+      cacheDir: cairnDir,
+    };
+    await pluginVersionsAll(deps);
+    resetCacheForTests();
+    const cached = await pluginVersionsCached({ cacheDir: cairnDir });
+    expect(cached.ok).toBe(true);
+    if (!cached.ok) throw new Error("unreachable");
+    expect(cached.data["plugin-a"].claude).toEqual({ kind: "git", label: "v3.1.0", updateAvailable: false, autoUpdate: true });
+  });
+
+  it("collects versions for every installed plugin across homes in one pass", async () => {
+    seedCache(claudeDir, {
+      checkedAt: "",
+      plugins: { "plugin-a": { kind: "git", installedVersion: null, localHead: "aaa", remoteHead: "bbb", latestVersion: null, updateAvailable: true, updatedAt: null } },
+    });
+    const { pluginVersionsAll } = await import("./plugins.js");
+    const result = await pluginVersionsAll({
+      homes: fakeHomes,
+      getPlugins: (dir) => (dir === claudeDir ? [{ name: "plugin-a", url: "u", enabled: true }] : []),
+      npmPlugins: async () => [],
+      describe: () => "v2.0.0",
+      exists: () => true,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data["plugin-a"].claude).toEqual({ kind: "git", label: "v2.0.0", updateAvailable: true, autoUpdate: true });
   });
 });

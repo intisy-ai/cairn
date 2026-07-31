@@ -1,33 +1,90 @@
 <script lang="ts">
-  import type { UnifiedPlugin, PluginConfigSchema } from "@cairn/shared";
-  import PluginIcon, { LOGO_SIZE } from "./PluginIcon.svelte";
-  import Button from "./Button.svelte";
+  import { onMount } from "svelte";
+  import type { UnifiedPlugin, PluginConfigSchema, PluginVersion } from "@cairn/shared";
   import PluginControls from "./PluginControls.svelte";
+  import RepoDetail from "./RepoDetail.svelte";
+  import IconButton from "./IconButton.svelte";
+  import ToggleSwitch from "./ToggleSwitch.svelte";
+  import PluginInstallControl from "./PluginInstallControl.svelte";
   import { cairn } from "../ipc.js";
-  import { fadeMotion, flyMotion } from "../util/motion.js";
 
   let {
     plugin,
     homes,
+    canInstallHome,
+    activity = null,
     onClose,
     onInstallAll,
     onRemoveEverywhere,
     onUpdate,
+    onUpdateHome,
     onToggleHome,
+    onChanged,
   }: {
     plugin: UnifiedPlugin;
     homes: { id: string; label: string; icon?: string }[];
+    canInstallHome?: (homeId: string) => boolean;
+    activity?: import("../downloads.js").DownloadTask | null;
     onClose: () => void;
     onInstallAll: () => void;
     onRemoveEverywhere: () => void;
     onUpdate: () => void;
+    onUpdateHome: (homeId: string) => Promise<void>;
     onToggleHome: (homeId: string, on: boolean) => void;
+    onChanged?: () => void;
   } = $props();
+
+  const repo = $derived({
+    name: plugin.name,
+    url: plugin.url ?? "",
+    kind: plugin.kind,
+    description: plugin.description,
+    topics: plugin.topics,
+    displayName: plugin.displayName,
+    icon: plugin.icon,
+  });
 
   const installedCount = $derived(homes.filter((h) => plugin.homes[h.id]?.installed).length);
   const fullyInstalled = $derived(installedCount === homes.length && homes.length > 0);
-
   const installedHomes = $derived(homes.filter((h) => plugin.homes[h.id]?.installed));
+
+  let versions = $state<Record<string, PluginVersion>>({});
+  const representativeVersion = $derived(
+    installedHomes.map((h) => versions[h.id]?.label).find((v): v is string => !!v) ?? "",
+  );
+
+  let busyHome = $state<Record<string, boolean>>({});
+
+  async function loadVersions(): Promise<void> {
+    const result = await cairn.pluginVersions(plugin.name);
+    if (result.ok) versions = result.data;
+  }
+
+  async function updateHome(homeId: string): Promise<void> {
+    if (busyHome[homeId]) return;
+    busyHome = { ...busyHome, [homeId]: true };
+    try {
+      await onUpdateHome(homeId);
+      await loadVersions();
+    } finally {
+      busyHome = { ...busyHome, [homeId]: false };
+    }
+  }
+
+  async function setAutoUpdate(homeId: string, on: boolean): Promise<void> {
+    const current = versions[homeId];
+    if (current) versions = { ...versions, [homeId]: { ...current, autoUpdate: on } };
+    await cairn.pluginsSetAutoUpdate(homeId, plugin.name, on);
+    onChanged?.();
+  }
+
+  onMount(loadVersions);
+
+  const tabs = $derived([
+    { id: "availability", label: "Availability" },
+    ...(installedHomes.length > 0 ? [{ id: "configure", label: "Configure" }] : []),
+  ]);
+
   let controlsHome = $state<string>("");
   let controlsSchema = $state<PluginConfigSchema | null>(null);
   let controlsLoading = $state(false);
@@ -54,59 +111,58 @@
   function letters(label: string): string {
     return label.replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase();
   }
-  function onKeydown(event: KeyboardEvent): void {
-    if (event.key === "Escape") onClose();
-  }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-<div class="backdrop" role="presentation" onclick={onClose} transition:fadeMotion></div>
-<div class="panel" role="dialog" aria-modal="true" aria-label={`${plugin.displayName} details`} transition:flyMotion={{ y: 10 }}>
-  <button class="close" title="Close" aria-label="Close" onclick={onClose}>×</button>
-
-  <header class="hero">
-    <PluginIcon icon={plugin.icon} name={plugin.displayName} kind={plugin.kind} size={LOGO_SIZE.detail} />
-    <div class="titles">
-      <h2>{plugin.displayName}</h2>
-      <div class="sub">
-        {#if plugin.displayName !== plugin.name}<span class="repo">{plugin.name}</span>{/if}
-        <span class="kind">{plugin.kind}</span>
-        {#if plugin.updateAvailable}<span class="update">Update available</span>{/if}
-      </div>
-    </div>
-  </header>
-
-  {#if plugin.description}
-    <p class="desc">{plugin.description}</p>
+{#snippet topActions()}
+  {#if plugin.updateAvailable}
+    <IconButton name="refresh" title="Update" onclick={onUpdate} />
   {/if}
+  <PluginInstallControl {plugin} {homes} {canInstallHome} {activity} {onInstallAll} {onRemoveEverywhere} {onToggleHome} />
+{/snippet}
 
-  {#if plugin.topics.length > 0}
-    <div class="topics">
-      {#each plugin.topics as topic (topic)}<span class="topic">{topic}</span>{/each}
+{#snippet content(active: string)}
+  {#if active === "availability"}
+    <div>
+      <p class="label">Installed in {installedCount}/{homes.length}</p>
+      <ul class="apps">
+        {#each homes as h (h.id)}
+          {@const on = !!plugin.homes[h.id]?.installed}
+          {@const icon = h.icon}
+          <li>
+            <span class="appmark" class:na={!on}>
+              {#if icon}<span class="glyph">{@html icon}</span>{:else}<span class="lm">{letters(h.label)}</span>{/if}
+            </span>
+            <span class="appname">{h.label}</span>
+            {#if on && versions[h.id]}
+              {@const v = versions[h.id]}
+              <span class="ver">
+                <span class="src">{v?.kind}</span>
+                {#if v?.label}<span class="num">{v.label}</span>{:else}<span class="num unknown">unknown</span>{/if}
+              </span>
+              {#if v?.kind === "git"}
+                {#if v.updateAvailable}
+                  <button class="mini" disabled={busyHome[h.id]} onclick={() => updateHome(h.id)}>Update</button>
+                {/if}
+                <label class="auto" title="Auto-update on launch">
+                  <ToggleSwitch checked={v.autoUpdate} label={`Auto-update ${h.label}`} onchange={(o) => setAutoUpdate(h.id, o)} />
+                </label>
+              {/if}
+            {:else}
+              <span class="state">{on ? "Installed" : "Not installed"}</span>
+            {/if}
+            {#if on}
+              <button class="toggle on" onclick={() => onToggleHome(h.id, false)}>Remove</button>
+            {:else if !canInstallHome || canInstallHome(h.id)}
+              <button class="toggle" onclick={() => onToggleHome(h.id, true)}>Install</button>
+            {:else}
+              <button class="toggle" disabled title="Install plugin-updater in this app first">Install</button>
+            {/if}
+          </li>
+        {/each}
+      </ul>
     </div>
-  {/if}
-
-  <section class="deploy">
-    <p class="label">Availability {installedCount}/{homes.length}</p>
-    <ul class="apps">
-      {#each homes as h (h.id)}
-        {@const on = !!plugin.homes[h.id]?.installed}
-        {@const icon = h.icon}
-        <li>
-          <span class="appmark" class:na={!on}>
-            {#if icon}<span class="glyph">{@html icon}</span>{:else}<span class="lm">{letters(h.label)}</span>{/if}
-          </span>
-          <span class="appname">{h.label}</span>
-          <span class="state">{on ? "Installed" : "Not installed"}</span>
-          <button class="toggle" class:on onclick={() => onToggleHome(h.id, !on)}>{on ? "Remove" : "Install"}</button>
-        </li>
-      {/each}
-    </ul>
-  </section>
-
-  {#if installedHomes.length > 0}
-    <section class="controls">
-      <p class="label">Controls</p>
+  {:else if active === "configure"}
+    <div class="controls">
       {#if installedHomes.length > 1}
         <div class="homeswitch">
           {#each installedHomes as h (h.id)}
@@ -119,122 +175,17 @@
       {:else if controlsLoading}
         <p class="cmuted">Loading controls…</p>
       {:else}
-        <p class="cmuted">No controls.</p>
+        <p class="cmuted">This plugin has no configurable settings.</p>
       {/if}
-    </section>
+    </div>
   {/if}
+{/snippet}
 
-  <footer class="actions">
-    {#if plugin.updateAvailable}
-      <Button onclick={onUpdate}>Update</Button>
-    {/if}
-    {#if !fullyInstalled}
-      <Button variant="primary" onclick={onInstallAll}>Install everywhere</Button>
-    {/if}
-    {#if installedCount > 0}
-      <Button onclick={onRemoveEverywhere}>Remove everywhere</Button>
-    {/if}
-  </footer>
-</div>
+<RepoDetail {repo} {onClose} {tabs} tabContent={content} actions={topActions} versionLabel={representativeVersion} />
 
 <style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, .4);
-    z-index: 40;
-  }
-  .panel {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 41;
-    width: min(94vw, 440px);
-    background: var(--surface);
-    border-left: 1px solid var(--border);
-    box-shadow: var(--shadow);
-    padding: 24px 22px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    overflow-y: auto;
-  }
-  .close {
-    position: absolute;
-    top: 12px;
-    right: 14px;
-    background: none;
-    border: none;
-    color: var(--faint);
-    font-size: 22px;
-    line-height: 1;
-    cursor: pointer;
-    padding: 2px 6px;
-    border-radius: 6px;
-  }
-  .close:hover {
-    background: var(--surface-2);
-    color: var(--text);
-  }
-  .hero {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding-right: 24px;
-  }
-  .titles h2 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 650;
-    letter-spacing: -.02em;
-  }
-  .sub {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 4px;
-    flex-wrap: wrap;
-  }
-  .repo {
-    font-family: var(--mono);
-    font-size: 11.5px;
-    color: var(--faint);
-  }
-  .kind {
-    font-size: 10px;
-    letter-spacing: .04em;
-    text-transform: uppercase;
-    color: var(--muted);
-    background: var(--surface-2);
-    border-radius: 20px;
-    padding: 2px 8px;
-  }
-  .update {
-    font-size: 10.5px;
-    color: var(--accent);
-    font-weight: 600;
-  }
-  .desc {
-    margin: 0;
-    font-size: 13px;
-    color: var(--text);
-    line-height: 1.5;
-  }
-  .topics {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .topic {
-    font-size: 10.5px;
-    color: var(--faint);
-    background: var(--surface-2);
-    border-radius: 6px;
-    padding: 2px 7px;
-  }
   .label {
-    margin: 0 0 8px;
+    margin: 0 0 10px;
     font-size: 10.5px;
     letter-spacing: .08em;
     text-transform: uppercase;
@@ -253,9 +204,10 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 10px;
+    padding: 9px 12px;
     border: 1px solid var(--border);
     border-radius: 9px;
+    background: var(--surface-2);
   }
   .appmark {
     width: 24px;
@@ -295,6 +247,49 @@
     font-size: 11px;
     color: var(--faint);
   }
+  .ver {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .ver .src {
+    font-size: 9px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--faint);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1px 5px;
+  }
+  .ver .num {
+    font-family: var(--mono);
+  }
+  .ver .num.unknown {
+    font-style: italic;
+    color: var(--faint);
+  }
+  .mini {
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--accent-border);
+    background: var(--accent-weak);
+    color: var(--accent);
+    border-radius: 7px;
+    padding: 3px 10px;
+    cursor: pointer;
+  }
+  .mini:disabled {
+    opacity: .5;
+    cursor: default;
+  }
+  .auto {
+    display: inline-flex;
+    align-items: center;
+  }
   .toggle {
     font-size: 11.5px;
     font-weight: 600;
@@ -312,10 +307,14 @@
     color: var(--crit);
     border-color: var(--crit);
   }
+  .toggle:disabled {
+    opacity: .5;
+    cursor: default;
+  }
   .controls {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
   }
   .homeswitch {
     display: flex;
@@ -340,12 +339,5 @@
     margin: 0;
     color: var(--faint);
     font-size: 12.5px;
-  }
-  .actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: auto;
-    padding-top: 8px;
   }
 </style>

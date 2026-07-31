@@ -1,10 +1,11 @@
 <script lang="ts">
-  import type { HostApp, AppSummary } from "@cairn/shared";
-  import PluginIcon, { LOGO_SIZE } from "./PluginIcon.svelte";
+  import type { HostApp, AppSummary, AppConnection } from "@cairn/shared";
   import Button from "./Button.svelte";
   import Chip from "./Chip.svelte";
   import Spinner from "./Spinner.svelte";
-  import { fadeMotion, flyMotion } from "../util/motion.js";
+  import StatusPill from "./StatusPill.svelte";
+  import RepoDetail from "./RepoDetail.svelte";
+  import { navigate } from "../router.js";
 
   const PROVIDER_BREAKDOWN_CAP = 6;
 
@@ -12,177 +13,171 @@
     app,
     summary,
     summaryError,
+    connection,
+    busy,
     canImport,
-    busy = false,
     onClose,
     onImport,
-    onInit,
+    onPrimary,
     onUninstall,
   }: {
     app: HostApp;
     summary: AppSummary | null;
     summaryError: string;
+    connection: AppConnection | null;
+    busy: boolean;
     canImport: boolean;
-    busy?: boolean;
     onClose: () => void;
     onImport: () => void;
-    onInit: () => void;
+    onPrimary: () => void;
     onUninstall: (wipe: boolean) => void;
   } = $props();
 
   let confirmingUninstall = $state(false);
   let wipe = $state(false);
 
+  // The repo behind an app is its loader; the detail surfaces the loader's stars
+  // and readme while the Status tab covers the app's own connection.
+  const repo = $derived({
+    name: connection?.loaderId ?? app.id,
+    url: connection?.loaderUrl ?? "",
+    displayName: app.label,
+    icon: app.icon,
+  });
+
+  const connected = $derived(
+    !!connection && connection.cliPresent && (connection.loaderId ? connection.loaderInstalled : true),
+  );
+  const statusLabel = $derived(connected ? "Connected" : connection?.cliPresent ? "Loader not installed" : "Not detected");
+
   const shownBreakdown = $derived(summary ? summary.providerBreakdown.slice(0, PROVIDER_BREAKDOWN_CAP) : []);
   const moreCount = $derived(summary ? summary.providerBreakdown.length - shownBreakdown.length : 0);
 
-  function onKeydown(event: KeyboardEvent): void {
-    if (event.key === "Escape") onClose();
+  function openLocalApi(): void {
+    onClose();
+    navigate("localApi");
   }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-<div class="backdrop" role="presentation" onclick={onClose} transition:fadeMotion></div>
-<div class="panel" role="dialog" aria-modal="true" aria-label={`${app.label} details`} transition:flyMotion={{ y: 10 }}>
-  <button class="close" title="Close" aria-label="Close" onclick={onClose}>×</button>
-
-  <header class="hero">
-    <PluginIcon icon={app.icon} name={app.label} size={LOGO_SIZE.detail} />
-    <div class="titles">
-      <h2>{app.label}</h2>
-      <div class="sub"><span class="detected">Detected</span></div>
-    </div>
-  </header>
-
-  {#if summaryError}
-    <p class="error">Could not load app summary: {summaryError}</p>
-  {:else if summary}
-    <section>
-      <p class="label">Snapshot</p>
-      <div class="stats">
-        <div class="stat" data-testid="stat-accounts"><span class="v">{summary.accounts.length}</span><span class="k">accounts</span></div>
-        <div class="stat" data-testid="stat-enabled"><span class="v">{summary.accountsEnabled}</span><span class="k">enabled</span></div>
-        <div class="stat" data-testid="stat-providers"><span class="v">{summary.providerCount}</span><span class="k">providers</span></div>
-        <div class="stat" data-testid="stat-plugins"><span class="v">{summary.pluginCount}</span><span class="k">plugins</span></div>
-        {#if summary.routingSlots !== null}
-          <div class="stat" data-testid="stat-routing"><span class="v">{summary.routingSlots}</span><span class="k">routing slots</span></div>
-        {/if}
-        {#if summary.quotaMinPct !== null}
-          <div class="stat" data-testid="stat-quota"><span class="v">{summary.quotaMinPct}%</span><span class="k">lowest quota</span></div>
-        {/if}
+{#snippet content(active: string)}
+  {#if active === "status"}
+    <div class="status">
+      <div class="statusline">
+        <StatusPill variant={connected ? "good" : "off"} label={statusLabel} />
       </div>
-    </section>
 
-    <section>
-      <p class="label">Providers</p>
-      {#if shownBreakdown.length > 0}
-        <div class="breakdown">
-          {#each shownBreakdown as agg}
-            <Chip label={`${agg.provider} · ${agg.enabled}/${agg.accounts}`} />
-          {/each}
-          {#if moreCount > 0}<span class="more">+{moreCount} more</span>{/if}
+      <section>
+        <p class="label">Integration</p>
+        <div class="chainrows">
+          <div class="chainrow">
+            <span class="cdot" class:on={connection?.cliPresent}></span>
+            <span class="ck">Command line</span>
+            <span class="cs">{connection?.cliPresent ? "Installed" : "Not installed"}</span>
+            {#if connection && !connection.cliPresent && !connection.loaderId}
+              <Button variant="primary" disabled={busy} onclick={onPrimary}>
+                {#if busy}<Spinner />{/if}
+                Install CLI
+              </Button>
+            {/if}
+          </div>
+
+          {#if connection?.loaderId}
+            <div class="chainrow">
+              <span class="cdot" class:on={connection?.loaderInstalled}></span>
+              <span class="ck">Loader</span>
+              <span class="cs">{connection?.loaderInstalled ? "Installed" : "Not installed"}</span>
+              {#if !connection?.loaderInstalled}
+                <Button variant="primary" disabled={busy} onclick={onPrimary}>
+                  {#if busy}<Spinner />{/if}
+                  {connection?.cliPresent ? "Install loader" : "Connect"}
+                </Button>
+              {/if}
+            </div>
+          {/if}
         </div>
+        <button class="altlink" onclick={openLocalApi}>
+          Prefer not to use the loader? Connect this app through the Local API →
+        </button>
+      </section>
+
+      {#if summaryError}
+        <p class="error">Could not load app summary: {summaryError}</p>
+      {:else if summary}
+        <section>
+          <p class="label">Snapshot</p>
+          <div class="stats">
+            <div class="stat" data-testid="stat-accounts"><span class="v">{summary.accounts.length}</span><span class="k">accounts</span></div>
+            <div class="stat" data-testid="stat-enabled"><span class="v">{summary.accountsEnabled}</span><span class="k">enabled</span></div>
+            <div class="stat" data-testid="stat-providers"><span class="v">{summary.providerCount}</span><span class="k">providers</span></div>
+            <div class="stat" data-testid="stat-plugins"><span class="v">{summary.pluginCount}</span><span class="k">plugins</span></div>
+            {#if summary.routingSlots !== null}
+              <div class="stat" data-testid="stat-routing"><span class="v">{summary.routingSlots}</span><span class="k">routing slots</span></div>
+            {/if}
+            {#if summary.quotaMinPct !== null}
+              <div class="stat" data-testid="stat-quota"><span class="v">{summary.quotaMinPct}%</span><span class="k">lowest quota</span></div>
+            {/if}
+          </div>
+        </section>
+
+        <section>
+          <p class="label">Providers</p>
+          {#if shownBreakdown.length > 0}
+            <div class="breakdown">
+              {#each shownBreakdown as agg}
+                <Chip label={`${agg.provider} · ${agg.enabled}/${agg.accounts}`} />
+              {/each}
+              {#if moreCount > 0}<span class="more">+{moreCount} more</span>{/if}
+            </div>
+          {:else}
+            <p class="muted">No accounts connected.</p>
+          {/if}
+        </section>
+
+        <section>
+          <p class="label">Config directory</p>
+          <p class="path">{summary.configDir}</p>
+        </section>
       {:else}
-        <p class="muted">No accounts connected.</p>
+        <p class="muted">Loading summary…</p>
       {/if}
-    </section>
 
-    <section>
-      <p class="label">Config directory</p>
-      <p class="path">{summary.configDir}</p>
-    </section>
-  {:else}
-    <p class="muted">Loading summary…</p>
-  {/if}
-
-  <footer class="actions">
-    {#if canImport}
-      <Button onclick={onImport}>Import config</Button>
-    {/if}
-    <Button disabled={busy} onclick={onInit}>
-      {#if busy}<Spinner />{/if}
-      Initialize plugin-updater
-    </Button>
-  </footer>
-
-  <section class="dangerzone">
-    {#if !confirmingUninstall}
-      <Button variant="danger" onclick={() => { confirmingUninstall = true; wipe = false; }}>Uninstall app</Button>
-    {:else}
-      <div class="dangerpanel">
-        <p>This removes the {app.label} CLI from this machine. Plugins and configuration stay in place unless you also delete data.</p>
-        <label class="wipe">
-          <input type="checkbox" checked={wipe} onchange={(event) => (wipe = event.currentTarget.checked)} />
-          Also delete all data
-        </label>
-        <div class="actions">
-          <Button onclick={() => (confirmingUninstall = false)}>Cancel</Button>
-          <Button variant="danger" onclick={() => onUninstall(wipe)}>Uninstall</Button>
+      {#if canImport}
+        <div class="rowactions">
+          <Button onclick={onImport}>Import config</Button>
         </div>
-      </div>
-    {/if}
-  </section>
-</div>
+      {/if}
+
+      <section class="dangerzone">
+        {#if !confirmingUninstall}
+          <Button variant="danger" onclick={() => { confirmingUninstall = true; wipe = false; }}>Uninstall app</Button>
+        {:else}
+          <div class="dangerpanel">
+            <p>This removes the {app.label} CLI from this machine. Plugins and configuration stay in place unless you also delete data.</p>
+            <label class="wipe">
+              <input type="checkbox" checked={wipe} onchange={(event) => (wipe = event.currentTarget.checked)} />
+              Also delete all data
+            </label>
+            <div class="rowactions end">
+              <Button onclick={() => (confirmingUninstall = false)}>Cancel</Button>
+              <Button variant="danger" onclick={() => onUninstall(wipe)}>Uninstall</Button>
+            </div>
+          </div>
+        {/if}
+      </section>
+    </div>
+  {/if}
+{/snippet}
+
+<RepoDetail {repo} {onClose} tabs={[{ id: "status", label: "Status" }]} tabContent={content} defaultTab="status" />
 
 <style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, .4);
-    z-index: 40;
-  }
-  .panel {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 41;
-    width: min(94vw, 440px);
-    background: var(--surface);
-    border-left: 1px solid var(--border);
-    box-shadow: var(--shadow);
-    padding: 24px 22px;
+  .status {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    overflow-y: auto;
-  }
-  .close {
-    position: absolute;
-    top: 12px;
-    right: 14px;
-    background: none;
-    border: none;
-    color: var(--faint);
-    font-size: 22px;
-    line-height: 1;
-    cursor: pointer;
-    padding: 2px 6px;
-    border-radius: 6px;
-  }
-  .close:hover {
-    background: var(--surface-2);
-    color: var(--text);
-  }
-  .hero {
-    display: flex;
-    align-items: center;
     gap: 14px;
-    padding-right: 24px;
   }
-  .titles h2 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 650;
-    letter-spacing: -.02em;
-  }
-  .sub {
-    margin-top: 4px;
-  }
-  .detected {
-    font-size: 10.5px;
-    color: var(--good);
-    font-weight: 600;
+  .statusline {
+    display: flex;
   }
   .label {
     margin: 0 0 8px;
@@ -192,9 +187,55 @@
     color: var(--faint);
     font-weight: 600;
   }
+  .chainrows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .chainrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+  }
+  .cdot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border-strong);
+    flex: none;
+  }
+  .cdot.on {
+    background: var(--good);
+  }
+  .ck {
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .cs {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: auto;
+  }
+  .altlink {
+    margin-top: 8px;
+    background: none;
+    border: none;
+    padding: 0;
+    text-align: left;
+    font-size: 11.5px;
+    color: var(--accent);
+    cursor: pointer;
+  }
+  .altlink:hover {
+    text-decoration: underline;
+  }
   .stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
     gap: 8px;
   }
   .stat {
@@ -246,14 +287,16 @@
     font-size: 12.5px;
     margin: 0;
   }
-  .actions {
+  .rowactions {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
   }
+  .rowactions.end {
+    justify-content: flex-end;
+  }
   .dangerzone {
-    margin-top: auto;
-    padding-top: 8px;
+    padding-top: 4px;
   }
   .dangerpanel {
     padding: 16px 18px;
@@ -276,8 +319,5 @@
     font-size: 12.5px;
     color: var(--text);
     cursor: pointer;
-  }
-  .dangerpanel .actions {
-    justify-content: flex-end;
   }
 </style>

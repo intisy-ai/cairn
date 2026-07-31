@@ -2,7 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import { mkdtempSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { engineByCapability } from "@core/index.js";
 import { customEndpointsList, customEndpointsUpsert, customEndpointsRemove, customEndpointsSaveKey } from "./customEndpoints.js";
+
+const meta = engineByCapability("custom-endpoints")!.meta!;
 
 function home(): string {
   const d = mkdtempSync(join(tmpdir(), "custom-ep-"));
@@ -10,13 +13,13 @@ function home(): string {
   return d;
 }
 function readEndpoints(dir: string): unknown[] {
-  const f = join(dir, "config", "custom-auth.json");
+  const f = join(dir, "config", meta.configName + ".json");
   return existsSync(f) ? JSON.parse(readFileSync(f, "utf8")).endpoints : [];
 }
 const EP = { id: "local", label: "Local", baseUrl: "https://ep.test/v1", format: "openai", models: ["gpt-4o"] };
 
 describe("customEndpoints module", () => {
-  it("upserts an endpoint into config/custom-auth.json", async () => {
+  it("upserts an endpoint into the config file named by the registry", async () => {
     const dir = home();
     const r = await customEndpointsUpsert(EP, { dir });
     expect(r.ok).toBe(true);
@@ -44,8 +47,8 @@ describe("customEndpoints module", () => {
 
     const r = await customEndpointsSaveKey("local", "sk-secret", { dir, addAccount });
     expect(r.ok).toBe(true);
-    expect(added[0]).toMatchObject({ p: "custom", a: { refresh: "sk-secret", meta: { endpointId: "local" } } });
-    const cfgText = readFileSync(join(dir, "config", "custom-auth.json"), "utf8");
+    expect(added[0]).toMatchObject({ p: meta.providerId, a: { refresh: "sk-secret", meta: { endpointId: "local" } } });
+    const cfgText = readFileSync(join(dir, "config", meta.configName + ".json"), "utf8");
     expect(cfgText).not.toContain("sk-secret");
 
     const list = await customEndpointsList({ dir, listAccounts });
@@ -64,6 +67,6 @@ describe("customEndpoints module", () => {
     const r = await customEndpointsRemove("local", { dir, removeAccount: (p, id) => removed.push({ p, id }) });
     expect(r.ok).toBe(true);
     expect(readEndpoints(dir)).toEqual([]);
-    expect(removed[0]).toEqual({ p: "custom", id: "local" });
+    expect(removed[0]).toEqual({ p: meta.providerId, id: "local" });
   });
 });

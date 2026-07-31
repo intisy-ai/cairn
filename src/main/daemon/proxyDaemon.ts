@@ -6,7 +6,6 @@ import type { RoutingProfile } from "@core-proxy/index.js";
 import { loadInstalledProxyDefs } from "../../sidecar/lib/proxyPlugins.js";
 import type { LoadedProxyDef } from "../../sidecar/lib/proxyPlugins.js";
 import type { ProxyStatus } from "../../../packages/shared/src/domain.js";
-import { probeProxyHealth } from "../../../packages/shared/src/proxy.js";
 import { resolveLocalApiPort } from "../../sidecar/lib/localApiPort.js";
 import { resolveStoreDir } from "../lib/storeDir.js";
 
@@ -27,8 +26,15 @@ export function onStatusChange(listener: StatusListener): () => void {
   return () => { statusListeners.delete(listener); };
 }
 
+// The daemon's own handle is Cairn's single source of truth for "running": a health
+// probe would also report true for any other process holding the port, which is not
+// the lifecycle the dashboard controls.
+function currentStatus(): ProxyStatus {
+  return { running: handle !== null, port: resolveLocalApiPort(dashboardStoreDir()) };
+}
+
 function emitStatus(): void {
-  const snapshot: ProxyStatus = { running: handle !== null, port: resolveLocalApiPort(dashboardStoreDir()) };
+  const snapshot = currentStatus();
   for (const listener of statusListeners) {
     try { listener(snapshot); } catch { /* a bad listener must not break the daemon */ }
   }
@@ -63,14 +69,8 @@ export function buildStartOptions(configDir: string, profile: RoutingProfile): S
   };
 }
 
-export function isRunning(probe: () => Promise<boolean> = () => probeProxyHealth(resolveLocalApiPort(dashboardStoreDir()))): Promise<boolean> {
-  return probe();
-}
-
-export async function status(probe?: () => Promise<boolean>): Promise<ProxyStatus> {
-  const port = resolveLocalApiPort(dashboardStoreDir());
-  const check = probe ?? (() => probeProxyHealth(port));
-  return { running: await isRunning(check), port };
+export async function status(): Promise<ProxyStatus> {
+  return currentStatus();
 }
 
 export async function start(

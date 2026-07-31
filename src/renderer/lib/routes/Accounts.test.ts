@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent, waitFor } from "@testing-library/svelte";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, fireEvent, waitFor, within, screen } from "@testing-library/svelte";
+import { get } from "svelte/store";
 import type { AccountView } from "@cairn/shared";
 import { stubCairn } from "../testing.js";
+import { toasts, toast } from "../toast.js";
 import Accounts from "./Accounts.svelte";
 
 const PROVIDERS = [
@@ -27,6 +29,10 @@ const ACCOUNTS = [
 ];
 
 describe("Accounts screen", () => {
+  beforeEach(() => {
+    get(toasts).slice().forEach((t) => toast.dismiss(t.id));
+  });
+
   it("renders account rows per provider, toggles enable, and removes an account", async () => {
     const accountsEnable = vi.fn(async () => ({ ok: true, data: undefined }) as const);
     const accountsRemove = vi.fn(async () => ({ ok: true, data: undefined }) as const);
@@ -49,13 +55,36 @@ describe("Accounts screen", () => {
 
     const removeButtons = getAllByRole("button", { name: "Remove" });
     await fireEvent.click(removeButtons[0]);
-    expect(accountsRemove).toHaveBeenCalledWith("stub", "acc1");
+    expect(accountsRemove).not.toHaveBeenCalled();
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(accountsRemove).toHaveBeenCalledWith("stub", "acc1"));
   });
 
   it("shows an inline error when providersList fails", async () => {
     stubCairn({ providersList: async () => ({ ok: false, error: "boom" }) });
     const { getByText } = render(Accounts);
     await waitFor(() => expect(getByText(/boom/i)).toBeTruthy());
+  });
+
+  it("retries providersList when the retry button is clicked", async () => {
+    const providersList = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, error: "boom" })
+      .mockResolvedValueOnce({ ok: true, data: PROVIDERS });
+    stubCairn({
+      providersList,
+      accountsList: async (provider) => (provider === "stub" ? { ok: true, data: ACCOUNTS } : { ok: true, data: [] }),
+    });
+
+    const { getByText, getByRole } = render(Accounts);
+    await waitFor(() => expect(getByText(/boom/i)).toBeTruthy());
+
+    const retryButton = getByRole("button", { name: /retry/i });
+    await fireEvent.click(retryButton);
+
+    expect(providersList).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(getByText("a@stub.test")).toBeTruthy());
   });
 
   it("shows an inline error when accountsList fails for a provider", async () => {
@@ -127,5 +156,100 @@ describe("Accounts screen", () => {
     const renderedRows = container.querySelectorAll(".row").length;
     expect(renderedRows).toBeGreaterThan(0);
     expect(renderedRows).toBeLessThan(25);
+  });
+
+  it("toasts an error when toggling an account fails, without a success toast", async () => {
+    stubCairn({
+      providersList: async () => ({ ok: true, data: PROVIDERS }),
+      accountsList: async (provider) => (provider === "stub" ? { ok: true, data: ACCOUNTS } : { ok: true, data: [] }),
+      accountsEnable: async () => ({ ok: false, error: "toggle boom" }),
+    });
+
+    const { getByRole } = render(Accounts);
+    const acc2Switch = await waitFor(() => getByRole("switch", { name: /b@stub.test enabled/i }));
+    await fireEvent.click(acc2Switch);
+
+    await waitFor(() => expect(get(toasts).some((t) => t.kind === "error" && t.message === "toggle boom")).toBe(true));
+    expect(get(toasts).some((t) => t.kind === "success")).toBe(false);
+  });
+
+  it("toasts success when removing an account succeeds", async () => {
+    stubCairn({
+      providersList: async () => ({ ok: true, data: PROVIDERS }),
+      accountsList: async (provider) => (provider === "stub" ? { ok: true, data: ACCOUNTS } : { ok: true, data: [] }),
+      accountsRemove: async () => ({ ok: true, data: undefined }),
+    });
+
+    const { getAllByRole } = render(Accounts);
+    const removeButtons = await waitFor(() => getAllByRole("button", { name: "Remove" }));
+    await fireEvent.click(removeButtons[0]);
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(get(toasts).some((t) => t.kind === "success" && t.message === "Account removed")).toBe(true));
+  });
+
+  it("toasts an error when removing an account fails", async () => {
+    stubCairn({
+      providersList: async () => ({ ok: true, data: PROVIDERS }),
+      accountsList: async (provider) => (provider === "stub" ? { ok: true, data: ACCOUNTS } : { ok: true, data: [] }),
+      accountsRemove: async () => ({ ok: false, error: "remove boom" }),
+    });
+
+    const { getAllByRole } = render(Accounts);
+    const removeButtons = await waitFor(() => getAllByRole("button", { name: "Remove" }));
+    await fireEvent.click(removeButtons[0]);
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(get(toasts).some((t) => t.kind === "error" && t.message === "remove boom")).toBe(true));
+  });
+
+  it("opens the add-account dialog for a provider chosen from the top-level control", async () => {
+    const accountsLoginBegin = vi.fn(async () => ({ ok: true, data: { url: "https://x/login", instructions: "" } }) as const);
+    stubCairn({
+      providersList: async () => ({ ok: true, data: PROVIDERS }),
+      accountsList: async (provider) => (provider === "stub" ? { ok: true, data: ACCOUNTS } : { ok: true, data: [] }),
+      accountsLoginBegin,
+    });
+
+    const { getByText, getAllByRole, findByRole } = render(Accounts);
+    await waitFor(() => expect(getByText("a@stub.test")).toBeTruthy());
+
+    const addButtons = getAllByRole("button", { name: "Add account" });
+    expect(addButtons.length).toBeGreaterThanOrEqual(2);
+    await fireEvent.click(addButtons[0]);
+
+    const menuItem = await findByRole("menuitem", { name: "Stub" });
+    await fireEvent.click(menuItem);
+
+    await findByRole("dialog", { name: /add stub account/i });
+    await waitFor(() => expect(accountsLoginBegin).toHaveBeenCalledWith("stub"));
+  });
+
+  it("shows an Add account affordance for every provider group, including an empty one, and opens its dialog", async () => {
+    const providersWithEmpty = [
+      { id: "stub", label: "Stub", hasOAuth: true, accountCount: 2, active: true, exposure: { claude: true, opencode: false } },
+      { id: "ghost", label: "Ghost", hasOAuth: true, accountCount: 0, active: true, exposure: { claude: true, opencode: false } },
+    ];
+    const accountsLoginBegin = vi.fn(async () => ({ ok: true, data: { url: "https://x/login", instructions: "" } }) as const);
+    stubCairn({
+      providersList: async () => ({ ok: true, data: providersWithEmpty }),
+      accountsList: async (provider) => (provider === "stub" ? { ok: true, data: ACCOUNTS } : { ok: true, data: [] }),
+      accountsLoginBegin,
+    });
+
+    const { getByText, container, findByRole } = render(Accounts);
+    await waitFor(() => expect(getByText("a@stub.test")).toBeTruthy());
+    await waitFor(() => expect(getByText(/no accounts yet/i)).toBeTruthy());
+
+    const groups = Array.from(container.querySelectorAll("section.grp"));
+    const ghostGroup = groups.find((g) => g.querySelector(".lbl")?.textContent === "Ghost");
+    expect(ghostGroup).toBeTruthy();
+    const addButton = within(ghostGroup as HTMLElement).getByRole("button", { name: "Add account" });
+    await fireEvent.click(addButton);
+
+    await findByRole("dialog", { name: /add ghost account/i });
+    await waitFor(() => expect(accountsLoginBegin).toHaveBeenCalledWith("ghost"));
   });
 });

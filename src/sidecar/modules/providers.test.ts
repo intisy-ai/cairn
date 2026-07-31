@@ -3,12 +3,34 @@ import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { getConfigValue, setConfigValue } from "@core/index.js";
+import { getConfigValue } from "@core/index.js";
+import type { AppDescriptor } from "@core/index.js";
 
 const stubHandlerPath = fileURLToPath(new URL("../../../../../providers/stub-auth/dist/handler.js", import.meta.url));
 
+// exposureFor()/defaultExposure() (see lib/exposure.ts) key the exposure map by
+// getApps() ids, which now come solely from the apps.json registry, so the
+// "claude"/"opencode" exposure keys these tests assert need a seeded registry.
+function appDescriptor(id: string, label: string): AppDescriptor {
+  return {
+    id,
+    label,
+    home: { candidates: ["/nonexistent/" + id] },
+    detect: { binary: id, pkg: id },
+    commandsSubdir: "commands",
+    proxyPort: 0,
+    integration: "native",
+    wireFormat: "anthropic",
+  };
+}
+
 beforeEach(() => {
   process.env.HUB_CONFIG_DIR = mkdtempSync(join(tmpdir(), "dash-providers-"));
+  process.env.HUB_APPS_FILE = join(process.env.HUB_CONFIG_DIR, "apps.json");
+  writeFileSync(
+    process.env.HUB_APPS_FILE,
+    JSON.stringify({ claude: appDescriptor("claude", "Claude Code"), opencode: appDescriptor("opencode", "OpenCode") }),
+  );
 });
 
 function seedStubProvider(): void {
@@ -62,18 +84,6 @@ describe("providers sidecar module", () => {
     const { providersList } = await import("./providers.js");
     const result = await providersList();
     expect(result).toEqual({ ok: true, data: [] });
-  });
-
-  it("migrates a legacy {cc,oc} exposure entry to app ids on read", async () => {
-    seedStubProvider();
-    setConfigValue("dashboard-exposure", "map", { stub: { cc: true, oc: false } });
-    const { providersList } = await import("./providers.js");
-    const rows = await providersList();
-    const stub = rows.ok ? rows.data.find((r) => r.id === "stub") : undefined;
-    expect(stub?.exposure.claude).toBe(true);
-    expect(stub?.exposure.opencode).toBe(false);
-    expect((getConfigValue("dashboard-exposure", "map") as Record<string, Record<string, boolean>>).stub)
-      .toEqual({ claude: true, opencode: false });
   });
 
   it("providersSetExposure writes an app-id-keyed entry", async () => {

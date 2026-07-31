@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent, waitFor, within } from "@testing-library/svelte";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, fireEvent, waitFor, within, screen } from "@testing-library/svelte";
+import { get } from "svelte/store";
 import { stubCairn } from "../testing.js";
+import { toasts, toast } from "../toast.js";
+import { consumeParams } from "../router.js";
 import Routing from "./Routing.svelte";
 
 const CATALOG = [
@@ -16,6 +19,10 @@ const TWO_APPS = [
 ];
 
 describe("Routing screen", () => {
+  beforeEach(() => {
+    get(toasts).slice().forEach((t) => toast.dismiss(t.id));
+  });
+
   it("renders a tier with its current chain", async () => {
     stubCairn({
       routingApps: async () => ({ ok: true, data: ONE_APP }),
@@ -132,11 +139,116 @@ describe("Routing screen", () => {
     expect(routingGet).toHaveBeenCalledWith("opencode");
   });
 
+  it("confirms before removing a routing step from a chain", async () => {
+    const routingSetChain = vi.fn(async () => ({ ok: true, data: { warnings: [] } }) as const);
+    stubCairn({
+      routingApps: async () => ({ ok: true, data: ONE_APP }),
+      routingGet: async () => ({
+        ok: true,
+        data: {
+          tiers: ["opus"],
+          map: { default: [], opus: [{ provider: "stub", model: "m1", name: "Stub M1" }] },
+          catalog: CATALOG,
+        },
+      }),
+      routingSetChain,
+    });
+
+    const { getByText, getByRole } = render(Routing);
+    await waitFor(() => expect(getByText("Stub M1")).toBeTruthy());
+
+    await fireEvent.click(getByRole("button", { name: "Remove" }));
+    expect(routingSetChain).not.toHaveBeenCalled();
+
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(routingSetChain).toHaveBeenCalledWith("claude", "opus", []));
+  });
+
+  it("toasts an error when removing a routing step fails, without a success toast", async () => {
+    const routingSetChain = vi.fn(async () => ({ ok: false, error: "chain boom" }) as const);
+    stubCairn({
+      routingApps: async () => ({ ok: true, data: ONE_APP }),
+      routingGet: async () => ({
+        ok: true,
+        data: {
+          tiers: ["opus"],
+          map: { default: [], opus: [{ provider: "stub", model: "m1", name: "Stub M1" }] },
+          catalog: CATALOG,
+        },
+      }),
+      routingSetChain,
+    });
+
+    const { getByText, getByRole } = render(Routing);
+    await waitFor(() => expect(getByText("Stub M1")).toBeTruthy());
+
+    await fireEvent.click(getByRole("button", { name: "Remove" }));
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(get(toasts).some((t) => t.kind === "error" && t.message === "chain boom")).toBe(true));
+    expect(get(toasts).some((t) => t.kind === "success")).toBe(false);
+  });
+
   it("shows an empty state when no app has a proxy plugin installed", async () => {
     stubCairn({ routingApps: async () => ({ ok: true, data: [] }) });
 
     const { getByText } = render(Routing);
 
     await waitFor(() => expect(getByText(/install a proxy in plugins to configure routing/i)).toBeTruthy());
+    expect(getByText("Browse proxies")).toBeTruthy();
+  });
+
+  it("navigates to Plugins filtered to proxies from the empty-state CTA", async () => {
+    stubCairn({ routingApps: async () => ({ ok: true, data: [] }) });
+
+    const { getByText } = render(Routing);
+
+    await waitFor(() => expect(getByText("Browse proxies")).toBeTruthy());
+    await fireEvent.click(getByText("Browse proxies"));
+
+    const params = consumeParams();
+    expect(params).toEqual({ kind: "proxy" });
+  });
+
+  it("reorders chain entries with the up/down controls", async () => {
+    const routingSetChain = vi.fn(async () => ({ ok: true, data: { warnings: [] } }) as const);
+    stubCairn({
+      routingApps: async () => ({ ok: true, data: ONE_APP }),
+      routingGet: async () => ({
+        ok: true,
+        data: {
+          tiers: ["opus"],
+          map: {
+            default: [],
+            opus: [
+              { provider: "a", model: "m1" },
+              { provider: "b", model: "m2" },
+            ],
+          },
+          catalog: CATALOG,
+        },
+      }),
+      routingSetChain,
+    });
+
+    const { getByLabelText } = render(Routing);
+    await waitFor(() => expect(getByLabelText(/Move m1 up/)).toBeTruthy());
+
+    expect(getByLabelText(/Move m1 up/)).toBeDisabled();
+    expect(getByLabelText(/Move m2 down/)).toBeDisabled();
+    expect(getByLabelText(/Move m1 down/)).not.toBeDisabled();
+    expect(getByLabelText(/Move m2 up/)).not.toBeDisabled();
+
+    await fireEvent.click(getByLabelText(/Move m1 down/));
+
+    await waitFor(() =>
+      expect(routingSetChain).toHaveBeenCalledWith("claude", "opus", [
+        { provider: "b", model: "m2" },
+        { provider: "a", model: "m1" },
+      ]),
+    );
   });
 });

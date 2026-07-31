@@ -13,6 +13,9 @@ export const INVOKE_CHANNELS = {
   accountsEnable: "accounts:enable",
   accountsRemove: "accounts:remove",
   accountsRefreshQuota: "accounts:refreshQuota",
+  accountsLoginBegin: "accounts:loginBegin",
+  accountsLoginComplete: "accounts:loginComplete",
+  accountsLoginCancel: "accounts:loginCancel",
   providersList: "providers:list",
   providersSetActive: "providers:setActive",
   providersSetExposure: "providers:setExposure",
@@ -22,17 +25,29 @@ export const INVOKE_CHANNELS = {
   proxyStatus: "proxy:status",
   proxyStart: "proxy:start",
   proxyStop: "proxy:stop",
+  proxiesList: "proxies:list",
+  proxiesSetEnabled: "proxies:setEnabled",
   appsDetect: "apps:detect",
   appsList: "apps:list",
   appsInstallCli: "apps:installCli",
   appsInit: "apps:init",
   appsUninstallCli: "apps:uninstallCli",
   appsSummary: "apps:summary",
+  appsConnection: "apps:connection",
+  appsInstallLoader: "apps:installLoader",
+  repoMeta: "repo:meta",
+  repoMetaCached: "repo:metaCached",
+  pluginVersions: "plugins:versions",
+  pluginVersionsAll: "plugins:versionsAll",
+  pluginVersionsCached: "plugins:versionsCached",
   pluginsList: "plugins:list",
+  enginesList: "engines:list",
+  enginesEnsure: "engines:ensure",
   pluginsInstall: "plugins:install",
   pluginsInstallMany: "plugins:installMany",
   pluginsRemoveEverywhere: "plugins:removeEverywhere",
   pluginsSetEnabled: "plugins:setEnabled",
+  pluginsSetAutoUpdate: "plugins:setAutoUpdate",
   pluginsDowngrade: "plugins:downgrade",
   pluginsUninstall: "plugins:uninstall",
   configSchemas: "config:schemas",
@@ -53,6 +68,8 @@ export const INVOKE_CHANNELS = {
   importPreview: "import:preview",
   importRun: "import:run",
   catalogList: "catalog:list",
+  githubStatus: "github:status",
+  githubSetToken: "github:set-token",
   customEndpointsList: "customEndpoints:list",
   customEndpointsUpsert: "customEndpoints:upsert",
   customEndpointsRemove: "customEndpoints:remove",
@@ -65,12 +82,12 @@ export type InvokeChannel = (typeof INVOKE_CHANNELS)[InvokeMethod];
 export const IPC_CHANNELS = {
   invoke: Object.values(INVOKE_CHANNELS) as readonly InvokeChannel[],
   send: ["window:minimize", "window:maximize", "window:close"] as const,
-  receive: ["server:status"] as const,
+  receive: ["server:status", "downloads:progress"] as const,
 };
 
 // The methods on CairnAPI that are NOT request/response invocations (window
-// controls, the push subscription, and the static flags).
-type NonInvokeMethod = "minimize" | "maximize" | "close" | "onServerStatus" | "isElectron" | "platform";
+// controls, the push subscriptions, and the static flags).
+type NonInvokeMethod = "minimize" | "maximize" | "close" | "onServerStatus" | "onDownloadProgress" | "isElectron" | "platform";
 type ApiInvokeMethod = Exclude<keyof CairnAPI, NonInvokeMethod>;
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 

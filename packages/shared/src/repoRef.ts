@@ -17,7 +17,8 @@ export function parseRepoRef(input: string): RepoRef | null {
 }
 
 export function classifyRepoName(name: string): CatalogKind | null {
-  if (name.endsWith("-loader") || name.endsWith("-translator") || name.startsWith("core-")) return null;
+  if (name.endsWith("-translator") || name.startsWith("core-")) return null;
+  if (name.endsWith("-loader")) return "loader";
   if (name.endsWith("-proxy")) return "proxy";
   if (name.endsWith("-auth")) return "provider";
   return "plugin";
@@ -31,6 +32,7 @@ export function classifyRepoName(name: string): CatalogKind | null {
 export function classifyRepoTopics(topics: string[]): CatalogKind | null {
   if (topics.includes("ai-provider")) return "provider";
   if (topics.includes("app-proxy")) return "proxy";
+  if (topics.includes("app-loader")) return "loader";
   if (topics.includes("plugin")) return "plugin";
   return null;
 }
