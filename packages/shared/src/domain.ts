@@ -130,7 +130,7 @@ export type PluginHome = {
 export type HomePlugins = { home: PluginHome; rows: PluginRow[] };
 export type PluginVersion = { kind: "git" | "npm"; label: string | null; updateAvailable: boolean; autoUpdate: boolean };
 export type EngineHomeState = { installed: boolean; enabled: boolean };
-export type EngineView = { id: string; capability: string; homes: Record<string, EngineHomeState> };
+export type EngineView = { id: string; capability: string; url: string; homes: Record<string, EngineHomeState> };
 export type UnifiedHomeState = { installed: boolean; version?: string | null };
 export type UnifiedPlugin = {
   name: string;

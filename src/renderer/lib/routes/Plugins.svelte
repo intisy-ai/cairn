@@ -73,7 +73,7 @@
 
   const homes = $derived(sections.map((s) => s.home));
   const engineIds = $derived(new Set(engines.map((e) => e.id)));
-  const unified = $derived(buildUnifiedPlugins(sections, catalog, homes));
+  const unified = $derived(buildUnifiedPlugins(sections, catalog, homes, engines.map((e) => ({ name: e.id, url: e.url }))));
   const counts = $derived({
     all: unified.length,
     provider: unified.filter((p) => p.kind === "provider").length,

@@ -28,6 +28,13 @@ describe("buildUnifiedPlugins", () => {
     expect(wk.homes.opencode.installed).toBe(false);
   });
 
+  it("lists an engine the catalog omits, in every home, with its registry url", () => {
+    const out = buildUnifiedPlugins([], [], homes, [{ name: "plugin-updater", url: "https://github.com/intisy-ai/plugin-updater" }]);
+    const pu = out.find((p) => p.name === "plugin-updater")!;
+    expect(pu.url).toBe("https://github.com/intisy-ai/plugin-updater");
+    expect(Object.keys(pu.homes).sort()).toEqual(["cairn", "claude", "opencode"]);
+  });
+
   it("routes a provider to host apps + cairn and a proxy to cairn only", () => {
     const catalog: CatalogEntry[] = [
       { name: "antigravity-auth", url: "u", kind: "provider", description: "prov", deprecated: false },

@@ -218,7 +218,7 @@ describe("Plugins screen", () => {
           source: "gh" as const,
         },
       }),
-      enginesList: async () => ({ ok: true, data: [{ id: "plugin-updater", capability: "plugin-management", homes: {} }] }),
+      enginesList: async () => ({ ok: true, data: [{ id: "plugin-updater", capability: "plugin-management", url: "https://github.com/intisy-ai/plugin-updater", homes: {} }] }),
     });
     render(Plugins);
 
@@ -239,7 +239,7 @@ describe("Plugins screen", () => {
         { name: "wakatime-sync", url: "u", kind: "plugin", description: "normal", deprecated: false, topics: [] },
       ], source: "anonymous" } }),
       enginesList: async () => ({ ok: true, data: [
-        { id: "plugin-updater", capability: "plugin-management", homes: { claude: { installed: true, enabled: true } } },
+        { id: "plugin-updater", capability: "plugin-management", url: "https://github.com/intisy-ai/plugin-updater", homes: { claude: { installed: true, enabled: true } } },
       ] }),
     });
     const { getByRole, getByText, queryByText, container } = render(Plugins);
@@ -406,7 +406,7 @@ describe("Plugins screen", () => {
         { name: "wakatime-sync", url: "u", kind: "plugin", description: "normal", deprecated: false, topics: [] },
       ], source: "anonymous" } }),
       enginesList: async () => ({ ok: true, data: [
-        { id: "plugin-updater", capability: "plugin-management", homes: { claude: { installed: true, enabled: true } } },
+        { id: "plugin-updater", capability: "plugin-management", url: "https://github.com/intisy-ai/plugin-updater", homes: { claude: { installed: true, enabled: true } } },
       ] }),
       getConfig: async () => ({ ok: true, data: "grid" }),
     });

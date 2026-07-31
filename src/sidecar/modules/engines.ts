@@ -48,6 +48,7 @@ export function enginesList(deps: EnginesDeps = {}): Promise<Result<EngineView[]
     return getEngines().map((engine) => ({
       id: engine.id,
       capability: engine.capability,
+      url: engine.url,
       homes: Object.fromEntries(targetHomes(engine, homes).map((h) => [h.id, stateIn(engine, h, getPlugins)])),
     }));
   });
