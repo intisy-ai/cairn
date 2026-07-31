@@ -7,7 +7,15 @@ export type CatalogEntry = { name: string; url: string; kind: CatalogKind; descr
 export type RepoMeta = { owner: string; repo: string; htmlUrl: string; stars: number | null; description: string; topics: string[]; readme: string | null };
 export type CatalogTokenSource = "env" | "config" | "gh" | "anonymous";
 export type CatalogResult = { entries: CatalogEntry[]; source: CatalogTokenSource; org: string };
-export type GithubStatus = { source: CatalogTokenSource; connected: boolean; login: string | null; ghCliDetected: boolean };
+export type GithubAccountView = { login: string };
+export type GithubStatus = {
+  source: CatalogTokenSource;
+  connected: boolean;
+  login: string | null;
+  ghCliDetected: boolean;
+  accounts: GithubAccountView[];
+  activeLogin: string | null;
+};
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 export type ProviderHealth = {
   provider: string;

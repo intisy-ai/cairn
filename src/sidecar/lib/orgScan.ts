@@ -36,11 +36,29 @@ function resolveOrg(getOrg?: () => string): string {
   return typeof configured === "string" && configured.trim() ? configured.trim() : ECOSYSTEM_ORG;
 }
 
+interface StoredGithubAccount { login: string; token: string }
+
+// Reads the stored multi-account list and returns the active account's token: the
+// account whose login matches githubActiveLogin, else the first stored account. With
+// no accounts stored, falls back to the legacy single githubToken config value so an
+// older config keeps working.
+export function activeGithubToken(): string | null {
+  const accounts = getConfigValue("cairn", "githubAccounts");
+  if (Array.isArray(accounts) && accounts.length > 0) {
+    const list = accounts as StoredGithubAccount[];
+    const activeLogin = getConfigValue("cairn", "githubActiveLogin");
+    const active = typeof activeLogin === "string" ? list.find((a) => a.login === activeLogin) : undefined;
+    return (active ?? list[0]).token?.trim() || null;
+  }
+  const legacy = getConfigValue("cairn", "githubToken");
+  return typeof legacy === "string" && legacy.trim() ? legacy.trim() : null;
+}
+
 export async function resolveToken(env: NodeJS.ProcessEnv, execFn: (f: string, a: string[]) => Promise<string>): Promise<{ token: string | null; source: CatalogResult["source"] }> {
   const envToken = env.GITHUB_TOKEN?.trim() || env.GH_TOKEN?.trim();
   if (envToken) return { token: envToken, source: "env" };
-  const configured = getConfigValue("cairn", "githubToken");
-  if (typeof configured === "string" && configured.trim()) return { token: configured.trim(), source: "config" };
+  const configToken = activeGithubToken();
+  if (configToken) return { token: configToken, source: "config" };
   try {
     const out = (await execFn("gh", ["auth", "token"])).trim();
     if (out) return { token: out, source: "gh" };
