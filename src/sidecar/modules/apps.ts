@@ -9,6 +9,7 @@ import { resolveModelMap } from "@core-proxy/model-map.js";
 import { normalizeQuotas } from "../../../vendor/usage/snapshot.js";
 import { appRealHome } from "../lib/pluginHomes.js";
 import { svgIconDataUri } from "../lib/pluginIcon.js";
+import { scanOrg } from "../lib/orgScan.js";
 import { profileFor } from "../lib/proxyRegistry.js";
 import type { AppAccountSummary, AppConnection, AppPresence, AppProviderAgg, AppSummary, CliResult, HostApp, Result } from "../../../packages/shared/src/domain.js";
 import { wrap, err } from "../result.js";
@@ -57,9 +58,30 @@ export function appsDetect(deps: AppsDetectDeps = {}): Promise<Result<AppPresenc
   });
 }
 
+// An app's mark is its loader's brand, sourced from the loader repo's cairn.json
+// (via the org-scan catalog), never hardcoded. Best-effort: a failed scan just
+// yields no loader icons, so apps fall back to a lettermark.
+async function loaderIconMap(): Promise<Record<string, string>> {
+  try {
+    const catalog = await scanOrg();
+    const out: Record<string, string> = {};
+    for (const e of catalog.entries) if (e.icon) out[e.name] = e.icon;
+    return out;
+  } catch {
+    return {};
+  }
+}
+
 export function appsList(): Promise<Result<HostApp[]>> {
-  // AppDescriptor.icon is a raw SVG mark; PluginIcon needs a data URI.
-  return wrap(() => getApps().map((desc) => ({ id: desc.id, label: desc.label, icon: desc.icon ? svgIconDataUri(desc.icon) : undefined })));
+  return wrap(async () => {
+    const loaderIcons = await loaderIconMap();
+    return getApps().map((desc) => ({
+      id: desc.id,
+      label: desc.label,
+      // Prefer the loader's mark; a custom app may still carry its own inline SVG.
+      icon: (desc.loader ? loaderIcons[desc.loader.id] : undefined) ?? (desc.icon ? svgIconDataUri(desc.icon) : undefined),
+    }));
+  });
 }
 
 export function appsInstallCli(app: string, spawn: SpawnFn = realSpawn): Promise<Result<CliResult>> {
