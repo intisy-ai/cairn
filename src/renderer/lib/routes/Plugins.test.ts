@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, waitFor, within, screen } from "@testing-library/svelte";
 import { get } from "svelte/store";
 import { stubCairn } from "../testing.js";
-import { downloads } from "../downloads.js";
+import { downloads, resetDownloadsForTest } from "../downloads.js";
 import { router, navigate } from "../router.js";
 import Plugins from "./Plugins.svelte";
 import type { HomePlugins, PluginHome } from "@cairn/shared";
@@ -36,7 +36,7 @@ function baseCatalog() {
 
 describe("Plugins screen", () => {
   beforeEach(() => {
-    downloads.set({ tasks: [], open: false });
+    resetDownloadsForTest();
   });
 
   it("renders a unified row per plugin with its description text", async () => {

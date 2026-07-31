@@ -1,8 +1,18 @@
 <script lang="ts">
-  import { downloads, toggleDownloads, clearFinished } from "../downloads.js";
+  import { downloads, toggleDownloads, clearFinished, type DownloadTask } from "../downloads.js";
 
-  const runningCount = $derived($downloads.tasks.filter((task) => task.status === "running").length);
-  const hasFinished = $derived($downloads.tasks.some((task) => task.status === "done" || task.status === "failed"));
+  const inFlight = $derived($downloads.tasks.filter((t) => t.status === "pending" || t.status === "installing").length);
+  const hasFinished = $derived($downloads.tasks.some((t) => t.status === "done" || t.status === "failed"));
+
+  function sourceLabel(task: DownloadTask): string {
+    return task.source === "cairn" ? "Cairn direct" : task.source === "plugin-updater" ? "plugin-updater" : "";
+  }
+  function progressLine(task: DownloadTask): string {
+    if (task.status === "pending") return "Queued";
+    if (task.status === "installing") return task.step || "Installing…";
+    if (task.status === "done") return "Done";
+    return task.error || "Failed";
+  }
 </script>
 
 <div class="downloadmgr">
@@ -13,7 +23,7 @@
         <polyline points="7 10 12 15 17 10" />
         <line x1="12" y1="15" x2="12" y2="3" />
       </svg>
-      {#if runningCount > 0}<span class="badge">{runningCount}</span>{/if}
+      {#if inFlight > 0}<span class="badge">{inFlight}</span>{/if}
     </button>
   {/if}
   {#if $downloads.open && $downloads.tasks.length > 0}
@@ -25,13 +35,21 @@
         {/if}
       </div>
       {#each $downloads.tasks as task (task.id)}
-        <div class="task">
+        <div class="task status-{task.status}">
           <div class="row">
             <span class="label">{task.label}</span>
-            <span class="status status-{task.status}">{task.status}</span>
+            <span class="statedot" aria-hidden="true"></span>
           </div>
-          <div class="home">{task.home}</div>
-          {#if task.status === "failed"}<div class="error">{task.error}</div>{/if}
+          <div class="meta">
+            <span class="home">{task.home}</span>
+            {#if sourceLabel(task)}
+              <span class="src src-{task.source}">{sourceLabel(task)}</span>
+            {/if}
+          </div>
+          {#if task.status === "installing"}
+            <div class="bar"><span class="fill"></span></div>
+          {/if}
+          <div class="progress">{progressLine(task)}</div>
         </div>
       {/each}
     </div>
@@ -89,8 +107,8 @@
     position: absolute;
     top: calc(100% + 6px);
     right: 0;
-    width: 280px;
-    max-height: 320px;
+    width: 300px;
+    max-height: 360px;
     overflow-y: auto;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -148,18 +166,30 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .status {
+  .statedot {
     flex: none;
-    font-size: 10.5px;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: .02em;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
   }
-  .status-failed {
-    color: var(--crit);
+  .status-pending .statedot {
+    background: var(--faint);
   }
-  .status-done {
-    color: var(--good);
+  .status-installing .statedot {
+    background: var(--accent);
+  }
+  .status-done .statedot {
+    background: var(--good);
+  }
+  .status-failed .statedot {
+    background: var(--crit);
+  }
+  .meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
   }
   .home {
     font-size: 11px;
@@ -167,10 +197,52 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    flex: 1 1 auto;
+    min-width: 0;
   }
-  .error {
+  .src {
+    flex: none;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    padding: 1px 5px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .src-cairn {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  }
+  .bar {
+    margin-top: 6px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+  .fill {
+    display: block;
+    width: 40%;
+    height: 100%;
+    border-radius: 2px;
+    background: var(--accent);
+    animation: slide 1.1s ease-in-out infinite;
+  }
+  @keyframes slide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(320%); }
+  }
+  .progress {
     margin-top: 4px;
     font-size: 11px;
+    color: var(--muted);
+  }
+  .status-failed .progress {
     color: var(--crit);
+  }
+  .status-done .progress {
+    color: var(--good);
   }
 </style>

@@ -4,7 +4,7 @@
   import { classifyRepoName } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { consumeParams } from "../router.js";
-  import { track } from "../downloads.js";
+  import { enqueue, type DownloadSource } from "../downloads.js";
   import { toast } from "../toast.js";
   import { debounce } from "../util/debounce.js";
   import { buildUnifiedPlugins, applicableHomeIds } from "../util/unifiedPlugins.js";
@@ -172,17 +172,36 @@
     return failed.map((o) => `${o.home}: ${o.error ?? "failed"}`).join("; ");
   }
 
+  // Engines are downloaded by Cairn directly; every other plugin is handled by
+  // plugin-updater, so the download row can say which machinery ran.
+  function sourceFor(name: string): DownloadSource {
+    return engineIds.has(name) ? "cairn" : "plugin-updater";
+  }
+  function homesLabel(homeIds: string[]): string {
+    const by = homesById();
+    return homeIds.map((id) => by[id]?.label ?? id).join(", ") || "none";
+  }
+
   async function installManyTracked(label: string, name: string, url: string, homeIds: string[]): Promise<Result<InstallManyResult>> {
-    const result = await track(label, homeIds.join(", ") || "none", () => cairn.pluginsInstallMany(name, url, homeIds), (data) =>
-      outcomesError(data.outcomes),
-    );
+    const result = await enqueue({
+      label,
+      home: homesLabel(homeIds),
+      source: sourceFor(name),
+      run: () => cairn.pluginsInstallMany(name, url, homeIds),
+      summarizeFailure: (data) => outcomesError(data.outcomes),
+    });
     if (!result.ok) return result;
     const error = outcomesError(result.data.outcomes);
     return error ? { ok: false, error } : result;
   }
 
   async function addHome(p: UnifiedPlugin, homeId: string): Promise<void> {
-    await track(`Install ${p.name}`, homeId, () => cairn.pluginsInstall(homeId, p.name, p.url ?? ""));
+    await enqueue({
+      label: `Install ${p.displayName}`,
+      home: homesLabel([homeId]),
+      source: sourceFor(p.name),
+      run: () => cairn.pluginsInstall(homeId, p.name, p.url ?? ""),
+    });
     await reload();
   }
   async function removeHome(p: UnifiedPlugin, homeId: string): Promise<void> {
@@ -201,9 +220,13 @@
   }
   async function handleRemoveEverywhere(p: UnifiedPlugin): Promise<void> {
     const homeIds = installedApplicable(p);
-    const result = await track(`Remove ${p.name} everywhere`, homeIds.join(", ") || "all homes", () => cairn.pluginsRemoveEverywhere(p.name), (data) =>
-      outcomesError(data.outcomes),
-    );
+    const result = await enqueue({
+      label: `Remove ${p.displayName} everywhere`,
+      home: homesLabel(homeIds) || "all homes",
+      source: sourceFor(p.name),
+      run: () => cairn.pluginsRemoveEverywhere(p.name),
+      summarizeFailure: (data) => outcomesError(data.outcomes),
+    });
     if (result.ok) toast.success(`${p.displayName} removed`);
     else toast.error(result.error);
     await reload();
