@@ -21,15 +21,16 @@
   import ToggleSwitch from "../components/ToggleSwitch.svelte";
   import PluginIcon, { LOGO_SIZE } from "../components/PluginIcon.svelte";
   import ViewToggle from "../components/ViewToggle.svelte";
+  import ProviderDetail from "../components/ProviderDetail.svelte";
   import { loadViewMode, saveViewMode, type ViewMode } from "../viewMode.js";
 
-  // API key / Local chips can return once ProviderRow carries a real connection-kind field.
-  type Filter = "all" | "connected" | "oauth";
+  type Filter = "all" | "connected" | "oauth" | "apikey";
 
   const FILTERS: { id: Filter; label: string }[] = [
     { id: "all", label: "All" },
     { id: "connected", label: "Connected" },
     { id: "oauth", label: "OAuth" },
+    { id: "apikey", label: "API key" },
   ];
 
   const VIRTUALIZE_THRESHOLD = 20;
@@ -50,6 +51,7 @@
   let availableOpen = $state(true);
   let customEndpointsOpen = $state(false);
   let view = $state<ViewMode>("list");
+  let selectedProvider = $state<ProviderRowData | null>(null);
 
   function setView(mode: ViewMode): void {
     view = mode;
@@ -65,7 +67,7 @@
   });
 
   function isConnected(row: ProviderRowData): boolean {
-    return row.active || row.accountCount > 0;
+    return row.accountCount > 0;
   }
 
   function matchesFilter(row: ProviderRowData): boolean {
@@ -73,7 +75,9 @@
       case "connected":
         return isConnected(row);
       case "oauth":
-        return row.hasOAuth;
+        return row.authKind === "oauth";
+      case "apikey":
+        return row.authKind === "api-key";
       default:
         return true;
     }
@@ -91,7 +95,10 @@
 
   const connectedCount = $derived(rows.filter(isConnected).length);
   const accountsTotal = $derived(rows.reduce((sum, row) => sum + row.accountCount, 0));
-  const oauthCount = $derived(rows.filter((row) => row.hasOAuth).length);
+  const oauthRows = $derived(rows.filter((row) => row.authKind === "oauth"));
+  const apiKeyRows = $derived(rows.filter((row) => row.authKind === "api-key"));
+  const oauthConnectedCount = $derived(oauthRows.filter(isConnected).length);
+  const apiKeyConnectedCount = $derived(apiKeyRows.filter(isConnected).length);
 
   async function load(): Promise<void> {
     const result = await cairn.providersList();
@@ -117,8 +124,8 @@
     return `${row.accountCount} account${row.accountCount === 1 ? "" : "s"}`;
   }
 
-  async function handleSetActive(id: string): Promise<void> {
-    const result = await cairn.providersSetActive(id);
+  async function handleSetEnabled(id: string, on: boolean): Promise<void> {
+    const result = await cairn.providersSetEnabled(id, on);
     if (!result.ok) toast.error(result.error);
     await load();
   }
@@ -197,8 +204,8 @@
   <section class="summary">
     <StatCard label="Connected" value={String(connectedCount)} unit={`/ ${rows.length} providers`} />
     <StatCard label="Accounts" value={String(accountsTotal)} meta={`across ${connectedCount} providers`} />
-    <StatCard label="Providers" value={String(rows.length)} />
-    <StatCard label="OAuth" value={String(oauthCount)} meta={`${rows.length - oauthCount} API key / local`} />
+    <StatCard label="OAuth" value={String(oauthRows.length)} meta={`${oauthConnectedCount} connected`} />
+    <StatCard label="API key" value={String(apiKeyRows.length)} meta={`${apiKeyConnectedCount} connected`} />
   </section>
 
   <div class="toolbar">
@@ -268,31 +275,50 @@
   <CustomEndpointsDialog onClose={() => (customEndpointsOpen = false)} />
 {/if}
 
+{#if selectedProvider}
+  <ProviderDetail
+    provider={selectedProvider}
+    {apps}
+    onClose={() => (selectedProvider = null)}
+    onChanged={load}
+  />
+{/if}
+
 {#snippet providerRow(row: ProviderRowData)}
   <ProviderRow
     avatar={initials(row.label)}
     name={row.label}
-    subtitle={row.hasOAuth ? "OAuth" : "API key"}
+    subtitle={row.authKind === "oauth" ? "OAuth" : "API key"}
     translator={row.translator}
     status={statusFor(row)}
     {apps}
     exposure={row.exposure}
     accountLabel={accountLabel(row)}
-    enabled={row.active}
-    onToggle={() => handleSetActive(row.id)}
+    enabled={row.enabled}
+    onToggle={(on) => handleSetEnabled(row.id, on)}
     onToggleExposure={(appId, on) => handleSetExposure(row.id, appId, on)}
+    onOpen={() => (selectedProvider = row)}
   />
 {/snippet}
 
 {#snippet providerCard(row: ProviderRowData)}
-  <div class="provider-card" data-testid={"provider-" + row.id}>
+  <div
+    class="provider-card"
+    data-testid={"provider-" + row.id}
+    role="button"
+    tabindex="0"
+    onclick={() => (selectedProvider = row)}
+    onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectedProvider = row; } }}
+  >
     <PluginIcon name={row.label} size={LOGO_SIZE.list} />
     <div class="card-info">
       <b>{row.label}</b>
       <StatusPill variant={statusFor(row).variant} label={statusFor(row).label} />
       <span class="card-accounts">{accountLabel(row)}</span>
     </div>
-    <ToggleSwitch checked={row.active} label={`${row.label} enabled`} onchange={() => handleSetActive(row.id)} />
+    <div onclick={(e) => e.stopPropagation()} role="presentation">
+      <ToggleSwitch checked={row.enabled} label={`${row.label} enabled`} onchange={(on) => handleSetEnabled(row.id, on)} />
+    </div>
   </div>
 {/snippet}
 
@@ -353,6 +379,11 @@
     background: var(--surface-2);
     border: 1px solid var(--border);
     border-radius: 10px;
+    cursor: pointer;
+  }
+  .provider-card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
   }
   .card-info {
     display: flex;

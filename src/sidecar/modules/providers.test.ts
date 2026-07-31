@@ -48,12 +48,12 @@ function seedStubProvider(): void {
 }
 
 describe("providers sidecar module", () => {
-  it("lists the catalog with account counts, active state, and default exposure", async () => {
+  it("lists the catalog with account counts, auth kind, and default exposure", async () => {
     seedStubProvider();
     const { addAccount } = await import("@core-auth/index.js");
     addAccount("stub", { id: "a1", email: "a1@example.com", refresh: "r1", enabled: true });
 
-    const { providersList, providersSetActive, providersSetExposure } = await import("./providers.js");
+    const { providersList, providersSetEnabled, providersSetExposure } = await import("./providers.js");
 
     const listed = await providersList();
     expect(listed.ok).toBe(true);
@@ -62,9 +62,9 @@ describe("providers sidecar module", () => {
     const row = listed.data[0];
     expect(row.id).toBe("stub");
     expect(row.label).toBe("Stub");
-    expect(row.hasOAuth).toBe(true);
+    expect(row.authKind).toBe("oauth");
     expect(row.accountCount).toBe(1);
-    expect(row.active).toBe(false);
+    expect(row.enabled).toBe(true);
     expect(row.exposure).toEqual({ claude: true, opencode: true });
 
     const exposed = await providersSetExposure("stub", "claude", false);
@@ -72,12 +72,22 @@ describe("providers sidecar module", () => {
     const afterExposure = await providersList();
     if (!afterExposure.ok) throw new Error("unreachable");
     expect(afterExposure.data[0].exposure).toEqual({ claude: false, opencode: true });
+    // still enabled: it is exposed to opencode
+    expect(afterExposure.data[0].enabled).toBe(true);
 
-    const activated = await providersSetActive("stub");
-    expect(activated.ok).toBe(true);
-    const afterActive = await providersList();
-    if (!afterActive.ok) throw new Error("unreachable");
-    expect(afterActive.data[0].active).toBe(true);
+    const disabled = await providersSetEnabled("stub", false);
+    expect(disabled.ok).toBe(true);
+    const afterDisabled = await providersList();
+    if (!afterDisabled.ok) throw new Error("unreachable");
+    expect(afterDisabled.data[0].exposure).toEqual({ claude: false, opencode: false });
+    expect(afterDisabled.data[0].enabled).toBe(false);
+
+    const enabled = await providersSetEnabled("stub", true);
+    expect(enabled.ok).toBe(true);
+    const afterEnabled = await providersList();
+    if (!afterEnabled.ok) throw new Error("unreachable");
+    expect(afterEnabled.data[0].exposure).toEqual({ claude: true, opencode: true });
+    expect(afterEnabled.data[0].enabled).toBe(true);
   });
 
   it("returns ok:true with an empty list when no providers are deployed", async () => {
@@ -91,5 +101,13 @@ describe("providers sidecar module", () => {
     await providersSetExposure("stub", "claude", false);
     const map = getConfigValue("dashboard-exposure", "map") as Record<string, Record<string, boolean>>;
     expect(map.stub.claude).toBe(false);
+  });
+
+  it("providersSetEnabled(false) does not affect an unrelated provider's exposure", async () => {
+    const { providersSetExposure, providersSetEnabled } = await import("./providers.js");
+    await providersSetExposure("other", "claude", true);
+    await providersSetEnabled("stub", false);
+    const map = getConfigValue("dashboard-exposure", "map") as Record<string, Record<string, boolean>>;
+    expect(map.other.claude).toBe(true);
   });
 });

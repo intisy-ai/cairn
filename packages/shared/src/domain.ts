@@ -42,12 +42,14 @@ export type ProxyStatus = {
   port: number;
 };
 export type ProxyView = { name: string; app: string; appLabel: string; enabled: boolean; setup?: string };
+export type ProviderAuthKind = "oauth" | "api-key";
 export type ProviderRow = {
   id: string;
   label: string;
-  hasOAuth: boolean;
+  authKind: ProviderAuthKind;
   accountCount: number;
-  active: boolean;
+  // True once the provider is exposed to at least one app.
+  enabled: boolean;
   exposure: Record<string, boolean>;
   translator?: string;
 };

@@ -11,7 +11,7 @@ export interface CairnAPI {
   accountsLoginComplete(provider: string, input: string): Promise<Result<LoginComplete>>;
   accountsLoginCancel(provider: string): Promise<Result<void>>;
   providersList(): Promise<Result<ProviderRow[]>>;
-  providersSetActive(id: string): Promise<Result<void>>;
+  providersSetEnabled(id: string, on: boolean): Promise<Result<void>>;
   providersSetExposure(id: string, app: string, on: boolean): Promise<Result<void>>;
   routingApps(): Promise<Result<RoutingApp[]>>;
   routingGet(app: string): Promise<Result<RoutingState>>;

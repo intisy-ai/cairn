@@ -18,7 +18,7 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "stub", label: "Stub", hasOAuth: true, accountCount: 2, active: true, exposure: { claude: true, opencode: false } },
+          { id: "stub", label: "Stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
         ],
       }),
       providersSetExposure,
@@ -47,14 +47,14 @@ describe("Providers screen", () => {
     await waitFor(() => expect(getByText(/boom/i)).toBeTruthy());
   });
 
-  it("offers only the All/Connected/OAuth filter chips", async () => {
+  it("offers the All/Connected/OAuth/API key filter chips", async () => {
     stubCairn({
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "oauth-only", label: "OAuthOnly", hasOAuth: true, accountCount: 0, active: false, exposure: { claude: false, opencode: false } },
-          { id: "key-connected", label: "KeyConnected", hasOAuth: false, accountCount: 1, active: false, exposure: { claude: false, opencode: false } },
-          { id: "key-unconnected", label: "KeyUnconnected", hasOAuth: false, accountCount: 0, active: false, exposure: { claude: false, opencode: false } },
+          { id: "oauth-only", label: "OAuthOnly", authKind: "oauth", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "key-connected", label: "KeyConnected", authKind: "api-key", accountCount: 1, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "key-unconnected", label: "KeyUnconnected", authKind: "api-key", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
         ],
       }),
     });
@@ -66,17 +66,17 @@ describe("Providers screen", () => {
     expect(toolbar.getByRole("button", { name: "All" })).toBeTruthy();
     expect(toolbar.getByRole("button", { name: "Connected" })).toBeTruthy();
     expect(toolbar.getByRole("button", { name: "OAuth" })).toBeTruthy();
-    expect(toolbar.queryByRole("button", { name: "API key" })).toBeNull();
+    expect(toolbar.getByRole("button", { name: "API key" })).toBeTruthy();
     expect(toolbar.queryByRole("button", { name: "Local" })).toBeNull();
   });
 
-  it("filters to hasOAuth rows when the OAuth chip is active", async () => {
+  it("filters to authKind:oauth rows when the OAuth chip is active", async () => {
     stubCairn({
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "oauth-only", label: "OAuthOnly", hasOAuth: true, accountCount: 0, active: false, exposure: { claude: false, opencode: false } },
-          { id: "key-unconnected", label: "KeyUnconnected", hasOAuth: false, accountCount: 0, active: false, exposure: { claude: false, opencode: false } },
+          { id: "oauth-only", label: "OAuthOnly", authKind: "oauth", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "key-unconnected", label: "KeyUnconnected", authKind: "api-key", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
         ],
       }),
     });
@@ -91,13 +91,34 @@ describe("Providers screen", () => {
     expect(getByText("OAuthOnly")).toBeTruthy();
   });
 
+  it("filters to authKind:api-key rows when the API key chip is active", async () => {
+    stubCairn({
+      providersList: async () => ({
+        ok: true,
+        data: [
+          { id: "oauth-only", label: "OAuthOnly", authKind: "oauth", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "key-only", label: "KeyOnly", authKind: "api-key", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
+        ],
+      }),
+    });
+
+    const { getByRole, getByText, queryByText } = render(Providers);
+    await waitFor(() => expect(getByText("KeyOnly")).toBeTruthy());
+    expect(getByText("OAuthOnly")).toBeTruthy();
+
+    await fireEvent.click(getByRole("button", { name: "API key" }));
+
+    await waitFor(() => expect(queryByText("OAuthOnly")).toBeNull());
+    expect(getByText("KeyOnly")).toBeTruthy();
+  });
+
   it("filters to accountCount>0 rows when the Connected chip is active", async () => {
     stubCairn({
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "key-connected", label: "KeyConnected", hasOAuth: false, accountCount: 1, active: false, exposure: { claude: false, opencode: false } },
-          { id: "key-unconnected", label: "KeyUnconnected", hasOAuth: false, accountCount: 0, active: false, exposure: { claude: false, opencode: false } },
+          { id: "key-connected", label: "KeyConnected", authKind: "api-key", accountCount: 1, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "key-unconnected", label: "KeyUnconnected", authKind: "api-key", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
         ],
       }),
     });
@@ -180,8 +201,8 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "gamma-id", label: "Alpha Label", hasOAuth: false, accountCount: 1, active: false, exposure: { claude: false, opencode: false } },
-          { id: "beta-id", label: "Zeta Label", hasOAuth: false, accountCount: 1, active: false, exposure: { claude: false, opencode: false } },
+          { id: "gamma-id", label: "Alpha Label", authKind: "api-key", accountCount: 1, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "beta-id", label: "Zeta Label", authKind: "api-key", accountCount: 1, enabled: false, exposure: { claude: false, opencode: false } },
         ],
       }),
     });
@@ -204,9 +225,9 @@ describe("Providers screen", () => {
     const data = Array.from({ length: 25 }, (_, i) => ({
       id: `provider-${i}`,
       label: `Provider ${i}`,
-      hasOAuth: false,
+      authKind: "api-key" as const,
       accountCount: 1,
-      active: true,
+      enabled: true,
       exposure: { claude: false, opencode: false },
     }));
     stubCairn({ providersList: async () => ({ ok: true, data }) });
@@ -228,7 +249,7 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "custom", label: "Custom endpoint", hasOAuth: false, accountCount: 1, active: false, exposure: { claude: true, opencode: false }, translator: "custom" },
+          { id: "custom", label: "Custom endpoint", authKind: "api-key", accountCount: 1, enabled: false, exposure: { claude: true, opencode: false }, translator: "custom" },
         ],
       }),
     });
@@ -249,7 +270,7 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "avail", label: "Available Provider", hasOAuth: false, accountCount: 0, active: false, exposure: { claude: false, opencode: false } },
+          { id: "avail", label: "Available Provider", authKind: "api-key", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
         ],
       }),
     });
@@ -264,22 +285,22 @@ describe("Providers screen", () => {
     await waitFor(() => expect(queryByText("Available Provider")).toBeNull());
   });
 
-  it("toasts an error when setting a provider active fails, without a success toast", async () => {
+  it("toasts an error when setting a provider enabled fails, without a success toast", async () => {
     stubCairn({
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "stub", label: "Stub", hasOAuth: true, accountCount: 2, active: true, exposure: { claude: true, opencode: false } },
+          { id: "stub", label: "Stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
         ],
       }),
-      providersSetActive: async () => ({ ok: false, error: "set-active boom" }),
+      providersSetEnabled: async () => ({ ok: false, error: "set-enabled boom" }),
     });
 
     const { getByRole } = render(Providers);
     const enabledSwitch = await waitFor(() => getByRole("switch", { name: /Stub enabled/i }));
     await fireEvent.click(enabledSwitch);
 
-    await waitFor(() => expect(get(toasts).some((t) => t.kind === "error" && t.message === "set-active boom")).toBe(true));
+    await waitFor(() => expect(get(toasts).some((t) => t.kind === "error" && t.message === "set-enabled boom")).toBe(true));
     expect(get(toasts).some((t) => t.kind === "success")).toBe(false);
   });
 
@@ -302,7 +323,7 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "stub", label: "Stub", hasOAuth: true, accountCount: 2, active: true, exposure: { claude: true, opencode: false } },
+          { id: "stub", label: "Stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
         ],
       }),
       getConfig: async () => ({ ok: true, data: "grid" }),
@@ -325,7 +346,7 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "stub", label: "Stub", hasOAuth: true, accountCount: 2, active: true, exposure: { claude: true, opencode: false } },
+          { id: "stub", label: "Stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
         ],
       }),
       getConfig: async () => ({ ok: true, data: "grid" }),
@@ -343,17 +364,17 @@ describe("Providers screen", () => {
     await waitFor(() => expect(setConfig).toHaveBeenCalledWith("cairn", "viewMode.providers", "list"));
   });
 
-  it("grid mode's enable switch reuses the same providersSetActive wiring", async () => {
-    const providersSetActive = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+  it("grid mode's enable switch reuses the same providersSetEnabled wiring", async () => {
+    const providersSetEnabled = vi.fn(async () => ({ ok: true, data: undefined }) as const);
     stubCairn({
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "stub", label: "Stub", hasOAuth: true, accountCount: 2, active: true, exposure: { claude: true, opencode: false } },
+          { id: "stub", label: "Stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
         ],
       }),
       getConfig: async () => ({ ok: true, data: "grid" }),
-      providersSetActive,
+      providersSetEnabled,
     });
 
     render(Providers);
@@ -361,6 +382,63 @@ describe("Providers screen", () => {
     const enabledSwitch = await waitFor(() => screen.getByRole("switch", { name: /Stub enabled/i }));
     await fireEvent.click(enabledSwitch);
 
-    await waitFor(() => expect(providersSetActive).toHaveBeenCalledWith("stub"));
+    await waitFor(() => expect(providersSetEnabled).toHaveBeenCalledWith("stub", false));
+  });
+
+  it("enabling one provider does not touch another provider's enabled call", async () => {
+    const providersSetEnabled = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    stubCairn({
+      providersList: async () => ({
+        ok: true,
+        data: [
+          { id: "alpha", label: "Alpha", authKind: "oauth", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "beta", label: "Beta", authKind: "oauth", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
+        ],
+      }),
+      providersSetEnabled,
+    });
+
+    const { getByRole } = render(Providers);
+    const alphaSwitch = await waitFor(() => getByRole("switch", { name: /Alpha enabled/i }));
+    await fireEvent.click(alphaSwitch);
+
+    await waitFor(() => expect(providersSetEnabled).toHaveBeenCalledWith("alpha", true));
+    expect(providersSetEnabled).not.toHaveBeenCalledWith("beta", expect.anything());
+  });
+
+  it("clicking a provider row opens its detail modal", async () => {
+    stubCairn({
+      providersList: async () => ({
+        ok: true,
+        data: [
+          { id: "stub", label: "Stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
+        ],
+      }),
+    });
+
+    const { getByText, findByRole } = render(Providers);
+    await waitFor(() => expect(getByText("Stub")).toBeTruthy());
+
+    await fireEvent.click(getByText("Stub"));
+
+    const dialog = await findByRole("dialog", { name: /Stub details/i });
+    expect(dialog).toBeTruthy();
+  });
+
+  it("clicking the enable toggle does not open the detail modal", async () => {
+    stubCairn({
+      providersList: async () => ({
+        ok: true,
+        data: [
+          { id: "stub", label: "Stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
+        ],
+      }),
+    });
+
+    const { getByRole, queryByRole } = render(Providers);
+    const enabledSwitch = await waitFor(() => getByRole("switch", { name: /Stub enabled/i }));
+    await fireEvent.click(enabledSwitch);
+
+    expect(queryByRole("dialog", { name: /Stub details/i })).toBeNull();
   });
 });

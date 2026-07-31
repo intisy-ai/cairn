@@ -17,7 +17,7 @@ export const INVOKE_CHANNELS = {
   accountsLoginComplete: "accounts:loginComplete",
   accountsLoginCancel: "accounts:loginCancel",
   providersList: "providers:list",
-  providersSetActive: "providers:setActive",
+  providersSetEnabled: "providers:setEnabled",
   providersSetExposure: "providers:setExposure",
   routingApps: "routing:apps",
   routingGet: "routing:get",
