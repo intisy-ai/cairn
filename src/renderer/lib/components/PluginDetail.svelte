@@ -1,10 +1,9 @@
 <script lang="ts">
   import type { UnifiedPlugin, PluginConfigSchema } from "@cairn/shared";
-  import PluginIcon, { LOGO_SIZE } from "./PluginIcon.svelte";
   import Button from "./Button.svelte";
   import PluginControls from "./PluginControls.svelte";
+  import RepoDetail from "./RepoDetail.svelte";
   import { cairn } from "../ipc.js";
-  import { fadeMotion, flyMotion } from "../util/motion.js";
 
   let {
     plugin,
@@ -26,10 +25,20 @@
     onToggleHome: (homeId: string, on: boolean) => void;
   } = $props();
 
+  const repo = $derived({
+    name: plugin.name,
+    url: plugin.url ?? "",
+    kind: plugin.kind,
+    description: plugin.description,
+    topics: plugin.topics,
+    displayName: plugin.displayName,
+    icon: plugin.icon,
+  });
+
   const installedCount = $derived(homes.filter((h) => plugin.homes[h.id]?.installed).length);
   const fullyInstalled = $derived(installedCount === homes.length && homes.length > 0);
-
   const installedHomes = $derived(homes.filter((h) => plugin.homes[h.id]?.installed));
+
   let controlsHome = $state<string>("");
   let controlsSchema = $state<PluginConfigSchema | null>(null);
   let controlsLoading = $state(false);
@@ -56,82 +65,61 @@
   function letters(label: string): string {
     return label.replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase();
   }
-  function onKeydown(event: KeyboardEvent): void {
-    if (event.key === "Escape") onClose();
-  }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-<div class="backdrop" role="presentation" onclick={onClose} transition:fadeMotion></div>
-<div class="panel" role="dialog" aria-modal="true" aria-label={`${plugin.displayName} details`} transition:flyMotion={{ y: 10 }}>
-  <button class="close" title="Close" aria-label="Close" onclick={onClose}>×</button>
-
-  <header class="hero">
-    <PluginIcon icon={plugin.icon} name={plugin.displayName} kind={plugin.kind} size={LOGO_SIZE.detail} />
-    <div class="titles">
-      <h2>{plugin.displayName}</h2>
-      <div class="sub">
-        {#if plugin.displayName !== plugin.name}<span class="repo">{plugin.name}</span>{/if}
-        <span class="kind">{plugin.kind}</span>
-        {#if mandatory}<span class="kind" title="Mandatory engine">Locked</span>{/if}
-        {#if plugin.updateAvailable}<span class="update">Update available</span>{/if}
+<RepoDetail {repo} {onClose}>
+  {#snippet extra()}
+    {#if mandatory || plugin.updateAvailable}
+      <div class="badges">
+        {#if mandatory}<span class="badge locked" title="Mandatory engine">Locked</span>{/if}
+        {#if plugin.updateAvailable}<span class="badge update">Update available</span>{/if}
       </div>
-    </div>
-  </header>
+    {/if}
 
-  {#if plugin.description}
-    <p class="desc">{plugin.description}</p>
-  {/if}
-
-  {#if plugin.topics.length > 0}
-    <div class="topics">
-      {#each plugin.topics as topic (topic)}<span class="topic">{topic}</span>{/each}
-    </div>
-  {/if}
-
-  <section class="deploy">
-    <p class="label">Availability {installedCount}/{homes.length}</p>
-    <ul class="apps">
-      {#each homes as h (h.id)}
-        {@const on = !!plugin.homes[h.id]?.installed}
-        {@const icon = h.icon}
-        <li>
-          <span class="appmark" class:na={!on}>
-            {#if icon}<span class="glyph">{@html icon}</span>{:else}<span class="lm">{letters(h.label)}</span>{/if}
-          </span>
-          <span class="appname">{h.label}</span>
-          <span class="state">{on ? "Installed" : "Not installed"}</span>
-          {#if mandatory}
-            <span class="toggle locked" title="Mandatory engine">Locked</span>
-          {:else}
-            <button class="toggle" class:on onclick={() => onToggleHome(h.id, !on)}>{on ? "Remove" : "Install"}</button>
-          {/if}
-        </li>
-      {/each}
-    </ul>
-  </section>
-
-  {#if installedHomes.length > 0}
-    <section class="controls">
-      <p class="label">Controls</p>
-      {#if installedHomes.length > 1}
-        <div class="homeswitch">
-          {#each installedHomes as h (h.id)}
-            <button class="hchip" class:on={controlsHome === h.id} onclick={() => (controlsHome = h.id)}>{h.label}</button>
-          {/each}
-        </div>
-      {/if}
-      {#if controlsSchema}
-        <PluginControls homeId={controlsHome} schema={controlsSchema} />
-      {:else if controlsLoading}
-        <p class="cmuted">Loading controls…</p>
-      {:else}
-        <p class="cmuted">No controls.</p>
-      {/if}
+    <section class="deploy">
+      <p class="label">Availability {installedCount}/{homes.length}</p>
+      <ul class="apps">
+        {#each homes as h (h.id)}
+          {@const on = !!plugin.homes[h.id]?.installed}
+          {@const icon = h.icon}
+          <li>
+            <span class="appmark" class:na={!on}>
+              {#if icon}<span class="glyph">{@html icon}</span>{:else}<span class="lm">{letters(h.label)}</span>{/if}
+            </span>
+            <span class="appname">{h.label}</span>
+            <span class="state">{on ? "Installed" : "Not installed"}</span>
+            {#if mandatory}
+              <span class="toggle locked" title="Mandatory engine">Locked</span>
+            {:else}
+              <button class="toggle" class:on onclick={() => onToggleHome(h.id, !on)}>{on ? "Remove" : "Install"}</button>
+            {/if}
+          </li>
+        {/each}
+      </ul>
     </section>
-  {/if}
 
-  <footer class="actions">
+    {#if installedHomes.length > 0}
+      <section class="controls">
+        <p class="label">Controls</p>
+        {#if installedHomes.length > 1}
+          <div class="homeswitch">
+            {#each installedHomes as h (h.id)}
+              <button class="hchip" class:on={controlsHome === h.id} onclick={() => (controlsHome = h.id)}>{h.label}</button>
+            {/each}
+          </div>
+        {/if}
+        {#if controlsSchema}
+          <PluginControls homeId={controlsHome} schema={controlsSchema} />
+        {:else if controlsLoading}
+          <p class="cmuted">Loading controls…</p>
+        {:else}
+          <p class="cmuted">No controls.</p>
+        {/if}
+      </section>
+    {/if}
+  {/snippet}
+
+  {#snippet actions()}
     {#if plugin.updateAvailable}
       <Button onclick={onUpdate}>Update</Button>
     {/if}
@@ -141,104 +129,28 @@
     {#if installedCount > 0 && !mandatory}
       <Button onclick={onRemoveEverywhere}>Remove everywhere</Button>
     {/if}
-  </footer>
-</div>
+  {/snippet}
+</RepoDetail>
 
 <style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, .4);
-    z-index: 40;
-  }
-  .panel {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 41;
-    width: min(94vw, 440px);
-    background: var(--surface);
-    border-left: 1px solid var(--border);
-    box-shadow: var(--shadow);
-    padding: 24px 22px;
+  .badges {
     display: flex;
-    flex-direction: column;
-    gap: 16px;
-    overflow-y: auto;
-  }
-  .close {
-    position: absolute;
-    top: 12px;
-    right: 14px;
-    background: none;
-    border: none;
-    color: var(--faint);
-    font-size: 22px;
-    line-height: 1;
-    cursor: pointer;
-    padding: 2px 6px;
-    border-radius: 6px;
-  }
-  .close:hover {
-    background: var(--surface-2);
-    color: var(--text);
-  }
-  .hero {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding-right: 24px;
-  }
-  .titles h2 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 650;
-    letter-spacing: -.02em;
-  }
-  .sub {
-    display: flex;
-    align-items: center;
     gap: 8px;
-    margin-top: 4px;
     flex-wrap: wrap;
   }
-  .repo {
-    font-family: var(--mono);
-    font-size: 11.5px;
-    color: var(--faint);
-  }
-  .kind {
-    font-size: 10px;
-    letter-spacing: .04em;
-    text-transform: uppercase;
-    color: var(--muted);
-    background: var(--surface-2);
-    border-radius: 20px;
-    padding: 2px 8px;
-  }
-  .update {
+  .badge {
     font-size: 10.5px;
-    color: var(--accent);
     font-weight: 600;
+    border-radius: 20px;
+    padding: 2px 9px;
   }
-  .desc {
-    margin: 0;
-    font-size: 13px;
-    color: var(--text);
-    line-height: 1.5;
+  .badge.update {
+    color: var(--accent);
+    background: var(--accent-weak);
   }
-  .topics {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .topic {
-    font-size: 10.5px;
+  .badge.locked {
     color: var(--faint);
     background: var(--surface-2);
-    border-radius: 6px;
-    padding: 2px 7px;
   }
   .label {
     margin: 0 0 8px;
@@ -351,12 +263,5 @@
     margin: 0;
     color: var(--faint);
     font-size: 12.5px;
-  }
-  .actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: auto;
-    padding-top: 8px;
   }
 </style>
