@@ -52,13 +52,24 @@ function sameDescriptor(a: AppDescriptor, b: AppDescriptor): boolean {
 
 // A loader repo's installed clone carries the same cairn.json `app` block as its
 // GitHub source, at the same "repos/<loaderId>/cairn.json" path the sidecar
-// already reads plugin manifests from (see plugins.ts's readManifest).
+// already reads plugin manifests from (see plugins.ts's readManifest). The app's
+// mark is the loader's own icon.svg (a raw square SVG sibling of the manifest);
+// attach it so the registry carries the icon offline, with no org-scan or token.
 function readInstalledAppBlock(homeDir: string, loaderId: string, exists: (p: string) => boolean, readFile: (p: string) => string): AppDescriptor | undefined {
-  const path = join(homeDir, "repos", loaderId, "cairn.json");
-  if (!exists(path)) return undefined;
+  const dir = join(homeDir, "repos", loaderId);
+  const manifestPath = join(dir, "cairn.json");
+  if (!exists(manifestPath)) return undefined;
   try {
-    const manifest = JSON.parse(readFile(path)) as { app?: unknown };
-    if (manifest.app && typeof manifest.app === "object" && !Array.isArray(manifest.app)) return manifest.app as AppDescriptor;
+    const manifest = JSON.parse(readFile(manifestPath)) as { app?: unknown; icon?: unknown };
+    if (!manifest.app || typeof manifest.app !== "object" || Array.isArray(manifest.app)) return undefined;
+    const desc = manifest.app as AppDescriptor;
+    if (!desc.icon && typeof manifest.icon === "string" && manifest.icon.endsWith(".svg")) {
+      const iconPath = join(dir, manifest.icon);
+      if (exists(iconPath)) {
+        try { desc.icon = readFile(iconPath); } catch { /* leave the icon unset */ }
+      }
+    }
+    return desc;
   } catch {
     // malformed manifest on disk, skip this source
   }
@@ -89,11 +100,14 @@ export async function discoverApps(deps: AppDiscoveryDeps = {}): Promise<void> {
     // org-scan source unavailable, fall through to the installed-loader source
   }
 
-  for (const desc of current) {
-    if (!desc.loader) continue;
+  // Enrich every loader-bearing descriptor (from the org scan or already known)
+  // with its installed clone, which also carries the app's icon offline.
+  const withLoader = new Map<string, AppDescriptor>();
+  for (const desc of [...current, ...candidates.values()]) if (desc.loader) withLoader.set(desc.id, desc);
+  for (const desc of withLoader.values()) {
     try {
       const home = resolveHome(desc);
-      const found = readInstalledAppBlock(home, desc.loader.id, exists, readFile);
+      const found = readInstalledAppBlock(home, desc.loader!.id, exists, readFile);
       if (found) candidates.set(found.id, found);
     } catch {
       // best-effort per app, never blocks discovery of the others

@@ -98,6 +98,18 @@ describe("discoverApps", () => {
     expect(getApps().find((a) => a.id === "gamma")?.label).toBe("Gamma CLI (updated)");
   });
 
+  it("attaches the loader's icon.svg to the descriptor from its installed clone", async () => {
+    registerApp(gammaApp);
+    const svg = "<svg viewBox=\"0 0 10 10\"><rect width=\"10\" height=\"10\"/></svg>";
+    const readFile = (path: string) => {
+      if (path.endsWith("cairn.json")) return JSON.stringify({ app: gammaApp, icon: "icon.svg" });
+      if (path.endsWith("icon.svg")) return svg;
+      return "";
+    };
+    await discoverApps({ scanOrgFn: emptyScan, exists: () => true, readFile });
+    expect(getApps().find((a) => a.id === "gamma")?.icon).toBe(svg);
+  });
+
   it("never throws when the installed manifest is malformed", async () => {
     registerApp(gammaApp);
     await expect(
