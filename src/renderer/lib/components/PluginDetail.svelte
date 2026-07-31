@@ -5,6 +5,7 @@
   import RepoDetail from "./RepoDetail.svelte";
   import IconButton from "./IconButton.svelte";
   import ToggleSwitch from "./ToggleSwitch.svelte";
+  import SplitButton from "./SplitButton.svelte";
   import { cairn } from "../ipc.js";
 
   let {
@@ -42,6 +43,12 @@
   const installedCount = $derived(homes.filter((h) => plugin.homes[h.id]?.installed).length);
   const fullyInstalled = $derived(installedCount === homes.length && homes.length > 0);
   const installedHomes = $derived(homes.filter((h) => plugin.homes[h.id]?.installed));
+  const remainingCount = $derived(homes.length - installedCount);
+  const canRemove = $derived(!mandatory);
+  const isRemoveAll = $derived(fullyInstalled && canRemove);
+  const primaryLabel = $derived(
+    isRemoveAll ? "Remove everywhere" : installedCount === 0 ? "Install everywhere" : `Install in ${remainingCount}`,
+  );
 
   let versions = $state<Record<string, PluginVersion>>({});
   const representativeVersion = $derived(
@@ -109,6 +116,24 @@
   }
 </script>
 
+{#snippet installMenu()}
+  <div class="imenu">
+    {#each homes as h (h.id)}
+      {@const on = !!plugin.homes[h.id]?.installed}
+      {#if on}
+        {#if canRemove}
+          <button class="mrow danger" onclick={() => onToggleHome(h.id, false)}>Remove from {h.label}</button>
+        {/if}
+      {:else}
+        <button class="mrow" onclick={() => onToggleHome(h.id, true)}>Install in {h.label}</button>
+      {/if}
+    {/each}
+    {#if canRemove && installedCount > 0 && !fullyInstalled}
+      <button class="mrow danger" onclick={onRemoveEverywhere}>Remove everywhere</button>
+    {/if}
+  </div>
+{/snippet}
+
 {#snippet topActions()}
   {#if mandatory}
     <span class="lockbadge" title="Mandatory engine">Locked</span>
@@ -116,11 +141,8 @@
   {#if plugin.updateAvailable}
     <IconButton name="refresh" title="Update" onclick={onUpdate} />
   {/if}
-  {#if !fullyInstalled}
-    <IconButton name="download" title="Install everywhere" onclick={onInstallAll} />
-  {/if}
-  {#if installedCount > 0 && !mandatory}
-    <IconButton name="trash" title="Remove everywhere" danger onclick={onRemoveEverywhere} />
+  {#if !(mandatory && fullyInstalled)}
+    <SplitButton label={primaryLabel} danger={isRemoveAll} onPrimary={() => (isRemoveAll ? onRemoveEverywhere() : onInstallAll())} menu={installMenu} />
   {/if}
 {/snippet}
 
@@ -186,6 +208,27 @@
 <RepoDetail {repo} {onClose} {tabs} tabContent={content} actions={topActions} versionLabel={representativeVersion} />
 
 <style>
+  .imenu {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .mrow {
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 7px;
+    padding: 7px 10px;
+    font-size: 12.5px;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .mrow:hover {
+    background: var(--surface-2);
+  }
+  .mrow.danger {
+    color: var(--crit);
+  }
   .lockbadge {
     align-self: center;
     font-size: 10px;

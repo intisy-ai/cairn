@@ -4,11 +4,13 @@
   let {
     label,
     disabled = false,
+    danger = false,
     onPrimary,
     menu,
   }: {
     label: string;
     disabled?: boolean;
+    danger?: boolean;
     onPrimary?: () => void;
     menu?: Snippet;
   } = $props();
@@ -30,10 +32,11 @@
 <svelte:window onclick={onWindowClick} onkeydown={onKey} />
 
 <div class="split" bind:this={root}>
-  <button type="button" class="btn primary" {disabled} onclick={() => onPrimary?.()}>{label}</button>
+  <button type="button" class="btn primary" class:danger {disabled} onclick={() => onPrimary?.()}>{label}</button>
   <button
     type="button"
     class="btn caret"
+    class:danger
     {disabled}
     aria-label="More install options"
     aria-expanded={open}
@@ -74,6 +77,10 @@
   .btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+  .btn.danger {
+    background: var(--crit);
+    border-color: var(--crit);
   }
   .primary {
     padding: 8px 13px;

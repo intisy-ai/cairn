@@ -268,9 +268,30 @@ describe("Plugins screen", () => {
     const row = within(await screen.findByTestId("plugin-wakatime-sync"));
     await fireEvent.click(row.getByTitle("View wakatime-sync"));
     const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("button", { name: "More install options" }));
     expect(dialog.getByRole("button", { name: "Remove everywhere" })).toBeInTheDocument();
     await fireEvent.click(dialog.getByRole("button", { name: "Availability" }));
     expect(dialog.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+  });
+
+  it("makes the header split-button Remove everywhere when installed in every applicable home", async () => {
+    stubCairn({
+      pluginsList: async () => ({
+        ok: true,
+        data: [
+          { home: CAIRN, rows: [] },
+          { home: CLAUDE, rows: [{ name: "wakatime-sync", kind: "git", enabled: true, updateAvailable: false, description: "" }] },
+          { home: OPENCODE, rows: [{ name: "wakatime-sync", kind: "git", enabled: true, updateAvailable: false, description: "" }] },
+        ],
+      }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+    });
+    render(Plugins);
+
+    const row = within(await screen.findByTestId("plugin-wakatime-sync"));
+    await fireEvent.click(row.getByTitle("View wakatime-sync"));
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.getByRole("button", { name: "Remove everywhere" })).toBeInTheDocument();
   });
 
   it("updates a home and toggles its auto-update from the detail's Availability tab", async () => {
