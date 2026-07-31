@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getConfigValue, setConfigValue } from "@core/index.js";
 import { resetOrgScanCache, resolveToken } from "../lib/orgScan.js";
-import { githubStatus, githubAddAccount, githubSwitchAccount, githubRemoveAccount, githubConnectGhCli } from "./github.js";
+import { githubStatus, githubAddAccount, githubSwitchAccount, githubRemoveAccount, githubConnectGhCli, githubSetStar } from "./github.js";
 
 beforeEach(() => {
   resetOrgScanCache();
@@ -298,5 +298,52 @@ describe("resolveToken", () => {
     setConfigValue("cairn", "githubToken", "legacy-token");
     const resolved = await resolveToken({}, noGh);
     expect(resolved).toEqual({ token: "legacy-token", source: "config" });
+  });
+});
+
+describe("githubSetStar", () => {
+  it("PUTs the repo's star endpoint when starred is true", async () => {
+    await githubAddAccount("token", false, { fetchFn: userFetch("octocat") });
+    const calls: { url: string; init?: { method?: string; headers?: Record<string, string> } }[] = [];
+    const result = await githubSetStar("https://github.com/o/r", true, { fetchFn: spyFetch("octocat", calls) });
+    expect(result).toEqual({ ok: true, data: undefined });
+    const starCall = calls.find((c) => c.url === "https://api.github.com/user/starred/o/r");
+    expect(starCall?.init?.method).toBe("PUT");
+    expect(starCall?.init?.headers?.Authorization).toBe("Bearer token");
+  });
+
+  it("DELETEs the repo's star endpoint when starred is false", async () => {
+    await githubAddAccount("token", false, { fetchFn: userFetch("octocat") });
+    const calls: { url: string; init?: { method?: string } }[] = [];
+    const result = await githubSetStar("https://github.com/o/r", false, { fetchFn: spyFetch("octocat", calls) });
+    expect(result).toEqual({ ok: true, data: undefined });
+    const starCall = calls.find((c) => c.url === "https://api.github.com/user/starred/o/r");
+    expect(starCall?.init?.method).toBe("DELETE");
+  });
+
+  it("accepts owner/repo shorthand", async () => {
+    await githubAddAccount("token", false, { fetchFn: userFetch("octocat") });
+    const calls: { url: string }[] = [];
+    await githubSetStar("o/r", true, { fetchFn: spyFetch("octocat", calls) });
+    expect(calls.some((c) => c.url === "https://api.github.com/user/starred/o/r")).toBe(true);
+  });
+
+  it("does nothing (still ok) when there is no token", async () => {
+    const calls: { url: string }[] = [];
+    const result = await githubSetStar("https://github.com/o/r", true, {
+      env: {},
+      execFn: noGh,
+      fetchFn: spyFetch("octocat", calls),
+    });
+    expect(result).toEqual({ ok: true, data: undefined });
+    expect(calls.length).toBe(0);
+  });
+
+  it("does nothing (still ok) when the url can't be parsed into an owner/repo", async () => {
+    await githubAddAccount("token", false, { fetchFn: userFetch("octocat") });
+    const calls: { url: string }[] = [];
+    const result = await githubSetStar("not a repo url", true, { fetchFn: spyFetch("octocat", calls) });
+    expect(result).toEqual({ ok: true, data: undefined });
+    expect(calls.length).toBe(0);
   });
 });

@@ -1,5 +1,6 @@
 import { ECOSYSTEM_ORG, getConfigValue, setConfigValue } from "@core/index.js";
 import { realExec, resetOrgScanCache, resolveToken } from "../lib/orgScan.js";
+import { parseRepoRef } from "../../../packages/shared/src/repoRef.js";
 import type { GithubAccountView, GithubStatus, Result } from "../../../packages/shared/src/domain.js";
 import { ok, err, wrap } from "../result.js";
 
@@ -76,15 +77,19 @@ function storeAccount(user: GithubUser, token: string): void {
 
 // Best-effort: a token without the repo/public_repo scope gets a 403, which must
 // never fail the surrounding add/connect flow.
-async function starCairn(fetchFn: typeof fetch, token: string): Promise<void> {
+async function starRepo(fetchFn: typeof fetch, token: string, owner: string, repo: string, starred: boolean): Promise<void> {
   try {
-    await fetchFn(`https://api.github.com/user/starred/${ECOSYSTEM_ORG}/cairn`, {
-      method: "PUT",
+    await fetchFn(`https://api.github.com/user/starred/${owner}/${repo}`, {
+      method: starred ? "PUT" : "DELETE",
       headers: { Authorization: `Bearer ${token}`, "Content-Length": "0" },
     });
   } catch {
     // starring is a nice-to-have, never lets a network failure surface to the caller
   }
+}
+
+async function starCairn(fetchFn: typeof fetch, token: string): Promise<void> {
+  await starRepo(fetchFn, token, ECOSYSTEM_ORG, "cairn", true);
 }
 
 export function githubStatus(deps: GithubDeps = {}): Promise<Result<GithubStatus>> {
@@ -176,5 +181,20 @@ export async function githubRemoveAccount(login: string, _deps: GithubDeps = {})
   const activeLogin = getConfigValue("cairn", "githubActiveLogin");
   if (activeLogin === login) setConfigValue("cairn", "githubActiveLogin", remaining[0]?.login ?? "");
   resetOrgScanCache();
+  return ok(undefined);
+}
+
+// Best-effort star/unstar of an arbitrary repo with the active GitHub account.
+// Favoriting a plugin is still a success with no token or an unparseable url;
+// this only mirrors the local favorite onto GitHub when it can.
+export async function githubSetStar(url: string, starred: boolean, deps: GithubDeps = {}): Promise<Result<void>> {
+  const env = deps.env ?? process.env;
+  const execFn = deps.execFn ?? realExec;
+  const fetchFn = deps.fetchFn ?? fetch;
+  const { token } = await resolveToken(env, execFn);
+  if (!token) return ok(undefined);
+  const ref = parseRepoRef(url);
+  if (!ref) return ok(undefined);
+  await starRepo(fetchFn, token, ref.owner, ref.repo, starred);
   return ok(undefined);
 }

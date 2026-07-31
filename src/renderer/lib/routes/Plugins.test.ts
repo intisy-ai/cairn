@@ -52,6 +52,43 @@ describe("Plugins screen", () => {
     expect(screen.getByText("Demo from catalog")).toBeInTheDocument();
   });
 
+  it("clicking the star button favorites a plugin locally and mirrors the star to GitHub, without opening the detail view", async () => {
+    const favoritesToggle = vi.fn(async (name: string) => ({ ok: true, data: [name] }) as const);
+    const githubSetStar = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      favoritesToggle,
+      githubSetStar,
+    });
+    render(Plugins);
+
+    const row = within(await screen.findByTestId("plugin-demo"));
+    await fireEvent.click(row.getByRole("button", { name: "Favorite" }));
+
+    await waitFor(() => expect(favoritesToggle).toHaveBeenCalledWith("demo"));
+    await waitFor(() => expect(githubSetStar).toHaveBeenCalledWith("u", true));
+    // The row's own open button, not the favorite button, is what opens the detail view.
+    expect(screen.queryByText("Every provider, proxy, and plugin")).toBeNull();
+  });
+
+  it("the Favorites chip filters to favorited plugins and a favorited plugin sorts to the top", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      favoritesList: async () => ({ ok: true, data: ["demo"] }),
+    });
+    render(Plugins);
+
+    await screen.findByTestId("plugin-demo");
+    const rowsBefore = screen.getAllByTestId(/^plugin-/);
+    expect(rowsBefore[0]).toHaveAttribute("data-testid", "plugin-demo");
+
+    await fireEvent.click(screen.getByRole("button", { name: /Favorites/ }));
+    expect(screen.getByTestId("plugin-demo")).toBeInTheDocument();
+    expect(screen.queryByTestId("plugin-wakatime-sync")).not.toBeInTheDocument();
+  });
+
   it("shows claude filled and opencode outline for a plugin installed only on claude", async () => {
     stubCairn({
       pluginsList: async () => ({ ok: true, data: baseSections() }),

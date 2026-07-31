@@ -28,6 +28,7 @@ export function buildUnifiedPlugins(
   homes: PluginHome[],
   engines: { name: string; url: string }[] = [],
   marketplaceOrg = "",
+  favorites: string[] = [],
 ): UnifiedPlugin[] {
   const engineUrls = new Map(engines.map((e) => [e.name, e.url]));
   const names = new Set<string>();
@@ -71,8 +72,9 @@ export function buildUnifiedPlugins(
       displayName: installedName || catEntry?.displayName || name,
       icon: installedIcon || catEntry?.icon || "",
       external,
+      favorite: favorites.includes(name),
     });
   }
-  out.sort((a, b) => a.name.localeCompare(b.name));
+  out.sort((a, b) => Number(b.favorite) - Number(a.favorite) || a.name.localeCompare(b.name));
   return out;
 }

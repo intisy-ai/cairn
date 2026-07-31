@@ -35,6 +35,7 @@
   let catalogOrg = $state("");
   let engines = $state<EngineView[]>([]);
   let versions = $state<Record<string, Record<string, PluginVersion>>>({});
+  let favorites = $state<string[]>([]);
   let pluginsError = $state("");
   let loaded = $state(false);
 
@@ -63,6 +64,7 @@
   let kindFilter = $state<KindFilter>(startKind);
   let installedOnly = $state(false);
   let externalOnly = $state(false);
+  let favoritesOnly = $state(false);
 
   // A plugin can be external and a kind at once, so the badge prefixes its kind
   // (the .chip style upper-cases it), e.g. "external provider" -> "EXTERNAL PROVIDER".
@@ -84,7 +86,7 @@
 
   const homes = $derived(sections.map((s) => s.home));
   const engineIds = $derived(new Set(engines.map((e) => e.id)));
-  const unified = $derived(buildUnifiedPlugins(sections, catalog, homes, engines.map((e) => ({ name: e.id, url: e.url })), catalogOrg));
+  const unified = $derived(buildUnifiedPlugins(sections, catalog, homes, engines.map((e) => ({ name: e.id, url: e.url })), catalogOrg, favorites));
   const counts = $derived({
     all: unified.length,
     provider: unified.filter((p) => p.kind === "provider").length,
@@ -94,6 +96,7 @@
     engine: unified.filter((p) => engineIds.has(p.name)).length,
     installed: unified.filter(isInstalled).length,
     external: unified.filter((p) => p.external).length,
+    favorite: unified.filter((p) => p.favorite).length,
   });
   const filtered = $derived(
     unified.filter((p) => {
@@ -104,6 +107,7 @@
       }
       if (installedOnly && !isInstalled(p)) return false;
       if (externalOnly && !p.external) return false;
+      if (favoritesOnly && !p.favorite) return false;
       const needle = search.trim().toLowerCase();
       return !needle
         || p.name.toLowerCase().includes(needle)
@@ -115,13 +119,14 @@
   function setKind(kind: KindFilter): void {
     kindFilter = kind;
   }
-  const isFiltering = $derived(search.trim() !== "" || kindFilter !== "all" || installedOnly || externalOnly);
+  const isFiltering = $derived(search.trim() !== "" || kindFilter !== "all" || installedOnly || externalOnly || favoritesOnly);
   function clearFilters(): void {
     searchRaw = "";
     search = "";
     kindFilter = "all";
     installedOnly = false;
     externalOnly = false;
+    favoritesOnly = false;
   }
   const addPluginHome = $derived(homes[0]?.id ?? "cairn");
   // Derive from the live list by name so the open detail reflects installs/removes.
@@ -150,6 +155,20 @@
     if (result.ok) engines = result.data;
   }
 
+  async function loadFavorites(): Promise<void> {
+    const result = await cairn.favoritesList();
+    if (result.ok) favorites = result.data;
+  }
+
+  // Local favorite is instant and authoritative; the GitHub star is a best-effort
+  // mirror fired off afterward and never blocks or reverts the local toggle.
+  async function toggleFavorite(p: UnifiedPlugin): Promise<void> {
+    const result = await cairn.favoritesToggle(p.name);
+    if (!result.ok) return;
+    favorites = result.data;
+    if (p.url) void cairn.githubSetStar(p.url, result.data.includes(p.name));
+  }
+
   // Show cached versions instantly, then overwrite with the freshly computed ones
   // (a git describe per plugin) so only rows whose version changed visibly update.
   // The fresh pass runs in parallel; the cache only fills in until it arrives.
@@ -165,7 +184,7 @@
   }
 
   async function reload(): Promise<void> {
-    await Promise.all([loadPlugins(), loadCatalog(), loadEngines()]);
+    await Promise.all([loadPlugins(), loadCatalog(), loadEngines(), loadFavorites()]);
     loaded = true;
     void loadVersions();
   }
@@ -337,7 +356,21 @@
     <span class="sep"></span>
     <Chip label={`Installed ${counts.installed}`} on={installedOnly} onclick={() => (installedOnly = !installedOnly)} />
     <Chip label={`External ${counts.external}`} on={externalOnly} onclick={() => (externalOnly = !externalOnly)} />
+    <Chip label={`Favorites ${counts.favorite}`} on={favoritesOnly} onclick={() => (favoritesOnly = !favoritesOnly)} />
   </div>
+
+  {#snippet favoriteButton(p: UnifiedPlugin)}
+    <button
+      type="button"
+      class="favorite"
+      class:on={p.favorite}
+      title={p.favorite ? "Unfavorite" : "Favorite"}
+      aria-label={p.favorite ? "Unfavorite" : "Favorite"}
+      onclick={(e) => { e.stopPropagation(); toggleFavorite(p); }}
+    >
+      {p.favorite ? "★" : "☆"}
+    </button>
+  {/snippet}
 
   {#snippet installActions(p: UnifiedPlugin)}
     <div class="actions">
@@ -382,6 +415,7 @@
           {/if}
         </div>
       </button>
+      {@render favoriteButton(p)}
       <AppPills
         apps={applicableHomesFor(p)}
         values={installedMap(p)}
@@ -394,6 +428,7 @@
 
   {#snippet pluginCard(p: UnifiedPlugin)}
     <div class="plugin-card" data-testid={"plugin-" + p.name}>
+      {@render favoriteButton(p)}
       <button class="card-open" title={`View ${p.displayName}`} onclick={() => (selectedName = p.name)}>
         <PluginIcon icon={p.icon} name={p.displayName} kind={p.kind} size={LOGO_SIZE.list} />
         <div class="card-title">
@@ -502,6 +537,7 @@
     gap: 12px;
   }
   .plugin-card {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -509,6 +545,14 @@
     background: var(--surface-2);
     border: 1px solid var(--border);
     border-radius: 10px;
+  }
+  .plugin-card .favorite {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+  }
+  .plugin-card .card-open {
+    padding-right: 26px;
   }
   .card-open {
     display: flex;
@@ -642,6 +686,32 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+  .favorite {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--faint);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .favorite:hover {
+    background: var(--surface-2);
+    color: var(--muted);
+  }
+  .favorite.on {
+    color: #e3b341;
+  }
+  .favorite:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
   }
   .ctlw {
     width: 172px;

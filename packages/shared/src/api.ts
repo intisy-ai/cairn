@@ -67,6 +67,9 @@ export interface CairnAPI {
   githubSwitchAccount(login: string): Promise<Result<void>>;
   githubRemoveAccount(login: string): Promise<Result<void>>;
   githubConnectGhCli(star: boolean): Promise<Result<{ login: string }>>;
+  githubSetStar(url: string, starred: boolean): Promise<Result<void>>;
+  favoritesList(): Promise<Result<string[]>>;
+  favoritesToggle(name: string): Promise<Result<string[]>>;
   customEndpointsList(): Promise<Result<CustomEndpointView[]>>;
   customEndpointsUpsert(endpoint: CustomEndpoint): Promise<Result<void>>;
   customEndpointsRemove(id: string): Promise<Result<void>>;
