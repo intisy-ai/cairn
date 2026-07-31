@@ -92,4 +92,17 @@ describe("buildUnifiedPlugins", () => {
     expect(out.some((p) => p.name === "plugin-updater")).toBe(true);
     expect(out.find((p) => p.name === "x")!.updateAvailable).toBe(true);
   });
+
+  it("marks favorited plugins and sorts them ahead of everything else, alphabetically within each group", () => {
+    const sections: HomePlugins[] = [{ home: homes[1], rows: [row("zeta"), row("alpha"), row("mid")] }];
+    const out = buildUnifiedPlugins(sections, [], homes, [], "", ["zeta"]);
+    expect(out.map((p) => p.name)).toEqual(["zeta", "alpha", "mid"]);
+    expect(out.find((p) => p.name === "zeta")!.favorite).toBe(true);
+    expect(out.find((p) => p.name === "alpha")!.favorite).toBe(false);
+  });
+
+  it("defaults every plugin to not favorite when no favorites list is given", () => {
+    const out = buildUnifiedPlugins([{ home: homes[1], rows: [row("x")] }], [], homes);
+    expect(out.find((p) => p.name === "x")!.favorite).toBe(false);
+  });
 });

@@ -159,6 +159,7 @@ export type UnifiedPlugin = {
   // True when the plugin's repo owner is not the configured marketplace org, i.e.
   // it was installed from an outside source rather than the trusted catalog.
   external: boolean;
+  favorite: boolean;
 };
 export type InstallOutcome = { home: string; ok: boolean; error?: string };
 export type InstallManyResult = { outcomes: InstallOutcome[] };

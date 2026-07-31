@@ -21,9 +21,10 @@ import { discoverApps } from "./lib/appDiscovery.js";
 import { importApps, importPreview, importRun } from "./modules/import.js";
 import type { ImportSelection } from "../../packages/shared/src/domain.js";
 import { catalogList } from "./modules/catalog.js";
-import { githubStatus, githubAddAccount, githubSwitchAccount, githubRemoveAccount, githubConnectGhCli } from "./modules/github.js";
+import { githubStatus, githubAddAccount, githubSwitchAccount, githubRemoveAccount, githubConnectGhCli, githubSetStar } from "./modules/github.js";
 import { customEndpointsList, customEndpointsUpsert, customEndpointsRemove, customEndpointsSaveKey } from "./modules/customEndpoints.js";
 import type { CustomEndpoint } from "../../packages/shared/src/domain.js";
+import { favoritesList, favoritesToggle } from "./modules/favorites.js";
 
 type SidecarRequest = { id: number; channel: string; args: unknown[] };
 type SidecarResponse = { id: number; result: Result<unknown> };
@@ -117,6 +118,9 @@ registerHandler("github:add-account", (token, star) => githubAddAccount(token as
 registerHandler("github:switch-account", (login) => githubSwitchAccount(login as string));
 registerHandler("github:remove-account", (login) => githubRemoveAccount(login as string));
 registerHandler("github:connect-gh", (star) => githubConnectGhCli(star as boolean));
+registerHandler("github:set-star", (url, starred) => githubSetStar(url as string, starred as boolean));
+registerHandler("favorites:list", () => favoritesList());
+registerHandler("favorites:toggle", (name) => favoritesToggle(name as string));
 registerHandler("customEndpoints:list", () => customEndpointsList());
 registerHandler("customEndpoints:upsert", (endpoint) => customEndpointsUpsert(endpoint as CustomEndpoint));
 registerHandler("customEndpoints:remove", (id) => customEndpointsRemove(id as string));
