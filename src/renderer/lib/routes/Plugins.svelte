@@ -600,11 +600,6 @@
     padding: 2px 7px;
     border-radius: 20px;
   }
-  .chip.external {
-    color: var(--warn, #d0a24c);
-    border: 1px solid color-mix(in srgb, var(--warn, #d0a24c) 40%, transparent);
-    background: transparent;
-  }
   .topics {
     display: flex;
     flex-wrap: wrap;
