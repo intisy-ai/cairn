@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { HostApp, AppPresence, AppSummary, ImportableApp } from "@cairn/shared";
+  import type { HostApp, AppConnection, AppSummary, ImportableApp } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { track } from "../downloads.js";
   import StatusPill from "../components/StatusPill.svelte";
@@ -16,8 +16,8 @@
   import { loadViewMode, saveViewMode, type ViewMode } from "../viewMode.js";
 
   let apps = $state<HostApp[]>([]);
-  let presence = $state<AppPresence>({});
-  let appsError = $state("");
+  let conns = $state<Record<string, AppConnection | null>>({});
+  let connError = $state("");
   let loaded = $state(false);
 
   let busy = $state<Record<string, boolean>>({});
@@ -33,13 +33,32 @@
 
   let view = $state<ViewMode>("list");
 
+  const visibleApps = $derived(apps.filter((app) => app.id !== "cairn"));
+  const selectedApp = $derived(visibleApps.find((a) => a.id === selected) ?? null);
+
   function setView(mode: ViewMode): void {
     view = mode;
     void saveViewMode("apps", mode);
   }
 
-  const visibleApps = $derived(apps.filter((app) => app.id !== "cairn"));
-  const selectedApp = $derived(visibleApps.find((a) => a.id === selected) ?? null);
+  // Fully connected means the app runs through the local API: its CLI is present
+  // and, where it declares a loader, that loader is installed.
+  function isConnected(c: AppConnection | null | undefined): boolean {
+    if (!c) return false;
+    return c.cliPresent && (c.loaderId ? c.loaderInstalled : true);
+  }
+
+  function statusLabel(c: AppConnection | null | undefined): string {
+    if (isConnected(c)) return "Connected";
+    if (c?.cliPresent) return "Loader not installed";
+    return "Not detected";
+  }
+
+  function ctaLabel(c: AppConnection | null | undefined): string {
+    if (!c?.loaderId) return "Install CLI";
+    if (c.cliPresent && !c.loaderInstalled) return "Install loader";
+    return "Connect";
+  }
 
   function canImport(appId: string): boolean {
     return importable.some((a) => a.app === appId && a.hasConfig);
@@ -55,13 +74,13 @@
     if (result.ok) apps = result.data;
   }
 
-  async function loadPresence(): Promise<void> {
-    const result = await cairn.appsDetect();
+  async function loadConn(app: string): Promise<void> {
+    const result = await cairn.appsConnection(app);
     if (result.ok) {
-      presence = result.data;
-      appsError = "";
+      conns = { ...conns, [app]: result.data };
+      connError = "";
     } else {
-      appsError = result.error;
+      connError = result.error;
     }
   }
 
@@ -91,10 +110,6 @@
     if (!(app.id in summaries)) loadSummary(app.id);
   }
 
-  async function refresh(): Promise<void> {
-    await Promise.all([loadApps(), loadPresence()]);
-  }
-
   async function withBusy(app: string, action: () => Promise<unknown>): Promise<void> {
     if (busy[app]) return;
     busy = { ...busy, [app]: true };
@@ -105,9 +120,15 @@
     }
   }
 
-  async function handleInstallCli(app: HostApp): Promise<void> {
-    await withBusy(app.id, () => track(`Install ${app.label} CLI`, app.id, () => cairn.appsInstallCli(app.id)));
-    await refresh();
+  // The loader carries app-install: connecting installs the loader, which pulls
+  // in its own CLI. Apps without a loader fall back to a direct CLI install.
+  async function handlePrimary(app: HostApp): Promise<void> {
+    if (conns[app.id]?.loaderId) {
+      await withBusy(app.id, () => track(`Connect ${app.label}`, app.id, () => cairn.appsInstallLoader(app.id)));
+    } else {
+      await withBusy(app.id, () => track(`Install ${app.label} CLI`, app.id, () => cairn.appsInstallCli(app.id)));
+    }
+    await loadConn(app.id);
   }
 
   async function handleUninstall(app: HostApp, wipe: boolean): Promise<void> {
@@ -115,46 +136,65 @@
     const { [app.id]: _removed, ...rest } = summaries;
     summaries = rest;
     selected = null;
-    await refresh();
+    await loadConn(app.id);
   }
 
   onMount(() => {
-    Promise.all([loadApps(), loadPresence(), loadImportable()]).finally(() => (loaded = true));
+    Promise.all([loadApps(), loadImportable()])
+      .then(() => Promise.all(apps.filter((a) => a.id !== "cairn").map((a) => loadConn(a.id))))
+      .finally(() => (loaded = true));
     loadViewMode("apps").then((mode) => (view = mode));
   });
 </script>
 
-<PageHeader title="Apps" subtitle="Install and manage the host CLIs Cairn connects to." />
+<PageHeader title="Apps" subtitle="Connect the host CLIs Cairn routes through the local API." />
 
-{#if appsError}
-  <p class="error">Could not load app status: {appsError}</p>
+{#if connError}
+  <p class="error">Could not load app status: {connError}</p>
 {/if}
 
-{#snippet appTile(app: HostApp, present: boolean)}
-  {#if present}
-    <button class="row open" onclick={() => open(app)}>
+{#snippet chainNode(label: string, on: boolean)}
+  <span class="node" class:on><i class="dot"></i>{label}</span>
+{/snippet}
+
+{#snippet appCard(app: HostApp)}
+  {@const c = conns[app.id]}
+  {@const connected = isConnected(c)}
+  <div class="card" class:connected>
+    <div class="cardhead">
       <PluginIcon name={app.label} icon={app.icon} size={LOGO_SIZE.list} />
       <span class="name">{app.label}</span>
-      <StatusPill variant="good" label="Detected" />
-      <span class="chev" aria-hidden="true">›</span>
-    </button>
-  {:else}
-    <div class="row">
-      <PluginIcon name={app.label} icon={app.icon} size={LOGO_SIZE.list} />
-      <span class="name">{app.label}</span>
-      <StatusPill variant="off" label="Not detected" />
-      <Button variant="primary" disabled={busy[app.id]} onclick={() => handleInstallCli(app)}>
-        {#if busy[app.id]}<Spinner />{/if}
-        Install CLI
-      </Button>
+      <StatusPill variant={connected ? "good" : "off"} label={statusLabel(c)} />
     </div>
-  {/if}
+
+    <div class="chain" aria-label="Connection chain">
+      {@render chainNode("CLI", !!c?.cliPresent)}
+      {#if c?.loaderId}
+        <span class="link" aria-hidden="true"></span>
+        {@render chainNode("Loader", !!c?.loaderInstalled)}
+      {/if}
+      <span class="link" aria-hidden="true"></span>
+      {@render chainNode("Local API", connected)}
+    </div>
+
+    <div class="cardactions">
+      {#if !connected}
+        <Button variant="primary" disabled={busy[app.id]} onclick={() => handlePrimary(app)}>
+          {#if busy[app.id]}<Spinner />{/if}
+          {ctaLabel(c)}
+        </Button>
+      {/if}
+      {#if c?.cliPresent}
+        <Button onclick={() => open(app)}>{connected ? "Manage" : "Details"}</Button>
+      {/if}
+    </div>
+  </div>
 {/snippet}
 
 {#if !loaded}
   <div class="skeletons">
-    <Skeleton height="56px" radius="10px" />
-    <Skeleton height="56px" radius="10px" />
+    <Skeleton height="96px" radius="12px" />
+    <Skeleton height="96px" radius="12px" />
   </div>
 {:else}
   <div class="toolbar">
@@ -164,18 +204,16 @@
   {#if view === "grid"}
     <div class="apps-grid" data-testid="apps-grid">
       {#each visibleApps as app (app.id)}
-        {@const present = presence[app.id] ?? false}
         <div data-testid={"app-" + app.id} in:flyMotion={{ y: 6 }}>
-          {@render appTile(app, present)}
+          {@render appCard(app)}
         </div>
       {/each}
     </div>
   {:else}
     <ul class="list">
       {#each visibleApps as app (app.id)}
-        {@const present = presence[app.id] ?? false}
         <li data-testid={"app-" + app.id} in:flyMotion={{ y: 6 }}>
-          {@render appTile(app, present)}
+          {@render appCard(app)}
         </li>
       {/each}
     </ul>
@@ -205,8 +243,8 @@
         const { [target]: _removed, ...rest } = summaries;
         summaries = rest;
         if (selected === target) loadSummary(target);
+        loadConn(target);
       }
-      loadPresence();
     }}
   />
 {/if}
@@ -223,37 +261,31 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
   }
   .apps-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: 12px;
   }
-  .row {
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .card.connected {
+    border-color: var(--border-strong);
+  }
+  .cardhead {
     display: flex;
     align-items: center;
     gap: 12px;
-    width: 100%;
-    padding: 12px 16px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    text-align: left;
   }
-  button.row.open {
-    cursor: pointer;
-    font-family: var(--ui);
-    color: var(--text);
-  }
-  button.row.open:hover {
-    border-color: var(--border-strong);
-  }
-  button.row.open:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
-  }
-  .name {
+  .cardhead .name {
     font-size: 14px;
     font-weight: 600;
     letter-spacing: -.01em;
@@ -263,15 +295,46 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .chev {
+  .chain {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .node {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    letter-spacing: .02em;
     color: var(--faint);
-    font-size: 18px;
+  }
+  .node.on {
+    color: var(--text);
+  }
+  .node .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border-strong);
     flex: none;
+  }
+  .node.on .dot {
+    background: var(--good);
+  }
+  .link {
+    flex: none;
+    width: 16px;
+    height: 1px;
+    background: var(--border);
+  }
+  .cardactions {
+    display: flex;
+    gap: 8px;
   }
   .skeletons {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
   }
   .error {
     color: var(--crit);
