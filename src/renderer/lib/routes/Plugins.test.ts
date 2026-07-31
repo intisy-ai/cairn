@@ -267,6 +267,17 @@ describe("Plugins screen", () => {
     expect(dialog.getByRole("button", { name: "Remove" })).toBeInTheDocument();
   });
 
+  it("names the single remaining home in the install button", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+    });
+    render(Plugins);
+    // wakatime-sync is installed in Claude only, so the one remaining home is named.
+    const row = within(await screen.findByTestId("plugin-wakatime-sync"));
+    expect(row.getByRole("button", { name: "Install in OpenCode" })).toBeInTheDocument();
+  });
+
   it("makes the header split-button Remove everywhere when installed in every applicable home", async () => {
     stubCairn({
       pluginsList: async () => ({

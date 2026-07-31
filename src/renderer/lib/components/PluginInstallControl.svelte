@@ -26,12 +26,17 @@
 
   const installedCount = $derived(homes.filter((h) => plugin.homes[h.id]?.installed).length);
   const fullyInstalled = $derived(installedCount === homes.length && homes.length > 0);
-  const remainingCount = $derived(homes.length - installedCount);
-  const installableRemaining = $derived(homes.filter((h) => !plugin.homes[h.id]?.installed && allows(h.id)).length);
+  const installableRemainingHomes = $derived(homes.filter((h) => !plugin.homes[h.id]?.installed && allows(h.id)));
   const isRemoveAll = $derived(fullyInstalled);
-  const primaryDisabled = $derived(!isRemoveAll && installableRemaining === 0);
+  const primaryDisabled = $derived(!isRemoveAll && installableRemainingHomes.length === 0);
   const primaryLabel = $derived(
-    isRemoveAll ? "Remove everywhere" : installedCount === 0 ? "Install everywhere" : `Install in ${remainingCount}`,
+    isRemoveAll
+      ? "Remove everywhere"
+      : installableRemainingHomes.length === 1
+        ? `Install in ${installableRemainingHomes[0].label}`
+        : installedCount === 0 && installableRemainingHomes.length === homes.length
+          ? "Install everywhere"
+          : `Install in ${installableRemainingHomes.length}`,
   );
 </script>
 

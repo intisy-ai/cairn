@@ -28,6 +28,14 @@ describe("buildUnifiedPlugins", () => {
     expect(wk.homes.opencode.installed).toBe(false);
   });
 
+  it("makes an engine applicable in every home regardless of kind", () => {
+    const catalog: CatalogEntry[] = [
+      { name: "sync-bridge", url: "u", kind: "plugin", description: "engine", deprecated: false },
+    ];
+    const out = buildUnifiedPlugins([], catalog, homes, new Set(["sync-bridge"]));
+    expect(Object.keys(out.find((p) => p.name === "sync-bridge")!.homes).sort()).toEqual(["cairn", "claude", "opencode"]);
+  });
+
   it("routes a provider to host apps + cairn and a proxy to cairn only", () => {
     const catalog: CatalogEntry[] = [
       { name: "antigravity-auth", url: "u", kind: "provider", description: "prov", deprecated: false },
