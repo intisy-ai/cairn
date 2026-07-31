@@ -4,7 +4,7 @@ import { configGet, configSet } from "./modules/config.js";
 import { overviewSummary } from "./modules/overview.js";
 import { accountsList, accountsEnable, accountsRemove, accountsRefreshQuota } from "./modules/accounts.js";
 import { accountsLoginBegin, accountsLoginComplete, accountsLoginCancel } from "./modules/accountsLogin.js";
-import { providersList, providersSetActive, providersSetExposure } from "./modules/providers.js";
+import { providersList, providersSetEnabled, providersSetExposure } from "./modules/providers.js";
 import { routingApps, routingGet, routingSetChain } from "./modules/routing.js";
 import { appsDetect, appsList, appsInstallCli, appsInit, appsUninstallCli, appsSummary, appsConnection, appsInstallLoader } from "./modules/apps.js";
 import { pluginsList, pluginVersions, pluginVersionsAll, pluginVersionsCached, pluginsInstall, pluginsInstallMany, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsSetAutoUpdate, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
@@ -65,7 +65,7 @@ registerHandler("accounts:loginBegin", (provider) => accountsLoginBegin(provider
 registerHandler("accounts:loginComplete", (provider, input) => accountsLoginComplete(provider as string, input as string));
 registerHandler("accounts:loginCancel", (provider) => accountsLoginCancel(provider as string));
 registerHandler("providers:list", () => providersList());
-registerHandler("providers:setActive", (id) => providersSetActive(id as string));
+registerHandler("providers:setEnabled", (id, on) => providersSetEnabled(id as string, on as boolean));
 registerHandler("providers:setExposure", (id, app, on) => providersSetExposure(id as string, app as string, on as boolean));
 registerHandler("routing:apps", () => routingApps());
 registerHandler("routing:get", (app) => routingGet(app as string));

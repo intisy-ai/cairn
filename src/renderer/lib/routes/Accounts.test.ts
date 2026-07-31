@@ -8,7 +8,7 @@ import { toasts, toast } from "../toast.js";
 import Accounts from "./Accounts.svelte";
 
 const PROVIDERS = [
-  { id: "stub", label: "Stub", hasOAuth: true, accountCount: 2, active: true, exposure: { claude: true, opencode: false } },
+  { id: "stub", label: "Stub", authKind: "oauth" as const, accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
 ];
 
 const ACCOUNTS = [
@@ -97,8 +97,8 @@ describe("Accounts screen", () => {
   });
 
   const TWO_PROVIDERS = [
-    { id: "alpha", label: "Alpha Team", hasOAuth: true, accountCount: 1, active: true, exposure: { claude: true, opencode: false } },
-    { id: "beta", label: "Beta Team", hasOAuth: true, accountCount: 1, active: true, exposure: { claude: true, opencode: false } },
+    { id: "alpha", label: "Alpha Team", authKind: "oauth" as const, accountCount: 1, enabled: true, exposure: { claude: true, opencode: false } },
+    { id: "beta", label: "Beta Team", authKind: "oauth" as const, accountCount: 1, enabled: true, exposure: { claude: true, opencode: false } },
   ];
 
   function twoProviderAccounts(provider: string): { ok: true; data: AccountView[] } {
@@ -229,8 +229,8 @@ describe("Accounts screen", () => {
 
   it("shows an Add account affordance for every provider group, including an empty one, and opens its dialog", async () => {
     const providersWithEmpty = [
-      { id: "stub", label: "Stub", hasOAuth: true, accountCount: 2, active: true, exposure: { claude: true, opencode: false } },
-      { id: "ghost", label: "Ghost", hasOAuth: true, accountCount: 0, active: true, exposure: { claude: true, opencode: false } },
+      { id: "stub", label: "Stub", authKind: "oauth" as const, accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
+      { id: "ghost", label: "Ghost", authKind: "oauth" as const, accountCount: 0, enabled: true, exposure: { claude: true, opencode: false } },
     ];
     const accountsLoginBegin = vi.fn(async () => ({ ok: true, data: { url: "https://x/login", instructions: "" } }) as const);
     stubCairn({

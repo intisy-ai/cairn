@@ -18,6 +18,7 @@
     enabled,
     onToggle,
     onToggleExposure,
+    onOpen,
   }: {
     avatar: string;
     name: string;
@@ -30,10 +31,27 @@
     enabled: boolean;
     onToggle?: (on: boolean) => void;
     onToggleExposure?: (appId: string, on: boolean) => void;
+    onOpen?: () => void;
   } = $props();
+
+  function onKeydown(event: KeyboardEvent): void {
+    if (!onOpen) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onOpen();
+    }
+  }
 </script>
 
-<div class="row">
+<!-- role/tabindex are only applied when onOpen makes the row genuinely interactive -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<div
+  class="row"
+  role={onOpen ? "button" : undefined}
+  tabindex={onOpen ? 0 : undefined}
+  onclick={onOpen}
+  onkeydown={onKeydown}
+>
   <div class="mono-ic">{avatar}</div>
   <div class="pname">
     <b>{name}</b>
@@ -41,9 +59,13 @@
     {#if translator}<Chip label={translator} />{/if}
   </div>
   <div><StatusPill variant={status.variant} label={status.label} /></div>
-  <AppPills {apps} values={exposure} onToggle={onToggleExposure} />
+  <div class="interactive" onclick={(e) => e.stopPropagation()} role="presentation">
+    <AppPills {apps} values={exposure} onToggle={onToggleExposure} />
+  </div>
   <div class="acct">{accountLabel}</div>
-  <ToggleSwitch checked={enabled} label={`${name} enabled`} onchange={onToggle} />
+  <div class="interactive" onclick={(e) => e.stopPropagation()} role="presentation">
+    <ToggleSwitch checked={enabled} label={`${name} enabled`} onchange={onToggle} />
+  </div>
 </div>
 
 <style>
@@ -60,6 +82,16 @@
   }
   .row:hover {
     background: var(--surface-2);
+  }
+  .row[role="button"] {
+    cursor: pointer;
+  }
+  .row[role="button"]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+  .interactive {
+    display: contents;
   }
   .mono-ic {
     width: 34px;

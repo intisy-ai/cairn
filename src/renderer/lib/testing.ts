@@ -26,7 +26,7 @@ function defaultCairn(): CairnAPI {
     accountsLoginComplete: async () => ({ ok: true, data: { added: true } }),
     accountsLoginCancel: async () => ({ ok: true, data: undefined }),
     providersList: async () => ({ ok: true, data: [] }),
-    providersSetActive: async () => ({ ok: true, data: undefined }),
+    providersSetEnabled: async () => ({ ok: true, data: undefined }),
     providersSetExposure: async () => ({ ok: true, data: undefined }),
     routingApps: async () => ({ ok: true, data: [] }),
     routingGet: async () => ({ ok: true, data: { tiers: [], map: { default: [] }, catalog: [] } }),

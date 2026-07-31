@@ -1,10 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { ProviderRow as ProviderRowData, AccountView, AccountStatus } from "@cairn/shared";
-  import type { StatusVariant } from "../components/StatusPill.svelte";
+  import type { ProviderRow as ProviderRowData, AccountView } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { toast } from "../toast.js";
   import { debounce } from "../util/debounce.js";
+  import { accountLabel, accountStatusInfo } from "../util/accountStatus.js";
   import AccountRow from "../components/AccountRow.svelte";
   import Button from "../components/Button.svelte";
   import Card from "../components/Card.svelte";
@@ -15,14 +15,6 @@
   import ConfirmDialog from "../components/ConfirmDialog.svelte";
   import ErrorState from "../components/ErrorState.svelte";
   import AddAccountDialog from "../components/AddAccountDialog.svelte";
-
-  const STATUS_INFO: Record<AccountStatus, { variant: StatusVariant; label: string }> = {
-    active: { variant: "good", label: "Active" },
-    "rate-limited": { variant: "warn", label: "Rate limited" },
-    "cooling-down": { variant: "warn", label: "Cooling down" },
-    "verification-required": { variant: "warn", label: "Verification required" },
-    disabled: { variant: "off", label: "Disabled" },
-  };
 
   const VIRTUALIZE_THRESHOLD = 20;
   const ACCOUNT_ROW_HEIGHT = 64;
@@ -45,14 +37,6 @@
   $effect(() => {
     applySearch(searchRaw);
   });
-
-  function statusFor(account: AccountView): { variant: StatusVariant; label: string } {
-    return STATUS_INFO[account.status];
-  }
-
-  function accountLabel(account: AccountView): string {
-    return account.email ?? account.id;
-  }
 
   function matchesSearch(provider: ProviderRowData, account: AccountView, term: string): boolean {
     if (!term) return true;
@@ -198,7 +182,7 @@
   <AccountRow
     label={accountLabel(account)}
     detail={account.detail ?? ""}
-    status={statusFor(account)}
+    status={accountStatusInfo(account)}
     enabled={account.enabled}
     quota={account.quota ?? []}
     onToggle={(on) => handleToggle(providerId, account.id, on)}
