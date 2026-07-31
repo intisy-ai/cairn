@@ -9,7 +9,7 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
 import { getConfigValue, isEngine } from "@core/index.js";
-import { getPlugins, getPluginsPath, registerPlugin, setPluginEnabled, setPluginAutoUpdate } from "@plugin-updater/config.js";
+import { getPlugins, registerPlugin, setPluginEnabled, setPluginAutoUpdate } from "@plugin-updater/config.js";
 import { readUpdateCache } from "@plugin-updater/cache.js";
 import { svgIconDataUri } from "../lib/pluginIcon.js";
 import { syncPluginsAcrossApps as realSyncPluginsAcrossApps } from "@plugin-updater/syncbridge.js";
@@ -17,7 +17,7 @@ import { setEarlyLaunchConfigDir } from "@plugin-updater/env.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
 import type { Plugin, NpmPlugin } from "@plugin-updater/types.js";
 import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, PluginVersion, Result, CliResult, InstallManyResult, InstallOutcome } from "../../../packages/shared/src/domain.js";
-import { pluginHomes, homeDir } from "../lib/pluginHomes.js";
+import { pluginHomes, homeDir, updaterInstalled } from "../lib/pluginHomes.js";
 import { wrap } from "../result.js";
 
 type UpdatePluginPublicFn = (name: string, url: string, branch?: string, commitHash?: string) => Promise<void | object>;
@@ -247,12 +247,13 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
     const dir = homeDir(homeId, homes);
 
     const report = deps.report;
-    if (homeId !== "cairn") {
-      const hasUpdater = deps.hasUpdater ?? ((d: string) => existsSync(getPluginsPath(d)));
-      if (!hasUpdater(dir)) {
-        // Engines bootstrap a home directly; everything else needs plugin-updater
-        // present first (which then manages it). Cairn's own home is exempt.
-        if (!isEngine(name)) throw new Error("install plugin-updater in this app before adding plugins");
+    const hasUpdater = deps.hasUpdater ?? updaterInstalled;
+    if (!hasUpdater(dir)) {
+      // Every home (Cairn included) needs plugin-updater before it takes a
+      // non-engine; an engine may install to bootstrap it. An app home gets the
+      // updater set up via its CLI; Cairn clones directly with its bundled copy.
+      if (!isEngine(name)) throw new Error("install plugin-updater in this app before adding plugins");
+      if (homeId !== "cairn") {
         report?.("Setting up plugin-updater");
         const initApp = deps.initApp ?? (await import("./apps.js")).appsInit;
         const result = await initApp(homeId);

@@ -263,6 +263,7 @@ describe("plugins sidecar module", () => {
       updatePluginPublic: async () => {},
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
+      hasUpdater: () => true,
     });
     expect(result.ok).toBe(true);
 
@@ -362,20 +363,31 @@ describe("plugins sidecar module", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("does not init the cairn home or an app home that already has the updater", async () => {
+  it("bootstraps an engine into the cairn home by cloning directly, never initializing it", async () => {
     const inits: string[] = [];
+    const installed: string[] = [];
     const { pluginsInstall } = await import("./plugins.js");
-    const deps = {
+    const result = await pluginsInstall("cairn", "plugin-updater", "https://github.com/intisy-ai/plugin-updater", {
       homes: fakeHomes,
-      initApp: async (a: string) => { inits.push(a); return { ok: true, data: { stdout: "", stderr: "" } }; },
+      hasUpdater: () => false,
+      initApp: async (a) => { inits.push(a); return { ok: true, data: { stdout: "", stderr: "" } }; },
+      updatePluginPublic: async () => { installed.push("plugin-updater"); },
+      syncPluginsAcrossApps: async () => {},
+    });
+    expect(result.ok).toBe(true);
+    expect(inits).toEqual([]);
+    expect(installed).toEqual(["plugin-updater"]);
+  });
+
+  it("refuses to install a non-engine into the cairn home without plugin-updater", async () => {
+    const { pluginsInstall } = await import("./plugins.js");
+    const result = await pluginsInstall("cairn", "some-provider", "u", {
+      homes: fakeHomes,
+      hasUpdater: () => false,
       updatePluginPublic: async () => {},
       syncPluginsAcrossApps: async () => {},
-    };
-
-    await pluginsInstall("cairn", "x", "u", { ...deps, hasUpdater: () => false });
-    await pluginsInstall("claude", "x", "u", { ...deps, hasUpdater: () => true });
-
-    expect(inits).toEqual([]);
+    });
+    expect(result.ok).toBe(false);
   });
 
   it("new installs honor the autoUpdateDefault setting", async () => {

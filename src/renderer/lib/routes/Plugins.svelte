@@ -177,7 +177,7 @@
   function sourceFor(name: string, homeIds: string[]): DownloadSource {
     const by = homesById();
     const allBootstrap = homeIds.length > 0
-      && homeIds.every((id) => id !== "cairn" && engineIds.has(name) && !by[id]?.hasUpdater);
+      && homeIds.every((id) => engineIds.has(name) && !by[id]?.hasUpdater);
     return allBootstrap ? "cairn" : "plugin-updater";
   }
   function homesLabel(homeIds: string[]): string {

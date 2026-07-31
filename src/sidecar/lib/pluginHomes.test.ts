@@ -28,20 +28,21 @@ describe("pluginHomes", () => {
       detect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
       cairnDir: "/store",
       appHome: (app) => (app === "claude" ? "/home/claude" : "/home/opencode"),
-      exists: () => true,
+      hasUpdater: () => true,
     });
     expect(homes[0]).toMatchObject({ id: "cairn", present: true, hasUpdater: true, dir: "/store" });
     expect(homes.map((h) => h.id)).toEqual(["cairn", "claude", "opencode"]);
     expect(homes.find((h) => h.id === "opencode")?.present).toBe(false);
   });
 
-  it("hasUpdater for an app home means its plugins.json exists", async () => {
+  it("hasUpdater reflects whether plugin-updater is actually installed in a home", async () => {
     const homes = await pluginHomes({
       detect: async () => ({ ok: true, data: { claude: true, opencode: true } }),
       cairnDir: "/store",
       appHome: (app) => (app === "claude" ? "/home/claude/.claude" : "/home/opencode"),
-      exists: (p) => p.replaceAll("\\", "/").includes("/.claude/"),
+      hasUpdater: (dir) => dir.replaceAll("\\", "/").includes("/.claude"),
     });
+    expect(homes.find((h) => h.id === "cairn")?.hasUpdater).toBe(false);
     expect(homes.find((h) => h.id === "claude")?.hasUpdater).toBe(true);
     expect(homes.find((h) => h.id === "opencode")?.hasUpdater).toBe(false);
   });
