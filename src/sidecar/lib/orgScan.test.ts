@@ -49,15 +49,15 @@ describe("scanOrg", () => {
     expect(afterFail.entries).toHaveLength(1);
   });
 
-  it("falls back env -> config -> gh -> anonymous", async () => {
-    const viaGh = await scanOrg({ fetchFn: okFetch([]), env: {}, execFn: async (f, a) => (f === "gh" && a[0] === "auth" ? "ghtoken\n" : "") });
-    expect(viaGh.source).toBe("gh");
+  it("falls back env -> config -> anonymous, never touching the local gh CLI", async () => {
+    const withGhPresent = await scanOrg({ fetchFn: okFetch([]), env: {}, execFn: async (f, a) => (f === "gh" && a[0] === "auth" ? "ghtoken\n" : "") });
+    expect(withGhPresent.source).toBe("anonymous");
     resetOrgScanCache();
     const anon = await scanOrg({ fetchFn: okFetch([]), env: {}, execFn: async () => { throw new Error("no gh"); } });
     expect(anon.source).toBe("anonymous");
   });
 
-  it("prefers a configured token over the gh CLI when there is no env token", async () => {
+  it("prefers a configured token over an anonymous scan when there is no env token", async () => {
     const { setConfigValue } = await import("@core/index.js");
     setConfigValue("cairn", "githubToken", "cfg-token");
     const result = await scanOrg({
@@ -94,6 +94,45 @@ describe("scanOrg", () => {
     });
     expect(result.entries.find((e) => e.name === "old-plugin")?.deprecated).toBe(true);
     expect(result.entries.find((e) => e.name === "stub-auth")?.deprecated).toBe(false);
+  });
+
+  it("flags rateLimited on a 403 with x-ratelimit-remaining 0, falling back to the empty catalog", async () => {
+    const rateLimitedFetch = (async () => ({
+      ok: false,
+      status: 403,
+      headers: { get: (name: string) => (name === "x-ratelimit-remaining" ? "0" : null) },
+      json: async () => ({}),
+    })) as unknown as typeof fetch;
+    const result = await scanOrg({ fetchFn: rateLimitedFetch, env: {}, execFn: async () => "" });
+    expect(result.rateLimited).toBe(true);
+    expect(result.entries).toEqual([]);
+  });
+
+  it("flags rateLimited on a bare 429", async () => {
+    const rateLimitedFetch = (async () => ({
+      ok: false,
+      status: 429,
+      headers: { get: () => null },
+      json: async () => ({}),
+    })) as unknown as typeof fetch;
+    const result = await scanOrg({ fetchFn: rateLimitedFetch, env: {}, execFn: async () => "" });
+    expect(result.rateLimited).toBe(true);
+  });
+
+  it("does not flag rateLimited on an unrelated failure", async () => {
+    const failFetch = (async () => ({
+      ok: false,
+      status: 500,
+      headers: { get: () => null },
+      json: async () => ({}),
+    })) as unknown as typeof fetch;
+    const result = await scanOrg({ fetchFn: failFetch, env: {}, execFn: async () => "" });
+    expect(result.rateLimited).toBe(false);
+  });
+
+  it("reports rateLimited false on a normal successful scan", async () => {
+    const result = await scanOrg({ fetchFn: okFetch([repo("stub-auth", ["ai-provider"])]), env: { GITHUB_TOKEN: "t" }, execFn: async () => "" });
+    expect(result.rateLimited).toBe(false);
   });
 
   it("scans the configured marketplace org", async () => {

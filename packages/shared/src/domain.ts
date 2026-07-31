@@ -5,8 +5,8 @@ import type { AppDescriptor } from "@core/index.js";
 export type CatalogKind = "provider" | "proxy" | "plugin" | "loader";
 export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string; deprecated: boolean; topics: string[]; displayName?: string; icon?: string; app?: AppDescriptor };
 export type RepoMeta = { owner: string; repo: string; htmlUrl: string; stars: number | null; description: string; topics: string[]; readme: string | null };
-export type CatalogTokenSource = "env" | "config" | "gh" | "anonymous";
-export type CatalogResult = { entries: CatalogEntry[]; source: CatalogTokenSource; org: string };
+export type CatalogTokenSource = "env" | "config" | "anonymous";
+export type CatalogResult = { entries: CatalogEntry[]; source: CatalogTokenSource; org: string; rateLimited: boolean };
 export type GithubAccountView = { login: string; name: string | null; avatarUrl: string | null };
 export type GithubStatus = {
   source: CatalogTokenSource;

@@ -302,6 +302,11 @@ describe("resolveToken", () => {
     const resolved = await resolveToken({}, noGh);
     expect(resolved).toEqual({ token: "legacy-token", source: "config" });
   });
+
+  it("never falls back to the local gh CLI, even when it has a valid token", async () => {
+    const resolved = await resolveToken({}, async (f, a) => (f === "gh" && a[0] === "auth" ? "ghtoken" : ""));
+    expect(resolved).toEqual({ token: null, source: "anonymous" });
+  });
 });
 
 describe("githubSetStar", () => {

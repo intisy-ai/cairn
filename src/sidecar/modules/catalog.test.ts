@@ -13,6 +13,7 @@ describe("catalogList", () => {
       expect(result.data.entries).toHaveLength(1);
       expect(result.data.entries[0].name).toBe("stub-auth");
       expect(result.data.source).toBe("anonymous");
+      expect(result.data.rateLimited).toBe(false);
     }
   });
 });

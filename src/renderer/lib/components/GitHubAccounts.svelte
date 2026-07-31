@@ -37,9 +37,14 @@
     return s.accounts.some((a) => a.login === ghCli.login) ? null : ghCli;
   });
 
+  // Non-active accounts only: the active one already has its own identity card above.
+  const otherAccounts = $derived.by(() => {
+    const s = status;
+    return s ? s.accounts.filter((a) => a.login !== s.activeLogin) : [];
+  });
+
   function sourceLine(s: GithubStatus): string {
     if (s.source === "env") return "Connected via environment variable";
-    if (s.source === "gh") return "Connected via GitHub CLI";
     return "";
   }
 
@@ -157,13 +162,13 @@
       </div>
     {/if}
 
-    {#if status.accounts.length > 0}
+    {#if otherAccounts.length > 0}
       <div class="accounts">
-        {#each status.accounts as account (account.login)}
-          <div class="account" class:active={account.login === status.activeLogin}>
+        {#each otherAccounts as account (account.login)}
+          <div class="account">
             <button
               class="accountbtn"
-              disabled={busy || account.login === status.activeLogin}
+              disabled={busy}
               onclick={() => switchAccount(account.login)}
             >
               <span class="aavatar" aria-hidden="true">
@@ -177,7 +182,6 @@
                 <span class="aname">{account.name ?? `@${account.login}`}</span>
                 <span class="alogin">@{account.login}</span>
               </span>
-              {#if account.login === status.activeLogin}<span class="check" aria-hidden="true">✓</span>{/if}
             </button>
             <button
               class="remove"
@@ -324,9 +328,6 @@
   .accountbtn:disabled {
     cursor: default;
   }
-  .account.active .accountbtn .aname {
-    font-weight: 650;
-  }
   .aavatar {
     flex: none;
     width: 22px;
@@ -366,11 +367,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-  .check {
-    flex: none;
-    color: var(--good);
-    font-size: 11px;
   }
   .remove {
     all: unset;
