@@ -269,6 +269,7 @@ describe("Plugins screen", () => {
     await fireEvent.click(row.getByTitle("View wakatime-sync"));
     const dialog = within(await screen.findByRole("dialog"));
     expect(dialog.getByRole("button", { name: "Remove everywhere" })).toBeInTheDocument();
+    await fireEvent.click(dialog.getByRole("button", { name: "Availability" }));
     expect(dialog.getByRole("button", { name: "Remove" })).toBeInTheDocument();
   });
 

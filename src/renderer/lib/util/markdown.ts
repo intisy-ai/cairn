@@ -15,5 +15,7 @@ marked.setOptions({ gfm: true, breaks: false });
 
 export function renderMarkdown(md: string): string {
   const raw = marked.parse(md, { async: false }) as string;
-  return DOMPurify.sanitize(raw);
+  // Drop images: README badges/screenshots point at external hosts the app's
+  // security policy blocks anyway, so they only render as broken-image icons.
+  return DOMPurify.sanitize(raw, { FORBID_TAGS: ["img"] });
 }

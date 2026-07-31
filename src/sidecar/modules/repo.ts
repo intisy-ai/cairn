@@ -3,7 +3,7 @@ import type { RepoMeta, Result } from "../../../packages/shared/src/domain.js";
 import { wrap, err } from "../result.js";
 
 const TTL_MS = 1_800_000;
-const README_CAP = 40_000;
+const README_CAP = 200_000;
 
 const cache = new Map<string, { at: number; value: RepoMeta }>();
 export function resetRepoMetaCacheForTests(): void { cache.clear(); }

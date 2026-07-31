@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { UnifiedPlugin, PluginConfigSchema } from "@cairn/shared";
-  import Button from "./Button.svelte";
   import PluginControls from "./PluginControls.svelte";
   import RepoDetail from "./RepoDetail.svelte";
+  import IconButton from "./IconButton.svelte";
   import { cairn } from "../ipc.js";
 
   let {
@@ -39,6 +39,11 @@
   const fullyInstalled = $derived(installedCount === homes.length && homes.length > 0);
   const installedHomes = $derived(homes.filter((h) => plugin.homes[h.id]?.installed));
 
+  const tabs = $derived([
+    { id: "availability", label: "Availability" },
+    ...(installedHomes.length > 0 ? [{ id: "configure", label: "Configure" }] : []),
+  ]);
+
   let controlsHome = $state<string>("");
   let controlsSchema = $state<PluginConfigSchema | null>(null);
   let controlsLoading = $state(false);
@@ -67,17 +72,25 @@
   }
 </script>
 
-<RepoDetail {repo} {onClose}>
-  {#snippet extra()}
-    {#if mandatory || plugin.updateAvailable}
-      <div class="badges">
-        {#if mandatory}<span class="badge locked" title="Mandatory engine">Locked</span>{/if}
-        {#if plugin.updateAvailable}<span class="badge update">Update available</span>{/if}
-      </div>
-    {/if}
+{#snippet topActions()}
+  {#if mandatory}
+    <span class="lockbadge" title="Mandatory engine">Locked</span>
+  {/if}
+  {#if plugin.updateAvailable}
+    <IconButton name="refresh" title="Update" onclick={onUpdate} />
+  {/if}
+  {#if !fullyInstalled}
+    <IconButton name="download" title="Install everywhere" onclick={onInstallAll} />
+  {/if}
+  {#if installedCount > 0 && !mandatory}
+    <IconButton name="trash" title="Remove everywhere" danger onclick={onRemoveEverywhere} />
+  {/if}
+{/snippet}
 
-    <section class="deploy">
-      <p class="label">Availability {installedCount}/{homes.length}</p>
+{#snippet content(active: string)}
+  {#if active === "availability"}
+    <div>
+      <p class="label">Installed in {installedCount}/{homes.length}</p>
       <ul class="apps">
         {#each homes as h (h.id)}
           {@const on = !!plugin.homes[h.id]?.installed}
@@ -96,64 +109,44 @@
           </li>
         {/each}
       </ul>
-    </section>
+    </div>
+  {:else if active === "configure"}
+    <div class="controls">
+      {#if installedHomes.length > 1}
+        <div class="homeswitch">
+          {#each installedHomes as h (h.id)}
+            <button class="hchip" class:on={controlsHome === h.id} onclick={() => (controlsHome = h.id)}>{h.label}</button>
+          {/each}
+        </div>
+      {/if}
+      {#if controlsSchema}
+        <PluginControls homeId={controlsHome} schema={controlsSchema} />
+      {:else if controlsLoading}
+        <p class="cmuted">Loading controls…</p>
+      {:else}
+        <p class="cmuted">This plugin has no configurable settings.</p>
+      {/if}
+    </div>
+  {/if}
+{/snippet}
 
-    {#if installedHomes.length > 0}
-      <section class="controls">
-        <p class="label">Controls</p>
-        {#if installedHomes.length > 1}
-          <div class="homeswitch">
-            {#each installedHomes as h (h.id)}
-              <button class="hchip" class:on={controlsHome === h.id} onclick={() => (controlsHome = h.id)}>{h.label}</button>
-            {/each}
-          </div>
-        {/if}
-        {#if controlsSchema}
-          <PluginControls homeId={controlsHome} schema={controlsSchema} />
-        {:else if controlsLoading}
-          <p class="cmuted">Loading controls…</p>
-        {:else}
-          <p class="cmuted">No controls.</p>
-        {/if}
-      </section>
-    {/if}
-  {/snippet}
-
-  {#snippet actions()}
-    {#if plugin.updateAvailable}
-      <Button onclick={onUpdate}>Update</Button>
-    {/if}
-    {#if !fullyInstalled}
-      <Button variant="primary" onclick={onInstallAll}>Install everywhere</Button>
-    {/if}
-    {#if installedCount > 0 && !mandatory}
-      <Button onclick={onRemoveEverywhere}>Remove everywhere</Button>
-    {/if}
-  {/snippet}
-</RepoDetail>
+<RepoDetail {repo} {onClose} {tabs} tabContent={content} actions={topActions} />
 
 <style>
-  .badges {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .badge {
-    font-size: 10.5px;
+  .lockbadge {
+    align-self: center;
+    font-size: 10px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
     font-weight: 600;
-    border-radius: 20px;
-    padding: 2px 9px;
-  }
-  .badge.update {
-    color: var(--accent);
-    background: var(--accent-weak);
-  }
-  .badge.locked {
     color: var(--faint);
     background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 10px;
   }
   .label {
-    margin: 0 0 8px;
+    margin: 0 0 10px;
     font-size: 10.5px;
     letter-spacing: .08em;
     text-transform: uppercase;
@@ -172,9 +165,10 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 10px;
+    padding: 9px 12px;
     border: 1px solid var(--border);
     border-radius: 9px;
+    background: var(--surface-2);
   }
   .appmark {
     width: 24px;
@@ -238,7 +232,7 @@
   .controls {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
   }
   .homeswitch {
     display: flex;

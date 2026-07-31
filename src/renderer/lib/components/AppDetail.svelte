@@ -37,7 +37,7 @@
   let wipe = $state(false);
 
   // The repo behind an app is its loader; the detail surfaces the loader's stars
-  // and readme while the extras below cover the app's own status.
+  // and readme while the Status tab covers the app's own connection.
   const repo = $derived({
     name: connection?.loaderId ?? app.id,
     url: connection?.loaderUrl ?? "",
@@ -59,114 +59,123 @@
   }
 </script>
 
-<RepoDetail {repo} {onClose}>
-  {#snippet extra()}
-    <div class="statusline">
-      <StatusPill variant={connected ? "good" : "off"} label={statusLabel} />
-    </div>
+{#snippet content(active: string)}
+  {#if active === "status"}
+    <div class="status">
+      <div class="statusline">
+        <StatusPill variant={connected ? "good" : "off"} label={statusLabel} />
+      </div>
 
-    <section>
-      <p class="label">Integration</p>
-      <div class="chainrows">
-        <div class="chainrow">
-          <span class="cdot" class:on={connection?.cliPresent}></span>
-          <span class="ck">Command line</span>
-          <span class="cs">{connection?.cliPresent ? "Installed" : "Not installed"}</span>
-          {#if connection && !connection.cliPresent && !connection.loaderId}
-            <Button variant="primary" disabled={busy} onclick={onPrimary}>
-              {#if busy}<Spinner />{/if}
-              Install CLI
-            </Button>
-          {/if}
-        </div>
-
-        {#if connection?.loaderId}
+      <section>
+        <p class="label">Integration</p>
+        <div class="chainrows">
           <div class="chainrow">
-            <span class="cdot" class:on={connection?.loaderInstalled}></span>
-            <span class="ck">Loader</span>
-            <span class="cs">{connection?.loaderInstalled ? "Installed" : "Not installed"}</span>
-            {#if !connection?.loaderInstalled}
+            <span class="cdot" class:on={connection?.cliPresent}></span>
+            <span class="ck">Command line</span>
+            <span class="cs">{connection?.cliPresent ? "Installed" : "Not installed"}</span>
+            {#if connection && !connection.cliPresent && !connection.loaderId}
               <Button variant="primary" disabled={busy} onclick={onPrimary}>
                 {#if busy}<Spinner />{/if}
-                {connection?.cliPresent ? "Install loader" : "Connect"}
+                Install CLI
               </Button>
             {/if}
           </div>
-        {/if}
-      </div>
-      <button class="altlink" onclick={openLocalApi}>
-        Prefer not to use the loader? Connect this app through the Local API →
-      </button>
-    </section>
 
-    {#if summaryError}
-      <p class="error">Could not load app summary: {summaryError}</p>
-    {:else if summary}
-      <section>
-        <p class="label">Snapshot</p>
-        <div class="stats">
-          <div class="stat" data-testid="stat-accounts"><span class="v">{summary.accounts.length}</span><span class="k">accounts</span></div>
-          <div class="stat" data-testid="stat-enabled"><span class="v">{summary.accountsEnabled}</span><span class="k">enabled</span></div>
-          <div class="stat" data-testid="stat-providers"><span class="v">{summary.providerCount}</span><span class="k">providers</span></div>
-          <div class="stat" data-testid="stat-plugins"><span class="v">{summary.pluginCount}</span><span class="k">plugins</span></div>
-          {#if summary.routingSlots !== null}
-            <div class="stat" data-testid="stat-routing"><span class="v">{summary.routingSlots}</span><span class="k">routing slots</span></div>
-          {/if}
-          {#if summary.quotaMinPct !== null}
-            <div class="stat" data-testid="stat-quota"><span class="v">{summary.quotaMinPct}%</span><span class="k">lowest quota</span></div>
+          {#if connection?.loaderId}
+            <div class="chainrow">
+              <span class="cdot" class:on={connection?.loaderInstalled}></span>
+              <span class="ck">Loader</span>
+              <span class="cs">{connection?.loaderInstalled ? "Installed" : "Not installed"}</span>
+              {#if !connection?.loaderInstalled}
+                <Button variant="primary" disabled={busy} onclick={onPrimary}>
+                  {#if busy}<Spinner />{/if}
+                  {connection?.cliPresent ? "Install loader" : "Connect"}
+                </Button>
+              {/if}
+            </div>
           {/if}
         </div>
+        <button class="altlink" onclick={openLocalApi}>
+          Prefer not to use the loader? Connect this app through the Local API →
+        </button>
       </section>
 
-      <section>
-        <p class="label">Providers</p>
-        {#if shownBreakdown.length > 0}
-          <div class="breakdown">
-            {#each shownBreakdown as agg}
-              <Chip label={`${agg.provider} · ${agg.enabled}/${agg.accounts}`} />
-            {/each}
-            {#if moreCount > 0}<span class="more">+{moreCount} more</span>{/if}
+      {#if summaryError}
+        <p class="error">Could not load app summary: {summaryError}</p>
+      {:else if summary}
+        <section>
+          <p class="label">Snapshot</p>
+          <div class="stats">
+            <div class="stat" data-testid="stat-accounts"><span class="v">{summary.accounts.length}</span><span class="k">accounts</span></div>
+            <div class="stat" data-testid="stat-enabled"><span class="v">{summary.accountsEnabled}</span><span class="k">enabled</span></div>
+            <div class="stat" data-testid="stat-providers"><span class="v">{summary.providerCount}</span><span class="k">providers</span></div>
+            <div class="stat" data-testid="stat-plugins"><span class="v">{summary.pluginCount}</span><span class="k">plugins</span></div>
+            {#if summary.routingSlots !== null}
+              <div class="stat" data-testid="stat-routing"><span class="v">{summary.routingSlots}</span><span class="k">routing slots</span></div>
+            {/if}
+            {#if summary.quotaMinPct !== null}
+              <div class="stat" data-testid="stat-quota"><span class="v">{summary.quotaMinPct}%</span><span class="k">lowest quota</span></div>
+            {/if}
           </div>
-        {:else}
-          <p class="muted">No accounts connected.</p>
-        {/if}
-      </section>
+        </section>
 
-      <section>
-        <p class="label">Config directory</p>
-        <p class="path">{summary.configDir}</p>
-      </section>
-    {:else}
-      <p class="muted">Loading summary…</p>
-    {/if}
+        <section>
+          <p class="label">Providers</p>
+          {#if shownBreakdown.length > 0}
+            <div class="breakdown">
+              {#each shownBreakdown as agg}
+                <Chip label={`${agg.provider} · ${agg.enabled}/${agg.accounts}`} />
+              {/each}
+              {#if moreCount > 0}<span class="more">+{moreCount} more</span>{/if}
+            </div>
+          {:else}
+            <p class="muted">No accounts connected.</p>
+          {/if}
+        </section>
 
-    {#if canImport}
-      <div class="rowactions">
-        <Button onclick={onImport}>Import config</Button>
-      </div>
-    {/if}
-
-    <section class="dangerzone">
-      {#if !confirmingUninstall}
-        <Button variant="danger" onclick={() => { confirmingUninstall = true; wipe = false; }}>Uninstall app</Button>
+        <section>
+          <p class="label">Config directory</p>
+          <p class="path">{summary.configDir}</p>
+        </section>
       {:else}
-        <div class="dangerpanel">
-          <p>This removes the {app.label} CLI from this machine. Plugins and configuration stay in place unless you also delete data.</p>
-          <label class="wipe">
-            <input type="checkbox" checked={wipe} onchange={(event) => (wipe = event.currentTarget.checked)} />
-            Also delete all data
-          </label>
-          <div class="rowactions end">
-            <Button onclick={() => (confirmingUninstall = false)}>Cancel</Button>
-            <Button variant="danger" onclick={() => onUninstall(wipe)}>Uninstall</Button>
-          </div>
+        <p class="muted">Loading summary…</p>
+      {/if}
+
+      {#if canImport}
+        <div class="rowactions">
+          <Button onclick={onImport}>Import config</Button>
         </div>
       {/if}
-    </section>
-  {/snippet}
-</RepoDetail>
+
+      <section class="dangerzone">
+        {#if !confirmingUninstall}
+          <Button variant="danger" onclick={() => { confirmingUninstall = true; wipe = false; }}>Uninstall app</Button>
+        {:else}
+          <div class="dangerpanel">
+            <p>This removes the {app.label} CLI from this machine. Plugins and configuration stay in place unless you also delete data.</p>
+            <label class="wipe">
+              <input type="checkbox" checked={wipe} onchange={(event) => (wipe = event.currentTarget.checked)} />
+              Also delete all data
+            </label>
+            <div class="rowactions end">
+              <Button onclick={() => (confirmingUninstall = false)}>Cancel</Button>
+              <Button variant="danger" onclick={() => onUninstall(wipe)}>Uninstall</Button>
+            </div>
+          </div>
+        {/if}
+      </section>
+    </div>
+  {/if}
+{/snippet}
+
+<RepoDetail {repo} {onClose} tabs={[{ id: "status", label: "Status" }]} tabContent={content} defaultTab="status" />
 
 <style>
+  .status {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
   .statusline {
     display: flex;
   }
@@ -226,7 +235,7 @@
   }
   .stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
     gap: 8px;
   }
   .stat {
