@@ -169,12 +169,11 @@ function gitVersionFor(repoDir: string, entry: UpdateCache["plugins"][string] | 
 }
 
 // A plugin can be registered in a home's plugins.json but not yet cloned there
-// (plugin-updater materializes it on that app's next launch). Show it the version
-// from a home that does have the clone, since every home tracks the same branch.
-function fillFromRepresentative(perHome: Record<string, PluginVersion>, homes: { id: string; autoUpdate: boolean }[]): void {
-  if (homes.length === 0) return;
-  const rep = Object.values(perHome).find((v) => v.label);
-  for (const h of homes) perHome[h.id] = { kind: "git", label: rep?.label ?? null, updateAvailable: false, autoUpdate: h.autoUpdate };
+// (plugin-updater materializes it on that app's next launch). Its version there is
+// genuinely unknown until it is cloned, so report it as such (label null) rather
+// than borrowing another home's version and implying a certainty we don't have.
+function markUnknown(perHome: Record<string, PluginVersion>, homes: { id: string; autoUpdate: boolean }[]): void {
+  for (const h of homes) perHome[h.id] = { kind: "git", label: null, updateAvailable: false, autoUpdate: h.autoUpdate };
 }
 
 export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Promise<Result<Record<string, PluginVersion>>> {
@@ -200,7 +199,7 @@ export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Pro
         registeredWithoutClone.push({ id: home.id, autoUpdate });
       }
     }
-    fillFromRepresentative(out, registeredWithoutClone);
+    markUnknown(out, registeredWithoutClone);
     return out;
   });
 }
@@ -236,7 +235,7 @@ export function pluginVersionsAll(deps: PluginVersionsDeps = {}): Promise<Result
       }
     }
     for (const { name, homeId, autoUpdate } of missing) {
-      if (!out[name][homeId]) fillFromRepresentative(out[name], [{ id: homeId, autoUpdate }]);
+      if (!out[name][homeId]) markUnknown(out[name], [{ id: homeId, autoUpdate }]);
     }
     return out;
   });

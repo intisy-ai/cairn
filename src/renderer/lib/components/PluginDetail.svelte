@@ -137,7 +137,7 @@
               {@const v = versions[h.id]}
               <span class="ver">
                 <span class="src">{v?.kind}</span>
-                {#if v?.label}<span class="num">{v.label}</span>{/if}
+                {#if v?.label}<span class="num">{v.label}</span>{:else}<span class="num unknown">unknown</span>{/if}
               </span>
               {#if v?.kind === "git"}
                 {#if v.updateAvailable}
@@ -267,6 +267,10 @@
   }
   .ver .num {
     font-family: var(--mono);
+  }
+  .ver .num.unknown {
+    font-style: italic;
+    color: var(--faint);
   }
   .mini {
     font-size: 11px;
