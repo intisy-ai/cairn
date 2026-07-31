@@ -86,8 +86,8 @@ describe("githubStatus", () => {
   });
 
   it("lists stored accounts and the active login, using the stored identity for a config-sourced active account", async () => {
-    await githubAddAccount("token-a", { fetchFn: userFetch("alice", { name: "Alice A", avatar_url: "https://avatars.githubusercontent.com/u/2" }) });
-    await githubAddAccount("token-b", { fetchFn: userFetch("bob", { name: "Bob B" }) });
+    await githubAddAccount("token-a", false, { fetchFn: userFetch("alice", { name: "Alice A", avatar_url: "https://avatars.githubusercontent.com/u/2" }) });
+    await githubAddAccount("token-b", false, { fetchFn: userFetch("bob", { name: "Bob B" }) });
     const status = await githubStatus({ env: {}, execFn: noGh, fetchFn: (async () => { throw new Error("should not be called"); }) as unknown as typeof fetch });
     expect(status.ok).toBe(true);
     if (status.ok) {
@@ -103,9 +103,27 @@ describe("githubStatus", () => {
   });
 });
 
+// Records every call and answers /user with the given login, plus the starred-repo
+// PUT with a bare 204 (or throws/errs when starBehavior says so).
+function spyFetch(
+  login: string,
+  calls: { url: string; init?: { method?: string; headers?: Record<string, string> } }[],
+  starBehavior: "ok" | "throw" | "403" = "ok",
+): typeof fetch {
+  return (async (url: string, init?: { method?: string; headers?: Record<string, string> }) => {
+    calls.push({ url, init });
+    if (url.includes("/user/starred/")) {
+      if (starBehavior === "throw") throw new Error("network error");
+      if (starBehavior === "403") return { ok: false, status: 403, json: async () => ({}) };
+      return { ok: true, status: 204, json: async () => ({}) };
+    }
+    return { ok: true, status: 200, json: async () => ({ login }) };
+  }) as unknown as typeof fetch;
+}
+
 describe("githubAddAccount", () => {
   it("validates the token via the GitHub API, stores the identity, and makes it active", async () => {
-    const result = await githubAddAccount("  new-token  ", { fetchFn: userFetch("octocat", { name: "Octo Cat", avatar_url: "https://avatars.githubusercontent.com/u/1" }) });
+    const result = await githubAddAccount("  new-token  ", false, { fetchFn: userFetch("octocat", { name: "Octo Cat", avatar_url: "https://avatars.githubusercontent.com/u/1" }) });
     expect(result).toEqual({ ok: true, data: { login: "octocat" } });
     expect(getConfigValue("cairn", "githubAccounts")).toEqual([
       { login: "octocat", token: "new-token", name: "Octo Cat", avatarUrl: "https://avatars.githubusercontent.com/u/1" },
@@ -114,31 +132,62 @@ describe("githubAddAccount", () => {
   });
 
   it("stores null name/avatarUrl when the API response omits them", async () => {
-    await githubAddAccount("token", { fetchFn: userFetch("octocat") });
+    await githubAddAccount("token", false, { fetchFn: userFetch("octocat") });
     expect(getConfigValue("cairn", "githubAccounts")).toEqual([{ login: "octocat", token: "token", name: null, avatarUrl: null }]);
   });
 
   it("replaces an existing entry for the same login instead of duplicating it", async () => {
-    await githubAddAccount("token-1", { fetchFn: userFetch("octocat", { name: "Old Name" }) });
-    await githubAddAccount("token-2", { fetchFn: userFetch("octocat", { name: "New Name" }) });
+    await githubAddAccount("token-1", false, { fetchFn: userFetch("octocat", { name: "Old Name" }) });
+    await githubAddAccount("token-2", false, { fetchFn: userFetch("octocat", { name: "New Name" }) });
     expect(getConfigValue("cairn", "githubAccounts")).toEqual([{ login: "octocat", token: "token-2", name: "New Name", avatarUrl: null }]);
   });
 
   it("rejects an invalid token and stores nothing", async () => {
-    const result = await githubAddAccount("bad-token", { fetchFn: failFetch(401) });
+    const result = await githubAddAccount("bad-token", false, { fetchFn: failFetch(401) });
     expect(result.ok).toBe(false);
     expect(getConfigValue("cairn", "githubAccounts")).toBeUndefined();
   });
 
   it("rejects a blank token without calling the network", async () => {
-    const result = await githubAddAccount("   ", { fetchFn: (async () => { throw new Error("should not be called"); }) as unknown as typeof fetch });
+    const result = await githubAddAccount("   ", false, { fetchFn: (async () => { throw new Error("should not be called"); }) as unknown as typeof fetch });
     expect(result.ok).toBe(false);
+  });
+
+  it("stars Cairn when star is true", async () => {
+    const calls: { url: string; init?: { method?: string; headers?: Record<string, string> } }[] = [];
+    const result = await githubAddAccount("token", true, { fetchFn: spyFetch("octocat", calls) });
+    expect(result.ok).toBe(true);
+    const starCall = calls.find((c) => c.url === "https://api.github.com/user/starred/intisy-ai/cairn");
+    expect(starCall).toBeDefined();
+    expect(starCall?.init?.method).toBe("PUT");
+    expect(starCall?.init?.headers?.Authorization).toBe("Bearer token");
+  });
+
+  it("does not star when star is false", async () => {
+    const calls: { url: string }[] = [];
+    const result = await githubAddAccount("token", false, { fetchFn: spyFetch("octocat", calls) });
+    expect(result.ok).toBe(true);
+    expect(calls.some((c) => c.url.includes("/user/starred/"))).toBe(false);
+  });
+
+  it("still stores the account and reports success when starring throws", async () => {
+    const calls: { url: string }[] = [];
+    const result = await githubAddAccount("token", true, { fetchFn: spyFetch("octocat", calls, "throw") });
+    expect(result).toEqual({ ok: true, data: { login: "octocat" } });
+    expect(getConfigValue("cairn", "githubAccounts")).toEqual([{ login: "octocat", token: "token", name: null, avatarUrl: null }]);
+  });
+
+  it("still stores the account and reports success when starring returns a non-2xx (insufficient scope)", async () => {
+    const calls: { url: string }[] = [];
+    const result = await githubAddAccount("token", true, { fetchFn: spyFetch("octocat", calls, "403") });
+    expect(result.ok).toBe(true);
+    expect(getConfigValue("cairn", "githubAccounts")).toEqual([{ login: "octocat", token: "token", name: null, avatarUrl: null }]);
   });
 });
 
 describe("githubConnectGhCli", () => {
   it("resolves the gh token, stores the identity, and makes it active", async () => {
-    const result = await githubConnectGhCli({
+    const result = await githubConnectGhCli(false, {
       execFn: async (f, a) => (f === "gh" && a[0] === "auth" ? "ghtoken" : ""),
       fetchFn: userFetch("clidev", { name: "CLI Dev", avatar_url: "https://avatars.githubusercontent.com/u/3" }),
     });
@@ -150,29 +199,60 @@ describe("githubConnectGhCli", () => {
   });
 
   it("errors when gh has no token", async () => {
-    const result = await githubConnectGhCli({ execFn: async () => "", fetchFn: userFetch("clidev") });
+    const result = await githubConnectGhCli(false, { execFn: async () => "", fetchFn: userFetch("clidev") });
     expect(result.ok).toBe(false);
   });
 
   it("errors when gh is not installed", async () => {
-    const result = await githubConnectGhCli({ execFn: noGh, fetchFn: userFetch("clidev") });
+    const result = await githubConnectGhCli(false, { execFn: noGh, fetchFn: userFetch("clidev") });
     expect(result.ok).toBe(false);
   });
 
   it("errors when the resolved token fails validation", async () => {
-    const result = await githubConnectGhCli({
+    const result = await githubConnectGhCli(false, {
       execFn: async (f, a) => (f === "gh" && a[0] === "auth" ? "ghtoken" : ""),
       fetchFn: failFetch(401),
     });
     expect(result.ok).toBe(false);
     expect(getConfigValue("cairn", "githubAccounts")).toBeUndefined();
   });
+
+  it("stars Cairn using the gh CLI token when star is true", async () => {
+    const calls: { url: string; init?: { method?: string; headers?: Record<string, string> } }[] = [];
+    const result = await githubConnectGhCli(true, {
+      execFn: async (f, a) => (f === "gh" && a[0] === "auth" ? "ghtoken" : ""),
+      fetchFn: spyFetch("clidev", calls),
+    });
+    expect(result.ok).toBe(true);
+    const starCall = calls.find((c) => c.url === "https://api.github.com/user/starred/intisy-ai/cairn");
+    expect(starCall).toBeDefined();
+    expect(starCall?.init?.method).toBe("PUT");
+  });
+
+  it("does not star when star is false", async () => {
+    const calls: { url: string }[] = [];
+    const result = await githubConnectGhCli(false, {
+      execFn: async (f, a) => (f === "gh" && a[0] === "auth" ? "ghtoken" : ""),
+      fetchFn: spyFetch("clidev", calls),
+    });
+    expect(result.ok).toBe(true);
+    expect(calls.some((c) => c.url.includes("/user/starred/"))).toBe(false);
+  });
+
+  it("still succeeds when starring fails", async () => {
+    const calls: { url: string }[] = [];
+    const result = await githubConnectGhCli(true, {
+      execFn: async (f, a) => (f === "gh" && a[0] === "auth" ? "ghtoken" : ""),
+      fetchFn: spyFetch("clidev", calls, "throw"),
+    });
+    expect(result.ok).toBe(true);
+  });
 });
 
 describe("githubSwitchAccount", () => {
   it("makes a stored account active", async () => {
-    await githubAddAccount("token-a", { fetchFn: userFetch("alice") });
-    await githubAddAccount("token-b", { fetchFn: userFetch("bob") });
+    await githubAddAccount("token-a", false, { fetchFn: userFetch("alice") });
+    await githubAddAccount("token-b", false, { fetchFn: userFetch("bob") });
     const result = await githubSwitchAccount("alice");
     expect(result).toEqual({ ok: true, data: undefined });
     expect(getConfigValue("cairn", "githubActiveLogin")).toBe("alice");
@@ -186,8 +266,8 @@ describe("githubSwitchAccount", () => {
 
 describe("githubRemoveAccount", () => {
   it("removes a stored account and reassigns the active login when it was active", async () => {
-    await githubAddAccount("token-a", { fetchFn: userFetch("alice") });
-    await githubAddAccount("token-b", { fetchFn: userFetch("bob") });
+    await githubAddAccount("token-a", false, { fetchFn: userFetch("alice") });
+    await githubAddAccount("token-b", false, { fetchFn: userFetch("bob") });
     const result = await githubRemoveAccount("bob");
     expect(result).toEqual({ ok: true, data: undefined });
     expect(getConfigValue("cairn", "githubAccounts")).toEqual([{ login: "alice", token: "token-a", name: null, avatarUrl: null }]);
@@ -195,7 +275,7 @@ describe("githubRemoveAccount", () => {
   });
 
   it("clears the active login when the last account is removed", async () => {
-    await githubAddAccount("token-a", { fetchFn: userFetch("alice") });
+    await githubAddAccount("token-a", false, { fetchFn: userFetch("alice") });
     await githubRemoveAccount("alice");
     const status = await githubStatus({ env: {}, execFn: noGh, fetchFn: userFetch("nobody") });
     expect(status.ok).toBe(true);
@@ -208,8 +288,8 @@ describe("githubRemoveAccount", () => {
 
 describe("resolveToken", () => {
   it("resolves the active stored account's token as the config source", async () => {
-    await githubAddAccount("token-a", { fetchFn: userFetch("alice") });
-    await githubAddAccount("token-b", { fetchFn: userFetch("bob") });
+    await githubAddAccount("token-a", false, { fetchFn: userFetch("alice") });
+    await githubAddAccount("token-b", false, { fetchFn: userFetch("bob") });
     const resolved = await resolveToken({}, noGh);
     expect(resolved).toEqual({ token: "token-b", source: "config" });
   });

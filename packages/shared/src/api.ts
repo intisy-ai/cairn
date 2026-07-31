@@ -63,10 +63,10 @@ export interface CairnAPI {
   importRun(app: string, selection?: ImportSelection): Promise<Result<ImportSummary>>;
   catalogList(): Promise<Result<CatalogResult>>;
   githubStatus(): Promise<Result<GithubStatus>>;
-  githubAddAccount(token: string): Promise<Result<{ login: string }>>;
+  githubAddAccount(token: string, star: boolean): Promise<Result<{ login: string }>>;
   githubSwitchAccount(login: string): Promise<Result<void>>;
   githubRemoveAccount(login: string): Promise<Result<void>>;
-  githubConnectGhCli(): Promise<Result<{ login: string }>>;
+  githubConnectGhCli(star: boolean): Promise<Result<{ login: string }>>;
   customEndpointsList(): Promise<Result<CustomEndpointView[]>>;
   customEndpointsUpsert(endpoint: CustomEndpoint): Promise<Result<void>>;
   customEndpointsRemove(id: string): Promise<Result<void>>;
