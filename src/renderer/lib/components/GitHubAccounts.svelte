@@ -4,12 +4,11 @@
   import { cairn } from "../ipc.js";
   import { githubChanged, bumpGithub } from "../githubStore.js";
   import Button from "./Button.svelte";
+  import GitHubConnectDialog from "./GitHubConnectDialog.svelte";
 
   let status = $state<GithubStatus | null>(null);
   let busy = $state(false);
-  let error = $state("");
-  let addOpen = $state(false);
-  let tokenDraft = $state("");
+  let dialog = $state<null | { mode: "add" | "connect"; ghLogin?: string }>(null);
 
   async function refresh(): Promise<void> {
     const result = await cairn.githubStatus();
@@ -59,23 +58,6 @@
     }
   }
 
-  async function connectGhCli(): Promise<void> {
-    if (busy) return;
-    busy = true;
-    error = "";
-    try {
-      const result = await cairn.githubConnectGhCli();
-      if (result.ok) {
-        await refresh();
-        bumpGithub();
-      } else {
-        error = result.error;
-      }
-    } finally {
-      busy = false;
-    }
-  }
-
   async function switchAccount(login: string): Promise<void> {
     if (busy || login === status?.activeLogin) return;
     busy = true;
@@ -100,36 +82,22 @@
     }
   }
 
-  function openAdd(): void {
-    addOpen = true;
-    error = "";
-    tokenDraft = "";
+  function openAddDialog(): void {
+    dialog = { mode: "add" };
   }
 
-  function cancelAdd(): void {
-    addOpen = false;
-    tokenDraft = "";
-    error = "";
+  function openConnectDialog(login: string): void {
+    dialog = { mode: "connect", ghLogin: login };
   }
 
-  async function saveAdd(): Promise<void> {
-    const token = tokenDraft.trim();
-    if (!token || busy) return;
-    busy = true;
-    error = "";
-    try {
-      const result = await cairn.githubAddAccount(token);
-      if (result.ok) {
-        addOpen = false;
-        tokenDraft = "";
-        await refresh();
-        bumpGithub();
-      } else {
-        error = result.error;
-      }
-    } finally {
-      busy = false;
-    }
+  function cancelDialog(): void {
+    dialog = null;
+  }
+
+  async function finishDialog(): Promise<void> {
+    dialog = null;
+    await refresh();
+    bumpGithub();
   }
 </script>
 
@@ -165,7 +133,7 @@
     {#if ghCliPrompt}
       <div class="ghcli">
         <span>Signed in to GitHub CLI as @{ghCliPrompt.login}. Connect it to Cairn?</span>
-        <Button disabled={busy} onclick={connectGhCli}>Connect</Button>
+        <Button disabled={busy} onclick={() => openConnectDialog(ghCliPrompt.login)}>Connect</Button>
       </div>
     {/if}
 
@@ -206,27 +174,18 @@
     {/if}
 
     <div class="add">
-      {#if addOpen}
-        <div class="addform">
-          <input
-            type="password"
-            class="token"
-            placeholder="Personal access token"
-            aria-label="GitHub personal access token"
-            bind:value={tokenDraft}
-          />
-          <div class="addactions">
-            <Button variant="primary" disabled={busy || !tokenDraft.trim()} onclick={saveAdd}>Save</Button>
-            <Button disabled={busy} onclick={cancelAdd}>Cancel</Button>
-          </div>
-          <span class="hint">Paste a GitHub personal access token (read access to repositories).</span>
-        </div>
-      {:else}
-        <Button onclick={openAdd}>Add account</Button>
-      {/if}
-      {#if error}<div class="error">{error}</div>{/if}
+      <Button onclick={openAddDialog}>Add account</Button>
     </div>
   </div>
+{/if}
+
+{#if dialog}
+  <GitHubConnectDialog
+    mode={dialog.mode}
+    ghLogin={dialog.ghLogin}
+    onCancel={cancelDialog}
+    onDone={finishDialog}
+  />
 {/if}
 
 <style>
@@ -400,33 +359,5 @@
     padding-top: 10px;
     border-top: 1px solid var(--border);
     margin-top: 2px;
-  }
-  .addform {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .token {
-    font-family: var(--ui);
-    font-size: 12px;
-    color: var(--text);
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    padding: 7px 9px;
-  }
-  .token:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-weak);
-  }
-  .addactions {
-    display: flex;
-    gap: 6px;
-  }
-  .error {
-    margin-top: 8px;
-    font-size: 11px;
-    color: var(--crit);
   }
 </style>

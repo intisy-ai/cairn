@@ -1,4 +1,4 @@
-import { getConfigValue, setConfigValue } from "@core/index.js";
+import { ECOSYSTEM_ORG, getConfigValue, setConfigValue } from "@core/index.js";
 import { realExec, resetOrgScanCache, resolveToken } from "../lib/orgScan.js";
 import type { GithubAccountView, GithubStatus, Result } from "../../../packages/shared/src/domain.js";
 import { ok, err, wrap } from "../result.js";
@@ -74,6 +74,19 @@ function storeAccount(user: GithubUser, token: string): void {
   resetOrgScanCache();
 }
 
+// Best-effort: a token without the repo/public_repo scope gets a 403, which must
+// never fail the surrounding add/connect flow.
+async function starCairn(fetchFn: typeof fetch, token: string): Promise<void> {
+  try {
+    await fetchFn(`https://api.github.com/user/starred/${ECOSYSTEM_ORG}/cairn`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Length": "0" },
+    });
+  } catch {
+    // starring is a nice-to-have, never lets a network failure surface to the caller
+  }
+}
+
 export function githubStatus(deps: GithubDeps = {}): Promise<Result<GithubStatus>> {
   return wrap(async () => {
     const env = deps.env ?? process.env;
@@ -120,17 +133,18 @@ export function githubStatus(deps: GithubDeps = {}): Promise<Result<GithubStatus
   });
 }
 
-export async function githubAddAccount(token: string, deps: GithubDeps = {}): Promise<Result<{ login: string }>> {
+export async function githubAddAccount(token: string, star: boolean, deps: GithubDeps = {}): Promise<Result<{ login: string }>> {
   const fetchFn = deps.fetchFn ?? fetch;
   const trimmed = token.trim();
   if (!trimmed) return err("token is required");
   const validated = await validateToken(fetchFn, trimmed);
   if (!validated.ok) return validated;
   storeAccount(validated.data, trimmed);
+  if (star) await starCairn(fetchFn, trimmed);
   return ok({ login: validated.data.login });
 }
 
-export async function githubConnectGhCli(deps: GithubDeps = {}): Promise<Result<{ login: string }>> {
+export async function githubConnectGhCli(star: boolean, deps: GithubDeps = {}): Promise<Result<{ login: string }>> {
   const execFn = deps.execFn ?? realExec;
   const fetchFn = deps.fetchFn ?? fetch;
   let token: string;
@@ -143,6 +157,7 @@ export async function githubConnectGhCli(deps: GithubDeps = {}): Promise<Result<
   const validated = await validateToken(fetchFn, token);
   if (!validated.ok) return validated;
   storeAccount(validated.data, token);
+  if (star) await starCairn(fetchFn, token);
   return ok({ login: validated.data.login });
 }
 
