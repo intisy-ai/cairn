@@ -78,7 +78,7 @@ describe("Plugins screen", () => {
     const row = within(await screen.findByTestId("plugin-demo"));
     await fireEvent.click(row.getByRole("button", { name: "Install everywhere" }));
 
-    await waitFor(() => expect(pluginsInstallMany).toHaveBeenCalledWith("demo", "u", ["claude", "opencode"]));
+    await waitFor(() => expect(pluginsInstallMany).toHaveBeenCalledWith("demo", "u", ["claude", "opencode"], expect.any(Number)));
   });
 
   it("clicking an outline pill on an installed plugin installs to that one home", async () => {
@@ -93,7 +93,7 @@ describe("Plugins screen", () => {
     const row = within(await screen.findByTestId("plugin-wakatime-sync"));
     await fireEvent.click(row.getByTitle("OpenCode"));
 
-    await waitFor(() => expect(pluginsInstall).toHaveBeenCalledWith("opencode", "wakatime-sync", "uw"));
+    await waitFor(() => expect(pluginsInstall).toHaveBeenCalledWith("opencode", "wakatime-sync", "uw", expect.any(Number)));
   });
 
   it("surfaces a failed outcome from a multi-home install in the download manager", async () => {
@@ -156,7 +156,7 @@ describe("Plugins screen", () => {
     await fireEvent.click(dialog.getByRole("button", { name: "Install" }));
 
     await waitFor(() =>
-      expect(pluginsInstallMany).toHaveBeenCalledWith("some-plugin", "https://github.com/intisy-ai/some-plugin", ["claude", "opencode"]),
+      expect(pluginsInstallMany).toHaveBeenCalledWith("some-plugin", "https://github.com/intisy-ai/some-plugin", ["claude", "opencode"], expect.any(Number)),
     );
   });
 

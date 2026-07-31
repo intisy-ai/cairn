@@ -101,6 +101,7 @@ function defaultCairn(): CairnAPI {
     maximize: () => {},
     close: () => {},
     onServerStatus: () => () => {},
+    onDownloadProgress: () => () => {},
     isElectron: true,
     platform: "linux",
   };

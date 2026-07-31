@@ -1,4 +1,4 @@
-import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView, InstallManyResult, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete } from "./domain.js";
+import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -35,8 +35,8 @@ export interface CairnAPI {
   pluginVersionsAll(): Promise<Result<Record<string, Record<string, PluginVersion>>>>;
   enginesList(): Promise<Result<EngineView[]>>;
   enginesEnsure(capability: string): Promise<Result<void>>;
-  pluginsInstall(home: string, name: string, url: string): Promise<Result<void>>;
-  pluginsInstallMany(name: string, url: string, homeIds: string[]): Promise<Result<InstallManyResult>>;
+  pluginsInstall(home: string, name: string, url: string, progressId?: number): Promise<Result<void>>;
+  pluginsInstallMany(name: string, url: string, homeIds: string[], progressId?: number): Promise<Result<InstallManyResult>>;
   pluginsRemoveEverywhere(name: string): Promise<Result<InstallManyResult>>;
   pluginsSetEnabled(home: string, name: string, on: boolean): Promise<Result<void>>;
   pluginsSetAutoUpdate(home: string, name: string, on: boolean): Promise<Result<void>>;
@@ -68,6 +68,7 @@ export interface CairnAPI {
   maximize(): void;
   close(): void;
   onServerStatus(listener: (status: ProxyStatus) => void): () => void;
+  onDownloadProgress(listener: (progress: DownloadProgress) => void): () => void;
   isElectron: true;
   platform: NodeJS.Platform;
 }

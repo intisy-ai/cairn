@@ -187,7 +187,7 @@
       label,
       home: homesLabel(homeIds),
       source: sourceFor(name),
-      run: () => cairn.pluginsInstallMany(name, url, homeIds),
+      run: (id) => cairn.pluginsInstallMany(name, url, homeIds, id),
       summarizeFailure: (data) => outcomesError(data.outcomes),
     });
     if (!result.ok) return result;
@@ -200,7 +200,7 @@
       label: `Install ${p.displayName}`,
       home: homesLabel([homeId]),
       source: sourceFor(p.name),
-      run: () => cairn.pluginsInstall(homeId, p.name, p.url ?? ""),
+      run: (id) => cairn.pluginsInstall(homeId, p.name, p.url ?? "", id),
     });
     await reload();
   }

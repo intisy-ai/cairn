@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { get } from "svelte/store";
-import { downloads, enqueue, track, toggleDownloads, clearFinished, resetDownloadsForTest } from "./downloads.js";
+import { downloads, enqueue, track, toggleDownloads, clearFinished, setStep, resetDownloadsForTest } from "./downloads.js";
 
 describe("downloads", () => {
   beforeEach(() => {
@@ -25,6 +25,20 @@ describe("downloads", () => {
   it("carries the source through to the task", () => {
     void enqueue({ label: "engine", home: "cairn", source: "cairn", run: () => new Promise(() => {}) });
     expect(get(downloads).tasks[0].source).toBe("cairn");
+  });
+
+  it("setStep updates the live step of an in-flight task", () => {
+    void track("first", "/h", () => new Promise(() => {}));
+    const id = get(downloads).tasks[0].id;
+    setStep(id, "Downloading and building");
+    expect(get(downloads).tasks[0].step).toBe("Downloading and building");
+  });
+
+  it("setStep leaves a finished task's step untouched", async () => {
+    await track("done-task", "/h", async () => ({ ok: true, data: undefined }));
+    const id = get(downloads).tasks[0].id;
+    setStep(id, "late step");
+    expect(get(downloads).tasks[0].step).toBe("");
   });
 
   it("marks a task failed with the Result error on an ok:false result", async () => {

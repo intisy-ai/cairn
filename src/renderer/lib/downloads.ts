@@ -51,7 +51,8 @@ export type EnqueueSpec<T> = {
   label: string;
   home: string;
   source?: DownloadSource;
-  run: () => Promise<Result<T>>;
+  // The task id is passed in so the caller can correlate live progress events.
+  run: (id: number) => Promise<Result<T>>;
   // summarizeFailure flags a partial failure a plain ok/error Result can't express,
   // e.g. a multi-home install where the call succeeded but some homes failed.
   summarizeFailure?: (data: T) => string | null;
@@ -71,7 +72,7 @@ export function enqueue<T>(spec: EnqueueSpec<T>): Promise<Result<T>> {
     queue.push(async () => {
       patch(id, { status: "installing" });
       try {
-        const result = await spec.run();
+        const result = await spec.run(id);
         if (result.ok) {
           const failure = spec.summarizeFailure?.(result.data) ?? null;
           if (failure) patch(id, { status: "failed", error: failure });
@@ -97,6 +98,17 @@ export function track<T>(
   summarizeFailure?: (data: T) => string | null,
 ): Promise<Result<T>> {
   return enqueue({ label, home, run, summarizeFailure });
+}
+
+// Applied from a pushed progress event; only meaningful while the task is still
+// in flight (a finished task keeps its terminal line).
+export function setStep(id: number, step: string): void {
+  downloads.update((state) => ({
+    ...state,
+    tasks: state.tasks.map((task) =>
+      task.id === id && (task.status === "pending" || task.status === "installing") ? { ...task, step } : task,
+    ),
+  }));
 }
 
 export function toggleDownloads(): void {

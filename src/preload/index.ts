@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import { IPC_CHANNELS, INVOKE_CHANNELS } from "@cairn/shared";
-import type { CairnAPI, Result, ProxyStatus, InvokeMethod } from "@cairn/shared";
+import type { CairnAPI, Result, ProxyStatus, DownloadProgress, InvokeMethod } from "@cairn/shared";
 
 const invokeChannels: readonly string[] = IPC_CHANNELS.invoke;
 const sendChannels: readonly string[] = IPC_CHANNELS.send;
@@ -42,6 +42,7 @@ const api: CairnAPI = {
   maximize: () => safeSend("window:maximize"),
   close: () => safeSend("window:close"),
   onServerStatus: (listener) => safeOn("server:status", (status) => listener(status as ProxyStatus)),
+  onDownloadProgress: (listener) => safeOn("downloads:progress", (progress) => listener(progress as DownloadProgress)),
   isElectron: true,
   platform: process.platform,
 };

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import Titlebar from "./lib/components/Titlebar.svelte";
   import Sidebar from "./lib/components/Sidebar.svelte";
   import Skeleton from "./lib/components/Skeleton.svelte";
@@ -25,6 +25,7 @@
   }
   import { cairn } from "./lib/ipc.js";
   import { fadeMotion } from "./lib/util/motion.js";
+  import { watchDownloadProgress } from "./lib/downloadProgress.js";
   import ToastHost from "./lib/components/ToastHost.svelte";
 
   const activeLabel = $derived(SCREENS.find((screen) => screen.id === $router.screen)?.label ?? "");
@@ -38,7 +39,11 @@
   let hasRouting = $state(true);
   let brandTag = $state("AI control plane");
 
+  let stopProgress: (() => void) | undefined;
+  onDestroy(() => stopProgress?.());
+
   onMount(async () => {
+    stopProgress = watchDownloadProgress();
     const result = await cairn.routingApps();
     hasRouting = result.ok && result.data.length > 0;
     // Brand tag lists the managed apps from registry data, never hardcoded names.

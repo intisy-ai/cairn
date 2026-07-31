@@ -106,6 +106,8 @@ export interface PluginsDeps {
   hasUpdater?: HasUpdaterFn;
   initApp?: InitAppFn;
   getPlugins?: (dir: string) => Plugin[];
+  // Called at each phase boundary so a download row can show live progress.
+  report?: (step: string) => void;
 }
 
 async function resolveHomes(deps: PluginsDeps): Promise<PluginHome[]> {
@@ -259,12 +261,14 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
     const homes = await resolveHomes(deps);
     const dir = homeDir(homeId, homes);
 
+    const report = deps.report;
     if (homeId !== "cairn") {
       const hasUpdater = deps.hasUpdater ?? ((d: string) => existsSync(getPluginsPath(d)));
       if (!hasUpdater(dir)) {
         // Engines bootstrap a home directly; everything else needs plugin-updater
         // present first (which then manages it). Cairn's own home is exempt.
         if (!isEngine(name)) throw new Error("install plugin-updater in this app before adding plugins");
+        report?.("Setting up plugin-updater");
         const initApp = deps.initApp ?? (await import("./apps.js")).appsInit;
         const result = await initApp(homeId);
         if (!result.ok) throw new Error(result.error);
@@ -275,11 +279,14 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
     let autoUpdateDefault = true;
     const val = getConfigValue("cairn", "autoUpdateDefault");
     if (typeof val === "boolean") autoUpdateDefault = val;
+    report?.("Downloading and building");
     await withHome(dir, async () => {
       await updatePluginPublic(name, url);
+      report?.("Registering");
       registerPlugin(dir, name, url, autoUpdateDefault);
     });
     if (homeId !== "cairn") {
+      report?.("Syncing to other apps");
       const syncPluginsAcrossApps = deps.syncPluginsAcrossApps ?? realSyncPluginsAcrossApps;
       await syncPluginsAcrossApps(dir);
     }
@@ -289,8 +296,11 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
 export function pluginsInstallMany(name: string, url: string, homeIds: string[], deps: PluginsDeps = {}): Promise<Result<InstallManyResult>> {
   return wrap(async () => {
     const outcomes: InstallOutcome[] = [];
-    for (const homeId of homeIds) {
-      const res = await pluginsInstall(homeId, name, url, deps);
+    for (let i = 0; i < homeIds.length; i++) {
+      const homeId = homeIds[i];
+      const base = deps.report;
+      const report = base && homeIds.length > 1 ? (step: string) => base(`${homeId} (${i + 1}/${homeIds.length}): ${step}`) : base;
+      const res = await pluginsInstall(homeId, name, url, { ...deps, report });
       outcomes.push(res.ok ? { home: homeId, ok: true } : { home: homeId, ok: false, error: res.error });
     }
     return { outcomes };

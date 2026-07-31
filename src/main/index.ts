@@ -108,7 +108,11 @@ if (!app.requestSingleInstanceLock()) {
     applyContentSecurityPolicy();
 
     const storeDir = resolveStoreDir(process.env, process.platform, homedir());
-    supervisor = createSupervisor({ sidecarPath: join(dirName, "sidecar.js"), storeDir });
+    supervisor = createSupervisor({
+      sidecarPath: join(dirName, "sidecar.js"),
+      storeDir,
+      onProgress: (progress) => mainWindow?.webContents.send("downloads:progress", progress),
+    });
     registerHandlers(supervisor);
     registerWindowControls();
     proxyDaemon.onStatusChange((status) => mainWindow?.webContents.send("server:status", status));

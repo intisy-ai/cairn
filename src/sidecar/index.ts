@@ -34,6 +34,13 @@ export function registerHandler(channel: string, handler: SidecarHandler): void 
   handlers[channel] = handler;
 }
 
+// A download-task id (passed as the trailing install arg) turns into a reporter
+// that streams phase steps back to the renderer as out-of-band progress messages.
+function reportFor(progressId: unknown): ((step: string) => void) | undefined {
+  if (typeof progressId !== "number" || !process.parentPort) return undefined;
+  return (step) => process.parentPort.postMessage({ progress: { id: progressId, step } });
+}
+
 export async function dispatch(channel: string, args: unknown[]): Promise<Result<unknown>> {
   const handler = handlers[channel];
   if (!handler) return err(`no handler registered for channel: ${channel}`);
@@ -74,8 +81,8 @@ registerHandler("plugins:versions", (name) => pluginVersions(name as string));
 registerHandler("plugins:versionsAll", () => pluginVersionsAll());
 registerHandler("engines:list", () => enginesList());
 registerHandler("engines:ensure", (capability) => ensureEngine(capability as string));
-registerHandler("plugins:install", (home, name, url) => pluginsInstall(home as PluginHomeId, name as string, url as string));
-registerHandler("plugins:installMany", (name, url, homeIds) => pluginsInstallMany(name as string, url as string, homeIds as string[]));
+registerHandler("plugins:install", (home, name, url, progressId) => pluginsInstall(home as PluginHomeId, name as string, url as string, { report: reportFor(progressId) }));
+registerHandler("plugins:installMany", (name, url, homeIds, progressId) => pluginsInstallMany(name as string, url as string, homeIds as string[], { report: reportFor(progressId) }));
 registerHandler("plugins:removeEverywhere", (name) => pluginsRemoveEverywhere(name as string));
 registerHandler("plugins:setEnabled", (home, name, on) => pluginsSetEnabled(home as PluginHomeId, name as string, on as boolean));
 registerHandler("plugins:setAutoUpdate", (home, name, on) => pluginsSetAutoUpdate(home as PluginHomeId, name as string, on as boolean));

@@ -228,6 +228,33 @@ describe("plugins sidecar module", () => {
     ]);
   });
 
+  it("reports install phases in order through the report hook", async () => {
+    const steps: string[] = [];
+    const { pluginsInstall } = await import("./plugins.js");
+    await pluginsInstall("claude", "plugin-p", "https://github.com/intisy-ai/plugin-p", {
+      updatePluginPublic: async () => {},
+      homes: fakeHomes,
+      syncPluginsAcrossApps: async () => {},
+      hasUpdater: () => true,
+      report: (step) => steps.push(step),
+    });
+    expect(steps).toEqual(["Downloading and building", "Registering", "Syncing to other apps"]);
+  });
+
+  it("reports the plugin-updater bootstrap phase for an app home that lacks it", async () => {
+    const steps: string[] = [];
+    const { pluginsInstall } = await import("./plugins.js");
+    await pluginsInstall("claude", "custom-auth", "https://github.com/intisy-ai/custom-auth", {
+      updatePluginPublic: async () => {},
+      homes: fakeHomes,
+      syncPluginsAcrossApps: async () => {},
+      hasUpdater: () => false,
+      initApp: async () => ({ ok: true, data: { stdout: "", stderr: "" } }),
+      report: (step) => steps.push(step),
+    });
+    expect(steps[0]).toBe("Setting up plugin-updater");
+  });
+
   it("install does not duplicate an existing entry and preserves its other fields", async () => {
     seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: false, autoUpdate: false }]);
 

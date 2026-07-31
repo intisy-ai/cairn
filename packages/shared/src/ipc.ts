@@ -78,12 +78,12 @@ export type InvokeChannel = (typeof INVOKE_CHANNELS)[InvokeMethod];
 export const IPC_CHANNELS = {
   invoke: Object.values(INVOKE_CHANNELS) as readonly InvokeChannel[],
   send: ["window:minimize", "window:maximize", "window:close"] as const,
-  receive: ["server:status"] as const,
+  receive: ["server:status", "downloads:progress"] as const,
 };
 
 // The methods on CairnAPI that are NOT request/response invocations (window
-// controls, the push subscription, and the static flags).
-type NonInvokeMethod = "minimize" | "maximize" | "close" | "onServerStatus" | "isElectron" | "platform";
+// controls, the push subscriptions, and the static flags).
+type NonInvokeMethod = "minimize" | "maximize" | "close" | "onServerStatus" | "onDownloadProgress" | "isElectron" | "platform";
 type ApiInvokeMethod = Exclude<keyof CairnAPI, NonInvokeMethod>;
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 
