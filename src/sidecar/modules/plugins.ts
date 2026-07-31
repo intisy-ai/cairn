@@ -160,18 +160,18 @@ export interface PluginVersionsDeps {
   npmPlugins?: (dir: string) => Promise<NpmPlugin[]>;
 }
 
-function gitVersionFor(repoDir: string, entry: UpdateCache["plugins"][string] | undefined, describe: (dir: string) => string | null): PluginVersion {
+function gitVersionFor(repoDir: string, entry: UpdateCache["plugins"][string] | undefined, describe: (dir: string) => string | null, autoUpdate: boolean): PluginVersion {
   const label = formatGitVersion(describe(repoDir)) ?? (entry?.localHead ? entry.localHead.slice(0, 7) : null);
-  return { kind: "git", label, updateAvailable: entry?.updateAvailable ?? false };
+  return { kind: "git", label, updateAvailable: entry?.updateAvailable ?? false, autoUpdate };
 }
 
 // A plugin can be registered in a home's plugins.json but not yet cloned there
 // (plugin-updater materializes it on that app's next launch). Show it the version
 // from a home that does have the clone, since every home tracks the same branch.
-function fillFromRepresentative(perHome: Record<string, PluginVersion>, homeIds: string[]): void {
-  if (homeIds.length === 0) return;
+function fillFromRepresentative(perHome: Record<string, PluginVersion>, homes: { id: string; autoUpdate: boolean }[]): void {
+  if (homes.length === 0) return;
   const rep = Object.values(perHome).find((v) => v.label);
-  for (const id of homeIds) perHome[id] = { kind: "git", label: rep?.label ?? null, updateAvailable: false };
+  for (const h of homes) perHome[h.id] = { kind: "git", label: rep?.label ?? null, updateAvailable: false, autoUpdate: h.autoUpdate };
 }
 
 export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Promise<Result<Record<string, PluginVersion>>> {
@@ -182,17 +182,19 @@ export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Pro
     const exists = deps.exists ?? existsSync;
     const listGit = deps.getPlugins ?? getPlugins;
     const out: Record<string, PluginVersion> = {};
-    const registeredWithoutClone: string[] = [];
+    const registeredWithoutClone: { id: string; autoUpdate: boolean }[] = [];
     for (const home of homes) {
       if (!home.present) continue;
       const entry = readCache(home.dir).plugins[name];
+      const gitEntry = listGit(home.dir).find((p) => p.name === name);
+      const autoUpdate = gitEntry ? gitEntry.autoUpdate !== false : true;
       const repoDir = join(home.dir, "repos", name);
       if (exists(repoDir)) {
-        out[home.id] = gitVersionFor(repoDir, entry, describe);
+        out[home.id] = gitVersionFor(repoDir, entry, describe, autoUpdate);
       } else if (entry?.kind === "npm") {
-        out[home.id] = { kind: "npm", label: entry.installedVersion, updateAvailable: entry.updateAvailable };
-      } else if (listGit(home.dir).some((p) => p.name === name)) {
-        registeredWithoutClone.push(home.id);
+        out[home.id] = { kind: "npm", label: entry.installedVersion, updateAvailable: entry.updateAvailable, autoUpdate: true };
+      } else if (gitEntry) {
+        registeredWithoutClone.push({ id: home.id, autoUpdate });
       }
     }
     fillFromRepresentative(out, registeredWithoutClone);
@@ -211,26 +213,27 @@ export function pluginVersionsAll(deps: PluginVersionsDeps = {}): Promise<Result
     const listGit = deps.getPlugins ?? getPlugins;
     const listNpm = deps.npmPlugins ?? getNpmPlugins;
     const out: Record<string, Record<string, PluginVersion>> = {};
-    const missing: Array<{ name: string; homeId: string }> = [];
+    const missing: Array<{ name: string; homeId: string; autoUpdate: boolean }> = [];
     for (const home of homes) {
       if (!home.present) continue;
       const cache = readCache(home.dir);
       for (const p of listGit(home.dir)) {
+        const autoUpdate = p.autoUpdate !== false;
         const repoDir = join(home.dir, "repos", p.name);
         if (exists(repoDir)) {
-          (out[p.name] ??= {})[home.id] = gitVersionFor(repoDir, cache.plugins[p.name], describe);
+          (out[p.name] ??= {})[home.id] = gitVersionFor(repoDir, cache.plugins[p.name], describe, autoUpdate);
         } else {
           out[p.name] ??= {};
-          missing.push({ name: p.name, homeId: home.id });
+          missing.push({ name: p.name, homeId: home.id, autoUpdate });
         }
       }
       for (const p of await listNpm(home.dir)) {
         const entry = cache.plugins[p.name];
-        (out[p.name] ??= {})[home.id] = { kind: "npm", label: entry?.installedVersion ?? null, updateAvailable: entry?.updateAvailable ?? false };
+        (out[p.name] ??= {})[home.id] = { kind: "npm", label: entry?.installedVersion ?? null, updateAvailable: entry?.updateAvailable ?? false, autoUpdate: true };
       }
     }
-    for (const { name, homeId } of missing) {
-      if (!out[name][homeId]) fillFromRepresentative(out[name], [homeId]);
+    for (const { name, homeId, autoUpdate } of missing) {
+      if (!out[name][homeId]) fillFromRepresentative(out[name], [{ id: homeId, autoUpdate }]);
     }
     return out;
   });
@@ -316,6 +319,19 @@ export function pluginsSetEnabled(homeId: PluginHomeId, name: string, on: boolea
     const entry = entries.find((e) => e.name === name);
     if (!entry) throw new Error(`plugin not found: ${name}`);
     entry.enabled = on;
+    writeFileSync(file, JSON.stringify(entries, null, 2), "utf8");
+  });
+}
+
+export function pluginsSetAutoUpdate(homeId: PluginHomeId, name: string, on: boolean, deps: PluginsDeps = {}): Promise<Result<void>> {
+  return wrap(async () => {
+    const homes = await resolveHomes(deps);
+    const dir = homeDir(homeId, homes);
+    const file = getPluginsPath(dir);
+    const entries = existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Plugin[]) : [];
+    const entry = entries.find((e) => e.name === name);
+    if (!entry) throw new Error(`plugin not found: ${name}`);
+    entry.autoUpdate = on;
     writeFileSync(file, JSON.stringify(entries, null, 2), "utf8");
   });
 }

@@ -4,6 +4,7 @@
   import PluginControls from "./PluginControls.svelte";
   import RepoDetail from "./RepoDetail.svelte";
   import IconButton from "./IconButton.svelte";
+  import ToggleSwitch from "./ToggleSwitch.svelte";
   import { cairn } from "../ipc.js";
 
   let {
@@ -15,6 +16,7 @@
     onRemoveEverywhere,
     onUpdate,
     onToggleHome,
+    onChanged,
   }: {
     plugin: UnifiedPlugin;
     homes: { id: string; label: string; icon?: string }[];
@@ -24,6 +26,7 @@
     onRemoveEverywhere: () => void;
     onUpdate: () => void;
     onToggleHome: (homeId: string, on: boolean) => void;
+    onChanged?: () => void;
   } = $props();
 
   const repo = $derived({
@@ -45,11 +48,33 @@
     installedHomes.map((h) => versions[h.id]?.label).find((v): v is string => !!v) ?? "",
   );
 
-  onMount(() => {
-    cairn.pluginVersions(plugin.name).then((result) => {
-      if (result.ok) versions = result.data;
-    });
-  });
+  let busyHome = $state<Record<string, boolean>>({});
+
+  async function loadVersions(): Promise<void> {
+    const result = await cairn.pluginVersions(plugin.name);
+    if (result.ok) versions = result.data;
+  }
+
+  async function updateHome(homeId: string): Promise<void> {
+    if (busyHome[homeId]) return;
+    busyHome = { ...busyHome, [homeId]: true };
+    try {
+      await cairn.pluginsInstall(homeId, plugin.name, plugin.url ?? "");
+      await loadVersions();
+      onChanged?.();
+    } finally {
+      busyHome = { ...busyHome, [homeId]: false };
+    }
+  }
+
+  async function setAutoUpdate(homeId: string, on: boolean): Promise<void> {
+    const current = versions[homeId];
+    if (current) versions = { ...versions, [homeId]: { ...current, autoUpdate: on } };
+    await cairn.pluginsSetAutoUpdate(homeId, plugin.name, on);
+    onChanged?.();
+  }
+
+  onMount(loadVersions);
 
   const tabs = $derived([
     { id: "availability", label: "Availability" },
@@ -117,8 +142,15 @@
               <span class="ver">
                 <span class="src">{v?.kind}</span>
                 {#if v?.label}<span class="num">{v.label}</span>{/if}
-                {#if v?.updateAvailable}<span class="behind" title="Update available">●</span>{/if}
               </span>
+              {#if v?.kind === "git"}
+                {#if v.updateAvailable}
+                  <button class="mini" disabled={busyHome[h.id]} onclick={() => updateHome(h.id)}>Update</button>
+                {/if}
+                <label class="auto" title="Auto-update on launch">
+                  <ToggleSwitch checked={v.autoUpdate} label={`Auto-update ${h.label}`} onchange={(o) => setAutoUpdate(h.id, o)} />
+                </label>
+              {/if}
             {:else}
               <span class="state">{on ? "Installed" : "Not installed"}</span>
             {/if}
@@ -250,9 +282,23 @@
   .ver .num {
     font-family: var(--mono);
   }
-  .behind {
+  .mini {
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--accent-border);
+    background: var(--accent-weak);
     color: var(--accent);
-    font-size: 9px;
+    border-radius: 7px;
+    padding: 3px 10px;
+    cursor: pointer;
+  }
+  .mini:disabled {
+    opacity: .5;
+    cursor: default;
+  }
+  .auto {
+    display: inline-flex;
+    align-items: center;
   }
   .toggle {
     font-size: 11.5px;

@@ -7,7 +7,7 @@ import { accountsLoginBegin, accountsLoginComplete, accountsLoginCancel } from "
 import { providersList, providersSetActive, providersSetExposure } from "./modules/providers.js";
 import { routingApps, routingGet, routingSetChain } from "./modules/routing.js";
 import { appsDetect, appsList, appsInstallCli, appsInit, appsUninstallCli, appsSummary, appsConnection, appsInstallLoader } from "./modules/apps.js";
-import { pluginsList, pluginVersions, pluginVersionsAll, pluginsInstall, pluginsInstallMany, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
+import { pluginsList, pluginVersions, pluginVersionsAll, pluginsInstall, pluginsInstallMany, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsSetAutoUpdate, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
 import { enginesList, ensureEngines, ensureEngine } from "./modules/engines.js";
 import { proxiesList, proxiesSetEnabled } from "./modules/proxies.js";
 import { repoMeta } from "./modules/repo.js";
@@ -78,6 +78,7 @@ registerHandler("plugins:install", (home, name, url) => pluginsInstall(home as P
 registerHandler("plugins:installMany", (name, url, homeIds) => pluginsInstallMany(name as string, url as string, homeIds as string[]));
 registerHandler("plugins:removeEverywhere", (name) => pluginsRemoveEverywhere(name as string));
 registerHandler("plugins:setEnabled", (home, name, on) => pluginsSetEnabled(home as PluginHomeId, name as string, on as boolean));
+registerHandler("plugins:setAutoUpdate", (home, name, on) => pluginsSetAutoUpdate(home as PluginHomeId, name as string, on as boolean));
 registerHandler("plugins:downgrade", (home, name, hash) => pluginsDowngrade(home as PluginHomeId, name as string, hash as string));
 registerHandler("plugins:uninstall", (home, name) => pluginsUninstall(home as string, name as string));
 registerHandler("proxies:list", () => proxiesList());

@@ -167,6 +167,15 @@ describe("plugins sidecar module", () => {
     expect(cairnOnDisk.find((p) => p.name === "plugin-a")?.enabled).toBe(true);
   });
 
+  it("setAutoUpdate writes the target home's plugins.json entry", async () => {
+    seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true, autoUpdate: true }]);
+    const { pluginsSetAutoUpdate } = await import("./plugins.js");
+    const result = await pluginsSetAutoUpdate("claude", "plugin-a", false, { homes: fakeHomes });
+    expect(result.ok).toBe(true);
+    const onDisk = JSON.parse(readFileSync(join(claudeDir, "config", "plugins.json"), "utf8")) as Plugin[];
+    expect(onDisk.find((p) => p.name === "plugin-a")?.autoUpdate).toBe(false);
+  });
+
   it("setEnabled returns ok:false for an unknown plugin", async () => {
     seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
     const { pluginsSetEnabled } = await import("./plugins.js");
@@ -460,7 +469,7 @@ describe("plugin versions", () => {
     });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data.claude).toEqual({ kind: "git", label: "v1.2.3 +5", updateAvailable: true });
+    expect(result.data.claude).toEqual({ kind: "git", label: "v1.2.3 +5", updateAvailable: true, autoUpdate: true });
     expect(result.data.cairn).toBeUndefined();
   });
 
@@ -473,7 +482,7 @@ describe("plugin versions", () => {
     const result = await pluginVersions("npm-x", { homes: fakeHomes, describe: () => null, exists: () => false });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data.claude).toEqual({ kind: "npm", label: "2.0.1", updateAvailable: true });
+    expect(result.data.claude).toEqual({ kind: "npm", label: "2.0.1", updateAvailable: true, autoUpdate: true });
   });
 
   it("falls back to the short commit sha for a git repo with no describe output", async () => {
@@ -485,7 +494,7 @@ describe("plugin versions", () => {
     const result = await pluginVersions("plugin-a", { homes: fakeHomes, describe: () => null, exists: (p) => p.includes("claude") });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data.claude).toEqual({ kind: "git", label: "abcdef1", updateAvailable: false });
+    expect(result.data.claude).toEqual({ kind: "git", label: "abcdef1", updateAvailable: false, autoUpdate: true });
   });
 
   it("shows a registered-but-not-cloned home the version from a home that has the clone", async () => {
@@ -502,8 +511,8 @@ describe("plugin versions", () => {
     });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data.claude).toEqual({ kind: "git", label: "v0.2.0 +5", updateAvailable: false });
-    expect(result.data.opencode).toEqual({ kind: "git", label: "v0.2.0 +5", updateAvailable: false });
+    expect(result.data.claude).toEqual({ kind: "git", label: "v0.2.0 +5", updateAvailable: false, autoUpdate: true });
+    expect(result.data.opencode).toEqual({ kind: "git", label: "v0.2.0 +5", updateAvailable: false, autoUpdate: true });
   });
 
   it("collects versions for every installed plugin across homes in one pass", async () => {
@@ -521,6 +530,6 @@ describe("plugin versions", () => {
     });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data["plugin-a"].claude).toEqual({ kind: "git", label: "v2.0.0", updateAvailable: true });
+    expect(result.data["plugin-a"].claude).toEqual({ kind: "git", label: "v2.0.0", updateAvailable: true, autoUpdate: true });
   });
 });

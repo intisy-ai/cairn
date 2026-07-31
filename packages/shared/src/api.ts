@@ -39,6 +39,7 @@ export interface CairnAPI {
   pluginsInstallMany(name: string, url: string, homeIds: string[]): Promise<Result<InstallManyResult>>;
   pluginsRemoveEverywhere(name: string): Promise<Result<InstallManyResult>>;
   pluginsSetEnabled(home: string, name: string, on: boolean): Promise<Result<void>>;
+  pluginsSetAutoUpdate(home: string, name: string, on: boolean): Promise<Result<void>>;
   pluginsDowngrade(home: string, name: string, hash: string): Promise<Result<void>>;
   pluginsUninstall(home: string, name: string): Promise<Result<void>>;
   configSchemas(home: string): Promise<Result<PluginConfigSchema[]>>;

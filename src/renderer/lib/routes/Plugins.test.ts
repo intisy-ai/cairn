@@ -273,6 +273,30 @@ describe("Plugins screen", () => {
     expect(dialog.getByRole("button", { name: "Remove" })).toBeInTheDocument();
   });
 
+  it("updates a home and toggles its auto-update from the detail's Availability tab", async () => {
+    const pluginsSetAutoUpdate = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    const pluginsInstall = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      pluginVersions: async () => ({ ok: true, data: { claude: { kind: "git", label: "v1.0.0", updateAvailable: true, autoUpdate: true } } }),
+      pluginsSetAutoUpdate,
+      pluginsInstall,
+    });
+    render(Plugins);
+
+    const row = within(await screen.findByTestId("plugin-wakatime-sync"));
+    await fireEvent.click(row.getByTitle("View wakatime-sync"));
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("button", { name: "Availability" }));
+
+    await fireEvent.click(dialog.getByRole("button", { name: "Update" }));
+    await waitFor(() => expect(pluginsInstall).toHaveBeenCalledWith("claude", "wakatime-sync", expect.any(String)));
+
+    await fireEvent.click(dialog.getByRole("switch", { name: "Auto-update Claude Code" }));
+    await waitFor(() => expect(pluginsSetAutoUpdate).toHaveBeenCalledWith("claude", "wakatime-sync", false));
+  });
+
   it("confirms before removing a plugin everywhere", async () => {
     const pluginsRemoveEverywhere = vi.fn(async () => ({ ok: true, data: { outcomes: [] } }) as const);
     stubCairn({

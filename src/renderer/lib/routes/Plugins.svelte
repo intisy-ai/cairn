@@ -399,6 +399,7 @@
       onRemoveEverywhere={() => confirmRemoveEverywhere(selectedPlugin)}
       onUpdate={() => handleUpdate(selectedPlugin)}
       onToggleHome={(homeId, on) => (on ? addHome(selectedPlugin, homeId) : removeHome(selectedPlugin, homeId))}
+      onChanged={reload}
     />
   {/if}
 
