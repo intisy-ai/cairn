@@ -1,5 +1,6 @@
 <script lang="ts">
-  import type { UnifiedPlugin, PluginConfigSchema } from "@cairn/shared";
+  import { onMount } from "svelte";
+  import type { UnifiedPlugin, PluginConfigSchema, PluginVersion } from "@cairn/shared";
   import PluginControls from "./PluginControls.svelte";
   import RepoDetail from "./RepoDetail.svelte";
   import IconButton from "./IconButton.svelte";
@@ -38,6 +39,17 @@
   const installedCount = $derived(homes.filter((h) => plugin.homes[h.id]?.installed).length);
   const fullyInstalled = $derived(installedCount === homes.length && homes.length > 0);
   const installedHomes = $derived(homes.filter((h) => plugin.homes[h.id]?.installed));
+
+  let versions = $state<Record<string, PluginVersion>>({});
+  const representativeVersion = $derived(
+    installedHomes.map((h) => versions[h.id]?.label).find((v): v is string => !!v) ?? "",
+  );
+
+  onMount(() => {
+    cairn.pluginVersions(plugin.name).then((result) => {
+      if (result.ok) versions = result.data;
+    });
+  });
 
   const tabs = $derived([
     { id: "availability", label: "Availability" },
@@ -100,7 +112,11 @@
               {#if icon}<span class="glyph">{@html icon}</span>{:else}<span class="lm">{letters(h.label)}</span>{/if}
             </span>
             <span class="appname">{h.label}</span>
-            <span class="state">{on ? "Installed" : "Not installed"}</span>
+            {#if on && versions[h.id]?.label}
+              <span class="ver">{versions[h.id]?.label}{#if versions[h.id]?.updateAvailable}<span class="behind" title="Update available">●</span>{/if}</span>
+            {:else}
+              <span class="state">{on ? "Installed" : "Not installed"}</span>
+            {/if}
             {#if mandatory}
               <span class="toggle locked" title="Mandatory engine">Locked</span>
             {:else}
@@ -130,7 +146,7 @@
   {/if}
 {/snippet}
 
-<RepoDetail {repo} {onClose} {tabs} tabContent={content} actions={topActions} />
+<RepoDetail {repo} {onClose} {tabs} tabContent={content} actions={topActions} versionLabel={representativeVersion} />
 
 <style>
   .lockbadge {
@@ -207,6 +223,18 @@
   .state {
     font-size: 11px;
     color: var(--faint);
+  }
+  .ver {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .behind {
+    color: var(--accent);
+    font-size: 9px;
   }
   .toggle {
     font-size: 11.5px;

@@ -128,6 +128,7 @@ export type PluginHome = {
   hasUpdater: boolean;
 };
 export type HomePlugins = { home: PluginHome; rows: PluginRow[] };
+export type PluginVersion = { label: string | null; updateAvailable: boolean };
 export type EngineHomeState = { installed: boolean; enabled: boolean };
 export type EngineView = { id: string; capability: string; mandatory: boolean; homes: Record<string, EngineHomeState> };
 export type UnifiedHomeState = { installed: boolean; version?: string | null };

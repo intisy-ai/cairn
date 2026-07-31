@@ -437,3 +437,42 @@ describe("plugins sidecar module", () => {
     }
   });
 });
+
+describe("plugin versions", () => {
+  it("formats git describe output into tag, ahead, and bare-sha forms", async () => {
+    const { formatGitVersion } = await import("./plugins.js");
+    expect(formatGitVersion("v1.2.3")).toBe("v1.2.3");
+    expect(formatGitVersion("v1.2.3-5-gabc1234")).toBe("v1.2.3 +5");
+    expect(formatGitVersion("abc1234")).toBe("abc1234");
+    expect(formatGitVersion(null)).toBeNull();
+  });
+
+  it("reports a git plugin's version from describe and update state from the cache", async () => {
+    seedCache(claudeDir, {
+      checkedAt: "",
+      plugins: { "plugin-a": { kind: "git", installedVersion: null, localHead: "aaa", remoteHead: "bbb", latestVersion: null, updateAvailable: true, updatedAt: null } },
+    });
+    const { pluginVersions } = await import("./plugins.js");
+    const result = await pluginVersions("plugin-a", {
+      homes: fakeHomes,
+      describe: (dir) => (dir.includes("claude") ? "v1.2.3-5-gabc1234" : null),
+      exists: (p) => p.includes("claude") && p.endsWith(join("repos", "plugin-a")),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data.claude).toEqual({ label: "v1.2.3 +5", updateAvailable: true });
+    expect(result.data.cairn).toBeUndefined();
+  });
+
+  it("reports an npm plugin's installed version from the cache", async () => {
+    seedCache(claudeDir, {
+      checkedAt: "",
+      plugins: { "npm-x": { kind: "npm", installedVersion: "2.0.1", localHead: null, remoteHead: null, latestVersion: "2.1.0", updateAvailable: true, updatedAt: null } },
+    });
+    const { pluginVersions } = await import("./plugins.js");
+    const result = await pluginVersions("npm-x", { homes: fakeHomes, describe: () => null, exists: () => false });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data.claude).toEqual({ label: "2.0.1", updateAvailable: true });
+  });
+});

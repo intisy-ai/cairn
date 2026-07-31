@@ -5,6 +5,7 @@
 process.env.PLUGIN_UPDATER_LIBRARY_MODE = "1";
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
 import { getConfigValue, isMandatoryEngine } from "@core/index.js";
@@ -15,7 +16,7 @@ import { syncPluginsAcrossApps as realSyncPluginsAcrossApps } from "@plugin-upda
 import { setEarlyLaunchConfigDir } from "@plugin-updater/env.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
 import type { Plugin, NpmPlugin } from "@plugin-updater/types.js";
-import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, Result, CliResult, InstallManyResult, InstallOutcome } from "../../../packages/shared/src/domain.js";
+import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, PluginVersion, Result, CliResult, InstallManyResult, InstallOutcome } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir } from "../lib/pluginHomes.js";
 import { wrap } from "../result.js";
 
@@ -126,6 +127,55 @@ export function pluginsList(deps: PluginsDeps = {}): Promise<Result<HomePlugins[
       sections.push({ home, rows: [...gitRows, ...npmRows] });
     }
     return sections;
+  });
+}
+
+function realDescribe(dir: string): string | null {
+  try {
+    const out = execFileSync("git", ["-C", dir, "describe", "--tags", "--always"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return out.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+// A full clone carries every release tag, so `git describe` yields the last tag
+// plus how far ahead HEAD is: "v1.2.3" on a tag, "v1.2.3 +5" five commits later,
+// and a bare short SHA when the repo has no tags at all.
+export function formatGitVersion(describe: string | null): string | null {
+  if (!describe) return null;
+  const ahead = describe.match(/^(.*)-(\d+)-g[0-9a-f]+$/);
+  return ahead ? `${ahead[1]} +${ahead[2]}` : describe;
+}
+
+export interface PluginVersionsDeps {
+  homes?: PluginHome[];
+  readCache?: (dir: string) => UpdateCache;
+  describe?: (dir: string) => string | null;
+  exists?: (path: string) => boolean;
+}
+
+export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Promise<Result<Record<string, PluginVersion>>> {
+  return wrap(async () => {
+    const homes = await resolveHomes(deps);
+    const readCache = deps.readCache ?? readUpdateCache;
+    const describe = deps.describe ?? realDescribe;
+    const exists = deps.exists ?? existsSync;
+    const out: Record<string, PluginVersion> = {};
+    for (const home of homes) {
+      if (!home.present) continue;
+      const entry = readCache(home.dir).plugins[name];
+      const repoDir = join(home.dir, "repos", name);
+      if (entry?.kind === "npm") {
+        out[home.id] = { label: entry.installedVersion, updateAvailable: entry.updateAvailable };
+      } else if (exists(repoDir)) {
+        out[home.id] = { label: formatGitVersion(describe(repoDir)), updateAvailable: entry?.updateAvailable ?? false };
+      }
+    }
+    return out;
   });
 }
 

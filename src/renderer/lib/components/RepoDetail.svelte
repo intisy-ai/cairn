@@ -15,6 +15,7 @@
     tabContent,
     actions,
     defaultTab,
+    versionLabel,
   }: {
     repo: { name: string; url: string; kind?: CatalogKind; description?: string; topics?: string[]; displayName: string; icon?: string };
     onClose: () => void;
@@ -22,6 +23,7 @@
     tabContent?: Snippet<[string]>;
     actions?: Snippet;
     defaultTab?: string;
+    versionLabel?: string;
   } = $props();
 
   const allTabs = $derived([{ id: "readme", label: "Readme" }, ...tabs]);
@@ -62,6 +64,7 @@
         <h2>{repo.displayName}</h2>
         <div class="sub">
           <span class="slug">{slug}</span>
+          {#if versionLabel}<span class="version" title="Installed version">{versionLabel}</span>{/if}
           {#if repo.kind}<span class="kind">{repo.kind}</span>{/if}
           {#if stars !== null}<span class="stars" title="GitHub stars">★ {stars}</span>{/if}
         </div>
@@ -153,6 +156,14 @@
     font-family: var(--mono);
     font-size: 11.5px;
     color: var(--faint);
+  }
+  .version {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    background: var(--accent-weak);
+    border-radius: 5px;
+    padding: 1px 6px;
   }
   .kind {
     font-size: 10px;
