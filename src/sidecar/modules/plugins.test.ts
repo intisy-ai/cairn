@@ -460,7 +460,7 @@ describe("plugin versions", () => {
     });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data.claude).toEqual({ label: "v1.2.3 +5", updateAvailable: true });
+    expect(result.data.claude).toEqual({ kind: "git", label: "v1.2.3 +5", updateAvailable: true });
     expect(result.data.cairn).toBeUndefined();
   });
 
@@ -473,6 +473,18 @@ describe("plugin versions", () => {
     const result = await pluginVersions("npm-x", { homes: fakeHomes, describe: () => null, exists: () => false });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data.claude).toEqual({ label: "2.0.1", updateAvailable: true });
+    expect(result.data.claude).toEqual({ kind: "npm", label: "2.0.1", updateAvailable: true });
+  });
+
+  it("falls back to the short commit sha for a git repo with no describe output", async () => {
+    seedCache(claudeDir, {
+      checkedAt: "",
+      plugins: { "plugin-a": { kind: "git", installedVersion: null, localHead: "abcdef1234567890", remoteHead: "abcdef1234567890", latestVersion: null, updateAvailable: false, updatedAt: null } },
+    });
+    const { pluginVersions } = await import("./plugins.js");
+    const result = await pluginVersions("plugin-a", { homes: fakeHomes, describe: () => null, exists: (p) => p.includes("claude") });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data.claude).toEqual({ kind: "git", label: "abcdef1", updateAvailable: false });
   });
 });

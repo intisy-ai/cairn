@@ -112,8 +112,13 @@
               {#if icon}<span class="glyph">{@html icon}</span>{:else}<span class="lm">{letters(h.label)}</span>{/if}
             </span>
             <span class="appname">{h.label}</span>
-            {#if on && versions[h.id]?.label}
-              <span class="ver">{versions[h.id]?.label}{#if versions[h.id]?.updateAvailable}<span class="behind" title="Update available">●</span>{/if}</span>
+            {#if on && versions[h.id]}
+              {@const v = versions[h.id]}
+              <span class="ver">
+                <span class="src">{v?.kind}</span>
+                {#if v?.label}<span class="num">{v.label}</span>{/if}
+                {#if v?.updateAvailable}<span class="behind" title="Update available">●</span>{/if}
+              </span>
             {:else}
               <span class="state">{on ? "Installed" : "Not installed"}</span>
             {/if}
@@ -227,10 +232,23 @@
   .ver {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    font-family: var(--mono);
+    gap: 6px;
     font-size: 11px;
     color: var(--muted);
+  }
+  .ver .src {
+    font-size: 9px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--faint);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1px 5px;
+  }
+  .ver .num {
+    font-family: var(--mono);
   }
   .behind {
     color: var(--accent);

@@ -169,10 +169,12 @@ export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Pro
       if (!home.present) continue;
       const entry = readCache(home.dir).plugins[name];
       const repoDir = join(home.dir, "repos", name);
-      if (entry?.kind === "npm") {
-        out[home.id] = { label: entry.installedVersion, updateAvailable: entry.updateAvailable };
-      } else if (exists(repoDir)) {
-        out[home.id] = { label: formatGitVersion(describe(repoDir)), updateAvailable: entry?.updateAvailable ?? false };
+      if (exists(repoDir)) {
+        const described = formatGitVersion(describe(repoDir));
+        const fallbackSha = entry?.localHead ? entry.localHead.slice(0, 7) : null;
+        out[home.id] = { kind: "git", label: described ?? fallbackSha, updateAvailable: entry?.updateAvailable ?? false };
+      } else if (entry?.kind === "npm") {
+        out[home.id] = { kind: "npm", label: entry.installedVersion, updateAvailable: entry.updateAvailable };
       }
     }
     return out;
