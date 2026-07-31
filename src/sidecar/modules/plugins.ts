@@ -4,12 +4,12 @@
 // the lazy dynamic import() of index.js later in this module runs it.
 process.env.PLUGIN_UPDATER_LIBRARY_MODE = "1";
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
 import { getConfigValue, isEngine } from "@core/index.js";
-import { getPlugins, getPluginsPath } from "@plugin-updater/config.js";
+import { getPlugins, getPluginsPath, registerPlugin, setPluginEnabled, setPluginAutoUpdate } from "@plugin-updater/config.js";
 import { readUpdateCache } from "@plugin-updater/cache.js";
 import { svgIconDataUri } from "../lib/pluginIcon.js";
 import { syncPluginsAcrossApps as realSyncPluginsAcrossApps } from "@plugin-updater/syncbridge.js";
@@ -241,21 +241,6 @@ export function pluginVersionsAll(deps: PluginVersionsDeps = {}): Promise<Result
   });
 }
 
-// plugin-updater only clones+builds the repo; registering it in plugins.json
-// (so getPlugins/pluginsList and proxy discovery pick it up) is the caller's job.
-function registerPlugin(dir: string, name: string, url: string, autoUpdateDefault: boolean = true): void {
-  const file = getPluginsPath(dir);
-  const entries = existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Plugin[]) : [];
-  const entry = entries.find((e) => e.name === name);
-  if (entry) {
-    entry.url = url;
-  } else {
-    entries.push({ name, url, enabled: true, autoUpdate: autoUpdateDefault });
-  }
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, JSON.stringify(entries, null, 2), "utf8");
-}
-
 export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, deps: PluginsDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
     const homes = await resolveHomes(deps);
@@ -323,27 +308,15 @@ export function pluginsRemoveEverywhere(name: string, deps: PluginsDeps = {}): P
 
 export function pluginsSetEnabled(homeId: PluginHomeId, name: string, on: boolean, deps: PluginsDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
-    const homes = await resolveHomes(deps);
-    const dir = homeDir(homeId, homes);
-    const file = getPluginsPath(dir);
-    const entries = existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Plugin[]) : [];
-    const entry = entries.find((e) => e.name === name);
-    if (!entry) throw new Error(`plugin not found: ${name}`);
-    entry.enabled = on;
-    writeFileSync(file, JSON.stringify(entries, null, 2), "utf8");
+    const dir = homeDir(homeId, await resolveHomes(deps));
+    if (!setPluginEnabled(dir, name, on)) throw new Error(`plugin not found: ${name}`);
   });
 }
 
 export function pluginsSetAutoUpdate(homeId: PluginHomeId, name: string, on: boolean, deps: PluginsDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
-    const homes = await resolveHomes(deps);
-    const dir = homeDir(homeId, homes);
-    const file = getPluginsPath(dir);
-    const entries = existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Plugin[]) : [];
-    const entry = entries.find((e) => e.name === name);
-    if (!entry) throw new Error(`plugin not found: ${name}`);
-    entry.autoUpdate = on;
-    writeFileSync(file, JSON.stringify(entries, null, 2), "utf8");
+    const dir = homeDir(homeId, await resolveHomes(deps));
+    if (!setPluginAutoUpdate(dir, name, on)) throw new Error(`plugin not found: ${name}`);
   });
 }
 
