@@ -66,19 +66,21 @@ describe("Plugins screen", () => {
     expect(opencodePill.classList.contains("na")).toBe(true);
   });
 
-  it("Install (primary) on an uninstalled catalog plugin installs to all applicable homes", async () => {
-    const pluginsInstallMany = vi.fn(async () => ({ ok: true, data: { outcomes: [] } }) as const);
+  it("Install (primary) on an uninstalled catalog plugin installs to each applicable home", async () => {
+    const pluginsInstall = vi.fn(async () => ({ ok: true, data: undefined }) as const);
     stubCairn({
       pluginsList: async () => ({ ok: true, data: baseSections() }),
       catalogList: async () => ({ ok: true, data: baseCatalog() }),
-      pluginsInstallMany,
+      pluginsInstall,
     });
     render(Plugins);
 
     const row = within(await screen.findByTestId("plugin-demo"));
     await fireEvent.click(row.getByRole("button", { name: "Install everywhere" }));
 
-    await waitFor(() => expect(pluginsInstallMany).toHaveBeenCalledWith("demo", "u", ["claude", "opencode"], expect.any(Number)));
+    // One queued task per home so each home's state refreshes as it completes.
+    await waitFor(() => expect(pluginsInstall).toHaveBeenCalledWith("claude", "demo", "u", expect.any(Number)));
+    await waitFor(() => expect(pluginsInstall).toHaveBeenCalledWith("opencode", "demo", "u", expect.any(Number)));
     // A non-engine install is handled by plugin-updater, not Cairn directly.
     expect(get(downloads).tasks[0].source).toBe("plugin-updater");
   });
@@ -98,42 +100,40 @@ describe("Plugins screen", () => {
     await waitFor(() => expect(pluginsInstall).toHaveBeenCalledWith("opencode", "wakatime-sync", "uw", expect.any(Number)));
   });
 
-  it("surfaces a failed outcome from a multi-home install in the download manager", async () => {
-    const pluginsInstallMany = vi.fn(async () => ({
-      ok: true,
-      data: { outcomes: [{ home: "claude", ok: true }, { home: "opencode", ok: false, error: "disk full" }] },
-    }) as const);
+  it("surfaces a failing home from a multi-home install as a failed download task", async () => {
+    const pluginsInstall = vi.fn(async (home: string) =>
+      home === "opencode" ? ({ ok: false, error: "disk full" } as const) : ({ ok: true, data: undefined } as const),
+    );
     stubCairn({
       pluginsList: async () => ({ ok: true, data: baseSections() }),
       catalogList: async () => ({ ok: true, data: baseCatalog() }),
-      pluginsInstallMany,
+      pluginsInstall,
     });
     render(Plugins);
 
     const row = within(await screen.findByTestId("plugin-demo"));
     await fireEvent.click(row.getByRole("button", { name: "Install everywhere" }));
 
-    await waitFor(() => expect(pluginsInstallMany).toHaveBeenCalled());
+    await waitFor(() => expect(pluginsInstall).toHaveBeenCalledWith("opencode", "demo", "u", expect.any(Number)));
     await waitFor(() => {
-      const task = get(downloads).tasks[0];
-      expect(task.status).toBe("failed");
-      expect(task.error).toMatch(/opencode: disk full/);
+      const failed = get(downloads).tasks.find((t) => t.status === "failed");
+      expect(failed?.error).toBe("disk full");
     });
   });
 
-  it("surfaces a rejected multi-home install (res.ok=false) in the download manager", async () => {
-    const pluginsInstallMany = vi.fn(async () => ({ ok: false, error: "network unreachable" }) as const);
+  it("surfaces a rejected install (res.ok=false) as a failed download task", async () => {
+    const pluginsInstall = vi.fn(async () => ({ ok: false, error: "network unreachable" }) as const);
     stubCairn({
       pluginsList: async () => ({ ok: true, data: baseSections() }),
       catalogList: async () => ({ ok: true, data: baseCatalog() }),
-      pluginsInstallMany,
+      pluginsInstall,
     });
     render(Plugins);
 
     const row = within(await screen.findByTestId("plugin-demo"));
     await fireEvent.click(row.getByRole("button", { name: "Install everywhere" }));
 
-    await waitFor(() => expect(pluginsInstallMany).toHaveBeenCalled());
+    await waitFor(() => expect(pluginsInstall).toHaveBeenCalled());
     await waitFor(() => {
       const task = get(downloads).tasks[0];
       expect(task.status).toBe("failed");

@@ -225,15 +225,15 @@
     await cairn.pluginsUninstall(homeId, p.name);
     await reload();
   }
+  // Install/update home-by-home (each its own queued task) and reload after each,
+  // so a plugin's pills and button reflect every home as soon as it finishes
+  // rather than waiting for the whole multi-home batch to complete.
   async function handleInstallAll(p: UnifiedPlugin): Promise<void> {
     const targets = notInstalledApplicable(p).filter((id) => canInstallInto(p, id));
-    if (targets.length === 0) return;
-    await installManyTracked(`Install ${p.name}`, p.name, p.url ?? "", targets);
-    await reload();
+    for (const homeId of targets) await addHome(p, homeId);
   }
   async function handleUpdate(p: UnifiedPlugin): Promise<void> {
-    await installManyTracked(`Update ${p.name}`, p.name, p.url ?? "", installedApplicable(p));
-    await reload();
+    for (const homeId of installedApplicable(p)) await updateHome(p, homeId);
   }
   async function handleRemoveEverywhere(p: UnifiedPlugin): Promise<void> {
     const homeIds = installedApplicable(p);
