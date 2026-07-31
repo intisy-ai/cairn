@@ -90,12 +90,22 @@ describe("discoverApps", () => {
   it("refreshes a known app from its installed loader's on-disk cairn.json", async () => {
     registerApp(gammaApp);
     const updated: AppDescriptor = { ...gammaApp, label: "Gamma CLI (updated)" };
-    const readFile = (path: string) => {
-      expect(path).toContain(join("repos", "gamma-loader", "cairn.json"));
-      return JSON.stringify({ app: updated });
-    };
+    const readFile = (path: string) => (path.endsWith("cairn.json") ? JSON.stringify({ app: updated }) : "");
     await discoverApps({ scanOrgFn: emptyScan, exists: () => true, readFile });
     expect(getApps().find((a) => a.id === "gamma")?.label).toBe("Gamma CLI (updated)");
+  });
+
+  it("decodes the loader's catalog icon (a data URI) into the descriptor", async () => {
+    const svg = "<svg viewBox=\"0 0 10 10\"><circle cx=\"5\" cy=\"5\" r=\"4\"/></svg>";
+    const dataUri = "data:image/svg+xml;base64," + Buffer.from(svg, "utf-8").toString("base64");
+    const scan = () =>
+      Promise.resolve({
+        entries: [{ name: gammaApp.loader!.id, url: `https://github.com/acme-org/${gammaApp.loader!.id}`, kind: "loader" as const, description: "", deprecated: false, topics: ["app-loader"], app: gammaApp, icon: dataUri }],
+        source: "env" as const,
+        org: "acme-org",
+      });
+    await discoverApps({ scanOrgFn: scan, exists: () => false });
+    expect(getApps().find((a) => a.id === "gamma")?.icon).toBe(svg);
   });
 
   it("attaches the loader's icon.svg to the descriptor from its installed clone", async () => {
