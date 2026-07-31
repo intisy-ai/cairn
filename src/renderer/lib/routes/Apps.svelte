@@ -173,8 +173,6 @@
         <span class="link" aria-hidden="true"></span>
         {@render chainNode("Loader", !!c?.loaderInstalled)}
       {/if}
-      <span class="link" aria-hidden="true"></span>
-      {@render chainNode("Local API", connected)}
     </div>
 
     <div class="cardactions">

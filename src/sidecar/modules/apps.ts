@@ -91,7 +91,7 @@ export function appsConnection(app: string, deps: AppsConnectionDeps = {}): Prom
     const cliPresent = presence.ok ? !!presence.data[app] : false;
     const loader = desc.loader ?? null;
     const loaderInstalled = loader ? listPlugins(appHome(app)).some((p) => p.name === loader.id) : false;
-    return { app, cliPresent, loaderId: loader?.id ?? null, loaderInstalled };
+    return { app, cliPresent, loaderId: loader?.id ?? null, loaderUrl: loader?.url ?? null, loaderInstalled };
   });
 }
 

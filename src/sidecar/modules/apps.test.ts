@@ -9,6 +9,8 @@ function descWithLoader(loaderId: string): AppDescriptor {
   return { loader: { id: loaderId, url: `org/${loaderId}` } } as unknown as AppDescriptor;
 }
 
+const loaderUrl = (loaderId: string): string => `org/${loaderId}`;
+
 describe("apps sidecar module", () => {
   it("detects claude present via binary and opencode absent", async () => {
     const result = await appsDetect({
@@ -267,7 +269,7 @@ describe("appsSummary", () => {
       appHome: (app) => `/home/${app}`,
       listPlugins: (dir) => (dir === "/home/app1" ? [{ name: "app1-loader" } as never] : []),
     });
-    expect(result).toEqual({ ok: true, data: { app: "app1", cliPresent: true, loaderId: "app1-loader", loaderInstalled: true } });
+    expect(result).toEqual({ ok: true, data: { app: "app1", cliPresent: true, loaderId: "app1-loader", loaderUrl: loaderUrl("app1-loader"), loaderInstalled: true } });
   });
 
   it("reports the loader not installed when its plugin is absent from the home", async () => {
@@ -277,7 +279,7 @@ describe("appsSummary", () => {
       appHome: () => "/home/app1",
       listPlugins: () => [],
     });
-    expect(result).toEqual({ ok: true, data: { app: "app1", cliPresent: false, loaderId: "app1-loader", loaderInstalled: false } });
+    expect(result).toEqual({ ok: true, data: { app: "app1", cliPresent: false, loaderId: "app1-loader", loaderUrl: loaderUrl("app1-loader"), loaderInstalled: false } });
   });
 
   it("reports loaderId null for an app that declares no loader", async () => {
@@ -287,7 +289,7 @@ describe("appsSummary", () => {
       appHome: () => "/home/app1",
       listPlugins: () => [{ name: "unrelated" } as never],
     });
-    expect(result).toEqual({ ok: true, data: { app: "app1", cliPresent: true, loaderId: null, loaderInstalled: false } });
+    expect(result).toEqual({ ok: true, data: { app: "app1", cliPresent: true, loaderId: null, loaderUrl: null, loaderInstalled: false } });
   });
 
   it("appsConnection errors for an unknown app", async () => {

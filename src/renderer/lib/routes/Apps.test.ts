@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, waitFor, within, screen } from "@testing-library/svelte";
+import { get } from "svelte/store";
 import { stubCairn } from "../testing.js";
+import { router } from "../router.js";
 import Apps from "./Apps.svelte";
 
 const TWO_APPS = {
@@ -18,7 +20,7 @@ const TWO_APPS = {
 type ConnState = { cliPresent: boolean; loaderId: string | null; loaderInstalled: boolean };
 
 function connections(byApp: Record<string, ConnState>) {
-  return async (app: string) => ({ ok: true, data: { app, ...byApp[app] } }) as const;
+  return async (app: string) => ({ ok: true, data: { app, loaderUrl: null, ...byApp[app] } }) as const;
 }
 
 const SUMMARY = {
@@ -214,8 +216,29 @@ describe("Apps screen", () => {
     const dialog = within(await screen.findByRole("dialog"));
     expect(dialog.getByText("Command line")).toBeInTheDocument();
     expect(dialog.getByText("Loader")).toBeInTheDocument();
-    expect(dialog.getByText("Local API")).toBeInTheDocument();
     expect(dialog.getByText("Connected")).toBeInTheDocument();
+    // The Local API is offered as an alternative, not a chain step.
+    expect(dialog.getByText(/Connect this app through the Local API/)).toBeInTheDocument();
+  });
+
+  it("navigates to the Local API from the detail's alternative link", async () => {
+    stubCairn({
+      ...TWO_APPS,
+      appsConnection: connections({
+        claude: { cliPresent: true, loaderId: "claude-code-loader", loaderInstalled: true },
+        opencode: { cliPresent: false, loaderId: "opencode-loader", loaderInstalled: false },
+      }),
+      appsSummary: async () => SUMMARY,
+    });
+    router.set({ screen: "apps" });
+    render(Apps);
+
+    const claudeCard = within(await screen.findByTestId("app-claude"));
+    await fireEvent.click(claudeCard.getByRole("button", { name: "Manage" }));
+
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByText(/Connect this app through the Local API/));
+    expect(get(router).screen).toBe("localApi");
   });
 
   it("offers an install control in the detail when the loader is missing", async () => {
