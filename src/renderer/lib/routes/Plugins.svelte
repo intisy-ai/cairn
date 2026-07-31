@@ -62,6 +62,15 @@
     startParams?.kind && (KIND_FILTERS as string[]).includes(startParams.kind) ? (startParams.kind as KindFilter) : "plugin";
   let kindFilter = $state<KindFilter>(startKind);
   let installedOnly = $state(false);
+  let externalOnly = $state(false);
+
+  // A plugin can be external and a kind at once, so the badge prefixes its kind
+  // (the .chip style upper-cases it), e.g. "external provider" -> "EXTERNAL PROVIDER".
+  function badgeLabel(p: UnifiedPlugin): string {
+    const kind = p.kind === "provider" || p.kind === "proxy" || p.kind === "loader" ? p.kind : "";
+    if (p.external) return kind ? `external ${kind}` : "external";
+    return kind;
+  }
 
   let view = $state<ViewMode>("list");
   function setView(mode: ViewMode): void {
@@ -84,6 +93,7 @@
     loader: unified.filter((p) => p.kind === "loader").length,
     engine: unified.filter((p) => engineIds.has(p.name)).length,
     installed: unified.filter(isInstalled).length,
+    external: unified.filter((p) => p.external).length,
   });
   const filtered = $derived(
     unified.filter((p) => {
@@ -93,6 +103,7 @@
         return false;
       }
       if (installedOnly && !isInstalled(p)) return false;
+      if (externalOnly && !p.external) return false;
       const needle = search.trim().toLowerCase();
       return !needle
         || p.name.toLowerCase().includes(needle)
@@ -104,12 +115,13 @@
   function setKind(kind: KindFilter): void {
     kindFilter = kind;
   }
-  const isFiltering = $derived(search.trim() !== "" || kindFilter !== "all" || installedOnly);
+  const isFiltering = $derived(search.trim() !== "" || kindFilter !== "all" || installedOnly || externalOnly);
   function clearFilters(): void {
     searchRaw = "";
     search = "";
     kindFilter = "all";
     installedOnly = false;
+    externalOnly = false;
   }
   const addPluginHome = $derived(homes[0]?.id ?? "cairn");
   // Derive from the live list by name so the open detail reflects installs/removes.
@@ -313,6 +325,7 @@
     <Chip label={`Engines ${counts.engine}`} on={kindFilter === "engine"} onclick={() => setKind("engine")} />
     <span class="sep"></span>
     <Chip label={`Installed ${counts.installed}`} on={installedOnly} onclick={() => (installedOnly = !installedOnly)} />
+    <Chip label={`External ${counts.external}`} on={externalOnly} onclick={() => (externalOnly = !externalOnly)} />
   </div>
 
   {#snippet installActions(p: UnifiedPlugin)}
@@ -344,10 +357,9 @@
             <b>{p.displayName}</b>
             {#if p.displayName !== p.name}<span class="repo">{p.name}</span>{/if}
             {#if versionLabelFor(p)}<span class="ver">{versionLabelFor(p)}</span>{/if}
-            {#if p.kind === "provider" || p.kind === "proxy" || p.kind === "loader"}
-              <span class="chip">{p.kind}</span>
+            {#if badgeLabel(p)}
+              <span class="chip" title={p.external ? "Installed from a repo outside the marketplace org" : undefined}>{badgeLabel(p)}</span>
             {/if}
-            {#if p.external}<span class="chip external" title="Installed from a repo outside the marketplace org">external</span>{/if}
           </div>
           {#if p.description}<span class="desc">{p.description}</span>{/if}
           {#if p.topics.length > 0}
@@ -376,10 +388,9 @@
         <div class="card-title">
           <b>{p.displayName}</b>
           {#if versionLabelFor(p)}<span class="ver">{versionLabelFor(p)}</span>{/if}
-          {#if p.kind === "provider" || p.kind === "proxy" || p.kind === "loader"}
-            <span class="chip">{p.kind}</span>
+          {#if badgeLabel(p)}
+            <span class="chip" title={p.external ? "Installed from a repo outside the marketplace org" : undefined}>{badgeLabel(p)}</span>
           {/if}
-          {#if p.external}<span class="chip external" title="Installed from a repo outside the marketplace org">external</span>{/if}
         </div>
         {#if p.description}<span class="card-desc">{p.description}</span>{/if}
       </button>
