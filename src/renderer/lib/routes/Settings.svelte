@@ -9,6 +9,7 @@
   import Button from "../components/Button.svelte";
   import Spinner from "../components/Spinner.svelte";
   import PluginControls from "../components/PluginControls.svelte";
+  import GitHubAccounts from "../components/GitHubAccounts.svelte";
 
   let themeSetting = $state<ThemeSetting>("system");
   let showDeprecated = $state(true);
@@ -148,6 +149,13 @@
         <option value="dark">Dark</option>
       </select>
     </div>
+  </Card>
+</section>
+
+<section class="category">
+  <h2>GitHub</h2>
+  <Card>
+    <GitHubAccounts />
   </Card>
 </section>
 
