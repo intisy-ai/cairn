@@ -89,7 +89,8 @@ function applyContentSecurityPolicy(): void {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        "Content-Security-Policy": [`default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline';`],
+        // img-src allows data: so plugin/app brand marks (inlined SVG data URIs) render.
+        "Content-Security-Policy": [`default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data:;`],
       },
     });
   });

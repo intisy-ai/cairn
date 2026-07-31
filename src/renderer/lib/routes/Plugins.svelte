@@ -31,6 +31,7 @@
 
   let sections = $state<HomePlugins[]>([]);
   let catalog = $state<CatalogEntry[]>([]);
+  let catalogOrg = $state("");
   let engines = $state<EngineView[]>([]);
   let versions = $state<Record<string, Record<string, PluginVersion>>>({});
   let pluginsError = $state("");
@@ -73,7 +74,7 @@
 
   const homes = $derived(sections.map((s) => s.home));
   const engineIds = $derived(new Set(engines.map((e) => e.id)));
-  const unified = $derived(buildUnifiedPlugins(sections, catalog, homes, engines.map((e) => ({ name: e.id, url: e.url }))));
+  const unified = $derived(buildUnifiedPlugins(sections, catalog, homes, engines.map((e) => ({ name: e.id, url: e.url })), catalogOrg));
   const counts = $derived({
     all: unified.length,
     provider: unified.filter((p) => p.kind === "provider").length,
@@ -125,7 +126,10 @@
 
   async function loadCatalog(): Promise<void> {
     const result = await cairn.catalogList();
-    if (result.ok) catalog = result.data.entries;
+    if (result.ok) {
+      catalog = result.data.entries;
+      catalogOrg = result.data.org;
+    }
   }
 
   async function loadEngines(): Promise<void> {
@@ -340,6 +344,7 @@
             {#if p.kind === "provider" || p.kind === "proxy" || p.kind === "loader"}
               <span class="chip">{p.kind}</span>
             {/if}
+            {#if p.external}<span class="chip external" title="Installed from a repo outside the marketplace org">external</span>{/if}
           </div>
           {#if p.description}<span class="desc">{p.description}</span>{/if}
           {#if p.topics.length > 0}
@@ -371,6 +376,7 @@
           {#if p.kind === "provider" || p.kind === "proxy" || p.kind === "loader"}
             <span class="chip">{p.kind}</span>
           {/if}
+          {#if p.external}<span class="chip external" title="Installed from a repo outside the marketplace org">external</span>{/if}
         </div>
         {#if p.description}<span class="card-desc">{p.description}</span>{/if}
       </button>
@@ -593,6 +599,11 @@
     background: var(--surface-2);
     padding: 2px 7px;
     border-radius: 20px;
+  }
+  .chip.external {
+    color: var(--warn, #d0a24c);
+    border: 1px solid color-mix(in srgb, var(--warn, #d0a24c) 40%, transparent);
+    background: transparent;
   }
   .topics {
     display: flex;

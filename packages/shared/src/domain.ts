@@ -4,7 +4,7 @@ import type { ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/in
 export type CatalogKind = "provider" | "proxy" | "plugin" | "loader";
 export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string; deprecated: boolean; topics: string[]; displayName?: string; icon?: string };
 export type RepoMeta = { owner: string; repo: string; htmlUrl: string; stars: number | null; description: string; topics: string[]; readme: string | null };
-export type CatalogResult = { entries: CatalogEntry[]; source: "env" | "gh" | "anonymous" };
+export type CatalogResult = { entries: CatalogEntry[]; source: "env" | "gh" | "anonymous"; org: string };
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 export type ProviderHealth = {
   provider: string;
@@ -142,6 +142,9 @@ export type UnifiedPlugin = {
   topics: string[];
   displayName: string;
   icon: string;
+  // True when the plugin's repo owner is not the configured marketplace org, i.e.
+  // it was installed from an outside source rather than the trusted catalog.
+  external: boolean;
 };
 export type InstallOutcome = { home: string; ok: boolean; error?: string };
 export type InstallManyResult = { outcomes: InstallOutcome[] };
