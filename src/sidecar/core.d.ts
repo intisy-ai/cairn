@@ -15,6 +15,7 @@ declare module "@core/index.js" {
       candidates: string[];
     };
     detect: { binary: string; pkg: string };
+    loader?: { id: string; url: string };
     commandsSubdir: string;
     proxyPort: number;
     integration: "env-baseurl" | "native";
