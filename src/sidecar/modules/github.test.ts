@@ -4,10 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getConfigValue, setConfigValue } from "@core/index.js";
 import { resetOrgScanCache, resolveToken } from "../lib/orgScan.js";
-import { githubStatus, githubAddAccount, githubSwitchAccount, githubRemoveAccount, githubConnectGhCli, githubSetStar, githubStarCairn } from "./github.js";
+import { githubStatus, githubAddAccount, githubSwitchAccount, githubRemoveAccount, githubConnectGhCli, githubSetStar, githubStarCairn, githubDeviceStart, githubDevicePoll, resetDeviceFlowState } from "./github.js";
 
 beforeEach(() => {
   resetOrgScanCache();
+  resetDeviceFlowState();
   process.env.HUB_CONFIG_DIR = mkdtempSync(join(tmpdir(), "dash-github-"));
 });
 
@@ -368,23 +369,138 @@ describe("githubStatus cairn star state", () => {
 });
 
 describe("githubStarCairn", () => {
-  it("stars Cairn via PUT with the active token", async () => {
+  it("stars Cairn with every stored account's token, one PUT each", async () => {
+    await githubAddAccount("token-a", false, { fetchFn: userFetch("alice") });
+    await githubAddAccount("token-b", false, { fetchFn: userFetch("bob") });
+    const calls: { url: string; init?: { method?: string; headers?: Record<string, string> } }[] = [];
+    const result = await githubStarCairn({ fetchFn: spyFetch("bob", calls) });
+    expect(result).toEqual({ ok: true, data: undefined });
+    const starCalls = calls.filter((c) => c.url === "https://api.github.com/user/starred/intisy-ai/cairn" && c.init?.method === "PUT");
+    expect(starCalls.length).toBe(2);
+    expect(starCalls.map((c) => c.init?.headers?.Authorization)).toEqual(
+      expect.arrayContaining(["Bearer token-a", "Bearer token-b"]),
+    );
+  });
+
+  it("falls back to the resolved env/gh token when no account is stored", async () => {
     const calls: { url: string; init?: { method?: string } }[] = [];
-    const result = await githubStarCairn(true, { env: { GITHUB_TOKEN: "t" }, execFn: noGh, fetchFn: spyFetch("octocat", calls) });
+    const result = await githubStarCairn({ env: { GITHUB_TOKEN: "t" }, execFn: noGh, fetchFn: spyFetch("octocat", calls) });
     expect(result).toEqual({ ok: true, data: undefined });
     expect(calls.some((c) => c.url.includes("/user/starred/intisy-ai/cairn") && c.init?.method === "PUT")).toBe(true);
   });
 
-  it("unstars Cairn via DELETE", async () => {
-    const calls: { url: string; init?: { method?: string } }[] = [];
-    await githubStarCairn(false, { env: { GITHUB_TOKEN: "t" }, execFn: noGh, fetchFn: spyFetch("octocat", calls) });
-    expect(calls.some((c) => c.url.includes("/user/starred/intisy-ai/cairn") && c.init?.method === "DELETE")).toBe(true);
-  });
-
-  it("errors when there is no token to star with", async () => {
+  it("errors when there is no token at all", async () => {
     const calls: { url: string }[] = [];
-    const result = await githubStarCairn(true, { env: {}, execFn: noGh, fetchFn: spyFetch("octocat", calls) });
+    const result = await githubStarCairn({ env: {}, execFn: noGh, fetchFn: spyFetch("octocat", calls) });
     expect(result.ok).toBe(false);
     expect(calls.length).toBe(0);
+  });
+});
+
+const deviceCodeFetch = (
+  status: "pending" | "success" | "denied" | "error",
+  login = "octocat",
+): typeof fetch =>
+  (async (url: string) => {
+    if (url === "https://github.com/login/device/code") {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          device_code: "dev-code",
+          user_code: "ABCD-1234",
+          verification_uri: "https://github.com/login/device",
+          expires_in: 900,
+          interval: 1,
+        }),
+      };
+    }
+    if (url === "https://github.com/login/oauth/access_token") {
+      if (status === "pending") return { ok: true, status: 200, json: async () => ({ error: "authorization_pending" }) };
+      if (status === "denied") return { ok: true, status: 200, json: async () => ({ error: "access_denied" }) };
+      if (status === "error") return { ok: true, status: 200, json: async () => ({ error: "something_else" }) };
+      return { ok: true, status: 200, json: async () => ({ access_token: "device-token" }) };
+    }
+    if (url === "https://api.github.com/user") return { ok: true, status: 200, json: async () => ({ login }) };
+    if (url.includes("/user/starred/")) return { ok: true, status: 204, json: async () => ({}) };
+    throw new Error(`unexpected url ${url}`);
+  }) as unknown as typeof fetch;
+
+describe("githubDeviceStart", () => {
+  it("starts the device flow and returns the user code and verification uri", async () => {
+    const result = await githubDeviceStart({ fetchFn: deviceCodeFetch("success") });
+    expect(result).toEqual({
+      ok: true,
+      data: { userCode: "ABCD-1234", verificationUri: "https://github.com/login/device", intervalSeconds: 1 },
+    });
+  });
+
+  it("errors when GitHub rejects the device code request", async () => {
+    const result = await githubDeviceStart({ fetchFn: failFetch(400) });
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe("githubDevicePoll", () => {
+  it("reports expired when no device flow has been started", async () => {
+    const result = await githubDevicePoll(false, { fetchFn: deviceCodeFetch("pending") });
+    expect(result).toEqual({ ok: true, data: { status: "expired" } });
+  });
+
+  it("reports pending while GitHub is still waiting on the user, then authorized once granted, storing the account", async () => {
+    await githubDeviceStart({ fetchFn: deviceCodeFetch("pending") });
+    const pending = await githubDevicePoll(false, { fetchFn: deviceCodeFetch("pending") });
+    expect(pending).toEqual({ ok: true, data: { status: "pending" } });
+
+    const authorized = await githubDevicePoll(false, { fetchFn: deviceCodeFetch("success") });
+    expect(authorized).toEqual({ ok: true, data: { status: "authorized", login: "octocat" } });
+    expect(getConfigValue("cairn", "githubAccounts")).toEqual([{ login: "octocat", token: "device-token", name: null, avatarUrl: null }]);
+  });
+
+  it("stars Cairn with the new token when star is true", async () => {
+    await githubDeviceStart({ fetchFn: deviceCodeFetch("pending") });
+    const calls: { url: string; init?: { method?: string; headers?: Record<string, string> } }[] = [];
+    const fetchFn = (async (url: string, init?: { method?: string; headers?: Record<string, string> }) => {
+      calls.push({ url, init });
+      return (deviceCodeFetch("success") as unknown as (u: string, i?: unknown) => Promise<unknown>)(url, init);
+    }) as unknown as typeof fetch;
+    await githubDevicePoll(true, { fetchFn });
+    const starCall = calls.find((c) => c.url === "https://api.github.com/user/starred/intisy-ai/cairn");
+    expect(starCall?.init?.method).toBe("PUT");
+    expect(starCall?.init?.headers?.Authorization).toBe("Bearer device-token");
+  });
+
+  it("maps access_denied to denied", async () => {
+    await githubDeviceStart({ fetchFn: deviceCodeFetch("denied") });
+    const result = await githubDevicePoll(false, { fetchFn: deviceCodeFetch("denied") });
+    expect(result).toEqual({ ok: true, data: { status: "denied" } });
+  });
+
+  it("maps an unrecognized error to status error with the message", async () => {
+    await githubDeviceStart({ fetchFn: deviceCodeFetch("error") });
+    const result = await githubDevicePoll(false, { fetchFn: deviceCodeFetch("error") });
+    expect(result).toEqual({ ok: true, data: { status: "error", message: "something_else" } });
+  });
+
+  it("reports expired once the device code's expiry has passed", async () => {
+    const fetchFn = (async (url: string) => {
+      if (url === "https://github.com/login/device/code") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            device_code: "dev-code",
+            user_code: "ABCD-1234",
+            verification_uri: "https://github.com/login/device",
+            expires_in: -1,
+            interval: 1,
+          }),
+        };
+      }
+      throw new Error(`unexpected url ${url}`);
+    }) as unknown as typeof fetch;
+    await githubDeviceStart({ fetchFn });
+    const result = await githubDevicePoll(false, { fetchFn: deviceCodeFetch("pending") });
+    expect(result).toEqual({ ok: true, data: { status: "expired" } });
   });
 });

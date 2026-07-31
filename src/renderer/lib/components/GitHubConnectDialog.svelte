@@ -10,25 +10,52 @@
     onDone: () => void;
   } = $props();
 
+  // For "add" mode: choice between signing in (OAuth device flow) or pasting a
+  // token. "connect" mode has no sub-view; it always uses the local gh CLI token.
+  type AddView = "choice" | "token" | "device";
+  let addView = $state<AddView>("choice");
+
   let token = $state("");
   let star = $state(true);
   let busy = $state(false);
   let error = $state("");
   let confirmBtn = $state<HTMLButtonElement | undefined>(undefined);
 
+  let deviceUserCode = $state("");
+  let deviceVerificationUri = $state("");
+  let deviceIntervalSeconds = $state(5);
+  let devicePollTimer: ReturnType<typeof setInterval> | undefined;
+
   const title = $derived(
     mode === "add" ? "Add GitHub account" : ghLogin ? `Connect @${ghLogin}` : "Connect GitHub account",
   );
+  const showConfirmButton = $derived(mode !== "add" || addView === "token");
   const confirmLabel = $derived(mode === "add" ? "Add account" : "Connect");
-  const confirmDisabled = $derived(busy || (mode === "add" && !token.trim()));
+  const confirmDisabled = $derived(busy || (mode === "add" && addView === "token" && !token.trim()));
 
   function onKeydown(event: KeyboardEvent): void {
-    if (event.key === "Escape") onCancel();
+    if (event.key === "Escape") cancel();
   }
 
   $effect(() => {
-    confirmBtn?.focus();
+    if (showConfirmButton) confirmBtn?.focus();
   });
+
+  $effect(() => {
+    return stopPolling;
+  });
+
+  function stopPolling(): void {
+    if (devicePollTimer !== undefined) {
+      clearInterval(devicePollTimer);
+      devicePollTimer = undefined;
+    }
+  }
+
+  function cancel(): void {
+    stopPolling();
+    onCancel();
+  }
 
   async function confirm(): Promise<void> {
     if (confirmDisabled) return;
@@ -47,10 +74,59 @@
       busy = false;
     }
   }
+
+  async function startDeviceFlow(): Promise<void> {
+    busy = true;
+    error = "";
+    try {
+      const result = await cairn.githubDeviceStart();
+      if (!result.ok) {
+        error = result.error;
+        return;
+      }
+      deviceUserCode = result.data.userCode;
+      deviceVerificationUri = result.data.verificationUri;
+      deviceIntervalSeconds = result.data.intervalSeconds;
+      addView = "device";
+      stopPolling();
+      devicePollTimer = setInterval(pollDevice, deviceIntervalSeconds * 1000);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function pollDevice(): Promise<void> {
+    const result = await cairn.githubDevicePoll(star);
+    if (!result.ok) {
+      stopPolling();
+      error = result.error;
+      return;
+    }
+    if (result.data.status === "pending") return;
+    stopPolling();
+    if (result.data.status === "authorized") {
+      onDone();
+    } else if (result.data.status === "expired") {
+      error = "The code expired before it was confirmed.";
+    } else if (result.data.status === "denied") {
+      error = "Sign-in was denied.";
+    } else {
+      error = result.data.message || "Sign-in failed.";
+    }
+  }
+
+  function retryDeviceFlow(): void {
+    error = "";
+    addView = "choice";
+  }
+
+  function openVerificationUri(): void {
+    window.open(deviceVerificationUri, "_blank");
+  }
 </script>
 
 <svelte:window onkeydown={onKeydown} />
-<div class="backdrop" role="presentation" onclick={onCancel} transition:fadeMotion></div>
+<div class="backdrop" role="presentation" onclick={cancel} transition:fadeMotion></div>
 <div class="dialog" role="dialog" aria-modal="true" aria-label={title} transition:flyMotion={{ y: 8 }}>
   <h3>{title}</h3>
 
@@ -64,14 +140,29 @@
   </div>
 
   {#if mode === "add"}
-    <input
-      type="password"
-      class="token"
-      placeholder="Personal access token"
-      aria-label="GitHub personal access token"
-      bind:value={token}
-    />
-    <span class="hint">Create a personal access token with read access to repositories (include public_repo or repo to allow starring).</span>
+    {#if addView === "choice"}
+      <div class="choice">
+        <button class="btn primary wide" disabled={busy} onclick={startDeviceFlow}>Sign in with GitHub</button>
+        <button class="linkbtn" disabled={busy} onclick={() => (addView = "token")}>Paste a token instead</button>
+      </div>
+    {:else if addView === "token"}
+      <input
+        type="password"
+        class="token"
+        placeholder="Personal access token"
+        aria-label="GitHub personal access token"
+        bind:value={token}
+      />
+      <span class="hint">Create a personal access token with read access to repositories (include public_repo or repo to allow starring).</span>
+    {:else if addView === "device"}
+      <div class="device">
+        <span class="devicecodelabel">Your code</span>
+        <span class="devicecode">{deviceUserCode}</span>
+        <span class="hint">Enter this code at</span>
+        <button class="btn" onclick={openVerificationUri}>Open github.com/login/device</button>
+        {#if !error}<span class="waiting">Waiting for authorization…</span>{/if}
+      </div>
+    {/if}
   {:else}
     <span class="hint">Uses the token from your signed-in GitHub CLI.</span>
   {/if}
@@ -81,18 +172,25 @@
     <span>Star Cairn on GitHub to support the project</span>
   </label>
 
-  {#if error}<div class="error">{error}</div>{/if}
+  {#if error}
+    <div class="error">{error}</div>
+    {#if mode === "add" && addView === "device"}
+      <button class="linkbtn" onclick={retryDeviceFlow}>Try again</button>
+    {/if}
+  {/if}
 
   <div class="actions">
-    <Button disabled={busy} onclick={onCancel}>Cancel</Button>
-    <button
-      bind:this={confirmBtn}
-      class="btn primary"
-      disabled={confirmDisabled}
-      onclick={confirm}
-    >
-      {confirmLabel}
-    </button>
+    <Button disabled={busy} onclick={cancel}>Cancel</Button>
+    {#if showConfirmButton}
+      <button
+        bind:this={confirmBtn}
+        class="btn primary"
+        disabled={confirmDisabled}
+        onclick={confirm}
+      >
+        {confirmLabel}
+      </button>
+    {/if}
   </div>
 </div>
 
@@ -125,6 +223,47 @@
     font-size: 11.5px;
     color: var(--muted);
     line-height: 1.4;
+  }
+  .choice {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+  }
+  .linkbtn {
+    all: unset;
+    cursor: pointer;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  .linkbtn:hover:not(:disabled) {
+    color: var(--text);
+    text-decoration: underline;
+  }
+  .device {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 0 4px;
+  }
+  .devicecodelabel {
+    font-size: 11px;
+    color: var(--faint);
+  }
+  .devicecode {
+    font-family: var(--mono, monospace);
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    color: var(--text);
+    user-select: all;
+    padding: 4px 10px;
+  }
+  .waiting {
+    font-size: 11.5px;
+    color: var(--muted);
   }
   .token {
     font-family: var(--ui);
@@ -171,6 +310,10 @@
     align-items: center;
     gap: 7px;
     white-space: nowrap;
+  }
+  .btn.wide {
+    justify-content: center;
+    width: 100%;
   }
   .btn.primary {
     background: var(--accent);

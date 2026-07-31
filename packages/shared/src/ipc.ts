@@ -75,6 +75,8 @@ export const INVOKE_CHANNELS = {
   githubConnectGhCli: "github:connect-gh",
   githubSetStar: "github:set-star",
   githubStarCairn: "github:star-cairn",
+  githubDeviceStart: "github:device-start",
+  githubDevicePoll: "github:device-poll",
   favoritesList: "favorites:list",
   favoritesToggle: "favorites:toggle",
   customEndpointsList: "customEndpoints:list",

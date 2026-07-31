@@ -10,6 +10,18 @@ export interface GithubDeps {
   env?: NodeJS.ProcessEnv;
 }
 
+// Reuses the GitHub CLI's own public OAuth client id: the device flow needs no
+// client secret and registers no app of ours, so this is safe to keep in source.
+const GH_OAUTH_CLIENT_ID = "178c6fc778ccc68e1d6a";
+const GH_OAUTH_SCOPE = "repo read:org";
+
+interface DeviceFlowState { deviceCode: string; expiresAt: number; intervalMs: number }
+let deviceFlowState: DeviceFlowState | null = null;
+
+// Test-only: the device flow keeps its single in-flight state in this module,
+// so tests need a way to clear it between cases instead of leaking it across them.
+export function resetDeviceFlowState(): void { deviceFlowState = null; }
+
 interface StoredGithubAccount { login: string; token: string; name?: string | null; avatarUrl?: string | null }
 interface GithubUser { login: string; name: string | null; avatarUrl: string | null }
 
@@ -158,13 +170,21 @@ export function githubStatus(deps: GithubDeps = {}): Promise<Result<GithubStatus
   });
 }
 
-export async function githubStarCairn(starred: boolean, deps: GithubDeps = {}): Promise<Result<void>> {
+// One-way: only ever stars, never unstars. Stars with every stored account's
+// token (best-effort each) so all connected accounts back the project, falling
+// back to the single resolved token (env/gh) when no account is stored.
+export async function githubStarCairn(deps: GithubDeps = {}): Promise<Result<void>> {
+  const fetchFn = deps.fetchFn ?? fetch;
+  const accounts = storedAccounts();
+  if (accounts.length > 0) {
+    await Promise.all(accounts.map((a) => starRepo(fetchFn, a.token, ECOSYSTEM_ORG, "cairn", true)));
+    return ok(undefined);
+  }
   const env = deps.env ?? process.env;
   const execFn = deps.execFn ?? realExec;
-  const fetchFn = deps.fetchFn ?? fetch;
   const { token } = await resolveToken(env, execFn);
   if (!token) return err("connect a GitHub account first");
-  await starRepo(fetchFn, token, ECOSYSTEM_ORG, "cairn", starred);
+  await starRepo(fetchFn, token, ECOSYSTEM_ORG, "cairn", true);
   return ok(undefined);
 }
 
@@ -227,4 +247,86 @@ export async function githubSetStar(url: string, starred: boolean, deps: GithubD
   if (!ref) return ok(undefined);
   await starRepo(fetchFn, token, ref.owner, ref.repo, starred);
   return ok(undefined);
+}
+
+interface DeviceCodeResponse {
+  device_code?: string;
+  user_code?: string;
+  verification_uri?: string;
+  expires_in?: number;
+  interval?: number;
+}
+
+export async function githubDeviceStart(
+  deps: GithubDeps = {},
+): Promise<Result<{ userCode: string; verificationUri: string; intervalSeconds: number }>> {
+  const fetchFn = deps.fetchFn ?? fetch;
+  try {
+    const response = await fetchFn("https://github.com/login/device/code", {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ client_id: GH_OAUTH_CLIENT_ID, scope: GH_OAUTH_SCOPE }),
+    });
+    if (!response.ok) return err(`GitHub device flow start failed (${response.status})`);
+    const json = (await response.json()) as DeviceCodeResponse;
+    if (typeof json.device_code !== "string" || typeof json.user_code !== "string" || typeof json.verification_uri !== "string") {
+      return err("GitHub device flow response was malformed");
+    }
+    const intervalMs = (json.interval && json.interval > 0 ? json.interval : 5) * 1000;
+    deviceFlowState = {
+      deviceCode: json.device_code,
+      expiresAt: Date.now() + (json.expires_in ?? 900) * 1000,
+      intervalMs,
+    };
+    return ok({ userCode: json.user_code, verificationUri: json.verification_uri, intervalSeconds: intervalMs / 1000 });
+  } catch (e) {
+    return err(e instanceof Error ? e.message : String(e));
+  }
+}
+
+interface AccessTokenResponse {
+  access_token?: string;
+  error?: string;
+}
+
+export type DevicePollStatus = "pending" | "authorized" | "expired" | "denied" | "error";
+
+export async function githubDevicePoll(
+  star: boolean,
+  deps: GithubDeps = {},
+): Promise<Result<{ status: DevicePollStatus; login?: string; message?: string }>> {
+  const state = deviceFlowState;
+  if (!state || Date.now() > state.expiresAt) {
+    deviceFlowState = null;
+    return ok({ status: "expired" });
+  }
+  const fetchFn = deps.fetchFn ?? fetch;
+  try {
+    const response = await fetchFn("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_id: GH_OAUTH_CLIENT_ID,
+        device_code: state.deviceCode,
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+      }),
+    });
+    const json = (await response.json()) as AccessTokenResponse;
+    if (typeof json.access_token === "string" && json.access_token) {
+      const token = json.access_token;
+      const validated = await validateToken(fetchFn, token);
+      deviceFlowState = null;
+      if (!validated.ok) return ok({ status: "error", message: validated.error });
+      storeAccount(validated.data, token);
+      if (star) await starRepo(fetchFn, token, ECOSYSTEM_ORG, "cairn", true);
+      return ok({ status: "authorized", login: validated.data.login });
+    }
+    if (json.error === "authorization_pending" || json.error === "slow_down") return ok({ status: "pending" });
+    deviceFlowState = null;
+    if (json.error === "expired_token") return ok({ status: "expired" });
+    if (json.error === "access_denied") return ok({ status: "denied" });
+    return ok({ status: "error", message: json.error ?? "unknown error" });
+  } catch (e) {
+    return ok({ status: "error", message: e instanceof Error ? e.message : String(e) });
+  }
 }
