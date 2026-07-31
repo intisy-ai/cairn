@@ -287,6 +287,7 @@ export async function githubDeviceStart(
 interface AccessTokenResponse {
   access_token?: string;
   error?: string;
+  interval?: number;
 }
 
 export type DevicePollStatus = "pending" | "authorized" | "expired" | "denied" | "error";
@@ -294,7 +295,7 @@ export type DevicePollStatus = "pending" | "authorized" | "expired" | "denied" |
 export async function githubDevicePoll(
   star: boolean,
   deps: GithubDeps = {},
-): Promise<Result<{ status: DevicePollStatus; login?: string; message?: string }>> {
+): Promise<Result<{ status: DevicePollStatus; login?: string; message?: string; intervalSeconds?: number }>> {
   const state = deviceFlowState;
   if (!state || Date.now() > state.expiresAt) {
     deviceFlowState = null;
@@ -321,7 +322,14 @@ export async function githubDevicePoll(
       if (star) await starRepo(fetchFn, token, ECOSYSTEM_ORG, "cairn", true);
       return ok({ status: "authorized", login: validated.data.login });
     }
-    if (json.error === "authorization_pending" || json.error === "slow_down") return ok({ status: "pending" });
+    if (json.error === "authorization_pending") return ok({ status: "pending", intervalSeconds: state.intervalMs / 1000 });
+    // GitHub demands a slower cadence after slow_down; if we keep the old interval
+    // it returns slow_down forever and never delivers the token even once authorized.
+    if (json.error === "slow_down") {
+      const nextSeconds = json.interval && json.interval > 0 ? json.interval : state.intervalMs / 1000 + 5;
+      state.intervalMs = nextSeconds * 1000;
+      return ok({ status: "pending", intervalSeconds: nextSeconds });
+    }
     deviceFlowState = null;
     if (json.error === "expired_token") return ok({ status: "expired" });
     if (json.error === "access_denied") return ok({ status: "denied" });
