@@ -450,7 +450,7 @@ describe("githubDevicePoll", () => {
   it("reports pending while GitHub is still waiting on the user, then authorized once granted, storing the account", async () => {
     await githubDeviceStart({ fetchFn: deviceCodeFetch("pending") });
     const pending = await githubDevicePoll(false, { fetchFn: deviceCodeFetch("pending") });
-    expect(pending).toEqual({ ok: true, data: { status: "pending" } });
+    expect(pending.ok && pending.data.status).toBe("pending");
 
     const authorized = await githubDevicePoll(false, { fetchFn: deviceCodeFetch("success") });
     expect(authorized).toEqual({ ok: true, data: { status: "authorized", login: "octocat" } });
@@ -468,6 +468,17 @@ describe("githubDevicePoll", () => {
     const starCall = calls.find((c) => c.url === "https://api.github.com/user/starred/intisy-ai/cairn");
     expect(starCall?.init?.method).toBe("PUT");
     expect(starCall?.init?.headers?.Authorization).toBe("Bearer device-token");
+  });
+
+  it("backs off to the slower interval on slow_down and stays pending", async () => {
+    await githubDeviceStart({ fetchFn: deviceCodeFetch("pending") });
+    const slowFetch = (async (url: string) =>
+      url === "https://github.com/login/oauth/access_token"
+        ? { ok: true, status: 200, json: async () => ({ error: "slow_down", interval: 8 }) }
+        : { ok: true, status: 200, json: async () => ({}) }) as unknown as typeof fetch;
+    const result = await githubDevicePoll(false, { fetchFn: slowFetch });
+    expect(result.ok && result.data.status).toBe("pending");
+    expect(result.ok && result.data.intervalSeconds).toBe(8);
   });
 
   it("maps access_denied to denied", async () => {

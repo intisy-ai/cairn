@@ -70,7 +70,7 @@ export interface CairnAPI {
   githubSetStar(url: string, starred: boolean): Promise<Result<void>>;
   githubStarCairn(): Promise<Result<void>>;
   githubDeviceStart(): Promise<Result<{ userCode: string; verificationUri: string; intervalSeconds: number }>>;
-  githubDevicePoll(star: boolean): Promise<Result<{ status: string; login?: string; message?: string }>>;
+  githubDevicePoll(star: boolean): Promise<Result<{ status: string; login?: string; message?: string; intervalSeconds?: number }>>;
   favoritesList(): Promise<Result<string[]>>;
   favoritesToggle(name: string): Promise<Result<string[]>>;
   customEndpointsList(): Promise<Result<CustomEndpointView[]>>;

@@ -24,7 +24,8 @@
   let deviceUserCode = $state("");
   let deviceVerificationUri = $state("");
   let deviceIntervalSeconds = $state(5);
-  let devicePollTimer: ReturnType<typeof setInterval> | undefined;
+  let devicePollTimer: ReturnType<typeof setTimeout> | undefined;
+  let devicePolling = false;
 
   const title = $derived(
     mode === "add" ? "Add GitHub account" : ghLogin ? `Connect @${ghLogin}` : "Connect GitHub account",
@@ -46,10 +47,16 @@
   });
 
   function stopPolling(): void {
+    devicePolling = false;
     if (devicePollTimer !== undefined) {
-      clearInterval(devicePollTimer);
+      clearTimeout(devicePollTimer);
       devicePollTimer = undefined;
     }
+  }
+
+  function scheduleNextPoll(seconds: number): void {
+    if (!devicePolling) return;
+    devicePollTimer = setTimeout(pollDevice, seconds * 1000);
   }
 
   function cancel(): void {
@@ -89,20 +96,26 @@
       deviceIntervalSeconds = result.data.intervalSeconds;
       addView = "device";
       stopPolling();
-      devicePollTimer = setInterval(pollDevice, deviceIntervalSeconds * 1000);
+      devicePolling = true;
+      scheduleNextPoll(deviceIntervalSeconds);
     } finally {
       busy = false;
     }
   }
 
   async function pollDevice(): Promise<void> {
+    if (!devicePolling) return;
     const result = await cairn.githubDevicePoll(star);
+    if (!devicePolling) return;
     if (!result.ok) {
       stopPolling();
       error = result.error;
       return;
     }
-    if (result.data.status === "pending") return;
+    if (result.data.status === "pending") {
+      scheduleNextPoll(result.data.intervalSeconds ?? deviceIntervalSeconds);
+      return;
+    }
     stopPolling();
     if (result.data.status === "authorized") {
       onDone();
