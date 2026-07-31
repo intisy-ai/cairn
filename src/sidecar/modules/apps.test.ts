@@ -2,7 +2,12 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { appsDetect, appsInstallCli, appsInit, appsUninstallCli, appsSummary } from "./apps.js";
+import { appsDetect, appsInstallCli, appsInit, appsUninstallCli, appsSummary, appsConnection, appsInstallLoader } from "./apps.js";
+import type { AppDescriptor } from "@core/index.js";
+
+function descWithLoader(loaderId: string): AppDescriptor {
+  return { loader: { id: loaderId, url: `org/${loaderId}` } } as unknown as AppDescriptor;
+}
 
 describe("apps sidecar module", () => {
   it("detects claude present via binary and opencode absent", async () => {
@@ -253,5 +258,65 @@ describe("appsSummary", () => {
   it("returns an error for an unknown app", async () => {
     const result = await appsSummary("bogus" as never, { appHome: () => tempHome });
     expect(result.ok).toBe(false);
+  });
+
+  it("reports cli presence and a loader installed in the app home", async () => {
+    const result = await appsConnection("app1", {
+      getDescriptor: () => descWithLoader("app1-loader"),
+      detect: async () => ({ ok: true, data: { app1: true } }),
+      appHome: (app) => `/home/${app}`,
+      listPlugins: (dir) => (dir === "/home/app1" ? [{ name: "app1-loader" } as never] : []),
+    });
+    expect(result).toEqual({ ok: true, data: { app: "app1", cliPresent: true, loaderId: "app1-loader", loaderInstalled: true } });
+  });
+
+  it("reports the loader not installed when its plugin is absent from the home", async () => {
+    const result = await appsConnection("app1", {
+      getDescriptor: () => descWithLoader("app1-loader"),
+      detect: async () => ({ ok: true, data: { app1: false } }),
+      appHome: () => "/home/app1",
+      listPlugins: () => [],
+    });
+    expect(result).toEqual({ ok: true, data: { app: "app1", cliPresent: false, loaderId: "app1-loader", loaderInstalled: false } });
+  });
+
+  it("reports loaderId null for an app that declares no loader", async () => {
+    const result = await appsConnection("app1", {
+      getDescriptor: () => ({} as unknown as AppDescriptor),
+      detect: async () => ({ ok: true, data: { app1: true } }),
+      appHome: () => "/home/app1",
+      listPlugins: () => [{ name: "unrelated" } as never],
+    });
+    expect(result).toEqual({ ok: true, data: { app: "app1", cliPresent: true, loaderId: null, loaderInstalled: false } });
+  });
+
+  it("appsConnection errors for an unknown app", async () => {
+    const result = await appsConnection("nope", { getDescriptor: () => undefined });
+    expect(result.ok).toBe(false);
+  });
+
+  it("installs the loader into the app home using the descriptor id and url", async () => {
+    const calls: Array<[string, string, string]> = [];
+    const result = await appsInstallLoader("app1", {
+      getDescriptor: () => descWithLoader("app1-loader"),
+      install: async (home, name, url) => { calls.push([home, name, url]); return { ok: true, data: undefined }; },
+    });
+    expect(result.ok).toBe(true);
+    expect(calls).toEqual([["app1", "app1-loader", "org/app1-loader"]]);
+  });
+
+  it("appsInstallLoader errors when the app declares no loader", async () => {
+    const result = await appsInstallLoader("app1", { getDescriptor: () => ({} as unknown as AppDescriptor) });
+    expect(result.ok).toBe(false);
+  });
+
+  it("appsInstallLoader propagates an install failure", async () => {
+    const result = await appsInstallLoader("app1", {
+      getDescriptor: () => descWithLoader("app1-loader"),
+      install: async () => ({ ok: false, error: "boom" }),
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("boom");
   });
 });

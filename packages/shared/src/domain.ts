@@ -41,6 +41,7 @@ export type RoutingState = {
 };
 export type AppPresence = Record<string, boolean>;
 export type HostApp = { id: string; label: string; icon?: string };
+export type AppConnection = { app: string; cliPresent: boolean; loaderId: string | null; loaderInstalled: boolean };
 export type CliResult = {
   stdout: string;
   stderr: string;

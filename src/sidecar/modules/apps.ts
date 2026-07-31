@@ -4,11 +4,12 @@ import { join, delimiter } from "node:path";
 import { getApps, getAppDescriptor, resolveHome } from "@core/index.js";
 import type { AppDescriptor } from "@core/index.js";
 import { getPlugins } from "@plugin-updater/config.js";
+import type { Plugin } from "@plugin-updater/types.js";
 import { resolveModelMap } from "@core-proxy/model-map.js";
 import { normalizeQuotas } from "../../../vendor/usage/snapshot.js";
 import { appRealHome } from "../lib/pluginHomes.js";
 import { profileFor } from "../lib/proxyRegistry.js";
-import type { AppAccountSummary, AppPresence, AppProviderAgg, AppSummary, CliResult, HostApp, Result } from "../../../packages/shared/src/domain.js";
+import type { AppAccountSummary, AppConnection, AppPresence, AppProviderAgg, AppSummary, CliResult, HostApp, Result } from "../../../packages/shared/src/domain.js";
 import { wrap, err } from "../result.js";
 
 export type BinaryExistsFn = (name: string) => boolean;
@@ -69,6 +70,46 @@ export function appsInit(app: string, spawn: SpawnFn = realSpawn): Promise<Resul
   const desc = getAppDescriptor(app);
   if (!desc) return Promise.resolve(err(`unknown app: ${app}`));
   return wrap(() => spawn("npx", ["plugin-updater", "init", "--app", desc.id]));
+}
+
+export interface AppsConnectionDeps {
+  detect?: () => Promise<Result<AppPresence>>;
+  listPlugins?: (dir: string) => Plugin[];
+  appHome?: (app: string) => string;
+  getDescriptor?: (app: string) => AppDescriptor | undefined;
+}
+
+export function appsConnection(app: string, deps: AppsConnectionDeps = {}): Promise<Result<AppConnection>> {
+  const detect = deps.detect ?? appsDetect;
+  const listPlugins = deps.listPlugins ?? getPlugins;
+  const appHome = deps.appHome ?? appRealHome;
+  const getDescriptor = deps.getDescriptor ?? getAppDescriptor;
+  return wrap(async () => {
+    const desc = getDescriptor(app);
+    if (!desc) throw new Error(`unknown app: ${app}`);
+    const presence = await detect();
+    const cliPresent = presence.ok ? !!presence.data[app] : false;
+    const loader = desc.loader ?? null;
+    const loaderInstalled = loader ? listPlugins(appHome(app)).some((p) => p.name === loader.id) : false;
+    return { app, cliPresent, loaderId: loader?.id ?? null, loaderInstalled };
+  });
+}
+
+export interface AppsInstallLoaderDeps {
+  getDescriptor?: (app: string) => AppDescriptor | undefined;
+  install?: (homeId: string, name: string, url: string) => Promise<Result<void>>;
+}
+
+export function appsInstallLoader(app: string, deps: AppsInstallLoaderDeps = {}): Promise<Result<void>> {
+  const getDescriptor = deps.getDescriptor ?? getAppDescriptor;
+  return wrap(async () => {
+    const desc = getDescriptor(app);
+    if (!desc) throw new Error(`unknown app: ${app}`);
+    if (!desc.loader) throw new Error(`app has no loader: ${app}`);
+    const install = deps.install ?? (await import("./plugins.js")).pluginsInstall;
+    const res = await install(app, desc.loader.id, desc.loader.url);
+    if (!res.ok) throw new Error(res.error);
+  });
 }
 
 function safeReadJson(path: string): unknown | null {

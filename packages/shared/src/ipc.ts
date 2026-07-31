@@ -33,6 +33,8 @@ export const INVOKE_CHANNELS = {
   appsInit: "apps:init",
   appsUninstallCli: "apps:uninstallCli",
   appsSummary: "apps:summary",
+  appsConnection: "apps:connection",
+  appsInstallLoader: "apps:installLoader",
   pluginsList: "plugins:list",
   enginesList: "engines:list",
   enginesEnsure: "engines:ensure",

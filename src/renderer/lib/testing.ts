@@ -60,6 +60,8 @@ function defaultCairn(): CairnAPI {
         routingSlots: null,
       },
     }),
+    appsConnection: async () => ({ ok: true, data: { app: "", cliPresent: false, loaderId: null, loaderInstalled: false } }),
+    appsInstallLoader: async () => ({ ok: true, data: undefined }),
     pluginsList: async () => ({ ok: true, data: [] }),
     enginesList: async () => ({ ok: true, data: [] }),
     enginesEnsure: async () => ({ ok: true, data: undefined }),
