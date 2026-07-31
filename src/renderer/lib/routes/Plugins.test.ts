@@ -58,6 +58,7 @@ describe("Plugins screen", () => {
     stubCairn({
       pluginsList: async () => ({ ok: true, data: baseSections() }),
       catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      githubStatus: async () => ({ ok: true, data: { source: "config", connected: true, login: "octocat", name: null, avatarUrl: null, ghCliDetected: false, ghCli: null, accounts: [{ login: "octocat", name: null, avatarUrl: null }], activeLogin: "octocat", cairnRepoUrl: "https://github.com/intisy-ai/cairn", cairnStarred: null } }),
       favoritesToggle,
       githubSetStar,
     });
@@ -70,6 +71,22 @@ describe("Plugins screen", () => {
     await waitFor(() => expect(githubSetStar).toHaveBeenCalledWith("u", true));
     // The row's own open button, not the favorite button, is what opens the detail view.
     expect(screen.queryByText("Every provider, proxy, and plugin")).toBeNull();
+  });
+
+  it("prompts to connect GitHub instead of favoriting when starring while not connected", async () => {
+    const favoritesToggle = vi.fn(async (name: string) => ({ ok: true, data: [name] }) as const);
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      favoritesToggle,
+    });
+    render(Plugins);
+
+    const row = within(await screen.findByTestId("plugin-demo"));
+    await fireEvent.click(row.getByRole("button", { name: "Favorite" }));
+
+    await screen.findByRole("dialog", { name: "Add GitHub account" });
+    expect(favoritesToggle).not.toHaveBeenCalled();
   });
 
   it("the Favorites chip filters to favorited plugins and a favorited plugin sorts to the top", async () => {
