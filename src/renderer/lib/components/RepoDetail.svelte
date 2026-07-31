@@ -112,17 +112,28 @@
   }
   .modal {
     position: relative;
-    width: min(92vw, 640px);
+    width: min(92vw, 680px);
     max-height: 86vh;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 14px;
     box-shadow: var(--shadow);
-    padding: 24px;
+    padding: 22px 24px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
     overflow-y: auto;
+  }
+  .extra,
+  .readme,
+  .foot {
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+  }
+  .extra {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
   }
   .close {
     position: absolute;
@@ -269,6 +280,5 @@
     flex-wrap: wrap;
     gap: 8px;
     margin-top: auto;
-    padding-top: 4px;
   }
 </style>

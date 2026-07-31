@@ -70,10 +70,8 @@
       <div class="chainrows">
         <div class="chainrow">
           <span class="cdot" class:on={connection?.cliPresent}></span>
-          <div class="ctext">
-            <span class="k">Command line</span>
-            <span class="d">{connection?.cliPresent ? "Installed" : "Not installed"}</span>
-          </div>
+          <span class="ck">Command line</span>
+          <span class="cs">{connection?.cliPresent ? "Installed" : "Not installed"}</span>
           {#if connection && !connection.cliPresent && !connection.loaderId}
             <Button variant="primary" disabled={busy} onclick={onPrimary}>
               {#if busy}<Spinner />{/if}
@@ -85,10 +83,8 @@
         {#if connection?.loaderId}
           <div class="chainrow">
             <span class="cdot" class:on={connection?.loaderInstalled}></span>
-            <div class="ctext">
-              <span class="k">Loader</span>
-              <span class="d">{connection?.loaderInstalled ? "Installed" : "Not installed"}</span>
-            </div>
+            <span class="ck">Loader</span>
+            <span class="cs">{connection?.loaderInstalled ? "Installed" : "Not installed"}</span>
             {#if !connection?.loaderInstalled}
               <Button variant="primary" disabled={busy} onclick={onPrimary}>
                 {#if busy}<Spinner />{/if}
@@ -190,15 +186,15 @@
   .chainrow {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
+    gap: 10px;
+    padding: 8px 12px;
     background: var(--surface-2);
     border: 1px solid var(--border);
     border-radius: 9px;
   }
   .cdot {
-    width: 9px;
-    height: 9px;
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
     background: var(--border-strong);
     flex: none;
@@ -206,20 +202,14 @@
   .cdot.on {
     background: var(--good);
   }
-  .ctext {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    flex: 1;
-    min-width: 0;
-  }
-  .ctext .k {
+  .ck {
     font-size: 12.5px;
     font-weight: 600;
   }
-  .ctext .d {
+  .cs {
     font-size: 11px;
     color: var(--muted);
+    margin-left: auto;
   }
   .altlink {
     margin-top: 8px;

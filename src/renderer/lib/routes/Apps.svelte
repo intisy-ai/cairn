@@ -8,6 +8,7 @@
   import Skeleton from "../components/Skeleton.svelte";
   import Spinner from "../components/Spinner.svelte";
   import ImportDialog from "../components/ImportDialog.svelte";
+  import ConfirmDialog from "../components/ConfirmDialog.svelte";
   import PageHeader from "../components/PageHeader.svelte";
   import PluginIcon, { LOGO_SIZE } from "../components/PluginIcon.svelte";
   import AppDetail from "../components/AppDetail.svelte";
@@ -26,6 +27,7 @@
   const summaryGen: Record<string, number> = {};
 
   let selected = $state<string | null>(null);
+  let uninstalling = $state<HostApp | null>(null);
 
   let importable = $state<ImportableApp[]>([]);
   let importApp = $state<string | null>(null);
@@ -131,6 +133,12 @@
     await loadConn(app.id);
   }
 
+  async function confirmUninstall(): Promise<void> {
+    const app = uninstalling;
+    uninstalling = null;
+    if (app) await handleUninstall(app, false);
+  }
+
   async function handleUninstall(app: HostApp, wipe: boolean): Promise<void> {
     await track(`Uninstall ${app.label}`, app.id, () => cairn.appsUninstallCli(app.id, wipe));
     const { [app.id]: _removed, ...rest } = summaries;
@@ -153,37 +161,31 @@
   <p class="error">Could not load app status: {connError}</p>
 {/if}
 
-{#snippet chainNode(label: string, on: boolean)}
-  <span class="node" class:on><i class="dot"></i>{label}</span>
-{/snippet}
-
-{#snippet appCard(app: HostApp)}
+{#snippet appEntry(app: HostApp)}
   {@const c = conns[app.id]}
   {@const connected = isConnected(c)}
-  <div class="card" class:connected>
-    <div class="cardhead">
-      <PluginIcon name={app.label} icon={app.icon} size={LOGO_SIZE.list} />
-      <span class="name">{app.label}</span>
+  <div class="approw" class:connected>
+    <button class="rowmain" onclick={() => open(app)} title={`Open ${app.label}`}>
+      <PluginIcon name={app.label} icon={app.icon} size={LOGO_SIZE.compact} />
+      <span class="rtext">
+        <span class="rname">{app.label}</span>
+        <span class="rsub">{c?.loaderId ?? "No loader"}</span>
+      </span>
+      <span class="rchips">
+        <span class="rchip" class:on={c?.cliPresent}>CLI</span>
+        {#if c?.loaderId}<span class="rchip" class:on={c?.loaderInstalled}>Loader</span>{/if}
+      </span>
       <StatusPill variant={connected ? "good" : "off"} label={statusLabel(c)} />
-    </div>
-
-    <div class="chain" aria-label="Connection chain">
-      {@render chainNode("CLI", !!c?.cliPresent)}
-      {#if c?.loaderId}
-        <span class="link" aria-hidden="true"></span>
-        {@render chainNode("Loader", !!c?.loaderInstalled)}
-      {/if}
-    </div>
-
-    <div class="cardactions">
+      <span class="chev" aria-hidden="true">›</span>
+    </button>
+    <div class="rowact">
       {#if !connected}
         <Button variant="primary" disabled={busy[app.id]} onclick={() => handlePrimary(app)}>
           {#if busy[app.id]}<Spinner />{/if}
           {ctaLabel(c)}
         </Button>
-      {/if}
-      {#if c?.cliPresent}
-        <Button onclick={() => open(app)}>{connected ? "Manage" : "Details"}</Button>
+      {:else}
+        <Button variant="danger" onclick={() => (uninstalling = app)}>Uninstall</Button>
       {/if}
     </div>
   </div>
@@ -191,8 +193,8 @@
 
 {#if !loaded}
   <div class="skeletons">
-    <Skeleton height="96px" radius="12px" />
-    <Skeleton height="96px" radius="12px" />
+    <Skeleton height="60px" radius="12px" />
+    <Skeleton height="60px" radius="12px" />
   </div>
 {:else}
   <div class="toolbar">
@@ -203,7 +205,7 @@
     <div class="apps-grid" data-testid="apps-grid">
       {#each visibleApps as app (app.id)}
         <div data-testid={"app-" + app.id} in:flyMotion={{ y: 6 }}>
-          {@render appCard(app)}
+          {@render appEntry(app)}
         </div>
       {/each}
     </div>
@@ -211,7 +213,7 @@
     <ul class="list">
       {#each visibleApps as app (app.id)}
         <li data-testid={"app-" + app.id} in:flyMotion={{ y: 6 }}>
-          {@render appCard(app)}
+          {@render appEntry(app)}
         </li>
       {/each}
     </ul>
@@ -230,6 +232,17 @@
     onImport={() => selectedApp && openImport(selectedApp)}
     onPrimary={() => selectedApp && handlePrimary(selectedApp)}
     onUninstall={(wipe) => selectedApp && handleUninstall(selectedApp, wipe)}
+  />
+{/if}
+
+{#if uninstalling}
+  <ConfirmDialog
+    title={`Uninstall ${uninstalling.label}?`}
+    message={`This removes the ${uninstalling.label} CLI from this machine. Plugins and configuration stay in place.`}
+    confirmLabel="Uninstall"
+    danger
+    onCancel={() => (uninstalling = null)}
+    onConfirm={confirmUninstall}
   />
 {/if}
 
@@ -262,80 +275,112 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
   }
   .apps-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 10px;
   }
-  .card {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 14px 16px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-  }
-  .card.connected {
-    border-color: var(--border-strong);
-  }
-  .cardhead {
+  .approw {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
+    padding: 8px 12px 8px 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 11px;
   }
-  .cardhead .name {
-    font-size: 14px;
-    font-weight: 600;
-    letter-spacing: -.01em;
+  .approw:hover {
+    border-color: var(--border-strong);
+  }
+  .approw.connected {
+    border-color: var(--border-strong);
+  }
+  .apps-grid .approw {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .rowmain {
+    display: flex;
+    align-items: center;
+    gap: 11px;
     flex: 1;
     min-width: 0;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+    font-family: var(--ui);
+    color: var(--text);
+  }
+  .rtext {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex: 1;
+    min-width: 0;
+  }
+  .rname {
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: -.01em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .chain {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .node {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11px;
-    letter-spacing: .02em;
+  .rsub {
+    font-family: var(--mono);
+    font-size: 10.5px;
     color: var(--faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .node.on {
-    color: var(--text);
-  }
-  .node .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--border-strong);
-    flex: none;
-  }
-  .node.on .dot {
-    background: var(--good);
-  }
-  .link {
-    flex: none;
-    width: 16px;
-    height: 1px;
-    background: var(--border);
-  }
-  .cardactions {
+  .rchips {
     display: flex;
-    gap: 8px;
+    gap: 5px;
+    flex: none;
+  }
+  .rchip {
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--faint);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 2px 6px;
+  }
+  .rchip.on {
+    color: var(--good);
+    border-color: color-mix(in srgb, var(--good) 40%, var(--border));
+  }
+  .chev {
+    color: var(--faint);
+    font-size: 17px;
+    flex: none;
+  }
+  .apps-grid .chev {
+    display: none;
+  }
+  .rowact {
+    flex: none;
+    display: flex;
+  }
+  .apps-grid .rowact {
+    margin-top: 10px;
+  }
+  .apps-grid .rowact :global(button) {
+    width: 100%;
+    justify-content: center;
   }
   .skeletons {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
   }
   .error {
     color: var(--crit);
