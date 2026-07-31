@@ -9,6 +9,7 @@
   let status = $state<GithubStatus | null>(null);
   let busy = $state(false);
   let dialog = $state<null | { mode: "add" | "connect"; ghLogin?: string }>(null);
+  let starDismissed = $state(false);
 
   async function refresh(): Promise<void> {
     const result = await cairn.githubStatus();
@@ -100,11 +101,14 @@
     bumpGithub();
   }
 
-  async function toggleCairnStar(): Promise<void> {
+  // One-way: starring is never undone from here, so the button is dismissed the
+  // instant it's clicked rather than waiting on the round-trip to settle.
+  async function starCairn(): Promise<void> {
     if (busy || !status?.connected) return;
+    starDismissed = true;
     busy = true;
     try {
-      await cairn.githubStarCairn(!status.cairnStarred);
+      await cairn.githubStarCairn();
       await refresh();
     } finally {
       busy = false;
@@ -195,15 +199,14 @@
 
     <div class="cairnrow">
       <button class="ghlink" onclick={openOnGitHub}>Open Cairn on GitHub</button>
-      {#if status.connected}
+      {#if status.connected && status.cairnStarred === false && !starDismissed}
         <button
           class="starcairn"
-          class:starred={status.cairnStarred === true}
           disabled={busy}
-          title={status.cairnStarred ? "Unstar Cairn" : "Star Cairn"}
-          onclick={toggleCairnStar}
+          title="Star Cairn"
+          onclick={starCairn}
         >
-          {status.cairnStarred ? "★ Starred" : "☆ Star Cairn"}
+          ☆ Star Cairn
         </button>
       {/if}
     </div>
@@ -423,10 +426,6 @@
   .starcairn:hover:not(:disabled) {
     color: var(--text);
     border-color: var(--border-strong);
-  }
-  .starcairn.starred {
-    color: #e3b341;
-    border-color: color-mix(in srgb, #e3b341 45%, transparent);
   }
   .starcairn:disabled {
     opacity: .5;
