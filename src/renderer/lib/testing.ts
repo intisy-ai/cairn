@@ -94,7 +94,7 @@ function defaultCairn(): CairnAPI {
     importApps: async () => ({ ok: true, data: [] }),
     importPreview: async () => ({ ok: true, data: { accounts: 0, routingSlots: null, exposedProviders: 0 } }),
     importRun: async () => ({ ok: true, data: { accounts: 0, providers: 0, routingImported: false, notes: [] } }),
-    catalogList: async () => ({ ok: true, data: { entries: [], source: "anonymous", org: "intisy-ai" } }),
+    catalogList: async () => ({ ok: true, data: { entries: [], source: "anonymous", org: "intisy-ai", rateLimited: false } }),
     githubStatus: async () => ({
       ok: true,
       data: { source: "anonymous", connected: false, login: null, name: null, avatarUrl: null, ghCliDetected: false, ghCli: null, accounts: [], activeLogin: null, cairnRepoUrl: "https://github.com/intisy-ai/cairn", cairnStarred: null },

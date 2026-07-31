@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin, PluginVersion, Result, InstallManyResult, InstallOutcome, RepoRef, EngineView } from "@cairn/shared";
+  import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin, PluginVersion, Result, InstallManyResult, InstallOutcome, RepoRef, EngineView, GithubStatus } from "@cairn/shared";
   import { classifyRepoName } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { consumeParams } from "../router.js";
@@ -24,8 +24,9 @@
   import PluginDetail from "../components/PluginDetail.svelte";
   import EmptyState from "../components/EmptyState.svelte";
   import ViewToggle from "../components/ViewToggle.svelte";
+  import GitHubConnectDialog from "../components/GitHubConnectDialog.svelte";
   import { loadViewMode, saveViewMode, type ViewMode } from "../viewMode.js";
-  import { githubChanged } from "../githubStore.js";
+  import { githubChanged, bumpGithub } from "../githubStore.js";
 
   const VIRTUALIZE_THRESHOLD = 20;
   const ROW_HEIGHT = 96;
@@ -38,6 +39,10 @@
   let favorites = $state<string[]>([]);
   let pluginsError = $state("");
   let loaded = $state(false);
+  let catalogRateLimited = $state(false);
+  let ghStatus = $state<GithubStatus | null>(null);
+  let rateLimitBannerDismissed = $state(false);
+  let connectDialogOpen = $state(false);
 
   function versionLabelFor(p: UnifiedPlugin): string {
     return Object.values(versions[p.name] ?? {}).map((v) => v.label).find((l): l is string => !!l) ?? "";
@@ -131,6 +136,7 @@
   const addPluginHome = $derived(homes[0]?.id ?? "cairn");
   // Derive from the live list by name so the open detail reflects installs/removes.
   const selectedPlugin = $derived(selectedName ? unified.find((p) => p.name === selectedName) ?? null : null);
+  const showRateLimitBanner = $derived(catalogRateLimited && !!ghStatus && !ghStatus.connected && !rateLimitBannerDismissed);
 
   async function loadPlugins(): Promise<void> {
     const result = await cairn.pluginsList();
@@ -147,7 +153,13 @@
     if (result.ok) {
       catalog = result.data.entries;
       catalogOrg = result.data.org;
+      catalogRateLimited = result.data.rateLimited;
     }
+  }
+
+  async function loadGithubStatus(): Promise<void> {
+    const result = await cairn.githubStatus();
+    if (result.ok) ghStatus = result.data;
   }
 
   async function loadEngines(): Promise<void> {
@@ -184,9 +196,32 @@
   }
 
   async function reload(): Promise<void> {
-    await Promise.all([loadPlugins(), loadCatalog(), loadEngines(), loadFavorites()]);
+    await Promise.all([loadPlugins(), loadCatalog(), loadEngines(), loadFavorites(), loadGithubStatus()]);
     loaded = true;
     void loadVersions();
+  }
+
+  // One-click connect from the rate-limit banner: reuses the detected gh CLI
+  // token when present, otherwise opens the same "add account" dialog used
+  // elsewhere. Either path reloads the catalog + status and notifies the rest
+  // of the app so the titlebar's GitHub menu picks up the new account too.
+  async function connectFromBanner(): Promise<void> {
+    if (!ghStatus?.ghCli) {
+      connectDialogOpen = true;
+      return;
+    }
+    const result = await cairn.githubConnectGhCli(false);
+    if (result.ok) await finishBannerConnect();
+  }
+
+  async function finishBannerConnect(): Promise<void> {
+    connectDialogOpen = false;
+    await Promise.all([loadCatalog(), loadGithubStatus()]);
+    bumpGithub();
+  }
+
+  function dismissRateLimitBanner(): void {
+    rateLimitBannerDismissed = true;
   }
 
   function homesById(): Record<string, PluginHome> {
@@ -326,6 +361,7 @@
       return;
     }
     loadCatalog();
+    loadGithubStatus();
   });
 </script>
 
@@ -358,6 +394,18 @@
     <Chip label={`External ${counts.external}`} on={externalOnly} onclick={() => (externalOnly = !externalOnly)} />
     <Chip label={`Favorites ${counts.favorite}`} on={favoritesOnly} onclick={() => (favoritesOnly = !favoritesOnly)} />
   </div>
+
+  {#if showRateLimitBanner}
+    <div class="ratelimit-banner">
+      <span>GitHub's anonymous rate limit was reached. Installing still works; connect a GitHub account to keep browsing the catalog.</span>
+      <div class="ratelimit-actions">
+        <Button onclick={connectFromBanner}>
+          {ghStatus?.ghCli ? `Connect @${ghStatus.ghCli.login}` : "Connect GitHub account"}
+        </Button>
+        <button class="dismiss" title="Dismiss" aria-label="Dismiss" onclick={dismissRateLimitBanner}>×</button>
+      </div>
+    </div>
+  {/if}
 
   {#snippet favoriteButton(p: UnifiedPlugin)}
     <button
@@ -494,8 +542,13 @@
       onUpdate={() => handleUpdate(selectedPlugin)}
       onUpdateHome={(homeId) => updateHome(selectedPlugin, homeId)}
       onToggleHome={(homeId, on) => (on ? addHome(selectedPlugin, homeId) : removeHome(selectedPlugin, homeId))}
+      onToggleFavorite={() => toggleFavorite(selectedPlugin)}
       onChanged={reload}
     />
+  {/if}
+
+  {#if connectDialogOpen}
+    <GitHubConnectDialog mode="add" onCancel={() => (connectDialogOpen = false)} onDone={finishBannerConnect} />
   {/if}
 
   {#if pendingConfirm}
@@ -530,6 +583,40 @@
     height: 18px;
     background: var(--border);
     margin: 0 3px;
+  }
+  .ratelimit-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    margin: 0 2px 14px;
+    border-radius: 10px;
+    background: var(--accent-weak);
+    border: 1px solid var(--accent-border);
+    font-size: 12.5px;
+    color: var(--text);
+  }
+  .ratelimit-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+  }
+  .ratelimit-banner .dismiss {
+    all: unset;
+    cursor: pointer;
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .ratelimit-banner .dismiss:hover {
+    background: var(--surface-2);
+    color: var(--text);
   }
   .plugins-grid {
     display: grid;

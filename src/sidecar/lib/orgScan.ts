@@ -54,17 +54,14 @@ export function activeGithubToken(): string | null {
   return typeof legacy === "string" && legacy.trim() ? legacy.trim() : null;
 }
 
-export async function resolveToken(env: NodeJS.ProcessEnv, execFn: (f: string, a: string[]) => Promise<string>): Promise<{ token: string | null; source: CatalogResult["source"] }> {
+// Never falls back to the local gh CLI: a token is only used once the user has
+// explicitly connected a GitHub account (env var or a stored account). The gh CLI
+// is merely detected elsewhere (resolveGhCli) to offer a one-click connect prompt.
+export async function resolveToken(env: NodeJS.ProcessEnv, _execFn: (f: string, a: string[]) => Promise<string>): Promise<{ token: string | null; source: CatalogResult["source"] }> {
   const envToken = env.GITHUB_TOKEN?.trim() || env.GH_TOKEN?.trim();
   if (envToken) return { token: envToken, source: "env" };
   const configToken = activeGithubToken();
   if (configToken) return { token: configToken, source: "config" };
-  try {
-    const out = (await execFn("gh", ["auth", "token"])).trim();
-    if (out) return { token: out, source: "gh" };
-  } catch {
-    // gh unavailable or not logged in
-  }
   return { token: null, source: "anonymous" };
 }
 
@@ -128,13 +125,19 @@ export async function scanOrg(deps: OrgScanDeps = {}): Promise<CatalogResult> {
   const fetchFn = deps.fetchFn ?? fetch;
   const org = resolveOrg(deps.getOrg);
   const { token, source } = await resolveToken(deps.env ?? process.env, deps.execFn ?? realExec);
+  let rateLimited = false;
   try {
     const entries: CatalogEntry[] = [];
     for (let page = 1; page <= 5; page++) {
       const response = await fetchFn(`https://api.github.com/orgs/${org}/repos?per_page=100&page=${page}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (!response.ok) throw new Error(`org scan http ${response.status}`);
+      if (!response.ok) {
+        if (response.status === 429 || (response.status === 403 && response.headers.get("x-ratelimit-remaining") === "0")) {
+          rateLimited = true;
+        }
+        throw new Error(`org scan http ${response.status}`);
+      }
       const repos = (await response.json()) as RepoJson[];
       for (const repo of repos) {
         if (!repo.name) continue;
@@ -162,12 +165,12 @@ export async function scanOrg(deps: OrgScanDeps = {}): Promise<CatalogResult> {
         // enrichment failure never empties the catalog
       }
     }
-    const result: CatalogResult = { entries, source, org };
+    const result: CatalogResult = { entries, source, org, rateLimited: false };
     if (entries.length > 0 || !cache) cache = { at: now(), result };
     return cache.result;
   } catch {
     if (cache) return cache.result;
-    const empty: CatalogResult = { entries: [], source, org };
+    const empty: CatalogResult = { entries: [], source, org, rateLimited };
     return empty;
   }
 }

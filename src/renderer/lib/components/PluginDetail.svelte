@@ -19,6 +19,7 @@
     onUpdate,
     onUpdateHome,
     onToggleHome,
+    onToggleFavorite,
     onChanged,
   }: {
     plugin: UnifiedPlugin;
@@ -31,6 +32,7 @@
     onUpdate: () => void;
     onUpdateHome: (homeId: string) => Promise<void>;
     onToggleHome: (homeId: string, on: boolean) => void;
+    onToggleFavorite?: () => void;
     onChanged?: () => void;
   } = $props();
 
@@ -114,6 +116,18 @@
 </script>
 
 {#snippet topActions()}
+  {#if onToggleFavorite}
+    <button
+      type="button"
+      class="favorite"
+      class:on={plugin.favorite}
+      title={plugin.favorite ? "Unfavorite" : "Favorite"}
+      aria-label={plugin.favorite ? "Unfavorite" : "Favorite"}
+      onclick={onToggleFavorite}
+    >
+      {plugin.favorite ? "★" : "☆"}
+    </button>
+  {/if}
   {#if plugin.updateAvailable}
     <IconButton name="refresh" title="Update" onclick={onUpdate} />
   {/if}
@@ -184,6 +198,33 @@
 <RepoDetail {repo} {onClose} {tabs} tabContent={content} actions={topActions} versionLabel={representativeVersion} />
 
 <style>
+  .favorite {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    flex: none;
+  }
+  .favorite:hover {
+    color: var(--text);
+    border-color: var(--faint);
+    background: var(--surface-2);
+  }
+  .favorite.on {
+    color: #e3b341;
+  }
+  .favorite:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
   .label {
     margin: 0 0 10px;
     font-size: 10.5px;

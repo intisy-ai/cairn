@@ -9,8 +9,13 @@
   let open = $state(false);
 
   let root = $state<HTMLElement | null>(null);
+  // A one-way button (e.g. Star Cairn) can remove itself from the DOM the instant
+  // it's clicked, so by the time this handler runs e.target is already detached
+  // and root.contains(target) would be false. Only close for a click that landed
+  // on something still in the document but outside root.
   function onWindowClick(e: MouseEvent): void {
-    if (open && root && !root.contains(e.target as Node)) open = false;
+    const target = e.target as Node;
+    if (open && root && document.contains(target) && !root.contains(target)) open = false;
   }
   function onKey(e: KeyboardEvent): void {
     if (e.key === "Escape") open = false;
