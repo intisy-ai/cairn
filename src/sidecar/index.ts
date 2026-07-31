@@ -7,7 +7,7 @@ import { accountsLoginBegin, accountsLoginComplete, accountsLoginCancel } from "
 import { providersList, providersSetActive, providersSetExposure } from "./modules/providers.js";
 import { routingApps, routingGet, routingSetChain } from "./modules/routing.js";
 import { appsDetect, appsList, appsInstallCli, appsInit, appsUninstallCli, appsSummary, appsConnection, appsInstallLoader } from "./modules/apps.js";
-import { pluginsList, pluginVersions, pluginsInstall, pluginsInstallMany, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
+import { pluginsList, pluginVersions, pluginVersionsAll, pluginsInstall, pluginsInstallMany, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
 import { enginesList, ensureEngines, ensureEngine } from "./modules/engines.js";
 import { proxiesList, proxiesSetEnabled } from "./modules/proxies.js";
 import { repoMeta } from "./modules/repo.js";
@@ -71,6 +71,7 @@ registerHandler("apps:installLoader", (app) => appsInstallLoader(app as string))
 registerHandler("repo:meta", (url) => repoMeta(url as string));
 registerHandler("plugins:list", () => pluginsList());
 registerHandler("plugins:versions", (name) => pluginVersions(name as string));
+registerHandler("plugins:versionsAll", () => pluginVersionsAll());
 registerHandler("engines:list", () => enginesList());
 registerHandler("engines:ensure", (capability) => ensureEngine(capability as string));
 registerHandler("plugins:install", (home, name, url) => pluginsInstall(home as PluginHomeId, name as string, url as string));

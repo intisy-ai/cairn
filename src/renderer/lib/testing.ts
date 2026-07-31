@@ -65,6 +65,7 @@ function defaultCairn(): CairnAPI {
     repoMeta: async () => ({ ok: true, data: { owner: "", repo: "", htmlUrl: "", stars: null, description: "", topics: [], readme: null } }),
     pluginsList: async () => ({ ok: true, data: [] }),
     pluginVersions: async () => ({ ok: true, data: {} }),
+    pluginVersionsAll: async () => ({ ok: true, data: {} }),
     enginesList: async () => ({ ok: true, data: [] }),
     enginesEnsure: async () => ({ ok: true, data: undefined }),
     pluginsInstall: async (_home, _name, _url) => ({ ok: true, data: undefined }),

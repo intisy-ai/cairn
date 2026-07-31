@@ -156,6 +156,13 @@ export interface PluginVersionsDeps {
   readCache?: (dir: string) => UpdateCache;
   describe?: (dir: string) => string | null;
   exists?: (path: string) => boolean;
+  getPlugins?: (dir: string) => Plugin[];
+  npmPlugins?: (dir: string) => Promise<NpmPlugin[]>;
+}
+
+function gitVersionFor(repoDir: string, entry: UpdateCache["plugins"][string] | undefined, describe: (dir: string) => string | null): PluginVersion {
+  const label = formatGitVersion(describe(repoDir)) ?? (entry?.localHead ? entry.localHead.slice(0, 7) : null);
+  return { kind: "git", label, updateAvailable: entry?.updateAvailable ?? false };
 }
 
 export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Promise<Result<Record<string, PluginVersion>>> {
@@ -170,11 +177,37 @@ export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Pro
       const entry = readCache(home.dir).plugins[name];
       const repoDir = join(home.dir, "repos", name);
       if (exists(repoDir)) {
-        const described = formatGitVersion(describe(repoDir));
-        const fallbackSha = entry?.localHead ? entry.localHead.slice(0, 7) : null;
-        out[home.id] = { kind: "git", label: described ?? fallbackSha, updateAvailable: entry?.updateAvailable ?? false };
+        out[home.id] = gitVersionFor(repoDir, entry, describe);
       } else if (entry?.kind === "npm") {
         out[home.id] = { kind: "npm", label: entry.installedVersion, updateAvailable: entry.updateAvailable };
+      }
+    }
+    return out;
+  });
+}
+
+// One pass over every home computes the version of each installed plugin, so the
+// Plugins list can show versions without a per-row round-trip.
+export function pluginVersionsAll(deps: PluginVersionsDeps = {}): Promise<Result<Record<string, Record<string, PluginVersion>>>> {
+  return wrap(async () => {
+    const homes = await resolveHomes(deps);
+    const readCache = deps.readCache ?? readUpdateCache;
+    const describe = deps.describe ?? realDescribe;
+    const exists = deps.exists ?? existsSync;
+    const listGit = deps.getPlugins ?? getPlugins;
+    const listNpm = deps.npmPlugins ?? getNpmPlugins;
+    const out: Record<string, Record<string, PluginVersion>> = {};
+    for (const home of homes) {
+      if (!home.present) continue;
+      const cache = readCache(home.dir);
+      for (const p of listGit(home.dir)) {
+        const repoDir = join(home.dir, "repos", p.name);
+        if (!exists(repoDir)) continue;
+        (out[p.name] ??= {})[home.id] = gitVersionFor(repoDir, cache.plugins[p.name], describe);
+      }
+      for (const p of await listNpm(home.dir)) {
+        const entry = cache.plugins[p.name];
+        (out[p.name] ??= {})[home.id] = { kind: "npm", label: entry?.installedVersion ?? null, updateAvailable: entry?.updateAvailable ?? false };
       }
     }
     return out;

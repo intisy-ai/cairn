@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin, Result, InstallManyResult, InstallOutcome, RepoRef, EngineView } from "@cairn/shared";
+  import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin, PluginVersion, Result, InstallManyResult, InstallOutcome, RepoRef, EngineView } from "@cairn/shared";
   import { classifyRepoName } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { consumeParams } from "../router.js";
@@ -32,8 +32,13 @@
   let sections = $state<HomePlugins[]>([]);
   let catalog = $state<CatalogEntry[]>([]);
   let engines = $state<EngineView[]>([]);
+  let versions = $state<Record<string, Record<string, PluginVersion>>>({});
   let pluginsError = $state("");
   let loaded = $state(false);
+
+  function versionLabelFor(p: UnifiedPlugin): string {
+    return Object.values(versions[p.name] ?? {}).map((v) => v.label).find((l): l is string => !!l) ?? "";
+  }
 
   let searchRaw = $state("");
   let search = $state("");
@@ -132,6 +137,10 @@
   async function reload(): Promise<void> {
     await Promise.all([loadPlugins(), loadCatalog(), loadEngines()]);
     loaded = true;
+    // Versions need a git describe per plugin, so load them after the list renders.
+    cairn.pluginVersionsAll().then((result) => {
+      if (result.ok) versions = result.data;
+    });
   }
 
   function homesById(): Record<string, PluginHome> {
@@ -295,6 +304,7 @@
           <div class="name-with-chip">
             <b>{p.displayName}</b>
             {#if p.displayName !== p.name}<span class="repo">{p.name}</span>{/if}
+            {#if versionLabelFor(p)}<span class="ver">{versionLabelFor(p)}</span>{/if}
             {#if p.kind === "provider" || p.kind === "proxy" || p.kind === "loader"}
               <span class="chip">{p.kind}</span>
             {/if}
@@ -327,6 +337,7 @@
         <PluginIcon icon={p.icon} name={p.displayName} kind={p.kind} size={LOGO_SIZE.list} />
         <div class="card-title">
           <b>{p.displayName}</b>
+          {#if versionLabelFor(p)}<span class="ver">{versionLabelFor(p)}</span>{/if}
           {#if p.kind === "provider" || p.kind === "proxy" || p.kind === "loader"}
             <span class="chip">{p.kind}</span>
           {/if}
@@ -526,6 +537,15 @@
     font-family: var(--mono);
     font-size: 11px;
     color: var(--faint);
+  }
+  .ver {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--accent);
+    background: var(--accent-weak);
+    border-radius: 5px;
+    padding: 1px 6px;
+    flex: none;
   }
   .desc {
     color: var(--muted);

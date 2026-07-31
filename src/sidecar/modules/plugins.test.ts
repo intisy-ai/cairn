@@ -487,4 +487,22 @@ describe("plugin versions", () => {
     if (!result.ok) throw new Error("unreachable");
     expect(result.data.claude).toEqual({ kind: "git", label: "abcdef1", updateAvailable: false });
   });
+
+  it("collects versions for every installed plugin across homes in one pass", async () => {
+    seedCache(claudeDir, {
+      checkedAt: "",
+      plugins: { "plugin-a": { kind: "git", installedVersion: null, localHead: "aaa", remoteHead: "bbb", latestVersion: null, updateAvailable: true, updatedAt: null } },
+    });
+    const { pluginVersionsAll } = await import("./plugins.js");
+    const result = await pluginVersionsAll({
+      homes: fakeHomes,
+      getPlugins: (dir) => (dir === claudeDir ? [{ name: "plugin-a", url: "u", enabled: true }] : []),
+      npmPlugins: async () => [],
+      describe: () => "v2.0.0",
+      exists: () => true,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data["plugin-a"].claude).toEqual({ kind: "git", label: "v2.0.0", updateAvailable: true });
+  });
 });

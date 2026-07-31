@@ -37,6 +37,7 @@ export const INVOKE_CHANNELS = {
   appsInstallLoader: "apps:installLoader",
   repoMeta: "repo:meta",
   pluginVersions: "plugins:versions",
+  pluginVersionsAll: "plugins:versionsAll",
   pluginsList: "plugins:list",
   enginesList: "engines:list",
   enginesEnsure: "engines:ensure",
