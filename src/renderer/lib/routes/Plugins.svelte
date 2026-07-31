@@ -80,6 +80,7 @@
     proxy: unified.filter((p) => p.kind === "proxy").length,
     plugin: unified.filter((p) => p.kind === "plugin").length,
     loader: unified.filter((p) => p.kind === "loader").length,
+    engine: unified.filter((p) => engineIds.has(p.name)).length,
     installed: unified.filter(isInstalled).length,
   });
   const filtered = $derived(
@@ -144,6 +145,11 @@
   function homesById(): Record<string, PluginHome> {
     return Object.fromEntries(homes.map((h) => [h.id, h]));
   }
+  // A home takes a non-engine plugin only once plugin-updater manages it there;
+  // engines bootstrap directly and Cairn's own home is always manageable.
+  function canInstallInto(p: UnifiedPlugin, homeId: string): boolean {
+    return engineIds.has(p.name) || !!homesById()[homeId]?.hasUpdater;
+  }
   function applicableHomesFor(p: UnifiedPlugin): { id: string; label: string; icon?: string }[] {
     const by = homesById();
     return Object.keys(p.homes).map((id) => ({ id, label: by[id]?.label ?? id, icon: by[id]?.icon }));
@@ -184,7 +190,9 @@
     await reload();
   }
   async function handleInstallAll(p: UnifiedPlugin): Promise<void> {
-    await installManyTracked(`Install ${p.name}`, p.name, p.url ?? "", notInstalledApplicable(p));
+    const targets = notInstalledApplicable(p).filter((id) => canInstallInto(p, id));
+    if (targets.length === 0) return;
+    await installManyTracked(`Install ${p.name}`, p.name, p.url ?? "", targets);
     await reload();
   }
   async function handleUpdate(p: UnifiedPlugin): Promise<void> {
@@ -243,7 +251,7 @@
     <Chip label={`Proxies ${counts.proxy}`} on={kindFilter === "proxy"} onclick={() => setKind("proxy")} />
     <Chip label={`Plugins ${counts.plugin}`} on={kindFilter === "plugin"} onclick={() => setKind("plugin")} />
     <Chip label={`Loaders ${counts.loader}`} on={kindFilter === "loader"} onclick={() => setKind("loader")} />
-    <Chip label="Engines" on={kindFilter === "engine"} onclick={() => setKind("engine")} />
+    <Chip label={`Engines ${counts.engine}`} on={kindFilter === "engine"} onclick={() => setKind("engine")} />
     <span class="sep"></span>
     <Chip label={`Installed ${counts.installed}`} on={installedOnly} onclick={() => (installedOnly = !installedOnly)} />
   </div>
@@ -258,6 +266,7 @@
           block
           plugin={p}
           homes={applicableHomesFor(p)}
+          canInstallHome={(homeId) => canInstallInto(p, homeId)}
           onInstallAll={() => handleInstallAll(p)}
           onRemoveEverywhere={() => confirmRemoveEverywhere(p)}
           onToggleHome={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
@@ -292,6 +301,7 @@
       <AppPills
         apps={applicableHomesFor(p)}
         values={installedMap(p)}
+        canInstall={(homeId) => canInstallInto(p, homeId)}
         onToggle={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
       />
       {@render installActions(p)}
@@ -357,6 +367,7 @@
     <PluginDetail
       plugin={selectedPlugin}
       homes={applicableHomesFor(selectedPlugin)}
+      canInstallHome={(homeId) => canInstallInto(selectedPlugin, homeId)}
       onClose={() => (selectedName = null)}
       onInstallAll={() => handleInstallAll(selectedPlugin)}
       onRemoveEverywhere={() => confirmRemoveEverywhere(selectedPlugin)}

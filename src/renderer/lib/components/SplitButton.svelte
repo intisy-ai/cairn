@@ -6,6 +6,7 @@
     disabled = false,
     danger = false,
     block = false,
+    title,
     onPrimary,
     menu,
   }: {
@@ -13,6 +14,7 @@
     disabled?: boolean;
     danger?: boolean;
     block?: boolean;
+    title?: string;
     onPrimary?: () => void;
     menu?: Snippet;
   } = $props();
@@ -34,7 +36,7 @@
 <svelte:window onclick={onWindowClick} onkeydown={onKey} />
 
 <div class="split" class:block bind:this={root}>
-  <button type="button" class="btn primary" class:danger {disabled} onclick={() => onPrimary?.()}>{label}</button>
+  <button type="button" class="btn primary" class:danger {disabled} {title} onclick={() => onPrimary?.()}>{label}</button>
   <button
     type="button"
     class="btn caret"

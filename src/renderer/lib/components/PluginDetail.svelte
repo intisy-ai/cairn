@@ -11,6 +11,7 @@
   let {
     plugin,
     homes,
+    canInstallHome,
     onClose,
     onInstallAll,
     onRemoveEverywhere,
@@ -20,6 +21,7 @@
   }: {
     plugin: UnifiedPlugin;
     homes: { id: string; label: string; icon?: string }[];
+    canInstallHome?: (homeId: string) => boolean;
     onClose: () => void;
     onInstallAll: () => void;
     onRemoveEverywhere: () => void;
@@ -112,7 +114,7 @@
   {#if plugin.updateAvailable}
     <IconButton name="refresh" title="Update" onclick={onUpdate} />
   {/if}
-  <PluginInstallControl {plugin} {homes} {onInstallAll} {onRemoveEverywhere} {onToggleHome} />
+  <PluginInstallControl {plugin} {homes} {canInstallHome} {onInstallAll} {onRemoveEverywhere} {onToggleHome} />
 {/snippet}
 
 {#snippet content(active: string)}
@@ -145,7 +147,13 @@
             {:else}
               <span class="state">{on ? "Installed" : "Not installed"}</span>
             {/if}
-            <button class="toggle" class:on onclick={() => onToggleHome(h.id, !on)}>{on ? "Remove" : "Install"}</button>
+            {#if on}
+              <button class="toggle on" onclick={() => onToggleHome(h.id, false)}>Remove</button>
+            {:else if !canInstallHome || canInstallHome(h.id)}
+              <button class="toggle" onclick={() => onToggleHome(h.id, true)}>Install</button>
+            {:else}
+              <button class="toggle" disabled title="Install plugin-updater in this app first">Install</button>
+            {/if}
           </li>
         {/each}
       </ul>
@@ -291,6 +299,10 @@
   .toggle.on {
     color: var(--crit);
     border-color: var(--crit);
+  }
+  .toggle:disabled {
+    opacity: .5;
+    cursor: default;
   }
   .controls {
     display: flex;

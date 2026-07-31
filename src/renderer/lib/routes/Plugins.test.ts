@@ -198,6 +198,39 @@ describe("Plugins screen", () => {
     expect(chips.map((c) => c.textContent)).toEqual(expect.arrayContaining(["intisy-ai", "plugin", "typescript"]));
   });
 
+  it("gates install into a home without plugin-updater but lets engines through", async () => {
+    stubCairn({
+      pluginsList: async () => ({
+        ok: true,
+        data: [
+          { home: CAIRN, rows: [] },
+          { home: home("claude", "Claude Code", { hasUpdater: false }), rows: [] },
+          { home: home("opencode", "OpenCode", { hasUpdater: true }), rows: [] },
+        ],
+      }),
+      catalogList: async () => ({
+        ok: true,
+        data: {
+          entries: [
+            { name: "wakatime-sync", url: "u", kind: "plugin" as const, description: "normal", deprecated: false, topics: [] },
+            { name: "plugin-updater", url: "u", kind: "plugin" as const, description: "engine", deprecated: false, topics: [] },
+          ],
+          source: "gh" as const,
+        },
+      }),
+      enginesList: async () => ({ ok: true, data: [{ id: "plugin-updater", capability: "plugin-management", homes: {} }] }),
+    });
+    render(Plugins);
+
+    // A normal plugin's Claude pill is gated (no plugin-updater there): a non-interactive span with a hint.
+    const normal = within(await screen.findByTestId("plugin-wakatime-sync"));
+    const gatedPill = normal.getByTitle(/Claude Code . install plugin-updater/i);
+    expect(gatedPill.tagName.toLowerCase()).toBe("span");
+    // The engine itself is never gated: its Claude pill stays an install button.
+    const engine = within(await screen.findByTestId("plugin-plugin-updater"));
+    expect(engine.getByLabelText(/Claude Code: click to install/)).toBeInTheDocument();
+  });
+
   it("offers an Engines filter and shows only engine rows when active", async () => {
     stubCairn({
       pluginsList: async () => ({ ok: true, data: [] }),
@@ -212,7 +245,7 @@ describe("Plugins screen", () => {
     const { getByRole, getByText, queryByText, container } = render(Plugins);
     await waitFor(() => expect(getByText("wakatime-sync")).toBeTruthy());
     const filters = within(container.querySelector(".filters")!);
-    await fireEvent.click(filters.getByRole("button", { name: "Engines" }));
+    await fireEvent.click(filters.getByRole("button", { name: /Engines/ }));
     await waitFor(() => expect(queryByText("wakatime-sync")).toBeNull());
     expect(getByText("plugin-updater")).toBeTruthy();
   });
@@ -372,7 +405,7 @@ describe("Plugins screen", () => {
     expect(await screen.findByTestId("plugin-plugin-updater")).toBeInTheDocument();
 
     const filters = within(document.querySelector(".filters")!);
-    await fireEvent.click(filters.getByRole("button", { name: "Engines" }));
+    await fireEvent.click(filters.getByRole("button", { name: /Engines/ }));
     await waitFor(() => expect(screen.queryByText("wakatime-sync")).toBeNull());
     expect(screen.getByText("plugin-updater")).toBeInTheDocument();
   });

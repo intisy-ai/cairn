@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
-import { getConfigValue } from "@core/index.js";
+import { getConfigValue, isEngine } from "@core/index.js";
 import { getPlugins, getPluginsPath } from "@plugin-updater/config.js";
 import { readUpdateCache } from "@plugin-updater/cache.js";
 import { svgIconDataUri } from "../lib/pluginIcon.js";
@@ -262,6 +262,9 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
     if (homeId !== "cairn") {
       const hasUpdater = deps.hasUpdater ?? ((d: string) => existsSync(getPluginsPath(d)));
       if (!hasUpdater(dir)) {
+        // Engines bootstrap a home directly; everything else needs plugin-updater
+        // present first (which then manages it). Cairn's own home is exempt.
+        if (!isEngine(name)) throw new Error("install plugin-updater in this app before adding plugins");
         const initApp = deps.initApp ?? (await import("./apps.js")).appsInit;
         const result = await initApp(homeId);
         if (!result.ok) throw new Error(result.error);

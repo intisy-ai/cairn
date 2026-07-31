@@ -309,10 +309,10 @@ describe("plugins sidecar module", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("auto-inits an app home missing the updater before installing", async () => {
+  it("bootstraps an engine into an app home missing the updater by initializing it first", async () => {
     const order: string[] = [];
     const { pluginsInstall } = await import("./plugins.js");
-    const result = await pluginsInstall("claude", "plugin-a", "https://github.com/intisy-ai/plugin-a", {
+    const result = await pluginsInstall("claude", "plugin-updater", "https://github.com/intisy-ai/plugin-updater", {
       homes: fakeHomes,
       hasUpdater: () => false,
       initApp: async (app) => { order.push("init:" + app); return { ok: true, data: { stdout: "", stderr: "" } }; },
@@ -321,6 +321,18 @@ describe("plugins sidecar module", () => {
     });
     expect(result.ok).toBe(true);
     expect(order).toEqual(["init:claude", "install"]);
+  });
+
+  it("refuses to install a non-engine into an app home without plugin-updater", async () => {
+    const { pluginsInstall } = await import("./plugins.js");
+    const result = await pluginsInstall("claude", "plugin-a", "https://github.com/intisy-ai/plugin-a", {
+      homes: fakeHomes,
+      hasUpdater: () => false,
+      initApp: async () => ({ ok: true, data: { stdout: "", stderr: "" } }),
+      updatePluginPublic: async () => {},
+      syncPluginsAcrossApps: async () => {},
+    });
+    expect(result.ok).toBe(false);
   });
 
   it("does not init the cairn home or an app home that already has the updater", async () => {

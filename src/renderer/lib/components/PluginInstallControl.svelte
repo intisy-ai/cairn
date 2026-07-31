@@ -6,6 +6,7 @@
     plugin,
     homes,
     block = false,
+    canInstallHome,
     onInstallAll,
     onRemoveEverywhere,
     onToggleHome,
@@ -13,15 +14,22 @@
     plugin: UnifiedPlugin;
     homes: { id: string; label: string; icon?: string }[];
     block?: boolean;
+    canInstallHome?: (homeId: string) => boolean;
     onInstallAll: () => void;
     onRemoveEverywhere: () => void;
     onToggleHome: (homeId: string, on: boolean) => void;
   } = $props();
 
+  function allows(homeId: string): boolean {
+    return !canInstallHome || canInstallHome(homeId);
+  }
+
   const installedCount = $derived(homes.filter((h) => plugin.homes[h.id]?.installed).length);
   const fullyInstalled = $derived(installedCount === homes.length && homes.length > 0);
   const remainingCount = $derived(homes.length - installedCount);
+  const installableRemaining = $derived(homes.filter((h) => !plugin.homes[h.id]?.installed && allows(h.id)).length);
   const isRemoveAll = $derived(fullyInstalled);
+  const primaryDisabled = $derived(!isRemoveAll && installableRemaining === 0);
   const primaryLabel = $derived(
     isRemoveAll ? "Remove everywhere" : installedCount === 0 ? "Install everywhere" : `Install in ${remainingCount}`,
   );
@@ -33,8 +41,10 @@
       {@const on = !!plugin.homes[h.id]?.installed}
       {#if on}
         <button class="mrow danger" onclick={() => onToggleHome(h.id, false)}>Remove from {h.label}</button>
-      {:else}
+      {:else if allows(h.id)}
         <button class="mrow" onclick={() => onToggleHome(h.id, true)}>Install in {h.label}</button>
+      {:else}
+        <button class="mrow" disabled title="Install plugin-updater in this app first">Install in {h.label}</button>
       {/if}
     {/each}
     {#if installedCount > 0 && !fullyInstalled}
@@ -46,6 +56,8 @@
 <SplitButton
   label={primaryLabel}
   danger={isRemoveAll}
+  disabled={primaryDisabled}
+  title={primaryDisabled ? "Install plugin-updater in an app first" : undefined}
   {block}
   onPrimary={() => (isRemoveAll ? onRemoveEverywhere() : onInstallAll())}
   {menu}
@@ -67,10 +79,14 @@
     color: var(--text);
     cursor: pointer;
   }
-  .mrow:hover {
+  .mrow:hover:not(:disabled) {
     background: var(--surface-2);
   }
   .mrow.danger {
     color: var(--crit);
+  }
+  .mrow:disabled {
+    color: var(--faint);
+    cursor: default;
   }
 </style>
