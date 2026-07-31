@@ -133,13 +133,19 @@
     if (result.ok) engines = result.data;
   }
 
+  // Show cached versions instantly, then overwrite with the freshly computed ones
+  // (a git describe per plugin) so only rows whose version changed visibly update.
+  async function loadVersions(): Promise<void> {
+    const cached = await cairn.pluginVersionsCached();
+    if (cached.ok && Object.keys(cached.data).length > 0) versions = cached.data;
+    const fresh = await cairn.pluginVersionsAll();
+    if (fresh.ok) versions = fresh.data;
+  }
+
   async function reload(): Promise<void> {
     await Promise.all([loadPlugins(), loadCatalog(), loadEngines()]);
     loaded = true;
-    // Versions need a git describe per plugin, so load them after the list renders.
-    cairn.pluginVersionsAll().then((result) => {
-      if (result.ok) versions = result.data;
-    });
+    void loadVersions();
   }
 
   function homesById(): Record<string, PluginHome> {

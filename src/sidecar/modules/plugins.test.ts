@@ -547,6 +547,26 @@ describe("plugin versions", () => {
     expect(result.data.opencode).toEqual({ kind: "git", label: null, updateAvailable: false, autoUpdate: true });
   });
 
+  it("persists computed versions so a later cached read returns them instantly", async () => {
+    const { resetCacheForTests } = await import("../lib/cache.js");
+    resetCacheForTests();
+    const { pluginVersionsAll, pluginVersionsCached } = await import("./plugins.js");
+    const deps = {
+      homes: fakeHomes,
+      getPlugins: (dir: string) => (dir === claudeDir ? [{ name: "plugin-a", url: "u", enabled: true }] : []),
+      npmPlugins: async () => [],
+      describe: () => "v3.1.0",
+      exists: () => true,
+      cacheDir: cairnDir,
+    };
+    await pluginVersionsAll(deps);
+    resetCacheForTests();
+    const cached = await pluginVersionsCached({ cacheDir: cairnDir });
+    expect(cached.ok).toBe(true);
+    if (!cached.ok) throw new Error("unreachable");
+    expect(cached.data["plugin-a"].claude).toEqual({ kind: "git", label: "v3.1.0", updateAvailable: false, autoUpdate: true });
+  });
+
   it("collects versions for every installed plugin across homes in one pass", async () => {
     seedCache(claudeDir, {
       checkedAt: "",

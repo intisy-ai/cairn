@@ -1,5 +1,9 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { repoMeta, parseOwnerRepo, resetRepoMetaCacheForTests } from "./repo.js";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { repoMeta, repoMetaCached, parseOwnerRepo, resetRepoMetaCacheForTests } from "./repo.js";
+import { resetCacheForTests } from "../lib/cache.js";
 
 function b64(s: string): string {
   return Buffer.from(s, "utf-8").toString("base64");
@@ -19,7 +23,7 @@ function fetchStub(repoJson: unknown | null, readme?: { ok: boolean; content?: s
   return { fn, calls: () => repoCalls };
 }
 
-const noToken = { execFn: async () => "", env: {} as NodeJS.ProcessEnv };
+const noToken = { execFn: async () => "", env: {} as NodeJS.ProcessEnv, cacheDir: "" };
 
 describe("parseOwnerRepo", () => {
   it("parses full urls, .git suffixes, and shorthand", () => {
@@ -79,5 +83,19 @@ describe("repoMeta", () => {
     await repoMeta("o/r", { ...noToken, fetchFn: fn, now: () => 1000 });
     await repoMeta("o/r", { ...noToken, fetchFn: fn, now: () => 2000 });
     expect(calls()).toBe(1);
+  });
+
+  it("persists to the disk cache so a later cached read returns it instantly", async () => {
+    resetCacheForTests();
+    const cacheDir = mkdtempSync(join(tmpdir(), "repo-cache-"));
+    try {
+      expect((await repoMetaCached("o/r", cacheDir)).ok && ((await repoMetaCached("o/r", cacheDir)) as { data: unknown }).data).toBe(null);
+      const { fn } = fetchStub({ stargazers_count: 7, description: "d", topics: [], html_url: "https://github.com/o/r" });
+      await repoMeta("o/r", { ...noToken, cacheDir, fetchFn: fn, now: () => 1 });
+      const cached = await repoMetaCached("o/r", cacheDir);
+      expect(cached.ok && cached.data?.stars).toBe(7);
+    } finally {
+      rmSync(cacheDir, { recursive: true, force: true });
+    }
   });
 });

@@ -1,9 +1,12 @@
 import { resolveToken, realExec } from "../lib/orgScan.js";
+import { readCache, writeCache } from "../lib/cache.js";
+import { getConfigDir } from "@core-auth/index.js";
 import type { RepoMeta, Result } from "../../../packages/shared/src/domain.js";
 import { wrap, err } from "../result.js";
 
 const TTL_MS = 1_800_000;
 const README_CAP = 200_000;
+const REPO_META_NS = "repoMeta";
 
 const cache = new Map<string, { at: number; value: RepoMeta }>();
 export function resetRepoMetaCacheForTests(): void { cache.clear(); }
@@ -13,6 +16,14 @@ export interface RepoMetaDeps {
   execFn?: (file: string, args: string[]) => Promise<string>;
   env?: NodeJS.ProcessEnv;
   now?: () => number;
+  // Where the persistent cache lives; "" disables disk persistence (used in tests).
+  cacheDir?: string;
+}
+
+// The last-known repo meta from the persistent cache, for instant display while a
+// fresh repoMeta() fetch runs in the background. Null when nothing is cached yet.
+export function repoMetaCached(url: string, cacheDir?: string): Promise<Result<RepoMeta | null>> {
+  return wrap(async () => readCache<RepoMeta>(REPO_META_NS, url, cacheDir ?? getConfigDir())?.value ?? null);
 }
 
 // Accepts a full github.com URL or an `owner/repo` shorthand (engines use the
@@ -75,6 +86,7 @@ export function repoMeta(url: string, deps: RepoMetaDeps = {}): Promise<Result<R
       readme,
     };
     cache.set(url, { at: now(), value });
+    writeCache(REPO_META_NS, url, value, deps.cacheDir ?? getConfigDir());
     return value;
   });
 }

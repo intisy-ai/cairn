@@ -48,6 +48,14 @@
   }
 
   onMount(() => {
+    // Paint cached stars/readme instantly, then refresh from GitHub in the
+    // background so the panel never opens to an empty "Loading…" state.
+    cairn.repoMetaCached(repo.url).then((result) => {
+      if (result.ok && result.data && !meta) {
+        meta = result.data;
+        metaLoaded = true;
+      }
+    });
     cairn.repoMeta(repo.url).then((result) => {
       if (result.ok) meta = result.data;
       metaLoaded = true;

@@ -18,7 +18,10 @@ import type { UpdateCache } from "@plugin-updater/cache.js";
 import type { Plugin, NpmPlugin } from "@plugin-updater/types.js";
 import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, PluginVersion, Result, CliResult, InstallManyResult, InstallOutcome } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir, updaterInstalled } from "../lib/pluginHomes.js";
+import { readNamespace, writeCache } from "../lib/cache.js";
 import { wrap } from "../result.js";
+
+const VERSIONS_NS = "versions";
 
 type UpdatePluginPublicFn = (name: string, url: string, branch?: string, commitHash?: string) => Promise<void | object>;
 type SyncPluginsAcrossAppsFn = (configDir: string) => Promise<void>;
@@ -161,6 +164,20 @@ export interface PluginVersionsDeps {
   exists?: (path: string) => boolean;
   getPlugins?: (dir: string) => Plugin[];
   npmPlugins?: (dir: string) => Promise<NpmPlugin[]>;
+  // Where the persistent version cache lives; "" disables it (used in tests).
+  cacheDir?: string;
+}
+
+// The last-known versions from the persistent cache, so the Plugins list shows
+// versions instantly on load while pluginVersionsAll() recomputes in the
+// background. Returns an empty map on a cold cache.
+export function pluginVersionsCached(deps: PluginVersionsDeps = {}): Promise<Result<Record<string, Record<string, PluginVersion>>>> {
+  return wrap(async () => {
+    const ns = readNamespace<Record<string, PluginVersion>>(VERSIONS_NS, deps.cacheDir ?? getConfigDir());
+    const out: Record<string, Record<string, PluginVersion>> = {};
+    for (const [name, entry] of Object.entries(ns)) out[name] = entry.value;
+    return out;
+  });
 }
 
 function gitVersionFor(repoDir: string, entry: UpdateCache["plugins"][string] | undefined, describe: (dir: string) => string | null, autoUpdate: boolean): PluginVersion {
@@ -237,6 +254,10 @@ export function pluginVersionsAll(deps: PluginVersionsDeps = {}): Promise<Result
     for (const { name, homeId, autoUpdate } of missing) {
       if (!out[name][homeId]) markUnknown(out[name], [{ id: homeId, autoUpdate }]);
     }
+    // Persist each plugin's versions (write-on-change) so the next load renders
+    // instantly from cache and only rows that actually changed update.
+    const cacheDir = deps.cacheDir ?? getConfigDir();
+    for (const [name, perHome] of Object.entries(out)) writeCache(VERSIONS_NS, name, perHome, cacheDir);
     return out;
   });
 }

@@ -30,9 +30,11 @@ export interface CairnAPI {
   appsConnection(app: string): Promise<Result<AppConnection>>;
   appsInstallLoader(app: string): Promise<Result<void>>;
   repoMeta(url: string): Promise<Result<RepoMeta>>;
+  repoMetaCached(url: string): Promise<Result<RepoMeta | null>>;
   pluginsList(): Promise<Result<HomePlugins[]>>;
   pluginVersions(name: string): Promise<Result<Record<string, PluginVersion>>>;
   pluginVersionsAll(): Promise<Result<Record<string, Record<string, PluginVersion>>>>;
+  pluginVersionsCached(): Promise<Result<Record<string, Record<string, PluginVersion>>>>;
   enginesList(): Promise<Result<EngineView[]>>;
   enginesEnsure(capability: string): Promise<Result<void>>;
   pluginsInstall(home: string, name: string, url: string, progressId?: number): Promise<Result<void>>;
