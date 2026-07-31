@@ -43,6 +43,8 @@
   let ghStatus = $state<GithubStatus | null>(null);
   let rateLimitBannerDismissed = $state(false);
   let connectDialogOpen = $state(false);
+  // A plugin awaiting a real GitHub star once the user connects an account.
+  let pendingStarPlugin = $state<UnifiedPlugin | null>(null);
 
   function versionLabelFor(p: UnifiedPlugin): string {
     return Object.values(versions[p.name] ?? {}).map((v) => v.label).find((l): l is string => !!l) ?? "";
@@ -172,9 +174,21 @@
     if (result.ok) favorites = result.data;
   }
 
+  // Starring is a real GitHub star, so require a connected account before adding
+  // one rather than leaving a local-only favorite that never reaches GitHub.
+  // Removing a favorite stays purely local and needs no account.
+  async function toggleFavorite(p: UnifiedPlugin): Promise<void> {
+    if (!p.favorite && !ghStatus?.connected) {
+      pendingStarPlugin = p;
+      connectDialogOpen = true;
+      return;
+    }
+    await applyFavorite(p);
+  }
+
   // Local favorite is instant and authoritative; the GitHub star is a best-effort
   // mirror fired off afterward and never blocks or reverts the local toggle.
-  async function toggleFavorite(p: UnifiedPlugin): Promise<void> {
+  async function applyFavorite(p: UnifiedPlugin): Promise<void> {
     const result = await cairn.favoritesToggle(p.name);
     if (!result.ok) return;
     favorites = result.data;
@@ -218,6 +232,9 @@
     connectDialogOpen = false;
     await Promise.all([loadCatalog(), loadGithubStatus()]);
     bumpGithub();
+    const pending = pendingStarPlugin;
+    pendingStarPlugin = null;
+    if (pending && ghStatus?.connected) await applyFavorite(pending);
   }
 
   function dismissRateLimitBanner(): void {
@@ -548,7 +565,7 @@
   {/if}
 
   {#if connectDialogOpen}
-    <GitHubConnectDialog mode="add" onCancel={() => (connectDialogOpen = false)} onDone={finishBannerConnect} />
+    <GitHubConnectDialog mode="add" onCancel={() => { connectDialogOpen = false; pendingStarPlugin = null; }} onDone={finishBannerConnect} />
   {/if}
 
   {#if pendingConfirm}
