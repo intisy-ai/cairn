@@ -63,7 +63,9 @@ export interface CairnAPI {
   importRun(app: string, selection?: ImportSelection): Promise<Result<ImportSummary>>;
   catalogList(): Promise<Result<CatalogResult>>;
   githubStatus(): Promise<Result<GithubStatus>>;
-  githubSetToken(token: string): Promise<Result<void>>;
+  githubAddAccount(token: string): Promise<Result<{ login: string }>>;
+  githubSwitchAccount(login: string): Promise<Result<void>>;
+  githubRemoveAccount(login: string): Promise<Result<void>>;
   customEndpointsList(): Promise<Result<CustomEndpointView[]>>;
   customEndpointsUpsert(endpoint: CustomEndpoint): Promise<Result<void>>;
   customEndpointsRemove(id: string): Promise<Result<void>>;

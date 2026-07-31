@@ -19,13 +19,13 @@
   import Skeleton from "../components/Skeleton.svelte";
   import PageHeader from "../components/PageHeader.svelte";
   import PluginIcon, { LOGO_SIZE } from "../components/PluginIcon.svelte";
-  import GitHubConnection from "../components/GitHubConnection.svelte";
   import ErrorState from "../components/ErrorState.svelte";
   import Chip from "../components/Chip.svelte";
   import PluginDetail from "../components/PluginDetail.svelte";
   import EmptyState from "../components/EmptyState.svelte";
   import ViewToggle from "../components/ViewToggle.svelte";
   import { loadViewMode, saveViewMode, type ViewMode } from "../viewMode.js";
+  import { githubChanged } from "../githubStore.js";
 
   const VIRTUALIZE_THRESHOLD = 20;
   const ROW_HEIGHT = 96;
@@ -295,6 +295,19 @@
     reload();
     loadViewMode("plugins").then((mode) => (view = mode));
   });
+
+  // Refresh the catalog whenever the titlebar's GitHub menu changes the active
+  // account (a token change affects which repos/manifests the catalog can see).
+  // Skip the initial fire; onMount's reload() already covers first load.
+  let sawInitialGithubChange = false;
+  $effect(() => {
+    $githubChanged;
+    if (!sawInitialGithubChange) {
+      sawInitialGithubChange = true;
+      return;
+    }
+    loadCatalog();
+  });
 </script>
 
 <PageHeader title="Plugins" subtitle="Every provider, proxy, and plugin across your apps, in one place." />
@@ -308,8 +321,6 @@
     {/each}
   </div>
 {:else}
-  <GitHubConnection onChanged={loadCatalog} />
-
   <div class="toolbar">
     <SearchField bind:value={searchRaw} placeholder="Search plugins…" />
     <Button variant="primary" onclick={() => (addOpen = true)}>+ Add from URL</Button>
