@@ -146,8 +146,9 @@ export type UnifiedPlugin = {
 export type InstallOutcome = { home: string; ok: boolean; error?: string };
 export type InstallManyResult = { outcomes: InstallOutcome[] };
 // Pushed from the sidecar during an install so a download row can show its live
-// step; id correlates to the caller's download-task id.
-export type DownloadProgress = { id: number; step: string };
+// step; id correlates to the caller's download-task id. percent is coarse
+// phase-based progress 0..100 (-1 when indeterminate).
+export type DownloadProgress = { id: number; step: string; percent: number };
 export type FieldType = "boolean" | "number" | "string" | "secret" | "select" | "multiline" | "list";
 export type FieldSpec = {
   key: string;

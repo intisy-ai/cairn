@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { UnifiedPlugin } from "@cairn/shared";
+  import type { DownloadTask } from "../downloads.js";
   import SplitButton from "./SplitButton.svelte";
 
   let {
@@ -7,6 +8,7 @@
     homes,
     block = false,
     canInstallHome,
+    activity = null,
     onInstallAll,
     onRemoveEverywhere,
     onToggleHome,
@@ -15,6 +17,7 @@
     homes: { id: string; label: string; icon?: string }[];
     block?: boolean;
     canInstallHome?: (homeId: string) => boolean;
+    activity?: DownloadTask | null;
     onInstallAll: () => void;
     onRemoveEverywhere: () => void;
     onToggleHome: (homeId: string, on: boolean) => void;
@@ -28,8 +31,11 @@
   const fullyInstalled = $derived(installedCount === homes.length && homes.length > 0);
   const installableRemainingHomes = $derived(homes.filter((h) => !plugin.homes[h.id]?.installed && allows(h.id)));
   const isRemoveAll = $derived(fullyInstalled);
-  const primaryDisabled = $derived(!isRemoveAll && installableRemainingHomes.length === 0);
-  const primaryLabel = $derived(
+  // A queued or running download for this plugin freezes the button into a
+  // progress state so it can't be re-triggered mid-flight.
+  const busy = $derived(activity?.status === "pending" || activity?.status === "installing");
+  const primaryDisabled = $derived(busy || (!isRemoveAll && installableRemainingHomes.length === 0));
+  const idleLabel = $derived(
     isRemoveAll
       ? "Remove everywhere"
       : installableRemainingHomes.length === 1
@@ -37,6 +43,13 @@
         : installedCount === 0 && installableRemainingHomes.length === homes.length
           ? "Install everywhere"
           : `Install in ${installableRemainingHomes.length}`,
+  );
+  const primaryLabel = $derived(
+    activity?.status === "pending"
+      ? "Pending…"
+      : activity?.status === "installing"
+        ? (activity.percent >= 0 ? `Installing… ${activity.percent}%` : "Installing…")
+        : idleLabel,
   );
 </script>
 
@@ -60,9 +73,10 @@
 
 <SplitButton
   label={primaryLabel}
-  danger={isRemoveAll}
+  danger={isRemoveAll && !busy}
   disabled={primaryDisabled}
-  title={primaryDisabled ? "Install plugin-updater in an app first" : undefined}
+  progress={busy && activity ? activity.percent : -1}
+  title={busy ? undefined : primaryDisabled ? "Install plugin-updater in an app first" : undefined}
   {block}
   onPrimary={() => (isRemoveAll ? onRemoveEverywhere() : onInstallAll())}
   {menu}

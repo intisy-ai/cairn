@@ -17,10 +17,19 @@
   }
   function progressLine(task: DownloadTask): string {
     if (task.status === "pending") return "Queued";
-    if (task.status === "installing") return task.step || "Installing…";
+    if (task.status === "installing") {
+      const step = task.step || "Installing…";
+      return task.percent >= 0 ? `${step} · ${task.percent}%` : step;
+    }
     if (task.status === "done") return "Done";
     return task.error || "Failed";
   }
+
+  // Aggregate progress of everything in flight drives the ring; a pending or
+  // not-yet-reported task counts as 0 so the ring only fills as work completes.
+  const active = $derived($downloads.tasks.filter((t) => t.status === "pending" || t.status === "installing"));
+  const aggregate = $derived(active.length ? active.reduce((sum, t) => sum + Math.max(t.percent, 0), 0) / active.length : 0);
+  const RING = 2 * Math.PI * 12;
 </script>
 
 <svelte:window onclick={onWindowClick} onkeydown={onKey} />
@@ -28,6 +37,19 @@
 <div class="downloadmgr" bind:this={root}>
   {#if $downloads.tasks.length > 0}
     <button class="iconbtn" title="Downloads" aria-label="Toggle download manager" onclick={toggleDownloads}>
+      {#if inFlight > 0}
+        <svg class="ring" viewBox="0 0 28 28" aria-hidden="true">
+          <circle class="ringtrack" cx="14" cy="14" r="12" />
+          <circle
+            class="ringfill"
+            cx="14"
+            cy="14"
+            r="12"
+            stroke-dasharray={RING}
+            stroke-dashoffset={RING * (1 - aggregate / 100)}
+          />
+        </svg>
+      {/if}
       <svg class="downloadicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
         <polyline points="7 10 12 15 17 10" />
@@ -57,7 +79,11 @@
             {/if}
           </div>
           {#if task.status === "installing"}
-            <div class="bar"><span class="fill"></span></div>
+            {#if task.percent >= 0}
+              <div class="bar"><span class="fill det" style={`width:${Math.max(4, task.percent)}%`}></span></div>
+            {:else}
+              <div class="bar"><span class="fill"></span></div>
+            {/if}
           {/if}
           <div class="progress">{progressLine(task)}</div>
         </div>
@@ -88,6 +114,26 @@
   .downloadicon {
     width: 14px;
     height: 14px;
+  }
+  .ring {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+    pointer-events: none;
+  }
+  .ringtrack {
+    fill: none;
+    stroke: var(--border);
+    stroke-width: 2;
+  }
+  .ringfill {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.25s ease;
   }
   .iconbtn:hover {
     background: var(--surface);
@@ -239,6 +285,10 @@
     border-radius: 2px;
     background: var(--accent);
     animation: slide 1.1s ease-in-out infinite;
+  }
+  .fill.det {
+    animation: none;
+    transition: width 0.25s ease;
   }
   @keyframes slide {
     0% { transform: translateX(-100%); }

@@ -106,8 +106,9 @@ export interface PluginsDeps {
   hasUpdater?: HasUpdaterFn;
   initApp?: InitAppFn;
   getPlugins?: (dir: string) => Plugin[];
-  // Called at each phase boundary so a download row can show live progress.
-  report?: (step: string) => void;
+  // Called at each phase boundary so a download row can show live progress;
+  // percent is coarse phase-based progress 0..100.
+  report?: (step: string, percent: number) => void;
 }
 
 async function resolveHomes(deps: PluginsDeps): Promise<PluginHome[]> {
@@ -254,7 +255,7 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
       // updater set up via its CLI; Cairn clones directly with its bundled copy.
       if (!isEngine(name)) throw new Error("install plugin-updater in this app before adding plugins");
       if (homeId !== "cairn") {
-        report?.("Setting up plugin-updater");
+        report?.("Setting up plugin-updater", 10);
         const initApp = deps.initApp ?? (await import("./apps.js")).appsInit;
         const result = await initApp(homeId);
         if (!result.ok) throw new Error(result.error);
@@ -265,14 +266,14 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
     let autoUpdateDefault = true;
     const val = getConfigValue("cairn", "autoUpdateDefault");
     if (typeof val === "boolean") autoUpdateDefault = val;
-    report?.("Downloading and building");
+    report?.("Downloading and building", 40);
     await withHome(dir, async () => {
       await updatePluginPublic(name, url);
-      report?.("Registering");
+      report?.("Registering", 90);
       registerPlugin(dir, name, url, autoUpdateDefault);
     });
     if (homeId !== "cairn") {
-      report?.("Syncing to other apps");
+      report?.("Syncing to other apps", 95);
       const syncPluginsAcrossApps = deps.syncPluginsAcrossApps ?? realSyncPluginsAcrossApps;
       await syncPluginsAcrossApps(dir);
     }
@@ -285,7 +286,14 @@ export function pluginsInstallMany(name: string, url: string, homeIds: string[],
     for (let i = 0; i < homeIds.length; i++) {
       const homeId = homeIds[i];
       const base = deps.report;
-      const report = base && homeIds.length > 1 ? (step: string) => base(`${homeId} (${i + 1}/${homeIds.length}): ${step}`) : base;
+      // Spread each home's 0..100 across its slice of the overall bar so the
+      // percentage advances smoothly through a multi-home install.
+      const report = base
+        ? (step: string, percent: number) => {
+            const overall = Math.round(((i + Math.max(percent, 0) / 100) / homeIds.length) * 100);
+            base(homeIds.length > 1 ? `${homeId} (${i + 1}/${homeIds.length}): ${step}` : step, overall);
+          }
+        : undefined;
       const res = await pluginsInstall(homeId, name, url, { ...deps, report });
       outcomes.push(res.ok ? { home: homeId, ok: true } : { home: homeId, ok: false, error: res.error });
     }

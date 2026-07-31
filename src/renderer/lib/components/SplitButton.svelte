@@ -6,6 +6,7 @@
     disabled = false,
     danger = false,
     block = false,
+    progress = -1,
     title,
     onPrimary,
     menu,
@@ -14,6 +15,8 @@
     disabled?: boolean;
     danger?: boolean;
     block?: boolean;
+    // 0..100 paints a progress fill behind the primary label; <0 hides it.
+    progress?: number;
     title?: string;
     onPrimary?: () => void;
     menu?: Snippet;
@@ -36,7 +39,12 @@
 <svelte:window onclick={onWindowClick} onkeydown={onKey} />
 
 <div class="split" class:block bind:this={root}>
-  <button type="button" class="btn primary" class:danger {disabled} {title} onclick={() => onPrimary?.()}>{label}</button>
+  <button type="button" class="btn primary" class:danger {disabled} {title} onclick={() => onPrimary?.()}>
+    {#if progress >= 0}
+      <span class="fill" style={`width:${Math.max(4, progress)}%`}></span>
+    {/if}
+    <span class="lbl">{label}</span>
+  </button>
   <button
     type="button"
     class="btn caret"
@@ -103,8 +111,20 @@
     border-left-color: color-mix(in srgb, var(--crit) 40%, var(--border));
   }
   .primary {
+    position: relative;
+    overflow: hidden;
     padding: 8px 13px;
     border-radius: 8px 0 0 8px;
+  }
+  .primary .fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: rgba(255, 255, 255, 0.22);
+    transition: width 0.25s ease;
+    pointer-events: none;
+  }
+  .primary .lbl {
+    position: relative;
   }
   .caret {
     padding: 8px 8px;

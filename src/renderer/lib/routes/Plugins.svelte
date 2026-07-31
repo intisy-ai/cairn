@@ -4,7 +4,7 @@
   import { classifyRepoName } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { consumeParams } from "../router.js";
-  import { enqueue, type DownloadSource } from "../downloads.js";
+  import { enqueue, activeByKey, type DownloadSource } from "../downloads.js";
   import { toast } from "../toast.js";
   import { debounce } from "../util/debounce.js";
   import { buildUnifiedPlugins, applicableHomeIds } from "../util/unifiedPlugins.js";
@@ -190,6 +190,7 @@
       label,
       home: homesLabel(homeIds),
       source: sourceFor(name, homeIds),
+      key: name,
       run: (id) => cairn.pluginsInstallMany(name, url, homeIds, id),
       summarizeFailure: (data) => outcomesError(data.outcomes),
     });
@@ -203,6 +204,7 @@
       label: `Install ${p.displayName}`,
       home: homesLabel([homeId]),
       source: sourceFor(p.name, [homeId]),
+      key: p.name,
       run: (id) => cairn.pluginsInstall(homeId, p.name, p.url ?? "", id),
     });
     await reload();
@@ -214,6 +216,7 @@
       label: `Update ${p.displayName}`,
       home: homesLabel([homeId]),
       source: sourceFor(p.name, [homeId]),
+      key: p.name,
       run: (id) => cairn.pluginsInstall(homeId, p.name, p.url ?? "", id),
     });
     await reload();
@@ -238,6 +241,7 @@
       label: `Remove ${p.displayName} everywhere`,
       home: homesLabel(homeIds) || "all homes",
       source: sourceFor(p.name, homeIds),
+      key: p.name,
       run: () => cairn.pluginsRemoveEverywhere(p.name),
       summarizeFailure: (data) => outcomesError(data.outcomes),
     });
@@ -304,6 +308,7 @@
           plugin={p}
           homes={applicableHomesFor(p)}
           canInstallHome={(homeId) => canInstallInto(p, homeId)}
+          activity={$activeByKey[p.name] ?? null}
           onInstallAll={() => handleInstallAll(p)}
           onRemoveEverywhere={() => confirmRemoveEverywhere(p)}
           onToggleHome={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
@@ -405,6 +410,7 @@
       plugin={selectedPlugin}
       homes={applicableHomesFor(selectedPlugin)}
       canInstallHome={(homeId) => canInstallInto(selectedPlugin, homeId)}
+      activity={$activeByKey[selectedPlugin.name] ?? null}
       onClose={() => (selectedName = null)}
       onInstallAll={() => handleInstallAll(selectedPlugin)}
       onRemoveEverywhere={() => confirmRemoveEverywhere(selectedPlugin)}

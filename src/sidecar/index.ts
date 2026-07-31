@@ -36,9 +36,9 @@ export function registerHandler(channel: string, handler: SidecarHandler): void 
 
 // A download-task id (passed as the trailing install arg) turns into a reporter
 // that streams phase steps back to the renderer as out-of-band progress messages.
-function reportFor(progressId: unknown): ((step: string) => void) | undefined {
+function reportFor(progressId: unknown): ((step: string, percent: number) => void) | undefined {
   if (typeof progressId !== "number" || !process.parentPort) return undefined;
-  return (step) => process.parentPort.postMessage({ progress: { id: progressId, step } });
+  return (step, percent) => process.parentPort.postMessage({ progress: { id: progressId, step, percent } });
 }
 
 export async function dispatch(channel: string, args: unknown[]): Promise<Result<unknown>> {

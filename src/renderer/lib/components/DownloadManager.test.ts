@@ -5,7 +5,7 @@ import { downloads, type DownloadTask } from "../downloads.js";
 import DownloadManager from "./DownloadManager.svelte";
 
 function task(overrides: Partial<DownloadTask> = {}): DownloadTask {
-  return { id: 1, label: "a", home: "/h", source: null, status: "installing", step: "", error: "", queuedAt: 0, ...overrides };
+  return { id: 1, label: "a", home: "/h", source: null, status: "installing", step: "", percent: -1, error: "", queuedAt: 0, ...overrides };
 }
 
 describe("DownloadManager", () => {
@@ -59,6 +59,18 @@ describe("DownloadManager", () => {
     downloads.set({ tasks: [task({ status: "installing", step: "building… (3/4)" })], open: true });
     const { getByText } = render(DownloadManager);
     expect(getByText("building… (3/4)")).toBeTruthy();
+  });
+
+  it("appends the percent to the step when known", () => {
+    downloads.set({ tasks: [task({ status: "installing", step: "Downloading and building", percent: 40 })], open: true });
+    const { getByText } = render(DownloadManager);
+    expect(getByText("Downloading and building · 40%")).toBeTruthy();
+  });
+
+  it("renders the aggregate progress ring while work is in flight", () => {
+    downloads.set({ tasks: [task({ status: "installing", percent: 50 })], open: false });
+    const { container } = render(DownloadManager);
+    expect(container.querySelector(".ringfill")).toBeTruthy();
   });
 
   it("shows Queued for a pending task", () => {

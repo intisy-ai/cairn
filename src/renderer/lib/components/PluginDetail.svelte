@@ -12,6 +12,7 @@
     plugin,
     homes,
     canInstallHome,
+    activity = null,
     onClose,
     onInstallAll,
     onRemoveEverywhere,
@@ -23,6 +24,7 @@
     plugin: UnifiedPlugin;
     homes: { id: string; label: string; icon?: string }[];
     canInstallHome?: (homeId: string) => boolean;
+    activity?: import("../downloads.js").DownloadTask | null;
     onClose: () => void;
     onInstallAll: () => void;
     onRemoveEverywhere: () => void;
@@ -115,7 +117,7 @@
   {#if plugin.updateAvailable}
     <IconButton name="refresh" title="Update" onclick={onUpdate} />
   {/if}
-  <PluginInstallControl {plugin} {homes} {canInstallHome} {onInstallAll} {onRemoveEverywhere} {onToggleHome} />
+  <PluginInstallControl {plugin} {homes} {canInstallHome} {activity} {onInstallAll} {onRemoveEverywhere} {onToggleHome} />
 {/snippet}
 
 {#snippet content(active: string)}

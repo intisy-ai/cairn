@@ -1,4 +1,4 @@
-import { writable } from "svelte/store";
+import { writable, derived } from "svelte/store";
 import type { Result } from "@cairn/shared";
 
 export type DownloadStatus = "pending" | "installing" | "done" | "failed";
@@ -15,11 +15,27 @@ export type DownloadTask = {
   source: DownloadSource;
   status: DownloadStatus;
   step: string;
+  // Coarse phase-based progress 0..100 (an install has no true byte percentage);
+  // -1 means indeterminate (no phase reported yet).
+  percent: number;
   error: string;
+  // Optional caller key (e.g. a plugin name) so a UI element can find its own
+  // in-flight task without matching on the display label.
+  key?: string;
   queuedAt: number;
 };
 
 export const downloads = writable<{ tasks: DownloadTask[]; open: boolean }>({ tasks: [], open: false });
+
+// In-flight tasks indexed by their caller key, so a plugin row/button can show
+// its own install state and progress instantly.
+export const activeByKey = derived(downloads, ($d) => {
+  const map: Record<string, DownloadTask> = {};
+  for (const t of $d.tasks) {
+    if (t.key && (t.status === "pending" || t.status === "installing")) map[t.key] = t;
+  }
+  return map;
+});
 
 let nextId = 1;
 
@@ -51,6 +67,7 @@ export type EnqueueSpec<T> = {
   label: string;
   home: string;
   source?: DownloadSource;
+  key?: string;
   // The task id is passed in so the caller can correlate live progress events.
   run: (id: number) => Promise<Result<T>>;
   // summarizeFailure flags a partial failure a plain ok/error Result can't express,
@@ -63,7 +80,7 @@ export function enqueue<T>(spec: EnqueueSpec<T>): Promise<Result<T>> {
   downloads.update((state) => ({
     tasks: [
       ...state.tasks,
-      { id, label: spec.label, home: spec.home, source: spec.source ?? null, status: "pending", step: "", error: "", queuedAt: Date.now() },
+      { id, label: spec.label, home: spec.home, source: spec.source ?? null, status: "pending", step: "", percent: -1, error: "", key: spec.key, queuedAt: Date.now() },
     ],
     open: true,
   }));
@@ -102,11 +119,11 @@ export function track<T>(
 
 // Applied from a pushed progress event; only meaningful while the task is still
 // in flight (a finished task keeps its terminal line).
-export function setStep(id: number, step: string): void {
+export function setStep(id: number, step: string, percent = -1): void {
   downloads.update((state) => ({
     ...state,
     tasks: state.tasks.map((task) =>
-      task.id === id && (task.status === "pending" || task.status === "installing") ? { ...task, step } : task,
+      task.id === id && (task.status === "pending" || task.status === "installing") ? { ...task, step, percent } : task,
     ),
   }));
 }

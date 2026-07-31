@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { get } from "svelte/store";
-import { downloads, enqueue, track, toggleDownloads, closeDownloads, clearFinished, setStep, resetDownloadsForTest } from "./downloads.js";
+import { downloads, activeByKey, enqueue, track, toggleDownloads, closeDownloads, clearFinished, setStep, resetDownloadsForTest } from "./downloads.js";
 
 describe("downloads", () => {
   beforeEach(() => {
@@ -25,6 +25,20 @@ describe("downloads", () => {
   it("carries the source through to the task", () => {
     void enqueue({ label: "engine", home: "cairn", source: "cairn", run: () => new Promise(() => {}) });
     expect(get(downloads).tasks[0].source).toBe("cairn");
+  });
+
+  it("indexes in-flight tasks by key and drops them once finished", async () => {
+    await enqueue({ label: "install y", home: "/h", key: "plugin-y", run: async () => ({ ok: true, data: undefined }) });
+    expect(get(activeByKey)["plugin-y"]).toBeUndefined();
+    void enqueue({ label: "install x", home: "/h", key: "plugin-x", run: () => new Promise(() => {}) });
+    expect(get(activeByKey)["plugin-x"]).toBeTruthy();
+  });
+
+  it("setStep records the percent while in flight", () => {
+    void track("first", "/h", () => new Promise(() => {}));
+    const id = get(downloads).tasks[0].id;
+    setStep(id, "Downloading and building", 40);
+    expect(get(downloads).tasks[0].percent).toBe(40);
   });
 
   it("setStep updates the live step of an in-flight task", () => {
