@@ -74,6 +74,7 @@ export const INVOKE_CHANNELS = {
   githubRemoveAccount: "github:remove-account",
   githubConnectGhCli: "github:connect-gh",
   githubSetStar: "github:set-star",
+  githubStarCairn: "github:star-cairn",
   favoritesList: "favorites:list",
   favoritesToggle: "favorites:toggle",
   customEndpointsList: "customEndpoints:list",

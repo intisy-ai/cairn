@@ -99,6 +99,22 @@
     await refresh();
     bumpGithub();
   }
+
+  async function toggleCairnStar(): Promise<void> {
+    if (busy || !status?.connected) return;
+    busy = true;
+    try {
+      await cairn.githubStarCairn(!status.cairnStarred);
+      await refresh();
+    } finally {
+      busy = false;
+    }
+  }
+
+  function openOnGitHub(): void {
+    // The main process routes http(s) window.open through the external browser.
+    if (status?.cairnRepoUrl) window.open(status.cairnRepoUrl, "_blank");
+  }
 </script>
 
 {#if status}
@@ -175,6 +191,21 @@
 
     <div class="add">
       <Button onclick={openAddDialog}>Add account</Button>
+    </div>
+
+    <div class="cairnrow">
+      <button class="ghlink" onclick={openOnGitHub}>Open Cairn on GitHub</button>
+      {#if status.connected}
+        <button
+          class="starcairn"
+          class:starred={status.cairnStarred === true}
+          disabled={busy}
+          title={status.cairnStarred ? "Unstar Cairn" : "Star Cairn"}
+          onclick={toggleCairnStar}
+        >
+          {status.cairnStarred ? "★ Starred" : "☆ Star Cairn"}
+        </button>
+      {/if}
     </div>
   </div>
 {/if}
@@ -359,5 +390,46 @@
     padding-top: 10px;
     border-top: 1px solid var(--border);
     margin-top: 2px;
+  }
+  .cairnrow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: 10px;
+    margin-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+  .ghlink {
+    all: unset;
+    cursor: pointer;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  .ghlink:hover {
+    color: var(--text);
+    text-decoration: underline;
+  }
+  .starcairn {
+    all: unset;
+    cursor: pointer;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 5px 9px;
+  }
+  .starcairn:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+  .starcairn.starred {
+    color: #e3b341;
+    border-color: color-mix(in srgb, #e3b341 45%, transparent);
+  }
+  .starcairn:disabled {
+    opacity: .5;
+    cursor: default;
   }
 </style>

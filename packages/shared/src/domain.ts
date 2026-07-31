@@ -18,6 +18,8 @@ export type GithubStatus = {
   ghCli: GithubAccountView | null;
   accounts: GithubAccountView[];
   activeLogin: string | null;
+  cairnRepoUrl: string;
+  cairnStarred: boolean | null;
 };
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 export type ProviderHealth = {

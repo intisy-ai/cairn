@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getConfigValue, setConfigValue } from "@core/index.js";
 import { resetOrgScanCache, resolveToken } from "../lib/orgScan.js";
-import { githubStatus, githubAddAccount, githubSwitchAccount, githubRemoveAccount, githubConnectGhCli, githubSetStar } from "./github.js";
+import { githubStatus, githubAddAccount, githubSwitchAccount, githubRemoveAccount, githubConnectGhCli, githubSetStar, githubStarCairn } from "./github.js";
 
 beforeEach(() => {
   resetOrgScanCache();
@@ -38,6 +38,8 @@ describe("githubStatus", () => {
         ghCli: null,
         accounts: [],
         activeLogin: null,
+        cairnRepoUrl: "https://github.com/intisy-ai/cairn",
+        cairnStarred: null,
       },
     });
   });
@@ -50,7 +52,7 @@ describe("githubStatus", () => {
     });
     expect(result).toEqual({
       ok: true,
-      data: { source: "anonymous", connected: false, login: null, name: null, avatarUrl: null, ghCliDetected: false, ghCli: null, accounts: [], activeLogin: null },
+      data: { source: "anonymous", connected: false, login: null, name: null, avatarUrl: null, ghCliDetected: false, ghCli: null, accounts: [], activeLogin: null, cairnRepoUrl: "https://github.com/intisy-ai/cairn", cairnStarred: null },
     });
   });
 
@@ -81,7 +83,7 @@ describe("githubStatus", () => {
     const result = await githubStatus({ env: { GITHUB_TOKEN: "t" }, execFn: noGh, fetchFn: failFetch(401) });
     expect(result).toEqual({
       ok: true,
-      data: { source: "env", connected: true, login: null, name: null, avatarUrl: null, ghCliDetected: false, ghCli: null, accounts: [], activeLogin: null },
+      data: { source: "env", connected: true, login: null, name: null, avatarUrl: null, ghCliDetected: false, ghCli: null, accounts: [], activeLogin: null, cairnRepoUrl: "https://github.com/intisy-ai/cairn", cairnStarred: null },
     });
   });
 
@@ -344,6 +346,45 @@ describe("githubSetStar", () => {
     const calls: { url: string }[] = [];
     const result = await githubSetStar("not a repo url", true, { fetchFn: spyFetch("octocat", calls) });
     expect(result).toEqual({ ok: true, data: undefined });
+    expect(calls.length).toBe(0);
+  });
+});
+
+describe("githubStatus cairn star state", () => {
+  it("reports cairnStarred true when the star check returns 204", async () => {
+    const result = await githubStatus({ env: { GITHUB_TOKEN: "t" }, execFn: noGh, fetchFn: spyFetch("octocat", []) });
+    expect(result.ok && result.data.cairnStarred).toBe(true);
+  });
+
+  it("reports cairnStarred false when the star check returns 404", async () => {
+    const notStarred = (async (url: string) =>
+      url.includes("/user/starred/")
+        ? { ok: false, status: 404, json: async () => ({}) }
+        : { ok: true, status: 200, json: async () => ({ login: "octocat" }) }) as unknown as typeof fetch;
+    const result = await githubStatus({ env: { GITHUB_TOKEN: "t" }, execFn: noGh, fetchFn: notStarred });
+    expect(result.ok && result.data.cairnStarred).toBe(false);
+    if (result.ok) expect(result.data.cairnRepoUrl).toBe("https://github.com/intisy-ai/cairn");
+  });
+});
+
+describe("githubStarCairn", () => {
+  it("stars Cairn via PUT with the active token", async () => {
+    const calls: { url: string; init?: { method?: string } }[] = [];
+    const result = await githubStarCairn(true, { env: { GITHUB_TOKEN: "t" }, execFn: noGh, fetchFn: spyFetch("octocat", calls) });
+    expect(result).toEqual({ ok: true, data: undefined });
+    expect(calls.some((c) => c.url.includes("/user/starred/intisy-ai/cairn") && c.init?.method === "PUT")).toBe(true);
+  });
+
+  it("unstars Cairn via DELETE", async () => {
+    const calls: { url: string; init?: { method?: string } }[] = [];
+    await githubStarCairn(false, { env: { GITHUB_TOKEN: "t" }, execFn: noGh, fetchFn: spyFetch("octocat", calls) });
+    expect(calls.some((c) => c.url.includes("/user/starred/intisy-ai/cairn") && c.init?.method === "DELETE")).toBe(true);
+  });
+
+  it("errors when there is no token to star with", async () => {
+    const calls: { url: string }[] = [];
+    const result = await githubStarCairn(true, { env: {}, execFn: noGh, fetchFn: spyFetch("octocat", calls) });
+    expect(result.ok).toBe(false);
     expect(calls.length).toBe(0);
   });
 });
