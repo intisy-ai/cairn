@@ -10,6 +10,7 @@ import { appsDetect, appsList, appsInstallCli, appsInit, appsUninstallCli, appsS
 import { pluginsList, pluginsInstall, pluginsInstallMany, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
 import { enginesList, ensureEngines, ensureEngine } from "./modules/engines.js";
 import { proxiesList, proxiesSetEnabled } from "./modules/proxies.js";
+import { repoMeta } from "./modules/repo.js";
 import { configSchemas, configWrite, configAction } from "./modules/appConfig.js";
 import { syncStatus, syncRun, syncSetConfig } from "./modules/sync.js";
 import { ledgerHomes, ledgerCommit, ledgerRestore, ledgerDiffRefs, ledgerProfileCreate, ledgerProfileSwitch } from "./modules/ledger.js";
@@ -67,6 +68,7 @@ registerHandler("apps:uninstallCli", (app, wipeData) => appsUninstallCli(app as 
 registerHandler("apps:summary", (app) => appsSummary(app as string));
 registerHandler("apps:connection", (app) => appsConnection(app as string));
 registerHandler("apps:installLoader", (app) => appsInstallLoader(app as string));
+registerHandler("repo:meta", (url) => repoMeta(url as string));
 registerHandler("plugins:list", () => pluginsList());
 registerHandler("engines:list", () => enginesList());
 registerHandler("engines:ensure", (capability) => ensureEngine(capability as string));

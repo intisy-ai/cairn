@@ -21,7 +21,7 @@ function tryExec(exe: string, args: string[]): Promise<string> {
 
 // On win32 a binary may be a native .exe (gh) or an npm shim (.cmd); try the
 // bare name first and only fall back to the .cmd suffix if that spawn fails.
-function realExec(file: string, args: string[]): Promise<string> {
+export function realExec(file: string, args: string[]): Promise<string> {
   if (process.platform !== "win32") return tryExec(file, args);
   return tryExec(file, args).catch(() => tryExec(`${file}.cmd`, args));
 }
@@ -34,7 +34,7 @@ function resolveOrg(getOrg?: () => string): string {
   return typeof configured === "string" && configured.trim() ? configured.trim() : ECOSYSTEM_ORG;
 }
 
-async function resolveToken(env: NodeJS.ProcessEnv, execFn: (f: string, a: string[]) => Promise<string>): Promise<{ token: string | null; source: CatalogResult["source"] }> {
+export async function resolveToken(env: NodeJS.ProcessEnv, execFn: (f: string, a: string[]) => Promise<string>): Promise<{ token: string | null; source: CatalogResult["source"] }> {
   const envToken = env.GITHUB_TOKEN?.trim() || env.GH_TOKEN?.trim();
   if (envToken) return { token: envToken, source: "env" };
   try {

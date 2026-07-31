@@ -3,6 +3,7 @@ export type { Chain, ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-p
 import type { ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/index.js";
 export type CatalogKind = "provider" | "proxy" | "plugin" | "loader";
 export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string; deprecated: boolean; topics: string[]; displayName?: string; icon?: string };
+export type RepoMeta = { owner: string; repo: string; htmlUrl: string; stars: number | null; description: string; topics: string[]; readme: string | null };
 export type CatalogResult = { entries: CatalogEntry[]; source: "env" | "gh" | "anonymous" };
 export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 export type ProviderHealth = {
