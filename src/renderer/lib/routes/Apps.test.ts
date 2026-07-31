@@ -197,6 +197,48 @@ describe("Apps screen", () => {
     expect(dialog.queryByRole("button", { name: /import config/i })).toBeNull();
   });
 
+  it("shows the integration chain and status in the detail", async () => {
+    stubCairn({
+      ...TWO_APPS,
+      appsConnection: connections({
+        claude: { cliPresent: true, loaderId: "claude-code-loader", loaderInstalled: true },
+        opencode: { cliPresent: false, loaderId: "opencode-loader", loaderInstalled: false },
+      }),
+      appsSummary: async () => SUMMARY,
+    });
+    render(Apps);
+
+    const claudeCard = within(await screen.findByTestId("app-claude"));
+    await fireEvent.click(claudeCard.getByRole("button", { name: "Manage" }));
+
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.getByText("Command line")).toBeInTheDocument();
+    expect(dialog.getByText("Loader")).toBeInTheDocument();
+    expect(dialog.getByText("Local API")).toBeInTheDocument();
+    expect(dialog.getByText("Connected")).toBeInTheDocument();
+  });
+
+  it("offers an install control in the detail when the loader is missing", async () => {
+    const appsInstallLoader = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    stubCairn({
+      ...TWO_APPS,
+      appsConnection: connections({
+        claude: { cliPresent: true, loaderId: "claude-code-loader", loaderInstalled: false },
+        opencode: { cliPresent: true, loaderId: "opencode-loader", loaderInstalled: true },
+      }),
+      appsSummary: async () => SUMMARY,
+      appsInstallLoader,
+    });
+    render(Apps);
+
+    const claudeCard = within(await screen.findByTestId("app-claude"));
+    await fireEvent.click(claudeCard.getByRole("button", { name: "Details" }));
+
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("button", { name: "Install loader" }));
+    await waitFor(() => expect(appsInstallLoader).toHaveBeenCalledWith("claude"));
+  });
+
   it("renders a view toggle and starts in grid mode when that is the stored preference", async () => {
     stubCairn({
       ...TWO_APPS,

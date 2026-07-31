@@ -1,8 +1,10 @@
 <script lang="ts">
-  import type { HostApp, AppSummary } from "@cairn/shared";
+  import type { HostApp, AppSummary, AppConnection } from "@cairn/shared";
   import PluginIcon, { LOGO_SIZE } from "./PluginIcon.svelte";
   import Button from "./Button.svelte";
   import Chip from "./Chip.svelte";
+  import Spinner from "./Spinner.svelte";
+  import StatusPill from "./StatusPill.svelte";
   import { fadeMotion, flyMotion } from "../util/motion.js";
 
   const PROVIDER_BREAKDOWN_CAP = 6;
@@ -11,22 +13,33 @@
     app,
     summary,
     summaryError,
+    connection,
+    busy,
     canImport,
     onClose,
     onImport,
+    onPrimary,
     onUninstall,
   }: {
     app: HostApp;
     summary: AppSummary | null;
     summaryError: string;
+    connection: AppConnection | null;
+    busy: boolean;
     canImport: boolean;
     onClose: () => void;
     onImport: () => void;
+    onPrimary: () => void;
     onUninstall: (wipe: boolean) => void;
   } = $props();
 
   let confirmingUninstall = $state(false);
   let wipe = $state(false);
+
+  const connected = $derived(
+    !!connection && connection.cliPresent && (connection.loaderId ? connection.loaderInstalled : true),
+  );
+  const statusLabel = $derived(connected ? "Connected" : connection?.cliPresent ? "Loader not installed" : "Not detected");
 
   const shownBreakdown = $derived(summary ? summary.providerBreakdown.slice(0, PROVIDER_BREAKDOWN_CAP) : []);
   const moreCount = $derived(summary ? summary.providerBreakdown.length - shownBreakdown.length : 0);
@@ -45,9 +58,52 @@
     <PluginIcon icon={app.icon} name={app.label} size={LOGO_SIZE.detail} />
     <div class="titles">
       <h2>{app.label}</h2>
-      <div class="sub"><span class="detected">Detected</span></div>
+      <div class="sub"><StatusPill variant={connected ? "good" : "off"} label={statusLabel} /></div>
     </div>
   </header>
+
+  <section>
+    <p class="label">Integration</p>
+    <div class="chainrows">
+      <div class="chainrow">
+        <span class="cdot" class:on={connection?.cliPresent}></span>
+        <div class="ctext">
+          <span class="k">Command line</span>
+          <span class="d">{connection?.cliPresent ? "Installed" : "Not installed"}</span>
+        </div>
+        {#if connection && !connection.cliPresent && !connection.loaderId}
+          <Button variant="primary" disabled={busy} onclick={onPrimary}>
+            {#if busy}<Spinner />{/if}
+            Install CLI
+          </Button>
+        {/if}
+      </div>
+
+      {#if connection?.loaderId}
+        <div class="chainrow">
+          <span class="cdot" class:on={connection?.loaderInstalled}></span>
+          <div class="ctext">
+            <span class="k">Loader</span>
+            <span class="d">{connection?.loaderInstalled ? "Installed" : "Not installed"}</span>
+          </div>
+          {#if !connection?.loaderInstalled}
+            <Button variant="primary" disabled={busy} onclick={onPrimary}>
+              {#if busy}<Spinner />{/if}
+              {connection?.cliPresent ? "Install loader" : "Connect"}
+            </Button>
+          {/if}
+        </div>
+      {/if}
+
+      <div class="chainrow">
+        <span class="cdot" class:on={connected}></span>
+        <div class="ctext">
+          <span class="k">Local API</span>
+          <span class="d">{connected ? "Routing through the local API" : "Not routed yet"}</span>
+        </div>
+      </div>
+    </div>
+  </section>
 
   {#if summaryError}
     <p class="error">Could not load app summary: {summaryError}</p>
@@ -168,12 +224,46 @@
     letter-spacing: -.02em;
   }
   .sub {
-    margin-top: 4px;
+    margin-top: 6px;
   }
-  .detected {
-    font-size: 10.5px;
-    color: var(--good);
+  .chainrows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .chainrow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+  }
+  .cdot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--border-strong);
+    flex: none;
+  }
+  .cdot.on {
+    background: var(--good);
+  }
+  .ctext {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex: 1;
+    min-width: 0;
+  }
+  .ctext .k {
+    font-size: 12.5px;
     font-weight: 600;
+  }
+  .ctext .d {
+    font-size: 11px;
+    color: var(--muted);
   }
   .label {
     margin: 0 0 8px;

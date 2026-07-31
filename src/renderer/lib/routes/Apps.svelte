@@ -225,9 +225,12 @@
     app={selectedApp}
     summary={summaries[selectedApp.id] ?? null}
     summaryError={summaryErrors[selectedApp.id] ?? ""}
+    connection={conns[selectedApp.id] ?? null}
+    busy={busy[selectedApp.id] ?? false}
     canImport={canImport(selectedApp.id)}
     onClose={() => (selected = null)}
     onImport={() => selectedApp && openImport(selectedApp)}
+    onPrimary={() => selectedApp && handlePrimary(selectedApp)}
     onUninstall={(wipe) => selectedApp && handleUninstall(selectedApp, wipe)}
   />
 {/if}
