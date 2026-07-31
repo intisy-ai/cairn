@@ -4,6 +4,7 @@ import { getConfigDir } from "@core-auth/index.js";
 import { getPlugins, readOpencodeJson } from "@plugin-updater/config.js";
 import { getApps, getAppDescriptor, resolveHome } from "@core/index.js";
 import { appsDetect } from "../modules/apps.js";
+import { svgIconDataUri } from "./pluginIcon.js";
 import { renderCairnMark } from "../../../packages/shared/src/logo.js";
 import type { AppPresence, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
 
@@ -40,7 +41,10 @@ export async function pluginHomes(deps: PluginHomesDeps = {}): Promise<PluginHom
   const present: AppPresence = detected.ok ? detected.data : {};
   const appHomes: PluginHome[] = getApps().map((desc) => {
     const dir = appHomeForId(desc.id);
-    return { id: desc.id, label: desc.label, icon: desc.icon, dir, present: !!present[desc.id], hasUpdater: hasUpdater(dir) };
+    // AppDescriptor.icon is a raw SVG mark; the renderer's PluginIcon needs a
+    // data URI, matching how plugin icon.svg files are surfaced.
+    const icon = desc.icon ? svgIconDataUri(desc.icon) : undefined;
+    return { id: desc.id, label: desc.label, icon, dir, present: !!present[desc.id], hasUpdater: hasUpdater(dir) };
   });
   return [
     // Cairn bundles the updater to perform installs, but it ships with no plugins:

@@ -8,6 +8,7 @@ import type { Plugin } from "@plugin-updater/types.js";
 import { resolveModelMap } from "@core-proxy/model-map.js";
 import { normalizeQuotas } from "../../../vendor/usage/snapshot.js";
 import { appRealHome } from "../lib/pluginHomes.js";
+import { svgIconDataUri } from "../lib/pluginIcon.js";
 import { profileFor } from "../lib/proxyRegistry.js";
 import type { AppAccountSummary, AppConnection, AppPresence, AppProviderAgg, AppSummary, CliResult, HostApp, Result } from "../../../packages/shared/src/domain.js";
 import { wrap, err } from "../result.js";
@@ -57,7 +58,8 @@ export function appsDetect(deps: AppsDetectDeps = {}): Promise<Result<AppPresenc
 }
 
 export function appsList(): Promise<Result<HostApp[]>> {
-  return wrap(() => getApps().map((desc) => ({ id: desc.id, label: desc.label, icon: desc.icon })));
+  // AppDescriptor.icon is a raw SVG mark; PluginIcon needs a data URI.
+  return wrap(() => getApps().map((desc) => ({ id: desc.id, label: desc.label, icon: desc.icon ? svgIconDataUri(desc.icon) : undefined })));
 }
 
 export function appsInstallCli(app: string, spawn: SpawnFn = realSpawn): Promise<Result<CliResult>> {
