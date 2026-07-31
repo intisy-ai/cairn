@@ -92,6 +92,23 @@ async function starCairn(fetchFn: typeof fetch, token: string): Promise<void> {
   await starRepo(fetchFn, token, ECOSYSTEM_ORG, "cairn", true);
 }
 
+const CAIRN_REPO_URL = `https://github.com/${ECOSYSTEM_ORG}/cairn`;
+
+// Whether the active account has starred Cairn: 204 starred, 404 not; null when
+// unknown (no token or a transient error) so the UI can leave the toggle neutral.
+async function checkCairnStarred(fetchFn: typeof fetch, token: string): Promise<boolean | null> {
+  try {
+    const response = await fetchFn(`https://api.github.com/user/starred/${ECOSYSTEM_ORG}/cairn`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (response.status === 204) return true;
+    if (response.status === 404) return false;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function githubStatus(deps: GithubDeps = {}): Promise<Result<GithubStatus>> {
   return wrap(async () => {
     const env = deps.env ?? process.env;
@@ -123,6 +140,7 @@ export function githubStatus(deps: GithubDeps = {}): Promise<Result<GithubStatus
     }
 
     const ghCli = await resolveGhCli(execFn, fetchFn);
+    const cairnStarred = token ? await checkCairnStarred(fetchFn, token) : null;
 
     return {
       source,
@@ -134,8 +152,20 @@ export function githubStatus(deps: GithubDeps = {}): Promise<Result<GithubStatus
       ghCli: ghCli.account,
       accounts: accounts.map(toView),
       activeLogin,
+      cairnRepoUrl: CAIRN_REPO_URL,
+      cairnStarred,
     };
   });
+}
+
+export async function githubStarCairn(starred: boolean, deps: GithubDeps = {}): Promise<Result<void>> {
+  const env = deps.env ?? process.env;
+  const execFn = deps.execFn ?? realExec;
+  const fetchFn = deps.fetchFn ?? fetch;
+  const { token } = await resolveToken(env, execFn);
+  if (!token) return err("connect a GitHub account first");
+  await starRepo(fetchFn, token, ECOSYSTEM_ORG, "cairn", starred);
+  return ok(undefined);
 }
 
 export async function githubAddAccount(token: string, star: boolean, deps: GithubDeps = {}): Promise<Result<{ login: string }>> {
