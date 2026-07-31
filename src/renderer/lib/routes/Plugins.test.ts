@@ -76,7 +76,7 @@ describe("Plugins screen", () => {
     render(Plugins);
 
     const row = within(await screen.findByTestId("plugin-demo"));
-    await fireEvent.click(row.getByRole("button", { name: "Install" }));
+    await fireEvent.click(row.getByRole("button", { name: "Install everywhere" }));
 
     await waitFor(() => expect(pluginsInstallMany).toHaveBeenCalledWith("demo", "u", ["claude", "opencode"]));
   });
@@ -109,7 +109,7 @@ describe("Plugins screen", () => {
     render(Plugins);
 
     const row = within(await screen.findByTestId("plugin-demo"));
-    await fireEvent.click(row.getByRole("button", { name: "Install" }));
+    await fireEvent.click(row.getByRole("button", { name: "Install everywhere" }));
 
     await waitFor(() => expect(pluginsInstallMany).toHaveBeenCalled());
     await waitFor(() => {
@@ -129,7 +129,7 @@ describe("Plugins screen", () => {
     render(Plugins);
 
     const row = within(await screen.findByTestId("plugin-demo"));
-    await fireEvent.click(row.getByRole("button", { name: "Install" }));
+    await fireEvent.click(row.getByRole("button", { name: "Install everywhere" }));
 
     await waitFor(() => expect(pluginsInstallMany).toHaveBeenCalled());
     await waitFor(() => {
@@ -328,6 +328,7 @@ describe("Plugins screen", () => {
     render(Plugins);
 
     const row = within(await screen.findByTestId("plugin-wakatime-sync"));
+    await fireEvent.click(row.getByRole("button", { name: "More install options" }));
     await fireEvent.click(row.getByRole("button", { name: "Remove everywhere" }));
 
     expect(pluginsRemoveEverywhere).not.toHaveBeenCalled();

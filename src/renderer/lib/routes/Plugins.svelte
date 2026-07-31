@@ -13,7 +13,7 @@
   import SearchField from "../components/SearchField.svelte";
   import VirtualList from "../components/VirtualList.svelte";
   import AppPills from "../components/AppPills.svelte";
-  import SplitButton from "../components/SplitButton.svelte";
+  import PluginInstallControl from "../components/PluginInstallControl.svelte";
   import AddPluginDialog from "../components/AddPluginDialog.svelte";
   import ConfirmDialog from "../components/ConfirmDialog.svelte";
   import Skeleton from "../components/Skeleton.svelte";
@@ -51,7 +51,6 @@
 
   const startParams = consumeParams();
   let addOpen = $state(!!startParams?.add);
-  let selections = $state<Record<string, string[]>>({});
   let selectedName = $state<string | null>(null);
   let pendingConfirm = $state<{ title: string; message: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
 
@@ -162,16 +161,6 @@
   function isFullyInstalled(p: UnifiedPlugin): boolean {
     return notInstalledApplicable(p).length === 0;
   }
-  function selectionFor(p: UnifiedPlugin): string[] {
-    return selections[p.name] ?? notInstalledApplicable(p);
-  }
-  function toggleSelection(p: UnifiedPlugin, homeId: string): void {
-    const current = new Set(selectionFor(p));
-    if (current.has(homeId)) current.delete(homeId);
-    else current.add(homeId);
-    selections = { ...selections, [p.name]: [...current] };
-  }
-
   function outcomesError(outcomes: InstallOutcome[]): string | null {
     const failed = outcomes.filter((o) => !o.ok);
     if (failed.length === 0) return null;
@@ -197,13 +186,6 @@
   }
   async function handleInstallAll(p: UnifiedPlugin): Promise<void> {
     await installManyTracked(`Install ${p.name}`, p.name, p.url ?? "", notInstalledApplicable(p));
-    await reload();
-  }
-  async function handleInstallSelected(p: UnifiedPlugin): Promise<void> {
-    await installManyTracked(`Install ${p.name}`, p.name, p.url ?? "", selectionFor(p));
-    const next = { ...selections };
-    delete next[p.name];
-    selections = next;
     await reload();
   }
   async function handleUpdate(p: UnifiedPlugin): Promise<void> {
@@ -268,31 +250,21 @@
   </div>
 
   {#snippet installActions(p: UnifiedPlugin)}
-    {#snippet installMenu()}
-      <div class="install-menu">
-        {#each applicableHomesFor(p) as h (h.id)}
-          <label class="menu-item">
-            <input
-              type="checkbox"
-              checked={selectionFor(p).includes(h.id)}
-              onchange={() => toggleSelection(p, h.id)}
-            />
-            {h.label}
-          </label>
-        {/each}
-        <Button variant="primary" onclick={() => handleInstallSelected(p)}>Install selected</Button>
-      </div>
-    {/snippet}
     <div class="actions">
       {#if p.updateAvailable}
         <Button onclick={() => handleUpdate(p)}>Update</Button>
       {/if}
-      {#if !isFullyInstalled(p)}
-        <SplitButton label="Install" onPrimary={() => handleInstallAll(p)} menu={installMenu} />
-      {/if}
-      {#if !mandatoryIds.has(p.name)}
-        <Button onclick={() => confirmRemoveEverywhere(p)}>Remove everywhere</Button>
-      {/if}
+      <div class="ctlw">
+        <PluginInstallControl
+          block
+          plugin={p}
+          homes={applicableHomesFor(p)}
+          mandatory={mandatoryIds.has(p.name)}
+          onInstallAll={() => handleInstallAll(p)}
+          onRemoveEverywhere={() => confirmRemoveEverywhere(p)}
+          onToggleHome={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
+        />
+      </div>
     </div>
   {/snippet}
 
@@ -583,17 +555,8 @@
     align-items: center;
     gap: 8px;
   }
-  .install-menu {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .menu-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12.5px;
-    color: var(--text);
-    cursor: pointer;
+  .ctlw {
+    width: 172px;
+    flex: none;
   }
 </style>

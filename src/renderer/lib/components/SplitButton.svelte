@@ -5,12 +5,14 @@
     label,
     disabled = false,
     danger = false,
+    block = false,
     onPrimary,
     menu,
   }: {
     label: string;
     disabled?: boolean;
     danger?: boolean;
+    block?: boolean;
     onPrimary?: () => void;
     menu?: Snippet;
   } = $props();
@@ -31,7 +33,7 @@
 
 <svelte:window onclick={onWindowClick} onkeydown={onKey} />
 
-<div class="split" bind:this={root}>
+<div class="split" class:block bind:this={root}>
   <button type="button" class="btn primary" class:danger {disabled} onclick={() => onPrimary?.()}>{label}</button>
   <button
     type="button"
@@ -53,6 +55,14 @@
   .split {
     position: relative;
     display: inline-flex;
+  }
+  .split.block {
+    display: flex;
+    width: 100%;
+  }
+  .split.block .primary {
+    flex: 1;
+    justify-content: center;
   }
   .btn {
     font-family: var(--ui);
