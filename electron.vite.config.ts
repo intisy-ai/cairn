@@ -32,6 +32,13 @@ export default defineConfig({
         // dashboard never installs (readDeployedProviders, the only export it uses, does
         // not reach that path); externalizing lets Rollup leave the unreached import as-is.
         external: ["plugin-updater"],
+        // Stable (unhashed) chunk names for the main-process bundles: the sidecar
+        // dynamically imports plugin-updater as a chunk, and a hash that changes on
+        // rebuild orphaned the file a still-running app pointed at ("Cannot find
+        // module"). A fixed name means a rebuilt chunk keeps the same path.
+        output: {
+          chunkFileNames: "chunks/[name].js",
+        },
       },
     },
   },

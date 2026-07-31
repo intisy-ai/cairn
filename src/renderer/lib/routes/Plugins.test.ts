@@ -79,6 +79,8 @@ describe("Plugins screen", () => {
     await fireEvent.click(row.getByRole("button", { name: "Install everywhere" }));
 
     await waitFor(() => expect(pluginsInstallMany).toHaveBeenCalledWith("demo", "u", ["claude", "opencode"], expect.any(Number)));
+    // A non-engine install is handled by plugin-updater, not Cairn directly.
+    expect(get(downloads).tasks[0].source).toBe("plugin-updater");
   });
 
   it("clicking an outline pill on an installed plugin installs to that one home", async () => {
@@ -316,7 +318,7 @@ describe("Plugins screen", () => {
     await fireEvent.click(dialog.getByRole("button", { name: "Availability" }));
 
     await fireEvent.click(dialog.getByRole("button", { name: "Update" }));
-    await waitFor(() => expect(pluginsInstall).toHaveBeenCalledWith("claude", "wakatime-sync", expect.any(String)));
+    await waitFor(() => expect(pluginsInstall).toHaveBeenCalledWith("claude", "wakatime-sync", expect.any(String), expect.any(Number)));
 
     await fireEvent.click(dialog.getByRole("switch", { name: "Auto-update Claude Code" }));
     await waitFor(() => expect(pluginsSetAutoUpdate).toHaveBeenCalledWith("claude", "wakatime-sync", false));

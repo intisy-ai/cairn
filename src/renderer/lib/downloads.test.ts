@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { get } from "svelte/store";
-import { downloads, enqueue, track, toggleDownloads, clearFinished, setStep, resetDownloadsForTest } from "./downloads.js";
+import { downloads, enqueue, track, toggleDownloads, closeDownloads, clearFinished, setStep, resetDownloadsForTest } from "./downloads.js";
 
 describe("downloads", () => {
   beforeEach(() => {
@@ -82,6 +82,15 @@ describe("downloads", () => {
     toggleDownloads();
     expect(get(downloads).open).toBe(true);
     toggleDownloads();
+    expect(get(downloads).open).toBe(false);
+  });
+
+  it("closeDownloads always closes the panel", () => {
+    toggleDownloads();
+    expect(get(downloads).open).toBe(true);
+    closeDownloads();
+    expect(get(downloads).open).toBe(false);
+    closeDownloads();
     expect(get(downloads).open).toBe(false);
   });
 

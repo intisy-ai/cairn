@@ -1,8 +1,16 @@
 <script lang="ts">
-  import { downloads, toggleDownloads, clearFinished, type DownloadTask } from "../downloads.js";
+  import { downloads, toggleDownloads, closeDownloads, clearFinished, type DownloadTask } from "../downloads.js";
 
   const inFlight = $derived($downloads.tasks.filter((t) => t.status === "pending" || t.status === "installing").length);
   const hasFinished = $derived($downloads.tasks.some((t) => t.status === "done" || t.status === "failed"));
+
+  let root = $state<HTMLElement | null>(null);
+  function onWindowClick(e: MouseEvent): void {
+    if ($downloads.open && root && !root.contains(e.target as Node)) closeDownloads();
+  }
+  function onKey(e: KeyboardEvent): void {
+    if (e.key === "Escape") closeDownloads();
+  }
 
   function sourceLabel(task: DownloadTask): string {
     return task.source === "cairn" ? "Cairn direct" : task.source === "plugin-updater" ? "plugin-updater" : "";
@@ -15,7 +23,9 @@
   }
 </script>
 
-<div class="downloadmgr">
+<svelte:window onclick={onWindowClick} onkeydown={onKey} />
+
+<div class="downloadmgr" bind:this={root}>
   {#if $downloads.tasks.length > 0}
     <button class="iconbtn" title="Downloads" aria-label="Toggle download manager" onclick={toggleDownloads}>
       <svg class="downloadicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">

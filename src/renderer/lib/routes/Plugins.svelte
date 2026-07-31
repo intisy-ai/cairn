@@ -172,10 +172,13 @@
     return failed.map((o) => `${o.home}: ${o.error ?? "failed"}`).join("; ");
   }
 
-  // Engines are downloaded by Cairn directly; every other plugin is handled by
-  // plugin-updater, so the download row can say which machinery ran.
-  function sourceFor(name: string): DownloadSource {
-    return engineIds.has(name) ? "cairn" : "plugin-updater";
+  // Cairn only downloads directly to bootstrap an engine into an app home that has
+  // no plugin-updater yet; every other install is handled by plugin-updater.
+  function sourceFor(name: string, homeIds: string[]): DownloadSource {
+    const by = homesById();
+    const allBootstrap = homeIds.length > 0
+      && homeIds.every((id) => id !== "cairn" && engineIds.has(name) && !by[id]?.hasUpdater);
+    return allBootstrap ? "cairn" : "plugin-updater";
   }
   function homesLabel(homeIds: string[]): string {
     const by = homesById();
@@ -186,7 +189,7 @@
     const result = await enqueue({
       label,
       home: homesLabel(homeIds),
-      source: sourceFor(name),
+      source: sourceFor(name, homeIds),
       run: (id) => cairn.pluginsInstallMany(name, url, homeIds, id),
       summarizeFailure: (data) => outcomesError(data.outcomes),
     });
@@ -199,7 +202,18 @@
     await enqueue({
       label: `Install ${p.displayName}`,
       home: homesLabel([homeId]),
-      source: sourceFor(p.name),
+      source: sourceFor(p.name, [homeId]),
+      run: (id) => cairn.pluginsInstall(homeId, p.name, p.url ?? "", id),
+    });
+    await reload();
+  }
+  // A per-home update is a re-clone/pull through the same install path, routed
+  // through the download queue so it shows progress like every other download.
+  async function updateHome(p: UnifiedPlugin, homeId: string): Promise<void> {
+    await enqueue({
+      label: `Update ${p.displayName}`,
+      home: homesLabel([homeId]),
+      source: sourceFor(p.name, [homeId]),
       run: (id) => cairn.pluginsInstall(homeId, p.name, p.url ?? "", id),
     });
     await reload();
@@ -223,7 +237,7 @@
     const result = await enqueue({
       label: `Remove ${p.displayName} everywhere`,
       home: homesLabel(homeIds) || "all homes",
-      source: sourceFor(p.name),
+      source: sourceFor(p.name, homeIds),
       run: () => cairn.pluginsRemoveEverywhere(p.name),
       summarizeFailure: (data) => outcomesError(data.outcomes),
     });
@@ -395,6 +409,7 @@
       onInstallAll={() => handleInstallAll(selectedPlugin)}
       onRemoveEverywhere={() => confirmRemoveEverywhere(selectedPlugin)}
       onUpdate={() => handleUpdate(selectedPlugin)}
+      onUpdateHome={(homeId) => updateHome(selectedPlugin, homeId)}
       onToggleHome={(homeId, on) => (on ? addHome(selectedPlugin, homeId) : removeHome(selectedPlugin, homeId))}
       onChanged={reload}
     />

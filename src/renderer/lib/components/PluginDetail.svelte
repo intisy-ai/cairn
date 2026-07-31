@@ -16,6 +16,7 @@
     onInstallAll,
     onRemoveEverywhere,
     onUpdate,
+    onUpdateHome,
     onToggleHome,
     onChanged,
   }: {
@@ -26,6 +27,7 @@
     onInstallAll: () => void;
     onRemoveEverywhere: () => void;
     onUpdate: () => void;
+    onUpdateHome: (homeId: string) => Promise<void>;
     onToggleHome: (homeId: string, on: boolean) => void;
     onChanged?: () => void;
   } = $props();
@@ -60,9 +62,8 @@
     if (busyHome[homeId]) return;
     busyHome = { ...busyHome, [homeId]: true };
     try {
-      await cairn.pluginsInstall(homeId, plugin.name, plugin.url ?? "");
+      await onUpdateHome(homeId);
       await loadVersions();
-      onChanged?.();
     } finally {
       busyHome = { ...busyHome, [homeId]: false };
     }

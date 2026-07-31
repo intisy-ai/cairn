@@ -91,8 +91,16 @@
     cursor: not-allowed;
   }
   .btn.danger {
-    background: var(--crit);
-    border-color: var(--crit);
+    background: transparent;
+    border-color: color-mix(in srgb, var(--crit) 40%, var(--border));
+    color: var(--crit);
+  }
+  .btn.danger:hover {
+    background: color-mix(in srgb, var(--crit) 12%, transparent);
+    filter: none;
+  }
+  .caret.danger {
+    border-left-color: color-mix(in srgb, var(--crit) 40%, var(--border));
   }
   .primary {
     padding: 8px 13px;

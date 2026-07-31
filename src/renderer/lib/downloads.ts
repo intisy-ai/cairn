@@ -115,6 +115,10 @@ export function toggleDownloads(): void {
   downloads.update((state) => ({ ...state, open: !state.open }));
 }
 
+export function closeDownloads(): void {
+  downloads.update((state) => ({ ...state, open: false }));
+}
+
 export function clearFinished(): void {
   downloads.update((state) => ({
     ...state,
