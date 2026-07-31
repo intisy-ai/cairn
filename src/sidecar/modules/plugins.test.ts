@@ -488,6 +488,24 @@ describe("plugin versions", () => {
     expect(result.data.claude).toEqual({ kind: "git", label: "abcdef1", updateAvailable: false });
   });
 
+  it("shows a registered-but-not-cloned home the version from a home that has the clone", async () => {
+    seedPlugins(opencodeDir, [{ name: "plugin-a", url: "u", enabled: true }]);
+    seedCache(claudeDir, {
+      checkedAt: "",
+      plugins: { "plugin-a": { kind: "git", installedVersion: null, localHead: "aaa", remoteHead: "aaa", latestVersion: null, updateAvailable: false, updatedAt: null } },
+    });
+    const { pluginVersions } = await import("./plugins.js");
+    const result = await pluginVersions("plugin-a", {
+      homes: fakeHomes,
+      describe: (dir) => (dir.includes("claude") ? "v0.2.0-5-g7c588d8" : null),
+      exists: (p) => p.includes("claude") && p.endsWith(join("repos", "plugin-a")),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data.claude).toEqual({ kind: "git", label: "v0.2.0 +5", updateAvailable: false });
+    expect(result.data.opencode).toEqual({ kind: "git", label: "v0.2.0 +5", updateAvailable: false });
+  });
+
   it("collects versions for every installed plugin across homes in one pass", async () => {
     seedCache(claudeDir, {
       checkedAt: "",
