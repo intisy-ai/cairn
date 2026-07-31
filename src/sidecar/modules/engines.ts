@@ -48,26 +48,8 @@ export function enginesList(deps: EnginesDeps = {}): Promise<Result<EngineView[]
     return getEngines().map((engine) => ({
       id: engine.id,
       capability: engine.capability,
-      mandatory: engine.mandatory,
       homes: Object.fromEntries(targetHomes(engine, homes).map((h) => [h.id, stateIn(engine, h, getPlugins)])),
     }));
-  });
-}
-
-export function ensureEngines(deps: EnginesDeps = {}): Promise<Result<{ installed: string[] }>> {
-  return wrap(async () => {
-    const homes = await resolveHomes(deps);
-    const getPlugins = deps.getPlugins ?? realGetPlugins;
-    const installed: string[] = [];
-    for (const engine of getEngines().filter((e) => e.autoInstall === "startup")) {
-      for (const home of targetHomes(engine, homes)) {
-        if (!home.present) continue;
-        if (stateIn(engine, home, getPlugins).installed) continue;
-        await installEngine(engine, home, deps);
-        installed.push(home.id);
-      }
-    }
-    return { installed };
   });
 }
 

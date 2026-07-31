@@ -206,7 +206,7 @@ describe("Plugins screen", () => {
         { name: "wakatime-sync", url: "u", kind: "plugin", description: "normal", deprecated: false, topics: [] },
       ], source: "anonymous" } }),
       enginesList: async () => ({ ok: true, data: [
-        { id: "plugin-updater", capability: "plugin-management", mandatory: true, homes: { claude: { installed: true, enabled: true } } },
+        { id: "plugin-updater", capability: "plugin-management", homes: { claude: { installed: true, enabled: true } } },
       ] }),
     });
     const { getByRole, getByText, queryByText, container } = render(Plugins);
@@ -217,46 +217,6 @@ describe("Plugins screen", () => {
     expect(getByText("plugin-updater")).toBeTruthy();
   });
 
-  it("marks a mandatory engine with a lock and hides disable/remove", async () => {
-    stubCairn({
-      pluginsList: async () => ({ ok: true, data: [] }),
-      catalogList: async () => ({ ok: true, data: { entries: [
-        { name: "plugin-updater", url: "u", kind: "plugin", description: "engine", deprecated: false, topics: [] },
-      ], source: "anonymous" } }),
-      enginesList: async () => ({ ok: true, data: [
-        { id: "plugin-updater", capability: "plugin-management", mandatory: true, homes: { claude: { installed: true, enabled: true } } },
-      ] }),
-    });
-    const { findByTitle, findByTestId, queryByRole } = render(Plugins);
-    expect(await findByTitle(/engine/i)).toBeTruthy();
-    const row = within(await findByTestId("plugin-plugin-updater"));
-    expect(row.queryByRole("button", { name: "Remove everywhere" })).toBeNull();
-  });
-
-  it("hides remove controls in the detail pane for a mandatory engine", async () => {
-    stubCairn({
-      pluginsList: async () => ({
-        ok: true,
-        data: [
-          { home: CAIRN, rows: [] },
-          { home: CLAUDE, rows: [{ name: "plugin-updater", kind: "git", enabled: true, updateAvailable: false, description: "engine" }] },
-          { home: OPENCODE, rows: [] },
-        ],
-      }),
-      catalogList: async () => ({ ok: true, data: { entries: [], source: "gh" } }),
-      enginesList: async () => ({ ok: true, data: [
-        { id: "plugin-updater", capability: "plugin-management", mandatory: true, homes: { claude: { installed: true, enabled: true } } },
-      ] }),
-    });
-    render(Plugins);
-
-    const engineRow = within(await screen.findByTestId("plugin-plugin-updater"));
-    await fireEvent.click(engineRow.getByTitle("View plugin-updater"));
-    const engineDialog = within(await screen.findByRole("dialog"));
-    expect(engineDialog.queryByRole("button", { name: "Remove everywhere" })).toBeNull();
-    expect(engineDialog.queryByRole("button", { name: "Remove" })).toBeNull();
-    expect(engineDialog.getAllByTitle("Mandatory engine").length).toBeGreaterThan(0);
-  });
 
   it("keeps remove controls in the detail pane for a non-mandatory plugin", async () => {
     stubCairn({
@@ -394,7 +354,7 @@ describe("Plugins screen", () => {
     await waitFor(() => expect(setConfig).toHaveBeenCalledWith("cairn", "viewMode.plugins", "list"));
   });
 
-  it("keeps the Engines filter, mandatory-engine lock, and empty state working in grid mode", async () => {
+  it("keeps the Engines filter and grid mode working together", async () => {
     stubCairn({
       pluginsList: async () => ({ ok: true, data: [] }),
       catalogList: async () => ({ ok: true, data: { entries: [
@@ -402,16 +362,14 @@ describe("Plugins screen", () => {
         { name: "wakatime-sync", url: "u", kind: "plugin", description: "normal", deprecated: false, topics: [] },
       ], source: "anonymous" } }),
       enginesList: async () => ({ ok: true, data: [
-        { id: "plugin-updater", capability: "plugin-management", mandatory: true, homes: { claude: { installed: true, enabled: true } } },
+        { id: "plugin-updater", capability: "plugin-management", homes: { claude: { installed: true, enabled: true } } },
       ] }),
       getConfig: async () => ({ ok: true, data: "grid" }),
     });
     render(Plugins);
 
     await waitFor(() => expect(screen.getByTestId("plugins-grid")).toBeInTheDocument());
-    const lockedCard = within(await screen.findByTestId("plugin-plugin-updater"));
-    expect(lockedCard.getByTitle("Mandatory engine")).toBeInTheDocument();
-    expect(lockedCard.queryByRole("button", { name: "Remove everywhere" })).toBeNull();
+    expect(await screen.findByTestId("plugin-plugin-updater")).toBeInTheDocument();
 
     const filters = within(document.querySelector(".filters")!);
     await fireEvent.click(filters.getByRole("button", { name: "Engines" }));

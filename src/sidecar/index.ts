@@ -8,7 +8,7 @@ import { providersList, providersSetActive, providersSetExposure } from "./modul
 import { routingApps, routingGet, routingSetChain } from "./modules/routing.js";
 import { appsDetect, appsList, appsInstallCli, appsInit, appsUninstallCli, appsSummary, appsConnection, appsInstallLoader } from "./modules/apps.js";
 import { pluginsList, pluginVersions, pluginVersionsAll, pluginsInstall, pluginsInstallMany, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsSetAutoUpdate, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
-import { enginesList, ensureEngines, ensureEngine } from "./modules/engines.js";
+import { enginesList, ensureEngine } from "./modules/engines.js";
 import { proxiesList, proxiesSetEnabled } from "./modules/proxies.js";
 import { repoMeta } from "./modules/repo.js";
 import { configSchemas, configWrite, configAction } from "./modules/appConfig.js";
@@ -117,5 +117,4 @@ if (process.parentPort) {
   // Prewarm the transcript cache so the first Usage view doesn't sit on a
   // multi-second cold scan of the full session history.
   void usageSnapshot();
-  void ensureEngines().catch(() => undefined);
 }

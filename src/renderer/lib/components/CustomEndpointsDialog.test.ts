@@ -4,8 +4,8 @@ import { render, fireEvent, waitFor } from "@testing-library/svelte";
 import { stubCairn } from "../testing.js";
 import TestWrapper from "./CustomEndpointsDialog.test.svelte";
 
-const INSTALLED_ENGINE = { id: "engine-a", capability: "custom-endpoints", mandatory: false, homes: { cairn: { installed: true, enabled: true } } };
-const UNINSTALLED_ENGINE = { id: "engine-a", capability: "custom-endpoints", mandatory: false, homes: { cairn: { installed: false, enabled: false } } };
+const INSTALLED_ENGINE = { id: "engine-a", capability: "custom-endpoints", homes: { cairn: { installed: true, enabled: true } } };
+const UNINSTALLED_ENGINE = { id: "engine-a", capability: "custom-endpoints", homes: { cairn: { installed: false, enabled: false } } };
 
 describe("CustomEndpointsDialog", () => {
   it("lists endpoints with a key-set badge", async () => {

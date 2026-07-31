@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { enginesList, ensureEngines, ensureEngine } from "./engines.js";
+import { enginesList, ensureEngine } from "./engines.js";
 
 const homes = [
   { id: "cairn", label: "Cairn", dir: "/cairn", present: true, hasUpdater: true },
@@ -19,30 +19,6 @@ describe("enginesList", () => {
     // custom-auth targets cairn; installed because getPlugins on /cairn lists it
     expect(Object.keys(byId["custom-auth"].homes)).toEqual(["cairn"]);
     expect(byId["custom-auth"].homes.cairn.installed).toBe(true);
-    expect(byId["plugin-updater"].mandatory).toBe(true);
-    expect(byId["custom-auth"].mandatory).toBe(false);
-  });
-});
-
-describe("ensureEngines", () => {
-  it("initializes plugin-updater in present host homes lacking it, skips absent and already-present homes", async () => {
-    const appsInit = vi.fn(async () => ({ ok: true, data: { stdout: "", stderr: "" } }));
-    const pluginsInstall = vi.fn(async () => ({ ok: true, data: undefined }));
-    const res = await ensureEngines({ homes, getPlugins: () => [], appsInit, pluginsInstall } as any);
-    expect(res.ok).toBe(true);
-    // claude is present + no updater -> init; opencode absent -> skip; cairn not a plugin-updater target
-    expect(appsInit).toHaveBeenCalledTimes(1);
-    expect(appsInit).toHaveBeenCalledWith("claude");
-    // startup set is plugin-updater only; on-demand engines are not installed here
-    expect(pluginsInstall).not.toHaveBeenCalled();
-  });
-
-  it("does nothing when every present host home already has the updater", async () => {
-    const appsInit = vi.fn(async () => ({ ok: true, data: { stdout: "", stderr: "" } }));
-    const allReady = homes.map((h) => (h.id === "claude" ? { ...h, hasUpdater: true } : h));
-    const res = await ensureEngines({ homes: allReady, getPlugins: () => [], appsInit } as any);
-    expect(res.ok).toBe(true);
-    expect(appsInit).not.toHaveBeenCalled();
   });
 });
 

@@ -32,8 +32,6 @@ declare module "@core/index.js" {
     id: string;
     url: string;
     capability: string;
-    mandatory: boolean;
-    autoInstall: "startup" | "on-demand";
     target: "all-apps" | "cairn";
     meta?: Record<string, string>;
   }
@@ -41,5 +39,4 @@ declare module "@core/index.js" {
   export function engineByCapability(capability: string): EngineDescriptor | undefined;
   export function engineById(id: string): EngineDescriptor | undefined;
   export function isEngine(id: string): boolean;
-  export function isMandatoryEngine(id: string): boolean;
 }

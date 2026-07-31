@@ -3,7 +3,6 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getAppConfigDir, getAppName } from "@plugin-updater/env.js";
-import { isMandatoryEngine } from "@core/index.js";
 import type { Plugin } from "@plugin-updater/types.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
 import type { PluginHome } from "../../../packages/shared/src/domain.js";
@@ -293,33 +292,15 @@ describe("plugins sidecar module", () => {
     expect(result.error).toBe("npm exploded");
   });
 
-  it("refuses to uninstall plugin-updater", async () => {
-    const { pluginsUninstall } = await import("./plugins.js");
-    const result = await pluginsUninstall("claude", "plugin-updater", { homes: fakeHomes });
-    expect(result.ok).toBe(false);
-    expect(result.error).toBe("refusing to uninstall the plugin engine");
-  });
-
-  it("refuses to disable the mandatory engine", async () => {
-    const homes = [{ id: "claude", label: "Claude", dir: "/c", present: true, hasUpdater: true }];
-    const { pluginsSetEnabled } = await import("./plugins.js");
-    const res = await pluginsSetEnabled("claude", "plugin-updater", false, { homes } as any);
-    expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.error).toMatch(/engine/i);
-  });
-
-  it("still allows disabling a normal plugin", async () => {
-    expect(isMandatoryEngine("wakatime-sync")).toBe(false);
-    seedPlugins(claudeDir, [{ name: "wakatime-sync", url: "https://github.com/intisy-ai/wakatime-sync", enabled: true }]);
-    const { pluginsSetEnabled } = await import("./plugins.js");
-    const res = await pluginsSetEnabled("claude", "wakatime-sync", false, { homes: fakeHomes });
-    expect(res.ok).toBe(true);
-  });
-
-  it("refuses to remove the mandatory engine everywhere", async () => {
-    const { pluginsRemoveEverywhere } = await import("./plugins.js");
-    const res = await pluginsRemoveEverywhere("plugin-updater", { homes: [] } as any);
-    expect(res.ok).toBe(false);
+  it("disables and uninstalls any plugin now that nothing is locked, including the engine", async () => {
+    seedPlugins(claudeDir, [
+      { name: "wakatime-sync", url: "https://github.com/intisy-ai/wakatime-sync", enabled: true },
+      { name: "plugin-updater", url: "https://github.com/intisy-ai/plugin-updater", enabled: true },
+    ]);
+    const { pluginsSetEnabled, pluginsUninstall } = await import("./plugins.js");
+    expect((await pluginsSetEnabled("claude", "wakatime-sync", false, { homes: fakeHomes })).ok).toBe(true);
+    expect((await pluginsSetEnabled("claude", "plugin-updater", false, { homes: fakeHomes })).ok).toBe(true);
+    expect((await pluginsUninstall("claude", "plugin-updater", { homes: fakeHomes })).ok).toBe(true);
   });
 
   it("rejects an unknown home id on uninstall", async () => {

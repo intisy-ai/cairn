@@ -5,7 +5,6 @@
   let {
     plugin,
     homes,
-    mandatory = false,
     block = false,
     onInstallAll,
     onRemoveEverywhere,
@@ -13,7 +12,6 @@
   }: {
     plugin: UnifiedPlugin;
     homes: { id: string; label: string; icon?: string }[];
-    mandatory?: boolean;
     block?: boolean;
     onInstallAll: () => void;
     onRemoveEverywhere: () => void;
@@ -23,8 +21,7 @@
   const installedCount = $derived(homes.filter((h) => plugin.homes[h.id]?.installed).length);
   const fullyInstalled = $derived(installedCount === homes.length && homes.length > 0);
   const remainingCount = $derived(homes.length - installedCount);
-  const canRemove = $derived(!mandatory);
-  const isRemoveAll = $derived(fullyInstalled && canRemove);
+  const isRemoveAll = $derived(fullyInstalled);
   const primaryLabel = $derived(
     isRemoveAll ? "Remove everywhere" : installedCount === 0 ? "Install everywhere" : `Install in ${remainingCount}`,
   );
@@ -35,28 +32,24 @@
     {#each homes as h (h.id)}
       {@const on = !!plugin.homes[h.id]?.installed}
       {#if on}
-        {#if canRemove}
-          <button class="mrow danger" onclick={() => onToggleHome(h.id, false)}>Remove from {h.label}</button>
-        {/if}
+        <button class="mrow danger" onclick={() => onToggleHome(h.id, false)}>Remove from {h.label}</button>
       {:else}
         <button class="mrow" onclick={() => onToggleHome(h.id, true)}>Install in {h.label}</button>
       {/if}
     {/each}
-    {#if canRemove && installedCount > 0 && !fullyInstalled}
+    {#if installedCount > 0 && !fullyInstalled}
       <button class="mrow danger" onclick={onRemoveEverywhere}>Remove everywhere</button>
     {/if}
   </div>
 {/snippet}
 
-{#if !(mandatory && fullyInstalled)}
-  <SplitButton
-    label={primaryLabel}
-    danger={isRemoveAll}
-    {block}
-    onPrimary={() => (isRemoveAll ? onRemoveEverywhere() : onInstallAll())}
-    {menu}
-  />
-{/if}
+<SplitButton
+  label={primaryLabel}
+  danger={isRemoveAll}
+  {block}
+  onPrimary={() => (isRemoveAll ? onRemoveEverywhere() : onInstallAll())}
+  {menu}
+/>
 
 <style>
   .imenu {

@@ -11,7 +11,6 @@
   let {
     plugin,
     homes,
-    mandatory = false,
     onClose,
     onInstallAll,
     onRemoveEverywhere,
@@ -21,7 +20,6 @@
   }: {
     plugin: UnifiedPlugin;
     homes: { id: string; label: string; icon?: string }[];
-    mandatory?: boolean;
     onClose: () => void;
     onInstallAll: () => void;
     onRemoveEverywhere: () => void;
@@ -111,13 +109,10 @@
 </script>
 
 {#snippet topActions()}
-  {#if mandatory}
-    <span class="lockbadge" title="Mandatory engine">Locked</span>
-  {/if}
   {#if plugin.updateAvailable}
     <IconButton name="refresh" title="Update" onclick={onUpdate} />
   {/if}
-  <PluginInstallControl {plugin} {homes} {mandatory} {onInstallAll} {onRemoveEverywhere} {onToggleHome} />
+  <PluginInstallControl {plugin} {homes} {onInstallAll} {onRemoveEverywhere} {onToggleHome} />
 {/snippet}
 
 {#snippet content(active: string)}
@@ -150,11 +145,7 @@
             {:else}
               <span class="state">{on ? "Installed" : "Not installed"}</span>
             {/if}
-            {#if mandatory}
-              <span class="toggle locked" title="Mandatory engine">Locked</span>
-            {:else}
-              <button class="toggle" class:on onclick={() => onToggleHome(h.id, !on)}>{on ? "Remove" : "Install"}</button>
-            {/if}
+            <button class="toggle" class:on onclick={() => onToggleHome(h.id, !on)}>{on ? "Remove" : "Install"}</button>
           </li>
         {/each}
       </ul>
@@ -182,18 +173,6 @@
 <RepoDetail {repo} {onClose} {tabs} tabContent={content} actions={topActions} versionLabel={representativeVersion} />
 
 <style>
-  .lockbadge {
-    align-self: center;
-    font-size: 10px;
-    letter-spacing: .04em;
-    text-transform: uppercase;
-    font-weight: 600;
-    color: var(--faint);
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 4px 10px;
-  }
   .label {
     margin: 0 0 10px;
     font-size: 10.5px;
@@ -312,10 +291,6 @@
   .toggle.on {
     color: var(--crit);
     border-color: var(--crit);
-  }
-  .toggle.locked {
-    color: var(--faint);
-    cursor: default;
   }
   .controls {
     display: flex;

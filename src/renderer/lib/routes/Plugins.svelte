@@ -74,7 +74,6 @@
   const homes = $derived(sections.map((s) => s.home));
   const unified = $derived(buildUnifiedPlugins(sections, catalog, homes));
   const engineIds = $derived(new Set(engines.map((e) => e.id)));
-  const mandatoryIds = $derived(new Set(engines.filter((e) => e.mandatory).map((e) => e.id)));
   const counts = $derived({
     all: unified.length,
     provider: unified.filter((p) => p.kind === "provider").length,
@@ -259,7 +258,6 @@
           block
           plugin={p}
           homes={applicableHomesFor(p)}
-          mandatory={mandatoryIds.has(p.name)}
           onInstallAll={() => handleInstallAll(p)}
           onRemoveEverywhere={() => confirmRemoveEverywhere(p)}
           onToggleHome={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
@@ -280,9 +278,6 @@
             {#if p.kind === "provider" || p.kind === "proxy" || p.kind === "loader"}
               <span class="chip">{p.kind}</span>
             {/if}
-            {#if mandatoryIds.has(p.name)}
-              <span class="chip" title="Mandatory engine">Locked</span>
-            {/if}
           </div>
           {#if p.description}<span class="desc">{p.description}</span>{/if}
           {#if p.topics.length > 0}
@@ -297,7 +292,7 @@
       <AppPills
         apps={applicableHomesFor(p)}
         values={installedMap(p)}
-        onToggle={mandatoryIds.has(p.name) ? undefined : (homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
+        onToggle={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
       />
       {@render installActions(p)}
     </div>
@@ -312,9 +307,6 @@
           {#if versionLabelFor(p)}<span class="ver">{versionLabelFor(p)}</span>{/if}
           {#if p.kind === "provider" || p.kind === "proxy" || p.kind === "loader"}
             <span class="chip">{p.kind}</span>
-          {/if}
-          {#if mandatoryIds.has(p.name)}
-            <span class="chip" title="Mandatory engine">Locked</span>
           {/if}
         </div>
         {#if p.description}<span class="card-desc">{p.description}</span>{/if}
@@ -365,7 +357,6 @@
     <PluginDetail
       plugin={selectedPlugin}
       homes={applicableHomesFor(selectedPlugin)}
-      mandatory={mandatoryIds.has(selectedPlugin.name)}
       onClose={() => (selectedName = null)}
       onInstallAll={() => handleInstallAll(selectedPlugin)}
       onRemoveEverywhere={() => confirmRemoveEverywhere(selectedPlugin)}

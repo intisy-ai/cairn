@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
-import { getConfigValue, isMandatoryEngine } from "@core/index.js";
+import { getConfigValue } from "@core/index.js";
 import { getPlugins, getPluginsPath } from "@plugin-updater/config.js";
 import { readUpdateCache } from "@plugin-updater/cache.js";
 import { svgIconDataUri } from "../lib/pluginIcon.js";
@@ -296,7 +296,6 @@ export function pluginsInstallMany(name: string, url: string, homeIds: string[],
 
 export function pluginsRemoveEverywhere(name: string, deps: PluginsDeps = {}): Promise<Result<InstallManyResult>> {
   return wrap(async () => {
-    if (isMandatoryEngine(name)) throw new Error("refusing to remove the plugin engine");
     const homes = await resolveHomes(deps);
     const outcomes: InstallOutcome[] = [];
     for (const home of homes) {
@@ -311,7 +310,6 @@ export function pluginsRemoveEverywhere(name: string, deps: PluginsDeps = {}): P
 
 export function pluginsSetEnabled(homeId: PluginHomeId, name: string, on: boolean, deps: PluginsDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
-    if (isMandatoryEngine(name) && !on) throw new Error("cannot disable the plugin engine");
     const homes = await resolveHomes(deps);
     const dir = homeDir(homeId, homes);
     const file = getPluginsPath(dir);
@@ -350,7 +348,6 @@ export function pluginsDowngrade(homeId: PluginHomeId, name: string, hash: strin
 
 export function pluginsUninstall(homeId: string, name: string, deps: PluginsDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
-    if (isMandatoryEngine(name)) throw new Error("refusing to uninstall the plugin engine");
     const homes = await resolveHomes(deps);
     const dir = homeDir(homeId as PluginHomeId, homes);
     if (getPlugins(dir).some((p) => p.name === name)) {
