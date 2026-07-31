@@ -17,6 +17,7 @@ import { ledgerHomes, ledgerCommit, ledgerRestore, ledgerDiffRefs, ledgerProfile
 import { busDrain } from "./modules/bus.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
 import { usageSnapshot } from "./modules/usage.js";
+import { discoverApps } from "./lib/appDiscovery.js";
 import { importApps, importPreview, importRun } from "./modules/import.js";
 import type { ImportSelection } from "../../packages/shared/src/domain.js";
 import { catalogList } from "./modules/catalog.js";
@@ -129,4 +130,6 @@ if (process.parentPort) {
   // Prewarm the transcript cache so the first Usage view doesn't sit on a
   // multi-second cold scan of the full session history.
   void usageSnapshot();
+  // Populate the app registry on boot so it's ready before the first apps:list call.
+  void discoverApps();
 }

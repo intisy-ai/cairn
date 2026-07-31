@@ -3,6 +3,22 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { LoadedProxyDef } from "../lib/proxyPlugins.js";
+import type { AppDescriptor } from "@core/index.js";
+
+// getApps()/getAppDescriptor() now read solely from the apps.json registry (see
+// libs/core/src/apps.ts), so these tests need a seeded "claude" entry. Its home
+// candidate points at the OS temp dir, which always exists, so appsDetect()'s
+// real (non-injected) presence check is stable across machines.
+const claudeApp: AppDescriptor = {
+  id: "claude",
+  label: "Claude Code",
+  home: { candidates: [tmpdir()] },
+  detect: { binary: "claude", pkg: "claude-code" },
+  commandsSubdir: "commands",
+  proxyPort: 41101,
+  integration: "native",
+  wireFormat: "anthropic",
+};
 
 async function fakeDefs(): Promise<LoadedProxyDef[]> {
   const { anthropicProfile } = await import("@claude-code-proxy/index.js");
@@ -43,6 +59,8 @@ function seedAppHome(homeDir: string): void {
 
 beforeEach(() => {
   process.env.HUB_CONFIG_DIR = mkdtempSync(join(tmpdir(), "dash-import-"));
+  process.env.HUB_APPS_FILE = join(process.env.HUB_CONFIG_DIR, "apps.json");
+  writeFileSync(process.env.HUB_APPS_FILE, JSON.stringify({ claude: claudeApp }));
 });
 
 describe("import", () => {

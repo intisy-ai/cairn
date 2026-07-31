@@ -3,14 +3,16 @@ import { svgIconDataUri } from "./pluginIcon.js";
 import { classifyRepoTopics } from "../../../packages/shared/src/repoRef.js";
 import type { CatalogEntry, CatalogResult } from "../../../packages/shared/src/domain.js";
 import { ECOSYSTEM_ORG, getConfigValue } from "@core/index.js";
+import type { AppDescriptor } from "@core/index.js";
 
 const TTL_MS = 60_000;
 
 interface RepoJson { name?: string; html_url?: string; description?: string | null; archived?: boolean; topics?: string[] }
+interface Manifest { displayName?: string; icon?: string; app?: AppDescriptor }
 
 let cache: { at: number; result: CatalogResult } | null = null;
 const MANIFEST_TTL_MS = 1_800_000;
-const manifestCache = new Map<string, { at: number; value: { displayName?: string; icon?: string } }>();
+const manifestCache = new Map<string, { at: number; value: Manifest }>();
 export function resetOrgScanCache(): void { cache = null; manifestCache.clear(); }
 
 function tryExec(exe: string, args: string[]): Promise<string> {
@@ -57,7 +59,7 @@ async function fetchManifest(
   repo: string,
   token: string | null,
   now: () => number,
-): Promise<{ displayName?: string; icon?: string }> {
+): Promise<Manifest> {
   const hit = manifestCache.get(repo);
   if (hit && now() - hit.at < MANIFEST_TTL_MS) return hit.value;
   const value = await fetchManifestUncached(fetchFn, org, repo, token);
@@ -70,7 +72,7 @@ async function fetchManifestUncached(
   org: string,
   repo: string,
   token: string | null,
-): Promise<{ displayName?: string; icon?: string }> {
+): Promise<Manifest> {
   const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
   const contents = async (path: string): Promise<string | null> => {
     try {
@@ -87,12 +89,15 @@ async function fetchManifestUncached(
   if (!manifestB64) return {};
   try {
     const manifest = JSON.parse(Buffer.from(manifestB64, "base64").toString("utf-8"));
-    const out: { displayName?: string; icon?: string } = {};
+    const out: Manifest = {};
     if (typeof manifest.displayName === "string" && manifest.displayName) out.displayName = manifest.displayName;
     if (typeof manifest.icon === "string" && manifest.icon.endsWith(".svg")) {
       const iconB64 = await contents(manifest.icon);
       if (iconB64) out.icon = svgIconDataUri(Buffer.from(iconB64, "base64").toString("utf-8"));
     }
+    // The app block is a self-contained AppDescriptor; discovery validates it
+    // (via registerApp), so only the shape is checked here.
+    if (manifest.app && typeof manifest.app === "object" && !Array.isArray(manifest.app)) out.app = manifest.app as AppDescriptor;
     return out;
   } catch {
     return {};
@@ -132,6 +137,7 @@ export async function scanOrg(deps: OrgScanDeps = {}): Promise<CatalogResult> {
             const manifest = await fetchManifest(fetchFn, org, entry.name, token, now);
             if (manifest.displayName) entry.displayName = manifest.displayName;
             if (manifest.icon) entry.icon = manifest.icon;
+            if (manifest.app) entry.app = manifest.app;
           }),
         );
       } catch {

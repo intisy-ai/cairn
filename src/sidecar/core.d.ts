@@ -20,12 +20,12 @@ declare module "@core/index.js" {
     proxyPort: number;
     integration: "env-baseurl" | "native";
     wireFormat: string;
-    builtin: boolean;
     usage?: { formats: string[] };
   }
   export function getApps(env?: NodeJS.ProcessEnv, home?: string): AppDescriptor[];
   export function getAppDescriptor(id: string, env?: NodeJS.ProcessEnv, home?: string): AppDescriptor | undefined;
   export function resolveHome(desc: AppDescriptor, env?: NodeJS.ProcessEnv, home?: string): string;
+  export function registerApp(desc: AppDescriptor, env?: NodeJS.ProcessEnv, home?: string): void;
   export interface EventEnvelope<T = unknown> { v: 1; id: string; ts: number; topic: string; source: string; payload: T; }
   export function drainHomes(homes: string[], consumerId: string, handler: (e: EventEnvelope) => void): number;
   export interface EngineDescriptor {

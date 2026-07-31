@@ -10,6 +10,7 @@ import { normalizeQuotas } from "../../../vendor/usage/snapshot.js";
 import { appRealHome } from "../lib/pluginHomes.js";
 import { svgIconDataUri } from "../lib/pluginIcon.js";
 import { scanOrg } from "../lib/orgScan.js";
+import { discoverApps } from "../lib/appDiscovery.js";
 import { profileFor } from "../lib/proxyRegistry.js";
 import type { AppAccountSummary, AppConnection, AppPresence, AppProviderAgg, AppSummary, CliResult, HostApp, Result } from "../../../packages/shared/src/domain.js";
 import { wrap, err } from "../result.js";
@@ -74,6 +75,7 @@ async function loaderIconMap(): Promise<Record<string, string>> {
 
 export function appsList(): Promise<Result<HostApp[]>> {
   return wrap(async () => {
+    await discoverApps();
     const loaderIcons = await loaderIconMap();
     return getApps().map((desc) => ({
       id: desc.id,
