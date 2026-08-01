@@ -1,9 +1,12 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { initCoreProxy } from "@core-proxy/index.js";
 import type { LoadedProxyDef } from "../lib/proxyPlugins.js";
 import type { AppDescriptor } from "@core/index.js";
+
+beforeAll(() => initCoreProxy());
 
 // getApps()/getAppDescriptor() now read solely from the apps.json registry (see
 // libs/core/src/apps.ts), so these tests need a seeded "claude" entry. Its home

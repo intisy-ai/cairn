@@ -1,4 +1,5 @@
 import type { Result } from "../../packages/shared/src/domain.js";
+import { initCoreProxy } from "@core-proxy/index.js";
 import { err } from "./result.js";
 import { configGet, configSet } from "./modules/config.js";
 import { overviewSummary } from "./modules/overview.js";
@@ -130,6 +131,10 @@ registerHandler("customEndpoints:remove", (id) => customEndpointsRemove(id as st
 registerHandler("customEndpoints:saveKey", (endpointId, key) => customEndpointsSaveKey(endpointId as string, key as string));
 
 if (process.parentPort) {
+  // core-proxy eager-loads its TeaVM routing module; the routing/apps/import modules
+  // call its sync decision functions (resolveModelMap, claudeTiers), so init before
+  // handling any message.
+  await initCoreProxy();
   process.parentPort.on("message", (messageEvent) => {
     const { id, channel, args } = messageEvent.data as SidecarRequest;
     dispatch(channel, args).then((result) => {

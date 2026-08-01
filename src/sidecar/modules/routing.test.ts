@@ -1,8 +1,11 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { initCoreProxy } from "@core-proxy/index.js";
 import type { LoadedProxyDef } from "../lib/proxyPlugins.js";
+
+beforeAll(() => initCoreProxy());
 
 async function fakeDefs(): Promise<LoadedProxyDef[]> {
   const { anthropicProfile } = await import("@claude-code-proxy/index.js");
