@@ -52,6 +52,13 @@ export type ProviderRow = {
   enabled: boolean;
   exposure: Record<string, boolean>;
   translator?: string;
+  // Account store key this provider reads/writes; equals `id` unless it shares
+  // a pool with sibling providers from the same or another plugin.
+  accountPool: string;
+  // Other provider ids that share this provider's accountPool, empty otherwise.
+  sharedWith: string[];
+  // The deploying plugin's repo/bundle name, used to target its settings.
+  pluginName: string;
 };
 export type RoutingState = {
   tiers: string[];
