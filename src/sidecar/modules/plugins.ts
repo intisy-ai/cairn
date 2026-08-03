@@ -51,14 +51,16 @@ async function realRegisterPlugin(dir: string, name: string, url: string, autoUp
   requirePluginUpdater(await loadPluginUpdaterConfig()).registerPlugin(dir, name, url, autoUpdate);
 }
 
-async function realSetPluginEnabled(dir: string, name: string, on: boolean): Promise<boolean> {
+// null means the engine itself is unavailable, distinct from boolean false (engine present,
+// plugin not found) so callers can report the real cause instead of a misleading "not found".
+async function realSetPluginEnabled(dir: string, name: string, on: boolean): Promise<boolean | null> {
   const mod = await loadPluginUpdaterConfig();
-  return mod ? mod.setPluginEnabled(dir, name, on) : false;
+  return mod ? mod.setPluginEnabled(dir, name, on) : null;
 }
 
-async function realSetPluginAutoUpdate(dir: string, name: string, on: boolean): Promise<boolean> {
+async function realSetPluginAutoUpdate(dir: string, name: string, on: boolean): Promise<boolean | null> {
   const mod = await loadPluginUpdaterConfig();
-  return mod ? mod.setPluginAutoUpdate(dir, name, on) : false;
+  return mod ? mod.setPluginAutoUpdate(dir, name, on) : null;
 }
 
 async function realReadUpdateCache(dir: string): Promise<UpdateCache> {
@@ -389,14 +391,18 @@ export function pluginsRemoveEverywhere(name: string, deps: PluginsDeps = {}): P
 export function pluginsSetEnabled(homeId: PluginHomeId, name: string, on: boolean, deps: PluginsDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
     const dir = homeDir(homeId, await resolveHomes(deps));
-    if (!(await realSetPluginEnabled(dir, name, on))) throw new Error(`plugin not found: ${name}`);
+    const result = await realSetPluginEnabled(dir, name, on);
+    if (result === null) throw new Error("plugin-updater is not available in this build");
+    if (!result) throw new Error(`plugin not found: ${name}`);
   });
 }
 
 export function pluginsSetAutoUpdate(homeId: PluginHomeId, name: string, on: boolean, deps: PluginsDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
     const dir = homeDir(homeId, await resolveHomes(deps));
-    if (!(await realSetPluginAutoUpdate(dir, name, on))) throw new Error(`plugin not found: ${name}`);
+    const result = await realSetPluginAutoUpdate(dir, name, on);
+    if (result === null) throw new Error("plugin-updater is not available in this build");
+    if (!result) throw new Error(`plugin not found: ${name}`);
   });
 }
 

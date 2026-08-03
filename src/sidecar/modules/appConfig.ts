@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import type { PluginConfigSchema, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir } from "../lib/pluginHomes.js";
-import { safeGetPlugins } from "../lib/optionalEngines.js";
+import { safeGetPlugins, loadPluginUpdaterConfig } from "../lib/optionalEngines.js";
 import { wrap } from "../result.js";
 
 type ProbeFn = (bundlePath: string) => Promise<PluginConfigSchema | null>;
@@ -101,6 +101,9 @@ export function configWrite(homeId: string, plugin: string, key: string, value: 
   return wrap(async () => {
     const homes = deps.homes ?? (await pluginHomes());
     const dir = homeDir(homeId as PluginHomeId, homes);
+    // safeGetPlugins degrades to [] when plugin-updater is unavailable, which would otherwise
+    // read as "plugin not found" even when the named plugin is actually registered.
+    if (!(await loadPluginUpdaterConfig())) throw new Error("plugin-updater is not available in this build");
     if (!(await safeGetPlugins(dir)).some((p) => p.name === plugin)) {
       throw new Error(`plugin not found: ${plugin}`);
     }

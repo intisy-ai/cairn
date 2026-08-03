@@ -17,12 +17,28 @@ type PluginUpdaterIndex = typeof import("@plugin-updater/index.js");
 type ConfigLedgerLib = typeof import("@config-ledger/lib.js");
 
 const cache = new Map<string, Promise<unknown>>();
+const loggedFailures = new Set<string>();
+
+// A missing sibling repo surfaces as ERR_MODULE_NOT_FOUND (or the CJS-era MODULE_NOT_FOUND/ENOENT
+// equivalents): that is the expected "engine not installed" case and stays silent. Any other
+// failure (a syntax error, a throw during the module's top-level init, a packaging regression)
+// means the engine IS present but broken, which must not be indistinguishable from "not installed".
+function isModuleNotFound(error: unknown): boolean {
+  const code = (error as { code?: string } | null)?.code;
+  return code === "ERR_MODULE_NOT_FOUND" || code === "MODULE_NOT_FOUND" || code === "ENOENT";
+}
 
 function loadOnce<T>(specifier: string, doImport: () => Promise<T>): () => Promise<T | null> {
   return () => {
     const existing = cache.get(specifier) as Promise<T | null> | undefined;
     if (existing) return existing;
-    const loaded = doImport().catch(() => null);
+    const loaded = doImport().catch((error: unknown) => {
+      if (!isModuleNotFound(error) && !loggedFailures.has(specifier)) {
+        loggedFailures.add(specifier);
+        console.error(`optional engine "${specifier}" failed to load, treating as unavailable:`, error);
+      }
+      return null;
+    });
     cache.set(specifier, loaded);
     return loaded;
   };
