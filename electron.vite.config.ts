@@ -31,11 +31,18 @@ export default defineConfig({
         // core-loader's loadUpdater() dynamically imports plugin-updater, a package the
         // dashboard never installs (readDeployedProviders, the only export it uses, does
         // not reach that path); externalizing lets Rollup leave the unreached import as-is.
-        external: ["plugin-updater"],
-        // Stable (unhashed) chunk names for the main-process bundles: the sidecar
-        // dynamically imports plugin-updater as a chunk, and a hash that changes on
-        // rebuild orphaned the file a still-running app pointed at ("Cannot find
-        // module"). A fixed name means a rebuilt chunk keeps the same path.
+        //
+        // plugin-updater and config-ledger are OPTIONAL engine plugins (see optionalEngines.ts):
+        // Cairn must build even when their sibling repos are not checked out. Externalizing the
+        // aliased dist paths stops Rollup from reading their files at build time (it would
+        // otherwise ENOENT on a missing repo); the sidecar resolves the alias-substituted path
+        // itself at runtime through a presence-probed dynamic import(), so a build with both
+        // engines present behaves exactly as before.
+        external: ["plugin-updater", /[\\/]tools[\\/]plugin-updater[\\/]dist[\\/]/, /[\\/]plugins[\\/]config-ledger[\\/]dist[\\/]/],
+        // Stable (unhashed) chunk names for the main-process bundles: a rebuild's chunk hash
+        // changing orphaned a file a still-running app pointed at ("Cannot find module") for
+        // locally-bundled dynamic imports like ./plugins.js. A fixed name means a rebuilt chunk
+        // keeps the same path.
         output: {
           chunkFileNames: "chunks/[name].js",
         },

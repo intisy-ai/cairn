@@ -1,11 +1,11 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
-import { getPlugins, readOpencodeJson } from "@plugin-updater/config.js";
 import { getApps, getAppDescriptor, resolveHome } from "@core/index.js";
 import { appsDetect } from "../modules/apps.js";
 import { renderCairnMark } from "../../../packages/shared/src/logo.js";
 import type { AppPresence, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
+import { safeGetPlugins, loadPluginUpdaterConfig } from "./optionalEngines.js";
 
 export function appRealHome(app: string, env: NodeJS.ProcessEnv = process.env, home: string = homedir()): string {
   const desc = getAppDescriptor(app, env, home);
@@ -14,11 +14,14 @@ export function appRealHome(app: string, env: NodeJS.ProcessEnv = process.env, h
 
 // "Has the updater" means plugin-updater is actually installed in this home (a git
 // entry or opencode's npm plugin list), NOT merely that a plugins.json exists. The
-// gate and the download source label both hinge on this being accurate.
-export function updaterInstalled(dir: string): boolean {
+// gate and the download source label both hinge on this being accurate. When
+// plugin-updater itself is not part of this build, no home can have it installed.
+export async function updaterInstalled(dir: string): Promise<boolean> {
   try {
-    if (getPlugins(dir).some((p) => p.name === "plugin-updater")) return true;
-    return readOpencodeJson(dir).plugins.some((p) => p.includes("plugin-updater"));
+    if ((await safeGetPlugins(dir)).some((p) => p.name === "plugin-updater")) return true;
+    const config = await loadPluginUpdaterConfig();
+    if (!config) return false;
+    return config.readOpencodeJson(dir).plugins.some((p) => p.includes("plugin-updater"));
   } catch {
     return false;
   }
@@ -27,7 +30,7 @@ export function updaterInstalled(dir: string): boolean {
 export interface PluginHomesDeps {
   detect?: () => Promise<Result<AppPresence>>;
   cairnDir?: string;
-  hasUpdater?: (dir: string) => boolean;
+  hasUpdater?: (dir: string) => boolean | Promise<boolean>;
   appHome?: (app: string) => string;
 }
 
@@ -38,16 +41,18 @@ export async function pluginHomes(deps: PluginHomesDeps = {}): Promise<PluginHom
   const appHomeForId = deps.appHome ?? appRealHome;
   const detected = await detect();
   const present: AppPresence = detected.ok ? detected.data : {};
-  const appHomes: PluginHome[] = getApps().map((desc) => {
-    const dir = appHomeForId(desc.id);
-    // The home pills inline the mark as raw SVG (like the Cairn mark), so pass the
-    // descriptor's raw icon through rather than a data URI.
-    return { id: desc.id, label: desc.label, icon: desc.icon || undefined, dir, present: !!present[desc.id], hasUpdater: hasUpdater(dir) };
-  });
+  const appHomes: PluginHome[] = await Promise.all(
+    getApps().map(async (desc) => {
+      const dir = appHomeForId(desc.id);
+      // The home pills inline the mark as raw SVG (like the Cairn mark), so pass the
+      // descriptor's raw icon through rather than a data URI.
+      return { id: desc.id, label: desc.label, icon: desc.icon || undefined, dir, present: !!present[desc.id], hasUpdater: await hasUpdater(dir) };
+    }),
+  );
   return [
     // Cairn bundles the updater to perform installs, but it ships with no plugins:
     // until plugin-updater is installed here too, only engines can be added.
-    { id: "cairn", label: "Cairn", icon: renderCairnMark(), dir: cairnDir, present: true, hasUpdater: hasUpdater(cairnDir) },
+    { id: "cairn", label: "Cairn", icon: renderCairnMark(), dir: cairnDir, present: true, hasUpdater: await hasUpdater(cairnDir) },
     ...appHomes,
   ];
 }

@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
-import { getPlugins } from "@plugin-updater/config.js";
 import type { PluginConfigSchema, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir } from "../lib/pluginHomes.js";
+import { safeGetPlugins } from "../lib/optionalEngines.js";
 import { wrap } from "../result.js";
 
 type ProbeFn = (bundlePath: string) => Promise<PluginConfigSchema | null>;
@@ -43,7 +43,7 @@ export function configSchemas(homeId: string, deps: ConfigSchemasDeps = {}): Pro
     const dir = homeDir(homeId as PluginHomeId, homes);
     const probe = deps.probe ?? realProbe;
     const schemas: PluginConfigSchema[] = [];
-    for (const plugin of getPlugins(dir)) {
+    for (const plugin of await safeGetPlugins(dir)) {
       const bundlePath = join(dir, "plugin", `${plugin.name}.js`);
       if (!existsSync(bundlePath)) continue;
       const schema = await probe(bundlePath);
@@ -79,7 +79,7 @@ export function configAction(homeId: string, plugin: string, actionId: string, d
   return wrap(async () => {
     const homes = deps.homes ?? (await pluginHomes());
     const dir = homeDir(homeId as PluginHomeId, homes);
-    if (!getPlugins(dir).some((p) => p.name === plugin)) {
+    if (!(await safeGetPlugins(dir)).some((p) => p.name === plugin)) {
       throw new Error(`plugin not found: ${plugin}`);
     }
     const bundlePath = join(dir, "plugin", `${plugin}.js`);
@@ -101,7 +101,7 @@ export function configWrite(homeId: string, plugin: string, key: string, value: 
   return wrap(async () => {
     const homes = deps.homes ?? (await pluginHomes());
     const dir = homeDir(homeId as PluginHomeId, homes);
-    if (!getPlugins(dir).some((p) => p.name === plugin)) {
+    if (!(await safeGetPlugins(dir)).some((p) => p.name === plugin)) {
       throw new Error(`plugin not found: ${plugin}`);
     }
     if (key === "__proto__" || key === "constructor" || key === "prototype") {

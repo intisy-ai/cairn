@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initCoreProxy } from "@core-proxy/index.js";
 import type { LoadedProxyDef } from "../lib/proxyPlugins.js";
+import { fixtureRoutingProfile } from "../lib/routingProfileFixture.js";
 
 beforeAll(() => initCoreProxy());
 
 async function fakeDefs(): Promise<LoadedProxyDef[]> {
-  const { anthropicProfile } = await import("@claude-code-proxy/index.js");
-  return [{ app: "claude", label: "Claude Code", profile: anthropicProfile }];
+  return [{ app: "claude", label: "Claude Code", profile: fixtureRoutingProfile }];
 }
 const proxyDeps = { defs: fakeDefs };
 
@@ -29,12 +29,11 @@ beforeEach(() => {
 describe("routing sidecar module", () => {
   it("returns tiers and an empty catalog on a bare store", async () => {
     const { routingGet } = await import("./routing.js");
-    const { anthropicProfile } = await import("@claude-code-proxy/index.js");
 
     const result = await routingGet("claude", proxyDeps);
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data.tiers).toEqual(anthropicProfile().tierFallback);
+    expect(result.data.tiers).toEqual(fixtureRoutingProfile().tierFallback);
     expect(result.data.catalog).toEqual([]);
     expect(result.data.map.default).toEqual([]);
   });

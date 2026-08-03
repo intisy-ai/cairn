@@ -3,7 +3,6 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join, delimiter } from "node:path";
 import { getApps, getAppDescriptor, resolveHome } from "@core/index.js";
 import type { AppDescriptor } from "@core/index.js";
-import { getPlugins } from "@plugin-updater/config.js";
 import type { Plugin } from "@plugin-updater/types.js";
 import { resolveModelMap } from "@core-proxy/model-map.js";
 import { normalizeQuotas } from "../../../vendor/usage/snapshot.js";
@@ -12,6 +11,7 @@ import { svgIconDataUri } from "../lib/pluginIcon.js";
 import { scanOrg } from "../lib/orgScan.js";
 import { discoverApps } from "../lib/appDiscovery.js";
 import { profileFor } from "../lib/proxyRegistry.js";
+import { safeGetPlugins } from "../lib/optionalEngines.js";
 import type { AppAccountSummary, AppConnection, AppPresence, AppProviderAgg, AppSummary, CliResult, HostApp, Result } from "../../../packages/shared/src/domain.js";
 import { wrap, err } from "../result.js";
 
@@ -100,14 +100,14 @@ export function appsInit(app: string, spawn: SpawnFn = realSpawn): Promise<Resul
 
 export interface AppsConnectionDeps {
   detect?: () => Promise<Result<AppPresence>>;
-  listPlugins?: (dir: string) => Plugin[];
+  listPlugins?: (dir: string) => Plugin[] | Promise<Plugin[]>;
   appHome?: (app: string) => string;
   getDescriptor?: (app: string) => AppDescriptor | undefined;
 }
 
 export function appsConnection(app: string, deps: AppsConnectionDeps = {}): Promise<Result<AppConnection>> {
   const detect = deps.detect ?? appsDetect;
-  const listPlugins = deps.listPlugins ?? getPlugins;
+  const listPlugins = deps.listPlugins ?? safeGetPlugins;
   const appHome = deps.appHome ?? appRealHome;
   const getDescriptor = deps.getDescriptor ?? getAppDescriptor;
   return wrap(async () => {
@@ -116,7 +116,7 @@ export function appsConnection(app: string, deps: AppsConnectionDeps = {}): Prom
     const presence = await detect();
     const cliPresent = presence.ok ? !!presence.data[app] : false;
     const loader = desc.loader ?? null;
-    const loaderInstalled = loader ? listPlugins(appHome(app)).some((p) => p.name === loader.id) : false;
+    const loaderInstalled = loader ? (await listPlugins(appHome(app))).some((p) => p.name === loader.id) : false;
     return { app, cliPresent, loaderId: loader?.id ?? null, loaderUrl: loader?.url ?? null, loaderInstalled };
   });
 }
@@ -225,7 +225,7 @@ export function appsSummary(app: string, deps: AppsSummaryDeps = {}): Promise<Re
         });
       }
     }
-    const pluginCount = getPlugins(home).length;
+    const pluginCount = (await safeGetPlugins(home)).length;
 
     let routingSlots: number | null = null;
     const profile = await profileFor(app);

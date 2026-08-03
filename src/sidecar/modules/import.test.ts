@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { initCoreProxy } from "@core-proxy/index.js";
 import type { LoadedProxyDef } from "../lib/proxyPlugins.js";
 import type { AppDescriptor } from "@core/index.js";
+import { fixtureRoutingProfile } from "../lib/routingProfileFixture.js";
 
 beforeAll(() => initCoreProxy());
 
@@ -24,8 +25,7 @@ const claudeApp: AppDescriptor = {
 };
 
 async function fakeDefs(): Promise<LoadedProxyDef[]> {
-  const { anthropicProfile } = await import("@claude-code-proxy/index.js");
-  return [{ app: "claude", label: "Claude Code", profile: anthropicProfile }];
+  return [{ app: "claude", label: "Claude Code", profile: fixtureRoutingProfile }];
 }
 const proxyDeps = { defs: fakeDefs };
 
@@ -55,7 +55,7 @@ function seedAppHome(homeDir: string): void {
     }),
   );
   writeFileSync(
-    join(configDir, "claude-code-loader.json"),
+    join(configDir, fixtureRoutingProfile().configFile),
     JSON.stringify({ modelMap: { opus: [{ provider: "stub", model: "m-opus" }] } }),
   );
 }
