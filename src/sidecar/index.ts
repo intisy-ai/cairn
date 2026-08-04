@@ -19,6 +19,8 @@ import { busDrain } from "./modules/bus.js";
 import { activityRead } from "./modules/activity.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
 import type { ActivityQuery } from "@core/index.js";
+import { setActivityContext, withCause, resolveAppsFile } from "@core/index.js";
+import { dirname } from "node:path";
 import { usageSnapshot } from "./modules/usage.js";
 import { discoverApps } from "./lib/appDiscovery.js";
 import { importApps, importPreview, importRun } from "./modules/import.js";
@@ -36,6 +38,11 @@ type SidecarHandler = (...args: unknown[]) => Promise<Result<unknown>>;
 
 const handlers: Record<string, SidecarHandler> = {};
 
+// This process manages many homes and forces none of them, so the ambient home
+// resolution finds nothing: state its own explicitly. The app registry it owns is
+// the canonical marker for that home, so no path is spelled out here.
+setActivityContext({ app: "cairn", entry: "sidecar", home: dirname(resolveAppsFile()) });
+
 export function registerHandler(channel: string, handler: SidecarHandler): void {
   handlers[channel] = handler;
 }
@@ -51,7 +58,9 @@ export async function dispatch(channel: string, args: unknown[]): Promise<Result
   const handler = handlers[channel];
   if (!handler) return err(`no handler registered for channel: ${channel}`);
   try {
-    return await handler(...args);
+    // One scope over every registered channel: whatever a handler goes on to do
+    // inherits "a user did this, here", so no handler needs its own attribution.
+    return await withCause({ kind: "user", surface: channel }, () => handler(...args));
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e));
   }

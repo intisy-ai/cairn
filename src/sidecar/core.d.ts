@@ -43,6 +43,13 @@ declare module "@core/index.js" {
     subject?: ActivitySubject;
     details: Record<string, unknown>;
     text: string;
+    origin: ActivityOrigin;
+    target?: ActivityTarget;
+    cause: ActivityCause;
+    trace: ActivityTrace;
+    outcome?: "ok" | "failed";
+    durationMs?: number;
+    changes?: ActivityValueChange[];
   }
   export interface ActivityQuery {
     impacts?: Impact[];
@@ -55,6 +62,16 @@ declare module "@core/index.js" {
     limit?: number;
     cursor?: string;
   }
+  export type CauseKind = "user" | "startup" | "schedule" | "hook" | "watch" | "api" | "cascade" | "unknown";
+  export interface ActivityOrigin { app: string; home: string; entry?: string; pid?: number; }
+  export interface ActivityTarget { app?: string; home?: string; }
+  export interface ActivityCause { kind: CauseKind; surface?: string; detail?: string; }
+  export interface ActivityTrace { id: string; causedBy?: string; }
+  export interface ActivityValueChange { key: string; from?: unknown; to?: unknown; redacted?: boolean; }
+  export function setActivityContext(patch: { app?: string; entry?: string; home?: string; target?: ActivityTarget }): void;
+  export function withCause<T>(cause: ActivityCause, fn: () => T): T;
+  export function currentCause(): ActivityCause;
+  export function resolveAppsFile(env?: NodeJS.ProcessEnv, home?: string): string;
   export function normalizeActivity(envelope: EventEnvelope, home?: string): ActivityRecord;
   export function readActivity(homes: string[], query?: ActivityQuery): { records: ActivityRecord[]; nextCursor?: string };
   export interface EngineDescriptor {
