@@ -28,6 +28,35 @@ declare module "@core/index.js" {
   export function registerApp(desc: AppDescriptor, env?: NodeJS.ProcessEnv, home?: string): void;
   export interface EventEnvelope<T = unknown> { v: 1; id: string; ts: number; topic: string; source: string; payload: T; }
   export function drainHomes(homes: string[], consumerId: string, handler: (e: EventEnvelope) => void): number;
+  export function subscribeHomes(homes: string[], topics: string | string[], handler: (e: EventEnvelope) => void, opts?: { fromStart?: boolean; pollMs?: number }): () => void;
+  export type Impact = "debug" | "info" | "notice" | "warning" | "error";
+  export interface ActivitySubject { kind: string; id?: string; label?: string; }
+  export interface ActivityRecord {
+    id: string;
+    ts: number;
+    home: string;
+    topic: string;
+    action: string;
+    actor: "user" | "system" | "app";
+    impact: Impact;
+    source: string;
+    subject?: ActivitySubject;
+    details: Record<string, unknown>;
+    text: string;
+  }
+  export interface ActivityQuery {
+    impacts?: Impact[];
+    sources?: string[];
+    topics?: string[];
+    subjects?: string[];
+    since?: number;
+    until?: number;
+    search?: string;
+    limit?: number;
+    cursor?: string;
+  }
+  export function normalizeActivity(envelope: EventEnvelope, home?: string): ActivityRecord;
+  export function readActivity(homes: string[], query?: ActivityQuery): { records: ActivityRecord[]; nextCursor?: string };
   export interface EngineDescriptor {
     id: string;
     url: string;

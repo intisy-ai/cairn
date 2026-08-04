@@ -90,6 +90,7 @@ function defaultCairn(): CairnAPI {
     ledgerProfileCreate: async () => ({ ok: true, data: undefined }),
     ledgerProfileSwitch: async () => ({ ok: true, data: { ok: true } }),
     busDrain: async () => ({ ok: true, data: [] }),
+    activityRead: async () => ({ ok: true, data: { records: [] } }),
     usageSnapshot: async () => ({ ok: true, data: { accounts: [], sessions: [], models: {}, updatedAt: "" } }),
     importApps: async () => ({ ok: true, data: [] }),
     importPreview: async () => ({ ok: true, data: { accounts: 0, routingSlots: null, exposedProviders: 0 } }),

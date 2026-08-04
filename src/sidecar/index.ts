@@ -16,7 +16,9 @@ import { configSchemas, configWrite, configAction } from "./modules/appConfig.js
 import { syncStatus, syncRun, syncSetConfig } from "./modules/sync.js";
 import { ledgerHomes, ledgerCommit, ledgerRestore, ledgerDiffRefs, ledgerProfileCreate, ledgerProfileSwitch } from "./modules/ledger.js";
 import { busDrain } from "./modules/bus.js";
+import { activityRead } from "./modules/activity.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
+import type { ActivityQuery } from "@core/index.js";
 import { usageSnapshot } from "./modules/usage.js";
 import { discoverApps } from "./lib/appDiscovery.js";
 import { importApps, importPreview, importRun } from "./modules/import.js";
@@ -109,6 +111,7 @@ registerHandler("ledger:diffRefs", (home, refA, refB) => ledgerDiffRefs(home as 
 registerHandler("ledger:profileCreate", (home, name) => ledgerProfileCreate(home as string, name as string));
 registerHandler("ledger:profileSwitch", (home, name) => ledgerProfileSwitch(home as string, name as string));
 registerHandler("bus:drain", () => busDrain());
+registerHandler("activity:read", (query) => activityRead(query as ActivityQuery));
 registerHandler("usage:snapshot", () => usageSnapshot());
 registerHandler("import:apps", () => importApps());
 registerHandler("import:preview", (app) => importPreview(app as string));

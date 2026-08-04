@@ -8,6 +8,7 @@ import { shouldAutostart } from "./lib/autostart.js";
 import { createSupervisor } from "./sidecar/supervisor.js";
 import { registerHandlers } from "./ipc/registerHandlers.js";
 import * as proxyDaemon from "./daemon/proxyDaemon.js";
+import { startActivityForwarder } from "./lib/activityForwarder.js";
 import type { Supervisor } from "./sidecar/supervisor.js";
 
 const dirName = dirname(fileURLToPath(import.meta.url));
@@ -15,6 +16,7 @@ const dirName = dirname(fileURLToPath(import.meta.url));
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let supervisor: Supervisor | null = null;
+let stopActivityForwarder: (() => void) | null = null;
 
 function createWindow(): void {
   const isMac = process.platform === "darwin";
@@ -120,6 +122,9 @@ if (!app.requestSingleInstanceLock()) {
     registerHandlers(supervisor);
     registerWindowControls();
     proxyDaemon.onStatusChange((status) => mainWindow?.webContents.send("server:status", status));
+    startActivityForwarder((record) => mainWindow?.webContents.send("activity:event", record)).then((stop) => {
+      stopActivityForwarder = stop;
+    });
     autostartProxyIfConfigured(storeDir);
 
     createWindow();
@@ -135,6 +140,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on("before-quit", () => {
+    stopActivityForwarder?.();
     supervisor?.dispose();
   });
 }

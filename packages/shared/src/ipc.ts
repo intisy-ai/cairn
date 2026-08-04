@@ -63,6 +63,7 @@ export const INVOKE_CHANNELS = {
   ledgerProfileCreate: "ledger:profileCreate",
   ledgerProfileSwitch: "ledger:profileSwitch",
   busDrain: "bus:drain",
+  activityRead: "activity:read",
   usageSnapshot: "usage:snapshot",
   importApps: "import:apps",
   importPreview: "import:preview",
@@ -91,7 +92,7 @@ export type InvokeChannel = (typeof INVOKE_CHANNELS)[InvokeMethod];
 export const IPC_CHANNELS = {
   invoke: Object.values(INVOKE_CHANNELS) as readonly InvokeChannel[],
   send: ["window:minimize", "window:maximize", "window:close"] as const,
-  receive: ["server:status", "downloads:progress"] as const,
+  receive: ["server:status", "downloads:progress", "activity:event"] as const,
 };
 
 // The methods on CairnAPI that are NOT request/response invocations (window
