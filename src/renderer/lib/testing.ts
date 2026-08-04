@@ -119,6 +119,7 @@ function defaultCairn(): CairnAPI {
     close: () => {},
     onServerStatus: () => () => {},
     onDownloadProgress: () => () => {},
+    onActivityEvent: () => () => {},
     isElectron: true,
     platform: "linux",
   };

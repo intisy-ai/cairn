@@ -83,6 +83,7 @@ export interface CairnAPI {
   close(): void;
   onServerStatus(listener: (status: ProxyStatus) => void): () => void;
   onDownloadProgress(listener: (progress: DownloadProgress) => void): () => void;
+  onActivityEvent(listener: (record: ActivityRecord) => void): () => void;
   isElectron: true;
   platform: NodeJS.Platform;
 }

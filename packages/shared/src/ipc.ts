@@ -97,7 +97,7 @@ export const IPC_CHANNELS = {
 
 // The methods on CairnAPI that are NOT request/response invocations (window
 // controls, the push subscriptions, and the static flags).
-type NonInvokeMethod = "minimize" | "maximize" | "close" | "onServerStatus" | "onDownloadProgress" | "isElectron" | "platform";
+type NonInvokeMethod = "minimize" | "maximize" | "close" | "onServerStatus" | "onDownloadProgress" | "onActivityEvent" | "isElectron" | "platform";
 type ApiInvokeMethod = Exclude<keyof CairnAPI, NonInvokeMethod>;
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 

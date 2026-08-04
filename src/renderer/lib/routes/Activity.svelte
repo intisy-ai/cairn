@@ -1,0 +1,317 @@
+<script lang="ts">
+  import { onMount } from "svelte";
+  import type { ActivityRecord, Impact } from "@cairn/shared";
+  import { cairn } from "../ipc.js";
+  import { humanizeId } from "../util/appLabel.js";
+  import { clearUnseenErrors } from "../stores/activity.js";
+  import Card from "../components/Card.svelte";
+  import SearchField from "../components/SearchField.svelte";
+  import Chip from "../components/Chip.svelte";
+  import Skeleton from "../components/Skeleton.svelte";
+  import ErrorState from "../components/ErrorState.svelte";
+  import EmptyState from "../components/EmptyState.svelte";
+
+  const IMPACTS: Impact[] = ["debug", "info", "notice", "warning", "error"];
+  type Range = "1h" | "24h" | "7d" | "all";
+  const HOUR_MS = 3_600_000;
+  const RANGE_MS: Record<Range, number> = { "1h": HOUR_MS, "24h": HOUR_MS * 24, "7d": HOUR_MS * 24 * 7, all: 0 };
+  const PAGE_LIMIT = 200;
+
+  let records = $state<ActivityRecord[]>([]);
+  let loadError = $state("");
+  let loaded = $state(false);
+  let activeImpacts = $state<Set<Impact>>(new Set());
+  let sourceFilter = $state("");
+  let topicFilter = $state("");
+  let query = $state("");
+  let range = $state<Range>("24h");
+  let expandedId = $state<string | null>(null);
+
+  const cutoff = $derived(range === "all" ? 0 : Date.now() - RANGE_MS[range]);
+
+  // Filter options are derived from the records actually present, never a
+  // hardcoded app/plugin enum.
+  const sources = $derived.by(() => Array.from(new Set(records.map((r) => r.source))).sort());
+  const topics = $derived.by(() => Array.from(new Set(records.map((r) => r.topic))).sort());
+
+  const filtered = $derived.by(() => {
+    const q = query.trim().toLowerCase();
+    return records.filter((r) => {
+      if (r.ts < cutoff) return false;
+      if (activeImpacts.size > 0 && !activeImpacts.has(r.impact)) return false;
+      if (sourceFilter && r.source !== sourceFilter) return false;
+      if (topicFilter && r.topic !== topicFilter) return false;
+      if (q && !r.text.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  });
+
+  function toggleImpact(impact: Impact): void {
+    const next = new Set(activeImpacts);
+    if (next.has(impact)) next.delete(impact);
+    else next.add(impact);
+    activeImpacts = next;
+  }
+
+  function toggleExpanded(id: string): void {
+    expandedId = expandedId === id ? null : id;
+  }
+
+  function impactVariant(impact: Impact): string {
+    if (impact === "error") return "crit";
+    if (impact === "warning") return "warn";
+    if (impact === "notice") return "accent";
+    if (impact === "info") return "muted";
+    return "faint";
+  }
+
+  function impactGlyph(impact: Impact): string {
+    if (impact === "error") return "●";
+    if (impact === "warning") return "▲";
+    if (impact === "notice") return "◆";
+    if (impact === "info") return "○";
+    return "·";
+  }
+
+  function relativeTime(ts: number): string {
+    const diffSec = Math.max(0, Math.round((Date.now() - ts) / 1000));
+    if (diffSec < 60) return "just now";
+    const diffMin = Math.round(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHour = Math.round(diffMin / 60);
+    if (diffHour < 24) return `${diffHour}h ago`;
+    const diffDay = Math.round(diffHour / 24);
+    return `${diffDay}d ago`;
+  }
+
+  async function load(): Promise<void> {
+    const result = await cairn.activityRead({ limit: PAGE_LIMIT });
+    if (result.ok) {
+      records = result.data.records;
+      loadError = "";
+    } else {
+      loadError = result.error;
+    }
+    loaded = true;
+  }
+
+  onMount(() => {
+    clearUnseenErrors();
+    void load();
+    return cairn.onActivityEvent((record) => {
+      records = [record, ...records];
+    });
+  });
+</script>
+
+<div class="head">
+  <div>
+    <h1>Activity</h1>
+    <p>Live event stream across every connected home.</p>
+  </div>
+</div>
+
+<div class="filters">
+  <div class="impacts" role="group" aria-label="Impact filter">
+    {#each IMPACTS as impact (impact)}
+      <Chip label={impact} on={activeImpacts.has(impact)} onclick={() => toggleImpact(impact)} />
+    {/each}
+  </div>
+  <select bind:value={sourceFilter} aria-label="Source">
+    <option value="">All sources</option>
+    {#each sources as source (source)}
+      <option value={source}>{humanizeId(source)}</option>
+    {/each}
+  </select>
+  <select bind:value={topicFilter} aria-label="Topic">
+    <option value="">All topics</option>
+    {#each topics as topic (topic)}
+      <option value={topic}>{topic}</option>
+    {/each}
+  </select>
+  <SearchField bind:value={query} placeholder="Search activity" />
+  <div class="ranges" role="group" aria-label="Time range">
+    <button class:active={range === "1h"} onclick={() => (range = "1h")}>1h</button>
+    <button class:active={range === "24h"} onclick={() => (range = "24h")}>24h</button>
+    <button class:active={range === "7d"} onclick={() => (range = "7d")}>7d</button>
+    <button class:active={range === "all"} onclick={() => (range = "all")}>All</button>
+  </div>
+</div>
+
+{#if loadError}
+  <ErrorState message={`Could not load activity: ${loadError}`} onRetry={load} />
+{:else if !loaded}
+  <div class="skeletons">
+    <Skeleton height="52px" radius="12px" />
+    <Skeleton height="52px" radius="12px" />
+    <Skeleton height="52px" radius="12px" />
+  </div>
+{:else if filtered.length === 0}
+  <EmptyState message="No activity matches your filters." />
+{:else}
+  <Card>
+    <ul class="list">
+      {#each filtered as record (record.id)}
+        <li>
+          <button type="button" class="row" onclick={() => toggleExpanded(record.id)} aria-expanded={expandedId === record.id}>
+            <span class="impact impact-{impactVariant(record.impact)}" title={record.impact}>{impactGlyph(record.impact)}</span>
+            <span class="text" title={record.text}>{record.text}</span>
+            <span class="home">{humanizeId(record.home)}</span>
+            <span class="time">{relativeTime(record.ts)}</span>
+          </button>
+          {#if expandedId === record.id}
+            <pre class="details">{JSON.stringify(record.details, null, 2)}</pre>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  </Card>
+{/if}
+
+<style>
+  .head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+  .head h1 {
+    margin: 0;
+    font-size: 20px;
+    letter-spacing: -.02em;
+    font-weight: 650;
+  }
+  .head p {
+    margin: 3px 0 0;
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+  .filters {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .impacts {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .filters select {
+    font-family: var(--ui);
+    font-size: 12.5px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .ranges {
+    display: flex;
+    gap: 2px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 2px;
+    flex: none;
+    margin-left: auto;
+  }
+  .ranges button {
+    border: none;
+    background: none;
+    color: var(--muted);
+    font-family: var(--ui);
+    font-size: 12px;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .ranges button.active {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
+  }
+  .skeletons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border: none;
+    border-top: 1px solid var(--border);
+    background: none;
+    font-family: var(--ui);
+    text-align: left;
+    cursor: pointer;
+  }
+  li:first-child .row {
+    border-top: 0;
+  }
+  .row:hover {
+    background: var(--surface-2);
+  }
+  .impact {
+    text-align: center;
+    font-size: 12px;
+  }
+  .impact-crit {
+    color: var(--crit);
+  }
+  .impact-warn {
+    color: var(--warn);
+  }
+  .impact-accent {
+    color: var(--accent);
+  }
+  .impact-muted {
+    color: var(--muted);
+  }
+  .impact-faint {
+    color: var(--faint);
+  }
+  .text {
+    font-size: 13px;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .home {
+    font-size: 11px;
+    color: var(--faint);
+    background: var(--surface-2);
+    border-radius: 20px;
+    padding: 2px 9px;
+    white-space: nowrap;
+  }
+  .time {
+    font-size: 11.5px;
+    color: var(--faint);
+    white-space: nowrap;
+    font-family: var(--mono);
+  }
+  .details {
+    margin: 0;
+    padding: 12px 16px 14px 48px;
+    background: var(--surface-2);
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    overflow-x: auto;
+    white-space: pre;
+  }
+</style>
