@@ -33,9 +33,12 @@ beforeEach(() => {
   );
 });
 
+function reposRoot(): string {
+  return join(process.env.HUB_CONFIG_DIR as string, "repos");
+}
+
 function seedStubProvider(): void {
-  const configDir = process.env.HUB_CONFIG_DIR as string;
-  const repoDir = join(configDir, "repos", "stub-auth");
+  const repoDir = join(reposRoot(), "stub-auth");
   mkdirSync(join(repoDir, "dist"), { recursive: true });
   writeFileSync(
     join(repoDir, "package.json"),
@@ -45,6 +48,25 @@ function seedStubProvider(): void {
     }),
   );
   copyFileSync(stubHandlerPath, join(repoDir, "dist", "handler.js"));
+}
+
+// Writes a minimal synthetic provider plugin whose def declares its own
+// accountPool, so two of these (see below) can simulate a shared pool without
+// depending on stub-auth's real handler shape.
+function seedSyntheticProvider(repo: string, providerId: string, label: string, accountPool: string): void {
+  const repoDir = join(reposRoot(), repo);
+  mkdirSync(join(repoDir, "dist"), { recursive: true });
+  writeFileSync(
+    join(repoDir, "package.json"),
+    JSON.stringify({
+      name: repo,
+      claudeHub: { authProviders: [{ name: providerId, handler: "dist/handler.js" }] },
+    }),
+  );
+  writeFileSync(
+    join(repoDir, "dist", "handler.js"),
+    `export const def = { id: ${JSON.stringify(providerId)}, label: ${JSON.stringify(label)}, models: {}, hasOAuth: false, accountPool: ${JSON.stringify(accountPool)} };\n`,
+  );
 }
 
 describe("providers sidecar module", () => {
@@ -66,6 +88,9 @@ describe("providers sidecar module", () => {
     expect(row.accountCount).toBe(1);
     expect(row.enabled).toBe(true);
     expect(row.exposure).toEqual({ claude: true, opencode: true });
+    expect(row.accountPool).toBe("stub");
+    expect(row.sharedWith).toEqual([]);
+    expect(row.pluginName).toBe("stub-auth");
 
     const exposed = await providersSetExposure("stub", "claude", false);
     expect(exposed.ok).toBe(true);
@@ -94,6 +119,34 @@ describe("providers sidecar module", () => {
     const { providersList } = await import("./providers.js");
     const result = await providersList();
     expect(result).toEqual({ ok: true, data: [] });
+  });
+
+  it("cross-links providers that declare the same accountPool and shows them the same accountCount", async () => {
+    seedSyntheticProvider("plugin-a", "providerA", "Provider A", "shared-pool");
+    seedSyntheticProvider("plugin-b", "providerB", "Provider B", "shared-pool");
+    const { addAccount } = await import("@core-auth/index.js");
+    addAccount("shared-pool", { id: "acc1", email: "acc1@example.com", refresh: "r1", enabled: true });
+
+    const { providersList } = await import("./providers.js");
+    const listed = await providersList();
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) throw new Error("unreachable");
+    expect(listed.data).toHaveLength(2);
+
+    const rowA = listed.data.find((r) => r.id === "providerA");
+    const rowB = listed.data.find((r) => r.id === "providerB");
+    expect(rowA).toBeDefined();
+    expect(rowB).toBeDefined();
+    if (!rowA || !rowB) throw new Error("unreachable");
+
+    expect(rowA.accountPool).toBe("shared-pool");
+    expect(rowB.accountPool).toBe("shared-pool");
+    expect(rowA.sharedWith).toEqual(["providerB"]);
+    expect(rowB.sharedWith).toEqual(["providerA"]);
+    expect(rowA.accountCount).toBe(1);
+    expect(rowB.accountCount).toBe(1);
+    expect(rowA.pluginName).toBe("plugin-a");
+    expect(rowB.pluginName).toBe("plugin-b");
   });
 
   it("providersSetExposure writes an app-id-keyed entry", async () => {

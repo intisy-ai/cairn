@@ -2,9 +2,9 @@ import { statSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { getConfigDir } from "@core-auth/index.js";
-import { getPlugins } from "@plugin-updater/config.js";
 import { getAppDescriptor } from "@core/index.js";
 import type { RoutingProfile } from "@core-proxy/index.js";
+import { safeGetPlugins } from "./optionalEngines.js";
 
 export type LoadedProxyDef = { app: string; label: string; profile: () => RoutingProfile; setup?: string };
 
@@ -49,7 +49,7 @@ async function loadProxyDef(storeDir: string, name: string, importFn: (url: stri
 export async function listInstalledProxies(storeDir: string = getConfigDir(), deps: ProxyPluginsDeps = {}): Promise<InstalledProxy[]> {
   const importFn = deps.importFn ?? ((url: string) => import(/* @vite-ignore */ url));
   const proxies: InstalledProxy[] = [];
-  for (const plugin of getPlugins(storeDir)) {
+  for (const plugin of await safeGetPlugins(storeDir)) {
     if (!plugin.name.endsWith("-proxy")) continue;
     const def = await loadProxyDef(storeDir, plugin.name, importFn);
     proxies.push({ name: plugin.name, enabled: plugin.enabled !== false, def });

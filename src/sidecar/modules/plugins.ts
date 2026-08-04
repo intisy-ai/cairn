@@ -12,16 +12,21 @@ const execFileAsync = promisify(execFile);
 import { join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
 import { getConfigValue, isEngine } from "@core/index.js";
-import { getPlugins, registerPlugin, setPluginEnabled, setPluginAutoUpdate } from "@plugin-updater/config.js";
-import { readUpdateCache } from "@plugin-updater/cache.js";
 import { svgIconDataUri } from "../lib/pluginIcon.js";
-import { syncPluginsAcrossApps as realSyncPluginsAcrossApps } from "@plugin-updater/syncbridge.js";
-import { setEarlyLaunchConfigDir } from "@plugin-updater/env.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
 import type { Plugin, NpmPlugin } from "@plugin-updater/types.js";
 import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, PluginVersion, Result, CliResult, InstallManyResult, InstallOutcome } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir, updaterInstalled } from "../lib/pluginHomes.js";
 import { readNamespace, writeCacheMany } from "../lib/cache.js";
+import {
+  safeGetPlugins,
+  loadPluginUpdaterConfig,
+  loadPluginUpdaterCache,
+  loadPluginUpdaterSyncbridge,
+  loadPluginUpdaterEnv,
+  loadPluginUpdaterNpm,
+  loadPluginUpdaterIndex,
+} from "../lib/optionalEngines.js";
 import { wrap } from "../result.js";
 
 const VERSIONS_NS = "versions";
@@ -29,14 +34,54 @@ const VERSIONS_NS = "versions";
 type UpdatePluginPublicFn = (name: string, url: string, branch?: string, commitHash?: string) => Promise<void | object>;
 type SyncPluginsAcrossAppsFn = (configDir: string) => Promise<void>;
 type DowngradeFn = (plugin: { name: string; url?: string; branch?: string }, commitHash: string) => string;
-type HasUpdaterFn = (dir: string) => boolean;
+type HasUpdaterFn = (dir: string) => boolean | Promise<boolean>;
 type InitAppFn = (app: string) => Promise<Result<CliResult>>;
+
+const EMPTY_UPDATE_CACHE: UpdateCache = { checkedAt: new Date(0).toISOString(), plugins: {} };
+
+// Every plugin-updater call below is a soft reference: with the sibling repo absent from
+// this build, reads degrade to empty results and writes fail with a clear, catchable error
+// (via wrap()) instead of an unhandled module-resolution crash.
+function requirePluginUpdater<T>(mod: T | null): T {
+  if (!mod) throw new Error("plugin-updater is not available in this build");
+  return mod;
+}
+
+async function realRegisterPlugin(dir: string, name: string, url: string, autoUpdate?: boolean): Promise<void> {
+  requirePluginUpdater(await loadPluginUpdaterConfig()).registerPlugin(dir, name, url, autoUpdate);
+}
+
+// null means the engine itself is unavailable, distinct from boolean false (engine present,
+// plugin not found) so callers can report the real cause instead of a misleading "not found".
+async function realSetPluginEnabled(dir: string, name: string, on: boolean): Promise<boolean | null> {
+  const mod = await loadPluginUpdaterConfig();
+  return mod ? mod.setPluginEnabled(dir, name, on) : null;
+}
+
+async function realSetPluginAutoUpdate(dir: string, name: string, on: boolean): Promise<boolean | null> {
+  const mod = await loadPluginUpdaterConfig();
+  return mod ? mod.setPluginAutoUpdate(dir, name, on) : null;
+}
+
+async function realReadUpdateCache(dir: string): Promise<UpdateCache> {
+  const mod = await loadPluginUpdaterCache();
+  return mod ? mod.readUpdateCache(dir) : EMPTY_UPDATE_CACHE;
+}
+
+async function realSyncPluginsAcrossApps(dir: string): Promise<void> {
+  const mod = await loadPluginUpdaterSyncbridge();
+  if (mod) await mod.syncPluginsAcrossApps(dir);
+}
+
+async function realSetEarlyLaunchConfigDir(dir: string): Promise<void> {
+  (await loadPluginUpdaterEnv())?.setEarlyLaunchConfigDir(dir);
+}
 
 // Loaded dynamically (not statically bundled) because npm.js's require.resolve
 // fallback trips a Rollup CommonJS-interop bug when inlined into this chunk.
 async function getNpmPlugins(configDir: string): Promise<NpmPlugin[]> {
-  const mod = await import("@plugin-updater/npm.js");
-  return mod.getNpmPlugins(configDir);
+  const mod = await loadPluginUpdaterNpm();
+  return mod ? mod.getNpmPlugins(configDir) : [];
 }
 
 // Sidecar RPCs run concurrently, but plugin-updater resolves its write target
@@ -46,11 +91,11 @@ let writeChain: Promise<unknown> = Promise.resolve();
 
 function withHome<T>(dir: string, fn: () => Promise<T>): Promise<T> {
   const run = writeChain.then(async () => {
-    setEarlyLaunchConfigDir(dir);
+    await realSetEarlyLaunchConfigDir(dir);
     try {
       return await fn();
     } finally {
-      setEarlyLaunchConfigDir(getConfigDir());
+      await realSetEarlyLaunchConfigDir(getConfigDir());
     }
   });
   writeChain = run.catch(() => undefined);
@@ -111,7 +156,7 @@ export interface PluginsDeps {
   uninstallNpmPlugin?: (name: string, dir: string) => string;
   hasUpdater?: HasUpdaterFn;
   initApp?: InitAppFn;
-  getPlugins?: (dir: string) => Plugin[];
+  getPlugins?: (dir: string) => Plugin[] | Promise<Plugin[]>;
   // Called at each phase boundary so a download row can show live progress;
   // percent is coarse phase-based progress 0..100.
   report?: (step: string, percent: number) => void;
@@ -124,14 +169,15 @@ async function resolveHomes(deps: PluginsDeps): Promise<PluginHome[]> {
 export function pluginsList(deps: PluginsDeps = {}): Promise<Result<HomePlugins[]>> {
   return wrap(async () => {
     const homes = await resolveHomes(deps);
+    const listGit = deps.getPlugins ?? safeGetPlugins;
     const sections: HomePlugins[] = [];
     for (const home of homes) {
       if (!home.present) {
         sections.push({ home, rows: [] });
         continue;
       }
-      const cache = readUpdateCache(home.dir);
-      const gitRows = (deps.getPlugins ?? getPlugins)(home.dir).map((p) => rowFor(p.name, "git", p.enabled !== false, p.url, cache, home.dir));
+      const cache = await realReadUpdateCache(home.dir);
+      const gitRows = (await listGit(home.dir)).map((p) => rowFor(p.name, "git", p.enabled !== false, p.url, cache, home.dir));
       const npmRows = (await getNpmPlugins(home.dir)).map((p) => rowFor(p.name, "npm", true, undefined, cache, home.dir));
       sections.push({ home, rows: [...gitRows, ...npmRows] });
     }
@@ -162,10 +208,10 @@ export function formatGitVersion(describe: string | null): string | null {
 
 export interface PluginVersionsDeps {
   homes?: PluginHome[];
-  readCache?: (dir: string) => UpdateCache;
+  readCache?: (dir: string) => UpdateCache | Promise<UpdateCache>;
   describe?: (dir: string) => string | null | Promise<string | null>;
   exists?: (path: string) => boolean;
-  getPlugins?: (dir: string) => Plugin[];
+  getPlugins?: (dir: string) => Plugin[] | Promise<Plugin[]>;
   npmPlugins?: (dir: string) => Promise<NpmPlugin[]>;
   // Where the persistent version cache lives; "" disables it (used in tests).
   cacheDir?: string;
@@ -199,16 +245,16 @@ function markUnknown(perHome: Record<string, PluginVersion>, homes: { id: string
 export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Promise<Result<Record<string, PluginVersion>>> {
   return wrap(async () => {
     const homes = await resolveHomes(deps);
-    const readCache = deps.readCache ?? readUpdateCache;
+    const readCache = deps.readCache ?? realReadUpdateCache;
     const describe = deps.describe ?? realDescribe;
     const exists = deps.exists ?? existsSync;
-    const listGit = deps.getPlugins ?? getPlugins;
+    const listGit = deps.getPlugins ?? safeGetPlugins;
     const out: Record<string, PluginVersion> = {};
     const registeredWithoutClone: { id: string; autoUpdate: boolean }[] = [];
     for (const home of homes) {
       if (!home.present) continue;
-      const entry = readCache(home.dir).plugins[name];
-      const gitEntry = listGit(home.dir).find((p) => p.name === name);
+      const entry = (await readCache(home.dir)).plugins[name];
+      const gitEntry = (await listGit(home.dir)).find((p) => p.name === name);
       const autoUpdate = gitEntry ? gitEntry.autoUpdate !== false : true;
       const repoDir = join(home.dir, "repos", name);
       if (exists(repoDir)) {
@@ -229,19 +275,19 @@ export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Pro
 export function pluginVersionsAll(deps: PluginVersionsDeps = {}): Promise<Result<Record<string, Record<string, PluginVersion>>>> {
   return wrap(async () => {
     const homes = await resolveHomes(deps);
-    const readCache = deps.readCache ?? readUpdateCache;
+    const readCache = deps.readCache ?? realReadUpdateCache;
     const describe = deps.describe ?? realDescribe;
     const exists = deps.exists ?? existsSync;
-    const listGit = deps.getPlugins ?? getPlugins;
+    const listGit = deps.getPlugins ?? safeGetPlugins;
     const listNpm = deps.npmPlugins ?? getNpmPlugins;
     const out: Record<string, Record<string, PluginVersion>> = {};
     const missing: Array<{ name: string; homeId: string; autoUpdate: boolean }> = [];
     for (const home of homes) {
       if (!home.present) continue;
-      const cache = readCache(home.dir);
+      const cache = await readCache(home.dir);
       // Describe every cloned git plugin in this home in parallel so the whole
       // home is one batch of concurrent git subprocesses, not a serial chain.
-      const gitEntries = listGit(home.dir);
+      const gitEntries = await listGit(home.dir);
       const described = await Promise.all(
         gitEntries.map(async (p) => {
           const repoDir = join(home.dir, "repos", p.name);
@@ -276,7 +322,7 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
 
     const report = deps.report;
     const hasUpdater = deps.hasUpdater ?? updaterInstalled;
-    if (!hasUpdater(dir)) {
+    if (!(await hasUpdater(dir))) {
       // Every home (Cairn included) needs plugin-updater before it takes a
       // non-engine; an engine may install to bootstrap it. An app home gets the
       // updater set up via its CLI; Cairn clones directly with its bundled copy.
@@ -289,7 +335,7 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
       }
     }
 
-    const updatePluginPublic = deps.updatePluginPublic ?? (await import("@plugin-updater/index.js")).updatePluginPublic;
+    const updatePluginPublic = deps.updatePluginPublic ?? requirePluginUpdater(await loadPluginUpdaterIndex()).updatePluginPublic;
     let autoUpdateDefault = true;
     const val = getConfigValue("cairn", "autoUpdateDefault");
     if (typeof val === "boolean") autoUpdateDefault = val;
@@ -297,7 +343,7 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
     await withHome(dir, async () => {
       await updatePluginPublic(name, url);
       report?.("Registering", 90);
-      registerPlugin(dir, name, url, autoUpdateDefault);
+      await realRegisterPlugin(dir, name, url, autoUpdateDefault);
     });
     if (homeId !== "cairn") {
       report?.("Syncing to other apps", 95);
@@ -333,7 +379,7 @@ export function pluginsRemoveEverywhere(name: string, deps: PluginsDeps = {}): P
     const homes = await resolveHomes(deps);
     const outcomes: InstallOutcome[] = [];
     for (const home of homes) {
-      const installed = (deps.getPlugins ?? getPlugins)(home.dir).some((p) => p.name === name);
+      const installed = (await (deps.getPlugins ?? safeGetPlugins)(home.dir)).some((p) => p.name === name);
       if (!installed) continue;
       const res = await pluginsUninstall(home.id, name, deps);
       outcomes.push(res.ok ? { home: home.id, ok: true } : { home: home.id, ok: false, error: res.error });
@@ -345,14 +391,18 @@ export function pluginsRemoveEverywhere(name: string, deps: PluginsDeps = {}): P
 export function pluginsSetEnabled(homeId: PluginHomeId, name: string, on: boolean, deps: PluginsDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
     const dir = homeDir(homeId, await resolveHomes(deps));
-    if (!setPluginEnabled(dir, name, on)) throw new Error(`plugin not found: ${name}`);
+    const result = await realSetPluginEnabled(dir, name, on);
+    if (result === null) throw new Error("plugin-updater is not available in this build");
+    if (!result) throw new Error(`plugin not found: ${name}`);
   });
 }
 
 export function pluginsSetAutoUpdate(homeId: PluginHomeId, name: string, on: boolean, deps: PluginsDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
     const dir = homeDir(homeId, await resolveHomes(deps));
-    if (!setPluginAutoUpdate(dir, name, on)) throw new Error(`plugin not found: ${name}`);
+    const result = await realSetPluginAutoUpdate(dir, name, on);
+    if (result === null) throw new Error("plugin-updater is not available in this build");
+    if (!result) throw new Error(`plugin not found: ${name}`);
   });
 }
 
@@ -360,9 +410,9 @@ export function pluginsDowngrade(homeId: PluginHomeId, name: string, hash: strin
   return wrap(async () => {
     const homes = await resolveHomes(deps);
     const dir = homeDir(homeId, homes);
-    const plugin = getPlugins(dir).find((p) => p.name === name);
+    const plugin = (await safeGetPlugins(dir)).find((p) => p.name === name);
     if (!plugin) throw new Error(`plugin not found: ${name}`);
-    const downgrade = deps.downgrade ?? (await import("@plugin-updater/index.js")).downgrade;
+    const downgrade = deps.downgrade ?? requirePluginUpdater(await loadPluginUpdaterIndex()).downgrade;
     const result = await withHome(dir, async () => downgrade({ name: plugin.name, url: plugin.url, branch: plugin.branch }, hash));
     if (result) throw new Error(result);
   });
@@ -372,14 +422,14 @@ export function pluginsUninstall(homeId: string, name: string, deps: PluginsDeps
   return wrap(async () => {
     const homes = await resolveHomes(deps);
     const dir = homeDir(homeId as PluginHomeId, homes);
-    if (getPlugins(dir).some((p) => p.name === name)) {
-      const uninstall = deps.uninstallPlugin ?? (await import("@plugin-updater/index.js")).uninstallPlugin;
+    if ((await safeGetPlugins(dir)).some((p) => p.name === name)) {
+      const uninstall = deps.uninstallPlugin ?? requirePluginUpdater(await loadPluginUpdaterIndex()).uninstallPlugin;
       await withHome(dir, async () => uninstall(dir, name));
       return;
     }
     const npmList = deps.npmPlugins ?? getNpmPlugins;
     if ((await npmList(dir)).some((p) => p.name === name)) {
-      const uninstallNpm = deps.uninstallNpmPlugin ?? (await import("@plugin-updater/npm.js")).uninstallNpmPlugin;
+      const uninstallNpm = deps.uninstallNpmPlugin ?? requirePluginUpdater(await loadPluginUpdaterNpm()).uninstallNpmPlugin;
       const message = await withHome(dir, async () => uninstallNpm(name, dir));
       if (message) throw new Error(message);
       return;

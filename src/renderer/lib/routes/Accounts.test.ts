@@ -8,7 +8,7 @@ import { toasts, toast } from "../toast.js";
 import Accounts from "./Accounts.svelte";
 
 const PROVIDERS = [
-  { id: "stub", label: "Stub", authKind: "oauth" as const, accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
+  { id: "stub", label: "Stub", accountPool: "stub", sharedWith: [], pluginName: "stub", authKind: "oauth" as const, accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
 ];
 
 const ACCOUNTS = [
@@ -97,8 +97,8 @@ describe("Accounts screen", () => {
   });
 
   const TWO_PROVIDERS = [
-    { id: "alpha", label: "Alpha Team", authKind: "oauth" as const, accountCount: 1, enabled: true, exposure: { claude: true, opencode: false } },
-    { id: "beta", label: "Beta Team", authKind: "oauth" as const, accountCount: 1, enabled: true, exposure: { claude: true, opencode: false } },
+    { id: "alpha", label: "Alpha Team", accountPool: "alpha", sharedWith: [], pluginName: "alpha", authKind: "oauth" as const, accountCount: 1, enabled: true, exposure: { claude: true, opencode: false } },
+    { id: "beta", label: "Beta Team", accountPool: "beta", sharedWith: [], pluginName: "beta", authKind: "oauth" as const, accountCount: 1, enabled: true, exposure: { claude: true, opencode: false } },
   ];
 
   function twoProviderAccounts(provider: string): { ok: true; data: AccountView[] } {
@@ -229,8 +229,8 @@ describe("Accounts screen", () => {
 
   it("shows an Add account affordance for every provider group, including an empty one, and opens its dialog", async () => {
     const providersWithEmpty = [
-      { id: "stub", label: "Stub", authKind: "oauth" as const, accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
-      { id: "ghost", label: "Ghost", authKind: "oauth" as const, accountCount: 0, enabled: true, exposure: { claude: true, opencode: false } },
+      { id: "stub", label: "Stub", accountPool: "stub", sharedWith: [], pluginName: "stub", authKind: "oauth" as const, accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
+      { id: "ghost", label: "Ghost", accountPool: "ghost", sharedWith: [], pluginName: "ghost", authKind: "oauth" as const, accountCount: 0, enabled: true, exposure: { claude: true, opencode: false } },
     ];
     const accountsLoginBegin = vi.fn(async () => ({ ok: true, data: { url: "https://x/login", instructions: "" } }) as const);
     stubCairn({

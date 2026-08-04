@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, dirname, resolve, sep } from "node:path";
 import { getConfigDir, listAccounts as realListAccounts, addAccount as realAddAccount, removeAccount as realRemoveAccount } from "@core-auth/index.js";
-import { engineByCapability } from "@core/index.js";
+import { engineByCapability } from "./engines.js";
 import type { CustomEndpoint, CustomEndpointView, Result } from "../../../packages/shared/src/domain.js";
 import { SUPPORTED_ENDPOINT_FORMATS } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";

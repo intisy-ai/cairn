@@ -1,14 +1,26 @@
-import { getEngines, engineByCapability } from "@core/index.js";
+import { getEngines } from "@core/index.js";
 import type { EngineDescriptor } from "@core/index.js";
-import { getPlugins as realGetPlugins } from "@plugin-updater/config.js";
 import type { Plugin } from "@plugin-updater/types.js";
 import { pluginHomes } from "../lib/pluginHomes.js";
+import { safeGetPlugins } from "../lib/optionalEngines.js";
+import { CAIRN_ENGINES } from "./engines.data.js";
 import type { EngineView, EngineHomeState, PluginHome, Result, CliResult } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
 
+// core's BUILTIN_ENGINES holds only generic, ecosystem-wide engines. Cairn
+// supplements it with engines that back Cairn's own features (e.g. the
+// custom-auth provider backing custom endpoints); see engines.data.ts.
+function allEngines(): EngineDescriptor[] {
+  return [...getEngines(), ...CAIRN_ENGINES];
+}
+
+export function engineByCapability(capability: string): EngineDescriptor | undefined {
+  return allEngines().find((e) => e.capability === capability);
+}
+
 export interface EnginesDeps {
   homes?: PluginHome[];
-  getPlugins?: (dir: string) => Plugin[];
+  getPlugins?: (dir: string) => Plugin[] | Promise<Plugin[]>;
   appsInit?: (app: string) => Promise<Result<CliResult>>;
   pluginsInstall?: (homeId: string, name: string, url: string) => Promise<Result<void>>;
 }
@@ -19,9 +31,9 @@ function targetHomes(engine: EngineDescriptor, homes: PluginHome[]): PluginHome[
   return engine.target === "cairn" ? homes.filter((h) => h.id === "cairn") : homes.filter((h) => h.id !== "cairn");
 }
 
-function stateIn(engine: EngineDescriptor, home: PluginHome, getPlugins: (dir: string) => Plugin[]): EngineHomeState {
+async function stateIn(engine: EngineDescriptor, home: PluginHome, getPlugins: (dir: string) => Plugin[] | Promise<Plugin[]>): Promise<EngineHomeState> {
   if (engine.capability === PLUGIN_MANAGEMENT) return { installed: home.hasUpdater, enabled: true };
-  const p = getPlugins(home.dir).find((x) => x.name === engine.id);
+  const p = (await getPlugins(home.dir)).find((x) => x.name === engine.id);
   return { installed: !!p, enabled: p ? p.enabled !== false : false };
 }
 
@@ -44,13 +56,17 @@ async function installEngine(engine: EngineDescriptor, home: PluginHome, deps: E
 export function enginesList(deps: EnginesDeps = {}): Promise<Result<EngineView[]>> {
   return wrap(async () => {
     const homes = await resolveHomes(deps);
-    const getPlugins = deps.getPlugins ?? realGetPlugins;
-    return getEngines().map((engine) => ({
-      id: engine.id,
-      capability: engine.capability,
-      url: engine.url,
-      homes: Object.fromEntries(targetHomes(engine, homes).map((h) => [h.id, stateIn(engine, h, getPlugins)])),
-    }));
+    const getPlugins = deps.getPlugins ?? safeGetPlugins;
+    return Promise.all(
+      allEngines().map(async (engine) => ({
+        id: engine.id,
+        capability: engine.capability,
+        url: engine.url,
+        homes: Object.fromEntries(
+          await Promise.all(targetHomes(engine, homes).map(async (h) => [h.id, await stateIn(engine, h, getPlugins)] as const)),
+        ),
+      })),
+    );
   });
 }
 
@@ -59,10 +75,10 @@ export function ensureEngine(capability: string, deps: EnginesDeps = {}): Promis
     const engine = engineByCapability(capability);
     if (!engine) throw new Error(`unknown engine capability: ${capability}`);
     const homes = await resolveHomes(deps);
-    const getPlugins = deps.getPlugins ?? realGetPlugins;
+    const getPlugins = deps.getPlugins ?? safeGetPlugins;
     const home = targetHomes(engine, homes)[0];
     if (!home) throw new Error(`no target home for engine: ${engine.id}`);
-    if (stateIn(engine, home, getPlugins).installed) return;
+    if ((await stateIn(engine, home, getPlugins)).installed) return;
     await installEngine(engine, home, deps);
   });
 }

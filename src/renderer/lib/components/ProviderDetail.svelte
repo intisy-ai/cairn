@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
-  import type { ProviderRow as ProviderRowData, AccountView, HostApp } from "@cairn/shared";
+  import type { ProviderRow as ProviderRowData, AccountView, HostApp, PluginConfigSchema } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { toast } from "../toast.js";
   import { accountLabel, accountStatusInfo } from "../util/accountStatus.js";
@@ -13,7 +13,13 @@
   import AppPills from "./AppPills.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import AddAccountDialog from "./AddAccountDialog.svelte";
+  import PluginControls from "./PluginControls.svelte";
   import PluginIcon, { LOGO_SIZE } from "./PluginIcon.svelte";
+
+  // Providers are deployed under Cairn's own repos/plugin dirs (see
+  // sidecar/modules/providers.ts), so their settings always live in the "cairn"
+  // plugin home regardless of which app(s) they're exposed to.
+  const PROVIDER_SETTINGS_HOME = "cairn";
 
   let { provider, apps, onClose, onChanged }: {
     provider: ProviderRowData;
@@ -31,6 +37,8 @@
   let addOpen = $state(false);
   let pendingConfirm = $state<{ title: string; message: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
   let panel = $state<HTMLDivElement | undefined>(undefined);
+  let settingsSchema = $state<PluginConfigSchema | null>(null);
+  let settingsLoading = $state(true);
 
   const connected = $derived(accounts.length > 0);
   const status = $derived(connected ? { variant: "good" as const, label: "Connected" } : { variant: "off" as const, label: "Not connected" });
@@ -80,8 +88,15 @@
     onChanged();
   }
 
+  async function loadSettings(): Promise<void> {
+    const result = await cairn.configSchemas(PROVIDER_SETTINGS_HOME);
+    settingsSchema = result.ok ? (result.data.find((s) => s.plugin === provider.pluginName) ?? null) : null;
+    settingsLoading = false;
+  }
+
   onMount(() => {
     loadAccounts().finally(() => (loaded = true));
+    loadSettings();
     panel?.focus();
   });
 </script>
@@ -115,6 +130,9 @@
       <h3>Accounts</h3>
       <Button onclick={() => (addOpen = true)}>Add account</Button>
     </div>
+    {#if provider.sharedWith.length > 0}
+      <p class="hint">Shares its account pool with {provider.sharedWith.join(", ")}.</p>
+    {/if}
     {#if accountsError}
       <p class="error">Could not load accounts: {accountsError}</p>
     {:else if !loaded}
@@ -145,7 +163,13 @@
 
   <section class="section">
     <h3>Settings</h3>
-    <p class="hint">Configure via the plugin's settings.</p>
+    {#if settingsLoading}
+      <p class="hint">Loading settings...</p>
+    {:else if settingsSchema}
+      <PluginControls homeId={PROVIDER_SETTINGS_HOME} schema={settingsSchema} />
+    {:else}
+      <p class="hint">No settings for this provider.</p>
+    {/if}
   </section>
 </div>
 

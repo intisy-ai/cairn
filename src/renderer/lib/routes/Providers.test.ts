@@ -18,7 +18,7 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "stub", label: "Stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
+          { id: "stub", label: "Stub", accountPool: "stub", sharedWith: [], pluginName: "stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
         ],
       }),
       providersSetExposure,
@@ -52,9 +52,9 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "oauth-only", label: "OAuthOnly", authKind: "oauth", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
-          { id: "key-connected", label: "KeyConnected", authKind: "api-key", accountCount: 1, enabled: false, exposure: { claude: false, opencode: false } },
-          { id: "key-unconnected", label: "KeyUnconnected", authKind: "api-key", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "oauth-only", label: "OAuthOnly", accountPool: "oauth-only", sharedWith: [], pluginName: "oauth-only", authKind: "oauth", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "key-connected", label: "KeyConnected", accountPool: "key-connected", sharedWith: [], pluginName: "key-connected", authKind: "api-key", accountCount: 1, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "key-unconnected", label: "KeyUnconnected", accountPool: "key-unconnected", sharedWith: [], pluginName: "key-unconnected", authKind: "api-key", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
         ],
       }),
     });
@@ -75,8 +75,8 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "oauth-only", label: "OAuthOnly", authKind: "oauth", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
-          { id: "key-unconnected", label: "KeyUnconnected", authKind: "api-key", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "oauth-only", label: "OAuthOnly", accountPool: "oauth-only", sharedWith: [], pluginName: "oauth-only", authKind: "oauth", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "key-unconnected", label: "KeyUnconnected", accountPool: "key-unconnected", sharedWith: [], pluginName: "key-unconnected", authKind: "api-key", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
         ],
       }),
     });
@@ -96,8 +96,8 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "oauth-only", label: "OAuthOnly", authKind: "oauth", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
-          { id: "key-only", label: "KeyOnly", authKind: "api-key", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "oauth-only", label: "OAuthOnly", accountPool: "oauth-only", sharedWith: [], pluginName: "oauth-only", authKind: "oauth", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "key-only", label: "KeyOnly", accountPool: "key-only", sharedWith: [], pluginName: "key-only", authKind: "api-key", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
         ],
       }),
     });
@@ -117,8 +117,8 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "key-connected", label: "KeyConnected", authKind: "api-key", accountCount: 1, enabled: false, exposure: { claude: false, opencode: false } },
-          { id: "key-unconnected", label: "KeyUnconnected", authKind: "api-key", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "key-connected", label: "KeyConnected", accountPool: "key-connected", sharedWith: [], pluginName: "key-connected", authKind: "api-key", accountCount: 1, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "key-unconnected", label: "KeyUnconnected", accountPool: "key-unconnected", sharedWith: [], pluginName: "key-unconnected", authKind: "api-key", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
         ],
       }),
     });
@@ -201,8 +201,8 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "gamma-id", label: "Alpha Label", authKind: "api-key", accountCount: 1, enabled: false, exposure: { claude: false, opencode: false } },
-          { id: "beta-id", label: "Zeta Label", authKind: "api-key", accountCount: 1, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "gamma-id", label: "Alpha Label", accountPool: "gamma-id", sharedWith: [], pluginName: "gamma-id", authKind: "api-key", accountCount: 1, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "beta-id", label: "Zeta Label", accountPool: "beta-id", sharedWith: [], pluginName: "beta-id", authKind: "api-key", accountCount: 1, enabled: false, exposure: { claude: false, opencode: false } },
         ],
       }),
     });
@@ -225,6 +225,9 @@ describe("Providers screen", () => {
     const data = Array.from({ length: 25 }, (_, i) => ({
       id: `provider-${i}`,
       label: `Provider ${i}`,
+      accountPool: `provider-${i}`,
+      sharedWith: [],
+      pluginName: `provider-${i}`,
       authKind: "api-key" as const,
       accountCount: 1,
       enabled: true,
@@ -249,7 +252,7 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "custom", label: "Custom endpoint", authKind: "api-key", accountCount: 1, enabled: false, exposure: { claude: true, opencode: false }, translator: "custom" },
+          { id: "custom", label: "Custom endpoint", accountPool: "custom", sharedWith: [], pluginName: "custom", authKind: "api-key", accountCount: 1, enabled: false, exposure: { claude: true, opencode: false }, translator: "custom" },
         ],
       }),
     });
@@ -270,7 +273,7 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "avail", label: "Available Provider", authKind: "api-key", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "avail", label: "Available Provider", accountPool: "avail", sharedWith: [], pluginName: "avail", authKind: "api-key", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
         ],
       }),
     });
@@ -290,7 +293,7 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "stub", label: "Stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
+          { id: "stub", label: "Stub", accountPool: "stub", sharedWith: [], pluginName: "stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
         ],
       }),
       providersSetEnabled: async () => ({ ok: false, error: "set-enabled boom" }),
@@ -323,7 +326,7 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "stub", label: "Stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
+          { id: "stub", label: "Stub", accountPool: "stub", sharedWith: [], pluginName: "stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
         ],
       }),
       getConfig: async () => ({ ok: true, data: "grid" }),
@@ -346,7 +349,7 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "stub", label: "Stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
+          { id: "stub", label: "Stub", accountPool: "stub", sharedWith: [], pluginName: "stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
         ],
       }),
       getConfig: async () => ({ ok: true, data: "grid" }),
@@ -370,7 +373,7 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "stub", label: "Stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
+          { id: "stub", label: "Stub", accountPool: "stub", sharedWith: [], pluginName: "stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
         ],
       }),
       getConfig: async () => ({ ok: true, data: "grid" }),
@@ -391,8 +394,8 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "alpha", label: "Alpha", authKind: "oauth", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
-          { id: "beta", label: "Beta", authKind: "oauth", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "alpha", label: "Alpha", accountPool: "alpha", sharedWith: [], pluginName: "alpha", authKind: "oauth", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
+          { id: "beta", label: "Beta", accountPool: "beta", sharedWith: [], pluginName: "beta", authKind: "oauth", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false } },
         ],
       }),
       providersSetEnabled,
@@ -411,7 +414,7 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "stub", label: "Stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
+          { id: "stub", label: "Stub", accountPool: "stub", sharedWith: [], pluginName: "stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
         ],
       }),
     });
@@ -430,7 +433,7 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "stub", label: "Stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
+          { id: "stub", label: "Stub", accountPool: "stub", sharedWith: [], pluginName: "stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
         ],
       }),
     });
