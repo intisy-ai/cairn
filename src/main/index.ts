@@ -110,7 +110,7 @@ if (!app.requestSingleInstanceLock()) {
     mainWindow.focus();
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     applyContentSecurityPolicy();
 
     const storeDir = resolveStoreDir(process.env, process.platform, homedir());
@@ -122,9 +122,7 @@ if (!app.requestSingleInstanceLock()) {
     registerHandlers(supervisor);
     registerWindowControls();
     proxyDaemon.onStatusChange((status) => mainWindow?.webContents.send("server:status", status));
-    startActivityForwarder((record) => mainWindow?.webContents.send("activity:event", record)).then((stop) => {
-      stopActivityForwarder = stop;
-    });
+    stopActivityForwarder = await startActivityForwarder((record) => mainWindow?.webContents.send("activity:event", record));
     autostartProxyIfConfigured(storeDir);
 
     createWindow();
