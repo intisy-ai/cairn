@@ -69,9 +69,9 @@ declare module "@core/index.js" {
   export interface ActivityTrace { id: string; causedBy?: string; }
   export interface ActivityValueChange { key: string; from?: unknown; to?: unknown; redacted?: boolean; }
   export function setActivityContext(patch: { app?: string; entry?: string; home?: string; target?: ActivityTarget }): void;
+  export function getActivityContext(): { app?: string; entry?: string; home?: string; target?: ActivityTarget };
   export function withCause<T>(cause: ActivityCause, fn: () => T): T;
   export function currentCause(): ActivityCause;
-  export function resolveAppsFile(env?: NodeJS.ProcessEnv, home?: string): string;
   export function normalizeActivity(envelope: EventEnvelope, home?: string): ActivityRecord;
   export function readActivity(homes: string[], query?: ActivityQuery): { records: ActivityRecord[]; nextCursor?: string };
   export interface EngineDescriptor {

@@ -19,8 +19,8 @@ import { busDrain } from "./modules/bus.js";
 import { activityRead } from "./modules/activity.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
 import type { ActivityQuery } from "@core/index.js";
-import { setActivityContext, withCause, resolveAppsFile } from "@core/index.js";
-import { dirname } from "node:path";
+import { setActivityContext, withCause } from "@core/index.js";
+import { getConfigDir } from "@core-auth/index.js";
 import { usageSnapshot } from "./modules/usage.js";
 import { discoverApps } from "./lib/appDiscovery.js";
 import { importApps, importPreview, importRun } from "./modules/import.js";
@@ -38,10 +38,12 @@ type SidecarHandler = (...args: unknown[]) => Promise<Result<unknown>>;
 
 const handlers: Record<string, SidecarHandler> = {};
 
-// This process manages many homes and forces none of them, so the ambient home
-// resolution finds nothing: state its own explicitly. The app registry it owns is
-// the canonical marker for that home, so no path is spelled out here.
-setActivityContext({ app: "cairn", entry: "sidecar", home: dirname(resolveAppsFile()) });
+// The home an event is written to has to be the same home the Activity view reads,
+// so this states the one value pluginHomes already calls this app's own dir. Deriving
+// it a second way is how they drift apart.
+try {
+  setActivityContext({ app: "cairn", entry: "sidecar", home: getConfigDir() });
+} catch { /* attribution is never worth failing to start over */ }
 
 export function registerHandler(channel: string, handler: SidecarHandler): void {
   handlers[channel] = handler;
