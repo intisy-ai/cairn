@@ -1,10 +1,22 @@
-import { getEngines, engineByCapability } from "@core/index.js";
+import { getEngines } from "@core/index.js";
 import type { EngineDescriptor } from "@core/index.js";
 import type { Plugin } from "@plugin-updater/types.js";
 import { pluginHomes } from "../lib/pluginHomes.js";
 import { safeGetPlugins } from "../lib/optionalEngines.js";
+import { CAIRN_ENGINES } from "./engines.data.js";
 import type { EngineView, EngineHomeState, PluginHome, Result, CliResult } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
+
+// core's BUILTIN_ENGINES holds only generic, ecosystem-wide engines. Cairn
+// supplements it with engines that back Cairn's own features (e.g. the
+// custom-auth provider backing custom endpoints); see engines.data.ts.
+function allEngines(): EngineDescriptor[] {
+  return [...getEngines(), ...CAIRN_ENGINES];
+}
+
+export function engineByCapability(capability: string): EngineDescriptor | undefined {
+  return allEngines().find((e) => e.capability === capability);
+}
 
 export interface EnginesDeps {
   homes?: PluginHome[];
@@ -46,7 +58,7 @@ export function enginesList(deps: EnginesDeps = {}): Promise<Result<EngineView[]
     const homes = await resolveHomes(deps);
     const getPlugins = deps.getPlugins ?? safeGetPlugins;
     return Promise.all(
-      getEngines().map(async (engine) => ({
+      allEngines().map(async (engine) => ({
         id: engine.id,
         capability: engine.capability,
         url: engine.url,
