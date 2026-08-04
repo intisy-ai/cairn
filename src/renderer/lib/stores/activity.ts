@@ -6,10 +6,19 @@ import { cairn } from "../ipc.js";
 // current while the user is on a different screen.
 export const unseenErrorCount = writable(0);
 
+// True while the Activity screen itself is the active route: the user is
+// already looking at errors there, so they should never count as "unseen".
+let active = false;
+
 export function watchActivityErrors(): () => void {
   return cairn.onActivityEvent((record) => {
-    if (record.impact === "error") unseenErrorCount.update((n) => n + 1);
+    if (record.impact === "error" && !active) unseenErrorCount.update((n) => n + 1);
   });
+}
+
+export function setActivityActive(value: boolean): void {
+  active = value;
+  if (value) clearUnseenErrors();
 }
 
 export function clearUnseenErrors(): void {

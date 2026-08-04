@@ -3,7 +3,7 @@
   import type { ActivityRecord, Impact } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { humanizeId } from "../util/appLabel.js";
-  import { clearUnseenErrors } from "../stores/activity.js";
+  import { setActivityActive } from "../stores/activity.js";
   import Card from "../components/Card.svelte";
   import SearchField from "../components/SearchField.svelte";
   import Chip from "../components/Chip.svelte";
@@ -16,6 +16,7 @@
   const HOUR_MS = 3_600_000;
   const RANGE_MS: Record<Range, number> = { "1h": HOUR_MS, "24h": HOUR_MS * 24, "7d": HOUR_MS * 24 * 7, all: 0 };
   const PAGE_LIMIT = 200;
+  const MAX_RECORDS = 500;
 
   let records = $state<ActivityRecord[]>([]);
   let loadError = $state("");
@@ -84,10 +85,24 @@
     return `${diffDay}d ago`;
   }
 
+  // Merges by id (priority wins on a duplicate) and sorts newest-first, so a
+  // live push that lands during the initial load's async gap survives instead
+  // of being wiped out by the fetched page, and a live push received twice
+  // doesn't duplicate. Caps the result so a long-running session doesn't grow
+  // the in-memory list unbounded.
+  function mergeRecords(existing: ActivityRecord[], priority: ActivityRecord[]): ActivityRecord[] {
+    const byId = new Map<string, ActivityRecord>();
+    for (const record of priority) byId.set(record.id, record);
+    for (const record of existing) if (!byId.has(record.id)) byId.set(record.id, record);
+    return Array.from(byId.values())
+      .sort((a, b) => b.ts - a.ts)
+      .slice(0, MAX_RECORDS);
+  }
+
   async function load(): Promise<void> {
     const result = await cairn.activityRead({ limit: PAGE_LIMIT });
     if (result.ok) {
-      records = result.data.records;
+      records = mergeRecords(records, result.data.records);
       loadError = "";
     } else {
       loadError = result.error;
@@ -96,11 +111,15 @@
   }
 
   onMount(() => {
-    clearUnseenErrors();
+    setActivityActive(true);
     void load();
-    return cairn.onActivityEvent((record) => {
-      records = [record, ...records];
+    const stopLive = cairn.onActivityEvent((record) => {
+      records = mergeRecords(records, [record]);
     });
+    return () => {
+      stopLive();
+      setActivityActive(false);
+    };
   });
 </script>
 

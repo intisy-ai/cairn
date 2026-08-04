@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { render, fireEvent } from "@testing-library/svelte";
 import { stubCairn } from "../testing.js";
 import Activity from "./Activity.svelte";
-import type { ActivityRecord } from "@cairn/shared";
+import type { ActivityRecord, Result } from "@cairn/shared";
 
 function record(over: Partial<ActivityRecord> & { id: string }): ActivityRecord {
   return {
@@ -54,5 +54,36 @@ describe("Activity screen", () => {
     await fireEvent.click(getByText("error"));
     expect(getByText("Upstream request failed")).toBeInTheDocument();
     expect(queryByText("Configuration saved")).toBeNull();
+  });
+
+  it("keeps a live record that arrives before the initial load resolves", async () => {
+    type ReadResult = Result<{ records: ActivityRecord[] }>;
+    let resolveLoad: ((value: ReadResult) => void) | undefined;
+    const pending = new Promise<ReadResult>((resolve) => {
+      resolveLoad = resolve;
+    });
+    let liveHandler: ((r: ActivityRecord) => void) | undefined;
+    stubCairn({
+      activityRead: async () => pending,
+      onActivityEvent: (listener) => {
+        liveHandler = listener;
+        return () => {};
+      },
+    });
+
+    const { getByText } = render(Activity);
+    // let onMount run and the activityRead call start, without resolving it yet
+    await new Promise((r) => setTimeout(r, 0));
+
+    liveHandler?.(record({ id: "live1", impact: "error", text: "Live-arrived failure" }));
+
+    resolveLoad?.({
+      ok: true,
+      data: { records: [record({ id: "n1", impact: "notice", text: "Configuration saved" })] },
+    });
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(getByText("Live-arrived failure")).toBeInTheDocument();
+    expect(getByText("Configuration saved")).toBeInTheDocument();
   });
 });
