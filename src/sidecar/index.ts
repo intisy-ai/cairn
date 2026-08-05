@@ -1,4 +1,5 @@
 import type { Result } from "../../packages/shared/src/domain.js";
+import { isReadOnlyChannel } from "../../packages/shared/src/ipc.js";
 import { initCoreProxy } from "@core-proxy/index.js";
 import { err } from "./result.js";
 import { configGet, configSet } from "./modules/config.js";
@@ -16,7 +17,12 @@ import { configSchemas, configWrite, configAction } from "./modules/appConfig.js
 import { syncStatus, syncRun, syncSetConfig } from "./modules/sync.js";
 import { ledgerHomes, ledgerCommit, ledgerRestore, ledgerDiffRefs, ledgerProfileCreate, ledgerProfileSwitch } from "./modules/ledger.js";
 import { busDrain } from "./modules/bus.js";
+import { activityRead, activityStatsRead } from "./modules/activity.js";
+import { globalSettingsRead } from "./modules/globalSettings.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
+import type { ActivityQuery } from "@core/index.js";
+import { setActivityContext, withCause } from "@core/index.js";
+import { getConfigDir } from "@core-auth/index.js";
 import { usageSnapshot } from "./modules/usage.js";
 import { discoverApps } from "./lib/appDiscovery.js";
 import { importApps, importPreview, importRun } from "./modules/import.js";
@@ -34,6 +40,13 @@ type SidecarHandler = (...args: unknown[]) => Promise<Result<unknown>>;
 
 const handlers: Record<string, SidecarHandler> = {};
 
+// The home an event is written to has to be the same home the Activity view reads,
+// so this states the one value pluginHomes already calls this app's own dir. Deriving
+// it a second way is how they drift apart.
+try {
+  setActivityContext({ app: "cairn", entry: "sidecar", home: getConfigDir() });
+} catch { /* attribution is never worth failing to start over */ }
+
 export function registerHandler(channel: string, handler: SidecarHandler): void {
   handlers[channel] = handler;
 }
@@ -49,7 +62,11 @@ export async function dispatch(channel: string, args: unknown[]): Promise<Result
   const handler = handlers[channel];
   if (!handler) return err(`no handler registered for channel: ${channel}`);
   try {
-    return await handler(...args);
+    // One scope over every registered channel, so no handler needs its own attribution.
+    // A read is the dashboard watching state (often on a timer); everything else is a
+    // change someone asked for.
+    const kind = isReadOnlyChannel(channel) ? "watch" : "user";
+    return await withCause({ kind, surface: channel }, () => handler(...args));
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e));
   }
@@ -109,6 +126,9 @@ registerHandler("ledger:diffRefs", (home, refA, refB) => ledgerDiffRefs(home as 
 registerHandler("ledger:profileCreate", (home, name) => ledgerProfileCreate(home as string, name as string));
 registerHandler("ledger:profileSwitch", (home, name) => ledgerProfileSwitch(home as string, name as string));
 registerHandler("bus:drain", () => busDrain());
+registerHandler("activity:read", (query) => activityRead(query as ActivityQuery));
+registerHandler("activity:stats", () => activityStatsRead());
+registerHandler("settings:read", () => globalSettingsRead());
 registerHandler("usage:snapshot", () => usageSnapshot());
 registerHandler("import:apps", () => importApps());
 registerHandler("import:preview", (app) => importPreview(app as string));

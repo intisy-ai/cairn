@@ -1,4 +1,4 @@
-import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus } from "./domain.js";
+import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -57,6 +57,9 @@ export interface CairnAPI {
   ledgerProfileCreate(home: string, name: string): Promise<Result<void>>;
   ledgerProfileSwitch(home: string, name: string): Promise<Result<ProfileSwitchResult>>;
   busDrain(): Promise<Result<BusEvent[]>>;
+  activityRead(query: ActivityQuery): Promise<Result<{ records: ActivityRecord[]; nextCursor?: string }>>;
+  activityStats(): Promise<Result<ActivityStats>>;
+  globalSettingsRead(): Promise<Result<{ defaults: Record<string, unknown>; fields: FieldSpec[]; current: Record<string, unknown> }>>;
   usageSnapshot(): Promise<Result<UsageSnapshot>>;
   importApps(): Promise<Result<ImportableApp[]>>;
   importPreview(app: string): Promise<Result<ImportPreview>>;
@@ -82,6 +85,7 @@ export interface CairnAPI {
   close(): void;
   onServerStatus(listener: (status: ProxyStatus) => void): () => void;
   onDownloadProgress(listener: (progress: DownloadProgress) => void): () => void;
+  onActivityEvent(listener: (record: ActivityRecord) => void): () => void;
   isElectron: true;
   platform: NodeJS.Platform;
 }

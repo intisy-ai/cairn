@@ -13,6 +13,7 @@
     accounts: () => import("./lib/routes/Accounts.svelte"),
     routing: () => import("./lib/routes/Routing.svelte"),
     usage: () => import("./lib/routes/Usage.svelte"),
+    activity: () => import("./lib/routes/Activity.svelte"),
     localApi: () => import("./lib/routes/LocalApi.svelte"),
     apps: () => import("./lib/routes/Apps.svelte"),
     plugins: () => import("./lib/routes/Plugins.svelte"),
@@ -26,6 +27,7 @@
   import { cairn } from "./lib/ipc.js";
   import { fadeMotion } from "./lib/util/motion.js";
   import { watchDownloadProgress } from "./lib/downloadProgress.js";
+  import { watchActivityErrors } from "./lib/stores/activity.js";
   import ToastHost from "./lib/components/ToastHost.svelte";
 
   const activeLabel = $derived(SCREENS.find((screen) => screen.id === $router.screen)?.label ?? "");
@@ -40,10 +42,15 @@
   let brandTag = $state("AI control plane");
 
   let stopProgress: (() => void) | undefined;
-  onDestroy(() => stopProgress?.());
+  let stopActivityWatch: (() => void) | undefined;
+  onDestroy(() => {
+    stopProgress?.();
+    stopActivityWatch?.();
+  });
 
   onMount(async () => {
     stopProgress = watchDownloadProgress();
+    stopActivityWatch = watchActivityErrors();
     const result = await cairn.routingApps();
     hasRouting = result.ok && result.data.length > 0;
     // Brand tag lists the managed apps from registry data, never hardcoded names.

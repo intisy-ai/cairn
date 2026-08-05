@@ -63,6 +63,9 @@ export const INVOKE_CHANNELS = {
   ledgerProfileCreate: "ledger:profileCreate",
   ledgerProfileSwitch: "ledger:profileSwitch",
   busDrain: "bus:drain",
+  activityRead: "activity:read",
+  activityStats: "activity:stats",
+  globalSettingsRead: "settings:read",
   usageSnapshot: "usage:snapshot",
   importApps: "import:apps",
   importPreview: "import:preview",
@@ -91,12 +94,12 @@ export type InvokeChannel = (typeof INVOKE_CHANNELS)[InvokeMethod];
 export const IPC_CHANNELS = {
   invoke: Object.values(INVOKE_CHANNELS) as readonly InvokeChannel[],
   send: ["window:minimize", "window:maximize", "window:close"] as const,
-  receive: ["server:status", "downloads:progress"] as const,
+  receive: ["server:status", "downloads:progress", "activity:event"] as const,
 };
 
 // The methods on CairnAPI that are NOT request/response invocations (window
 // controls, the push subscriptions, and the static flags).
-type NonInvokeMethod = "minimize" | "maximize" | "close" | "onServerStatus" | "onDownloadProgress" | "isElectron" | "platform";
+type NonInvokeMethod = "minimize" | "maximize" | "close" | "onServerStatus" | "onDownloadProgress" | "onActivityEvent" | "isElectron" | "platform";
 type ApiInvokeMethod = Exclude<keyof CairnAPI, NonInvokeMethod>;
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 
@@ -104,3 +107,17 @@ type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 // more and no less. A drift on either side turns this into `never` and fails the build.
 const _invokeChannelsMatchApi: Exact<InvokeMethod, ApiInvokeMethod> = true;
 void _invokeChannelsMatchApi;
+
+// A channel whose action only READS state. The dashboard polls several of these on a
+// timer, so attributing them to a user action would make routine polling look like
+// something a person did. Anything not listed here is treated as a change.
+const READ_ONLY_ACTIONS: readonly string[] = [
+  "apps", "connection", "detect", "diffRefs", "drain", "device-poll", "get", "homes",
+  "list", "meta", "metaCached", "preview", "read", "schemas", "snapshot", "stats",
+  "status", "summary", "versions", "versionsAll", "versionsCached",
+];
+
+export function isReadOnlyChannel(channel: string): boolean {
+  const at = String(channel).indexOf(":");
+  return at >= 0 && READ_ONLY_ACTIONS.includes(channel.slice(at + 1));
+}

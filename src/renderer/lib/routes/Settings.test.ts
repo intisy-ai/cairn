@@ -17,7 +17,7 @@ function cairnHome(): HomePlugins {
 }
 
 describe("Settings screen", () => {
-  it("loads and saves the five Cairn settings, asserting exact setConfig triples", async () => {
+  it("loads and saves the four Cairn settings, asserting exact setConfig triples", async () => {
     const setConfigCalls: unknown[][] = [];
     stubCairn({
       getConfig: async (name: string, key: string) => {
@@ -25,7 +25,6 @@ describe("Settings screen", () => {
         if (name === "cairn" && key === "showDeprecated") return { ok: true, data: false };
         if (name === "cairn" && key === "autoUpdateDefault") return { ok: true, data: false };
         if (name === "cairn" && key === "proxyAutostart") return { ok: true, data: true };
-        if (name === "settings" && key === "logConsole") return { ok: true, data: true };
         return { ok: true, data: undefined };
       },
       setConfig: async (...args: unknown[]) => {
@@ -41,27 +40,41 @@ describe("Settings screen", () => {
     const showDeprecatedSwitch = screen.getByRole("switch", { name: "Show deprecated plugins" });
     const autoUpdateSwitch = screen.getByRole("switch", { name: "Auto-update new installs" });
     const proxyAutostartSwitch = screen.getByRole("switch", { name: "Start the local API on launch" });
-    const logConsoleSwitch = screen.getByRole("switch", { name: "Mirror plugin logs to the console" });
 
     await waitFor(() => {
       expect(themeSelect.value).toBe("dark");
       expect(showDeprecatedSwitch.getAttribute("aria-checked")).toBe("false");
       expect(autoUpdateSwitch.getAttribute("aria-checked")).toBe("false");
       expect(proxyAutostartSwitch.getAttribute("aria-checked")).toBe("true");
-      expect(logConsoleSwitch.getAttribute("aria-checked")).toBe("true");
     });
 
     await fireEvent.change(themeSelect, { target: { value: "light" } });
     await fireEvent.click(showDeprecatedSwitch);
     await fireEvent.click(autoUpdateSwitch);
     await fireEvent.click(proxyAutostartSwitch);
-    await fireEvent.click(logConsoleSwitch);
 
     await waitFor(() => expect(setConfigCalls).toContainEqual(["cairn", "theme", "light"]));
     expect(setConfigCalls).toContainEqual(["cairn", "showDeprecated", true]);
     expect(setConfigCalls).toContainEqual(["cairn", "autoUpdateDefault", true]);
     expect(setConfigCalls).toContainEqual(["cairn", "proxyAutostart", false]);
-    expect(setConfigCalls).toContainEqual(["settings", "logConsole", false]);
+  });
+
+  it("renders the shared settings from the schema, not from a hardcoded key list", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: [cairnHome()] }),
+      globalSettingsRead: async () => ({
+        ok: true,
+        data: {
+          defaults: { activityMinImpact: "info" },
+          current: {},
+          fields: [{ key: "activityMinImpact", type: "select", label: "Record activity from", options: [{ value: "info", label: "info" }] }],
+        },
+      }),
+    });
+
+    render(Settings);
+
+    expect(await screen.findByLabelText("Record activity from")).toBeInTheDocument();
   });
 
   it("applies the theme via applyThemeSetting on load and on change", async () => {

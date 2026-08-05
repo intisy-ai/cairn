@@ -29,7 +29,13 @@ const READ_TTL: Record<string, number> = {
   customEndpointsList: 30000,
   syncStatus: 15000,
   githubStatus: 15000,
+  activityRead: 10000,
 };
+
+// Push-listener subscriptions return their unsubscribe function synchronously;
+// they must pass straight through rather than being wrapped as an async
+// mutation (which would turn the unsubscribe function into a Promise of one).
+const PASSTHROUGH = new Set(["onServerStatus", "onDownloadProgress", "onActivityEvent"]);
 
 export const cairn: CairnAPI = new Proxy({} as CairnAPI, {
   get(_target, property) {
@@ -40,6 +46,7 @@ export const cairn: CairnAPI = new Proxy({} as CairnAPI, {
     if (name in READ_TTL) {
       return (...args: unknown[]) => cached(name + ":" + JSON.stringify(args), READ_TTL[name], () => bound(...args) as Promise<unknown>);
     }
+    if (PASSTHROUGH.has(name)) return bound;
     return async (...args: unknown[]) => {
       const result = await bound(...args);
       invalidate();

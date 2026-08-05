@@ -5,6 +5,7 @@ import { getApps } from "@core/index.js";
 import { exposureFor, readExposureMap, setExposure } from "../lib/exposure.js";
 import type { ProviderRow, Result } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
+import { emitCairnAction } from "../activity.js";
 
 export function providersList(): Promise<Result<ProviderRow[]>> {
   return wrap(async () => {
@@ -61,13 +62,26 @@ export function providersList(): Promise<Result<ProviderRow[]>> {
 }
 
 export function providersSetEnabled(id: string, on: boolean): Promise<Result<void>> {
-  return wrap(() => {
+  return wrap(async () => {
     for (const app of getApps()) setExposure(id, app.id, on);
+    await emitCairnAction({
+      action: on ? "provider_enabled" : "provider_disabled",
+      subject: { kind: "provider", id, label: id },
+      topic: "provider.state",
+      details: { message: `${on ? "Enabled" : "Disabled"} ${id} everywhere` },
+    });
   });
 }
 
 export function providersSetExposure(id: string, appId: string, on: boolean): Promise<Result<void>> {
-  return wrap(() => {
+  return wrap(async () => {
     setExposure(id, appId, on);
+    await emitCairnAction({
+      action: "provider_exposure_changed",
+      subject: { kind: "provider", id, label: id },
+      topic: "provider.state",
+      homeId: appId,
+      details: { exposed: on, message: `${id} ${on ? "exposed to" : "hidden from"} ${appId}` },
+    });
   });
 }

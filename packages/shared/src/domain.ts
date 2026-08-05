@@ -1,4 +1,5 @@
 export type { AccountView, AccountQuota, AccountStatus } from "@core-auth/index.js";
+export type { Impact, ActivityRecord, ActivityQuery, ActivityStats, ActivityHomeStats, FieldSpec } from "@core/index.js";
 export type { Chain, ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/index.js";
 import type { ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/index.js";
 import type { AppDescriptor } from "@core/index.js";

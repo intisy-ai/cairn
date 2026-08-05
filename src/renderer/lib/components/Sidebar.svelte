@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { router, navigate, SCREENS } from "../router.js";
   import { serverStatus, watchServerStatus } from "../serverStatus.js";
+  import { unseenErrorCount } from "../stores/activity.js";
   import { PROXY_PORT } from "@cairn/shared";
   import CairnMark from "./CairnMark.svelte";
 
@@ -39,6 +40,9 @@
     {#each mainScreens as screen (screen.id)}
       <button type="button" class={$router.screen === screen.id ? "active" : ""} title={screen.label} onclick={go(screen.id)}>
         <span class="ic">{screen.glyph}</span> <span class="lbl">{screen.label}</span>
+        {#if screen.id === "activity" && $unseenErrorCount > 0}
+          <span class="badge">{$unseenErrorCount > 99 ? "99+" : $unseenErrorCount}</span>
+        {/if}
       </button>
     {/each}
   </nav>
@@ -103,6 +107,16 @@
     text-align: center;
     opacity: .8;
   }
+  .nav button .badge {
+    margin-left: auto;
+    background: var(--crit-weak);
+    color: var(--crit);
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 20px;
+  }
   .nav button:hover {
     background: var(--surface);
     color: var(--text);
@@ -157,9 +171,18 @@
     .nav button {
       justify-content: center;
       padding: 9px 0;
+      position: relative;
     }
     .nav button .lbl {
       display: none;
+    }
+    .nav button .badge {
+      position: absolute;
+      top: 3px;
+      right: 6px;
+      margin-left: 0;
+      font-size: 9px;
+      padding: 1px 4px;
     }
     .navsec {
       display: none;
