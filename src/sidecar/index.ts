@@ -16,7 +16,8 @@ import { configSchemas, configWrite, configAction } from "./modules/appConfig.js
 import { syncStatus, syncRun, syncSetConfig } from "./modules/sync.js";
 import { ledgerHomes, ledgerCommit, ledgerRestore, ledgerDiffRefs, ledgerProfileCreate, ledgerProfileSwitch } from "./modules/ledger.js";
 import { busDrain } from "./modules/bus.js";
-import { activityRead } from "./modules/activity.js";
+import { activityRead, activityStatsRead } from "./modules/activity.js";
+import { globalSettingsRead } from "./modules/globalSettings.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
 import type { ActivityQuery } from "@core/index.js";
 import { setActivityContext, withCause } from "@core/index.js";
@@ -123,6 +124,8 @@ registerHandler("ledger:profileCreate", (home, name) => ledgerProfileCreate(home
 registerHandler("ledger:profileSwitch", (home, name) => ledgerProfileSwitch(home as string, name as string));
 registerHandler("bus:drain", () => busDrain());
 registerHandler("activity:read", (query) => activityRead(query as ActivityQuery));
+registerHandler("activity:stats", () => activityStatsRead());
+registerHandler("settings:read", () => globalSettingsRead());
 registerHandler("usage:snapshot", () => usageSnapshot());
 registerHandler("import:apps", () => importApps());
 registerHandler("import:preview", (app) => importPreview(app as string));

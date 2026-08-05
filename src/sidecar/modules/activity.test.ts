@@ -29,6 +29,20 @@ describe("sidecar activity module", () => {
     expect(res.data.nextCursor).toBeUndefined();
   });
 
+  it("sums activity storage across the present homes only", async () => {
+    const { activityStatsRead } = await import("./activity.js");
+    const seen: string[][] = [];
+    const res = await activityStatsRead({
+      homes: async () => [home("cairn", "/cairn"), home("claude", "/c", false)],
+      stats: (dirs) => { seen.push(dirs); return { homes: [], bytes: 42, segments: 1 }; },
+    });
+
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.data.bytes).toBe(42);
+    expect(seen).toEqual([["/cairn"]]);
+  });
+
   it("propagates a paging cursor from the reader", async () => {
     const res = await activityRead({}, {
       homes: async () => [home("cairn", "/cairn")],

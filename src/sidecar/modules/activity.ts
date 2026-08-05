@@ -1,4 +1,4 @@
-import { readActivity, type ActivityRecord, type ActivityQuery } from "@core/index.js";
+import { readActivity, activityStats, type ActivityRecord, type ActivityQuery, type ActivityStats } from "@core/index.js";
 import type { Result, PluginHome } from "../../../packages/shared/src/domain.js";
 import { pluginHomes } from "../lib/pluginHomes.js";
 import { wrap } from "../result.js";
@@ -17,5 +17,21 @@ export function activityRead(query: ActivityQuery, deps: ActivityDeps = {}): Pro
   return wrap(async () => {
     const dirs = (await listHomes()).filter((h) => h.present).map((h) => h.dir);
     return read(dirs, query);
+  });
+}
+
+export interface ActivityStatsDeps {
+  homes?: () => Promise<PluginHome[]>;
+  stats?: (homes: string[]) => ActivityStats;
+}
+
+// What the retention limits are acting on, so the settings that control them can say
+// what they will drop.
+export function activityStatsRead(deps: ActivityStatsDeps = {}): Promise<Result<ActivityStats>> {
+  const listHomes = deps.homes ?? pluginHomes;
+  const stats = deps.stats ?? activityStats;
+  return wrap(async () => {
+    const dirs = (await listHomes()).filter((h) => h.present).map((h) => h.dir);
+    return stats(dirs);
   });
 }

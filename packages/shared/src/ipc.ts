@@ -64,6 +64,8 @@ export const INVOKE_CHANNELS = {
   ledgerProfileSwitch: "ledger:profileSwitch",
   busDrain: "bus:drain",
   activityRead: "activity:read",
+  activityStats: "activity:stats",
+  globalSettingsRead: "settings:read",
   usageSnapshot: "usage:snapshot",
   importApps: "import:apps",
   importPreview: "import:preview",

@@ -74,6 +74,24 @@ declare module "@core/index.js" {
   export function currentCause(): ActivityCause;
   export function normalizeActivity(envelope: EventEnvelope, home?: string): ActivityRecord;
   export function readActivity(homes: string[], query?: ActivityQuery): { records: ActivityRecord[]; nextCursor?: string };
+  export interface ActivityHomeStats { home: string; bytes: number; segments: number; oldestTs?: number }
+  export interface ActivityStats { homes: ActivityHomeStats[]; bytes: number; segments: number; oldestTs?: number }
+  export function activityStats(homes: string[]): ActivityStats;
+  export interface FieldSpec {
+    key: string;
+    type: "boolean" | "number" | "string" | "secret" | "select" | "multiline" | "list";
+    label?: string;
+    description?: string;
+    group?: string;
+    options?: { value: string; label: string }[];
+    min?: number;
+    max?: number;
+    step?: number;
+    itemType?: "string" | "number";
+    placeholder?: string;
+  }
+  export function globalSettingsSchema(): { defaults: Record<string, unknown>; fields: FieldSpec[] };
+  export function loadConfig(name: string, configDir?: string): Record<string, unknown>;
   export interface EngineDescriptor {
     id: string;
     url: string;
