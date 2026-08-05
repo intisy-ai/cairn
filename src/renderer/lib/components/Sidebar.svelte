@@ -24,15 +24,22 @@
   const running = $derived($serverStatus ? $serverStatus.running : true);
   const port = $derived($serverStatus?.port ?? apiPort);
 
-  // Whatever plugins asked for a place in the navigation. Loaded once: it comes from
-  // probing installed bundles, which is too slow to sit in front of the first paint.
+  // Whatever plugins asked for a place in the navigation. Painted from the last known set
+  // so the sidebar never waits, then replaced by a refresh that resolves each home's
+  // plugin declarations in the background.
   let pluginMenus = $state<PluginMenu[]>([]);
 
+  function apply(menus: PluginMenu[]): void {
+    pluginMenus = menus;
+    setPluginMenus(menus);
+  }
+
   onMount(() => {
-    void cairn.menusList().then((result) => {
-      if (!result.ok) return;
-      pluginMenus = result.data;
-      setPluginMenus(result.data);
+    void cairn.menusList().then((cached) => {
+      if (cached.ok && cached.data.length > 0) apply(cached.data);
+      return cairn.menusList({ wait: true }).then((fresh) => {
+        if (fresh.ok) apply(fresh.data);
+      });
     });
     return watchServerStatus();
   });

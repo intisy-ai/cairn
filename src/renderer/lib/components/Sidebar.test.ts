@@ -46,3 +46,34 @@ describe("contributed menus", () => {
     expect(screen.queryByText("Plugins", { selector: "p" })).toBeNull();
   });
 });
+
+describe("menu painting", () => {
+  it("paints cached menus first, then replaces them when the refresh lands", async () => {
+    const calls: (boolean | undefined)[] = [];
+    stubCairn({
+      menusList: async (opts?: { wait?: boolean }) => {
+        calls.push(opts?.wait);
+        return opts?.wait
+          ? { ok: true as const, data: [{ plugin: "ledger", label: "Fresh", homes: ["claude"] }] }
+          : { ok: true as const, data: [{ plugin: "ledger", label: "Cached", homes: ["claude"] }] };
+      },
+    });
+    render(Sidebar, { props: { hasRouting: true } });
+
+    expect(await screen.findByRole("button", { name: /Cached/ })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Fresh/ })).toBeInTheDocument();
+    expect(calls).toEqual([undefined, true]);
+    navigate("overview");
+  });
+
+  it("still shows the refreshed menus when the cache was cold", async () => {
+    stubCairn({
+      menusList: async (opts?: { wait?: boolean }) => (opts?.wait
+        ? { ok: true as const, data: [{ plugin: "ledger", label: "Ledger", homes: ["claude"] }] }
+        : { ok: true as const, data: [] }),
+    });
+    render(Sidebar, { props: { hasRouting: true } });
+
+    expect(await screen.findByRole("button", { name: /Ledger/ })).toBeInTheDocument();
+  });
+});

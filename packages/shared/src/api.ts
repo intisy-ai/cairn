@@ -45,7 +45,7 @@ export interface CairnAPI {
   pluginsDowngrade(home: string, name: string, hash: string): Promise<Result<void>>;
   pluginsUninstall(home: string, name: string): Promise<Result<void>>;
   configSchemas(home: string): Promise<Result<PluginConfigSchema[]>>;
-  menusList(): Promise<Result<PluginMenu[]>>;
+  menusList(opts?: { wait?: boolean }): Promise<Result<PluginMenu[]>>;
   configWrite(home: string, plugin: string, key: string, value: unknown): Promise<Result<void>>;
   configAction(home: string, plugin: string, actionId: string): Promise<Result<{ stdout: string; stderr: string }>>;
   syncStatus(): Promise<Result<SyncStatus>>;
