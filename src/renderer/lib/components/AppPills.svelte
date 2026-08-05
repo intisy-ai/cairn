@@ -1,11 +1,10 @@
 <script lang="ts">
   import type { HostApp } from "@cairn/shared";
 
-  let { apps, values, onToggle, canInstall, size = 22 }: {
+  let { apps, values, onToggle, size = 22 }: {
     apps: HostApp[];
     values: Record<string, boolean>;
     onToggle?: (appId: string, on: boolean) => void;
-    canInstall?: (appId: string) => boolean;
     size?: number;
   } = $props();
 
@@ -18,15 +17,14 @@
   {#each apps as app (app.id)}
     {@const on = !!values[app.id]}
     {@const icon = app.icon}
-    {@const gated = !on && !!canInstall && !canInstall(app.id)}
-    {@const interactive = !!onToggle && !gated}
+    {@const interactive = !!onToggle}
     <svelte:element
       this={interactive ? "button" : "span"}
       role={interactive ? "button" : undefined}
       class="app"
       class:on
       class:na={!on}
-      title={gated ? `${app.label} — install plugin-updater in this app first` : app.label}
+      title={app.label}
       aria-label={interactive ? `${app.label}: ${on ? "installed, click to remove" : "click to install"}` : app.label}
       style="width:{size}px;height:{size}px"
       onclick={interactive ? () => onToggle?.(app.id, !on) : undefined}

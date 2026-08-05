@@ -245,9 +245,11 @@
     <div class="apphome" data-testid={"settings-home-" + group.home.id}>
       <h3>{group.home.label}</h3>
       <Card>
-        <div class="updates">
-          <AutoUpdateSettings homeId={group.home.id} />
-        </div>
+        {#if group.home.hasUpdater}
+          <div class="updates">
+            <AutoUpdateSettings homeId={group.home.id} />
+          </div>
+        {/if}
         {#each schemasByHome[group.home.id] ?? [] as schema (schema.plugin)}
           <details class="plugin">
             <summary>{schema.plugin}</summary>

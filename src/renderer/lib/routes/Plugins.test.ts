@@ -83,6 +83,57 @@ describe("Plugins screen", () => {
     expect(screen.queryByRole("button", { name: "Update all" })).toBeNull();
   });
 
+  it("offers the check as a refresh icon rather than a worded button", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+    });
+    render(Plugins);
+    await screen.findByText("wakatime-sync");
+
+    const button = screen.getByRole("button", { name: "Check for updates" });
+    expect(button.textContent?.trim()).toBe("");
+    expect(button.querySelector("svg")).not.toBeNull();
+  });
+
+  it("hides every update control when no home has an updater to run them", async () => {
+    const noUpdater = [
+      { home: home("cairn", "Cairn", { hasUpdater: false }), rows: [] },
+      { home: home("claude", "Claude Code", { hasUpdater: false }), rows: [{ name: "wakatime-sync", kind: "git" as const, enabled: true, updateAvailable: true, description: "Tracks time" }] },
+    ];
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: noUpdater }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+    });
+    render(Plugins);
+    await screen.findByText("wakatime-sync");
+
+    expect(screen.queryByRole("button", { name: "Check for updates" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Update all" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Update" })).toBeNull();
+  });
+
+  it("checks only the homes that actually have an updater", async () => {
+    const mixed = [
+      { home: home("cairn", "Cairn", { hasUpdater: false }), rows: [] },
+      { home: home("claude", "Claude Code"), rows: [{ name: "wakatime-sync", kind: "git" as const, enabled: true, updateAvailable: false, description: "Tracks time" }] },
+    ];
+    const checked: string[] = [];
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: mixed }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      updatesCheck: async (homeId: string) => {
+        checked.push(homeId);
+        return { ok: true, data: { checkedAt: "t", available: [] } };
+      },
+    });
+    render(Plugins);
+    await screen.findByText("wakatime-sync");
+
+    await fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
+    await waitFor(() => expect(checked).toEqual(["claude"]));
+  });
+
   it("updates every managed home when something is behind, then reloads", async () => {
     const behind = baseSections();
     behind[1].rows[0].updateAvailable = true;
@@ -304,7 +355,7 @@ describe("Plugins screen", () => {
     expect(chips.map((c) => c.textContent)).toEqual(expect.arrayContaining(["intisy-ai", "plugin", "typescript"]));
   });
 
-  it("gates install into a home without plugin-updater but lets engines through", async () => {
+  it("offers install into every home, including one with no updater yet", async () => {
     stubCairn({
       pluginsList: async () => ({
         ok: true,
@@ -328,11 +379,10 @@ describe("Plugins screen", () => {
     });
     render(Plugins);
 
-    // A normal plugin's Claude pill is gated (no plugin-updater there): a non-interactive span with a hint.
+    // The updater arrives as part of the install now, so a home without it is still a
+    // valid target: an ordinary plugin's pill offers the install just like the engine's.
     const normal = within(await screen.findByTestId("plugin-wakatime-sync"));
-    const gatedPill = normal.getByTitle(/Claude Code . install plugin-updater/i);
-    expect(gatedPill.tagName.toLowerCase()).toBe("span");
-    // The engine itself is never gated: its Claude pill stays an install button.
+    expect(normal.getByLabelText(/Claude Code: click to install/)).toBeInTheDocument();
     const engine = within(await screen.findByTestId("plugin-plugin-updater"));
     expect(engine.getByLabelText(/Claude Code: click to install/)).toBeInTheDocument();
   });

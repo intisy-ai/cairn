@@ -9,6 +9,7 @@
   import { debounce } from "../util/debounce.js";
   import { buildUnifiedPlugins, applicableHomeIds } from "../util/unifiedPlugins.js";
   import Button from "../components/Button.svelte";
+  import IconButton from "../components/IconButton.svelte";
   import Card from "../components/Card.svelte";
   import SearchField from "../components/SearchField.svelte";
   import VirtualList from "../components/VirtualList.svelte";
@@ -245,14 +246,9 @@
   function homesById(): Record<string, PluginHome> {
     return Object.fromEntries(homes.map((h) => [h.id, h]));
   }
-  // A home takes a non-engine plugin only once plugin-updater manages it there;
-  // engines bootstrap directly and Cairn's own home is always manageable.
-  function canInstallInto(p: UnifiedPlugin, homeId: string): boolean {
-    return engineIds.has(p.name) || !!homesById()[homeId]?.hasUpdater;
-  }
-  function applicableHomesFor(p: UnifiedPlugin): { id: string; label: string; icon?: string }[] {
+  function applicableHomesFor(p: UnifiedPlugin): { id: string; label: string; icon?: string; hasUpdater?: boolean }[] {
     const by = homesById();
-    return Object.keys(p.homes).map((id) => ({ id, label: by[id]?.label ?? id, icon: by[id]?.icon }));
+    return Object.keys(p.homes).map((id) => ({ id, label: by[id]?.label ?? id, icon: by[id]?.icon, hasUpdater: by[id]?.hasUpdater }));
   }
   function installedMap(p: UnifiedPlugin): Record<string, boolean> {
     return Object.fromEntries(Object.entries(p.homes).map(([id, s]) => [id, s.installed]));
@@ -279,6 +275,12 @@
     const allBootstrap = homeIds.length > 0
       && homeIds.every((id) => engineIds.has(name) && !by[id]?.hasUpdater);
     return allBootstrap ? "cairn" : "plugin-updater";
+  }
+  // Which homes report this plugin as behind, from each home's own row.
+  function behindHomesFor(p: UnifiedPlugin): string[] {
+    return sections
+      .filter((s) => s.home.hasUpdater && s.rows.some((r) => r.name === p.name && r.updateAvailable))
+      .map((s) => s.home.id);
   }
   function homesLabel(homeIds: string[]): string {
     const by = homesById();
@@ -329,22 +331,25 @@
   // so a plugin's pills and button reflect every home as soon as it finishes
   // rather than waiting for the whole multi-home batch to complete.
   async function handleInstallAll(p: UnifiedPlugin): Promise<void> {
-    const targets = notInstalledApplicable(p).filter((id) => canInstallInto(p, id));
-    for (const homeId of targets) await addHome(p, homeId);
+    for (const homeId of notInstalledApplicable(p)) await addHome(p, homeId);
   }
-let checking = $state(false);
+
+  let checking = $state(false);
   let updatingAll = $state(false);
 
+  // Only a home with an updater can check or pull, so nothing here is offered without one.
+  const updatesEnabled = $derived(homes.some((h) => h.hasUpdater));
+  function updatableHomes(): PluginHome[] {
+    return homes.filter((h) => h.hasUpdater && (h.id === "cairn" || h.present));
+  }
+
   // A check refreshes the update cache every badge is read from, so the rows are
-  // reloaded straight after. Both run for every home the dashboard manages.
+  // reloaded straight after.
   async function handleCheckUpdates(): Promise<void> {
     if (checking) return;
     checking = true;
     try {
-      for (const home of homes) {
-        if (home.id !== "cairn" && !home.present) continue;
-        await cairn.updatesCheck(home.id);
-      }
+      for (const home of updatableHomes()) await cairn.updatesCheck(home.id);
       await loadPlugins();
     } finally {
       checking = false;
@@ -355,10 +360,7 @@ let checking = $state(false);
     if (updatingAll) return;
     updatingAll = true;
     try {
-      for (const home of homes) {
-        if (home.id !== "cairn" && !home.present) continue;
-        await cairn.updatesAll(home.id);
-      }
+      for (const home of updatableHomes()) await cairn.updatesAll(home.id);
       await loadPlugins();
     } finally {
       updatingAll = false;
@@ -429,9 +431,11 @@ let checking = $state(false);
 {:else}
   <div class="toolbar">
     <SearchField bind:value={searchRaw} placeholder="Search plugins…" />
-    <Button onclick={handleCheckUpdates} disabled={checking}>{checking ? "Checking..." : "Check for updates"}</Button>
-    {#if anyUpdateAvailable}
-      <Button onclick={handleUpdateAll} disabled={updatingAll}>{updatingAll ? "Updating..." : "Update all"}</Button>
+    {#if updatesEnabled}
+      <IconButton name="refresh" title="Check for updates" disabled={checking} onclick={handleCheckUpdates} />
+      {#if anyUpdateAvailable}
+        <Button onclick={handleUpdateAll} disabled={updatingAll}>{updatingAll ? "Updating..." : "Update all"}</Button>
+      {/if}
     {/if}
     <Button variant="primary" onclick={() => (addOpen = true)}>+ Add from URL</Button>
     <ViewToggle value={view} onChange={setView} />
@@ -477,16 +481,17 @@ let checking = $state(false);
 
   {#snippet installActions(p: UnifiedPlugin)}
     <div class="actions">
-      {#if p.updateAvailable}
-        <Button onclick={() => handleUpdate(p)}>Update</Button>
-      {/if}
       <div class="ctlw">
         <PluginInstallControl
           block
           plugin={p}
           homes={applicableHomesFor(p)}
-          canInstallHome={(homeId) => canInstallInto(p, homeId)}
           activity={$activeByKey[p.name] ?? null}
+          updateAvailable={p.updateAvailable}
+          {updatesEnabled}
+          behindHomes={behindHomesFor(p)}
+          onUpdate={() => handleUpdate(p)}
+          onUpdateHome={(homeId) => updateHome(p, homeId)}
           onInstallAll={() => handleInstallAll(p)}
           onRemoveEverywhere={() => confirmRemoveEverywhere(p)}
           onToggleHome={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
@@ -522,7 +527,6 @@ let checking = $state(false);
       <AppPills
         apps={applicableHomesFor(p)}
         values={installedMap(p)}
-        canInstall={(homeId) => canInstallInto(p, homeId)}
         onToggle={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
       />
       {@render installActions(p)}
@@ -589,7 +593,6 @@ let checking = $state(false);
     <PluginDetail
       plugin={selectedPlugin}
       homes={applicableHomesFor(selectedPlugin)}
-      canInstallHome={(homeId) => canInstallInto(selectedPlugin, homeId)}
       activity={$activeByKey[selectedPlugin.name] ?? null}
       onClose={() => (selectedName = null)}
       onInstallAll={() => handleInstallAll(selectedPlugin)}
