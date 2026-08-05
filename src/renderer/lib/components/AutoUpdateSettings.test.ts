@@ -3,52 +3,45 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, waitFor } from "@testing-library/svelte";
 
 const configWrite = vi.fn(async () => ({ ok: true as const, data: undefined }));
-const configSchemas = vi.fn(async () => ({
-  ok: true as const,
-  data: [
-    {
-      plugin: "plugin-updater",
-      defaults: { auto_update_mode: "update", auto_update_triggers: { loader: true, app: true, cairn: true } },
-      current: { auto_update_mode: "check", auto_update_triggers: { loader: true, app: true, cairn: true } },
-    },
-  ],
-}));
 
 vi.mock("../ipc.js", () => ({
   cairn: {
-    get configSchemas() { return configSchemas; },
     get configWrite() { return configWrite; },
   },
 }));
 
 beforeEach(() => {
   configWrite.mockClear();
-  configSchemas.mockClear();
 });
+
+const SCHEMA = {
+  plugin: "plugin-updater",
+  defaults: { auto_update_mode: "update", auto_update_triggers: { loader: true, app: true, cairn: true } },
+  current: { auto_update_mode: "check", auto_update_triggers: { loader: true, app: true, cairn: true } },
+};
 
 describe("AutoUpdateSettings", () => {
   it("shows the mode this app home has on disk", async () => {
     const AutoUpdateSettings = (await import("./AutoUpdateSettings.svelte")).default;
-    const { getByLabelText } = render(AutoUpdateSettings, { props: { homeId: "claude" } });
+    const { getByLabelText } = render(AutoUpdateSettings, { props: { homeId: "claude", schema: SCHEMA } });
 
-    await waitFor(() => expect(getByLabelText("Automatic updates")).toHaveValue("check"));
-    expect(configSchemas).toHaveBeenCalledWith("claude");
+    expect(getByLabelText("Automatic updates")).toHaveValue("check");
   });
 
   it("writes a mode change to that app's own plugin-updater config", async () => {
     const AutoUpdateSettings = (await import("./AutoUpdateSettings.svelte")).default;
-    const { getByLabelText } = render(AutoUpdateSettings, { props: { homeId: "claude" } });
+    const { getByLabelText } = render(AutoUpdateSettings, { props: { homeId: "claude", schema: SCHEMA } });
 
-    const select = await waitFor(() => getByLabelText("Automatic updates"));
+    const select = getByLabelText("Automatic updates");
     await fireEvent.change(select, { target: { value: "update" } });
     expect(configWrite).toHaveBeenCalledWith("claude", "plugin-updater", "auto_update_mode", "update");
   });
 
   it("writes a trigger toggle as the whole object, since it is one config key", async () => {
     const AutoUpdateSettings = (await import("./AutoUpdateSettings.svelte")).default;
-    const { getByRole } = render(AutoUpdateSettings, { props: { homeId: "claude" } });
+    const { getByRole } = render(AutoUpdateSettings, { props: { homeId: "claude", schema: SCHEMA } });
 
-    const toggle = await waitFor(() => getByRole("switch", { name: "Check when this app starts" }));
+    const toggle = getByRole("switch", { name: "Check when this app starts" });
     await fireEvent.click(toggle);
     expect(configWrite).toHaveBeenCalledWith("claude", "plugin-updater", "auto_update_triggers", {
       loader: true, app: false, cairn: true,
@@ -56,21 +49,26 @@ describe("AutoUpdateSettings", () => {
   });
 
   it("falls back to check when the home only has the older launch flag", async () => {
-    configSchemas.mockResolvedValueOnce({
-      ok: true as const,
-      data: [{ plugin: "plugin-updater", defaults: {}, current: { update_on_launch: false } }],
-    } as never);
     const AutoUpdateSettings = (await import("./AutoUpdateSettings.svelte")).default;
-    const { getByLabelText } = render(AutoUpdateSettings, { props: { homeId: "opencode" } });
+    const { getByLabelText } = render(AutoUpdateSettings, {
+      props: { homeId: "opencode", schema: { plugin: "plugin-updater", defaults: {}, current: { update_on_launch: false } } },
+    });
 
-    await waitFor(() => expect(getByLabelText("Automatic updates")).toHaveValue("check"));
+    expect(getByLabelText("Automatic updates")).toHaveValue("check");
   });
 
-  it("says so when the settings cannot be read", async () => {
-    configSchemas.mockResolvedValueOnce({ ok: false as const, error: "no updater here" } as never);
+  it("renders the declared defaults while the home has no stored settings yet", async () => {
     const AutoUpdateSettings = (await import("./AutoUpdateSettings.svelte")).default;
-    const { findByText } = render(AutoUpdateSettings, { props: { homeId: "claude" } });
+    const { getByLabelText } = render(AutoUpdateSettings, { props: { homeId: "claude", schema: null } });
 
-    expect(await findByText(/no updater here/)).toBeInTheDocument();
+    expect(getByLabelText("Automatic updates")).toHaveValue("update");
+  });
+
+  it("reflects a mode change immediately, before the write comes back", async () => {
+    const AutoUpdateSettings = (await import("./AutoUpdateSettings.svelte")).default;
+    const { getByLabelText } = render(AutoUpdateSettings, { props: { homeId: "claude", schema: SCHEMA } });
+
+    await fireEvent.change(getByLabelText("Automatic updates"), { target: { value: "off" } });
+    expect(getByLabelText("Automatic updates")).toHaveValue("off");
   });
 });

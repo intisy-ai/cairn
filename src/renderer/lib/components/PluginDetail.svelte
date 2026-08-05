@@ -89,6 +89,7 @@
     ...(installedHomes.length > 0 ? [{ id: "configure", label: "Configure" }] : []),
   ]);
 
+  let activeTab = $state("readme");
   let controlsHome = $state<string>("");
   let controlsSchema = $state<PluginConfigSchema | null>(null);
   let controlsLoading = $state(false);
@@ -99,10 +100,12 @@
     }
   });
 
-  // Fetch the selected home's schema for this plugin on demand.
+  // Resolving a plugin's settings runs its bundle, so the fetch waits until Configure is
+  // the tab actually being shown.
   $effect(() => {
     const home = controlsHome;
     const name = plugin.name;
+    if (activeTab !== "configure") return;
     if (!home) { controlsSchema = null; return; }
     controlsLoading = true;
     cairn.configSchemas(home).then((result) => {
@@ -205,7 +208,7 @@
   {/if}
 {/snippet}
 
-<RepoDetail {repo} {onClose} {tabs} tabContent={content} actions={topActions} versionLabel={representativeVersion} />
+<RepoDetail {repo} {onClose} {tabs} tabContent={content} actions={topActions} versionLabel={representativeVersion} onTab={(id) => (activeTab = id)} />
 
 <style>
   .favorite {

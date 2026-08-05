@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import type { PluginConfigSchema } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import ToggleSwitch from "./ToggleSwitch.svelte";
 
-  let { homeId }: { homeId: string } = $props();
+  // The schema is handed in by whoever already resolved this home's plugin settings, so
+  // showing these controls costs no extra probing of the home's bundles.
+  let { homeId, schema }: { homeId: string; schema: PluginConfigSchema | null } = $props();
 
   type Triggers = { loader: boolean; app: boolean; cairn: boolean };
 
@@ -14,34 +16,27 @@
     { key: "cairn", label: "when the dashboard starts" },
   ];
 
-  let mode = $state("update");
-  let triggers = $state<Triggers>({ loader: true, app: true, cairn: true });
+  let modeOverride = $state<string | null>(null);
+  let triggersOverride = $state<Triggers | null>(null);
   let loadError = $state("");
 
-  async function load(): Promise<void> {
-    try {
-      const result = await cairn.configSchemas(homeId);
-      if (!result.ok) {
-        loadError = result.error;
-        return;
-      }
-      loadError = "";
-      const schema = result.data.find((s) => s.plugin === "plugin-updater");
-      const values = { ...(schema?.defaults ?? {}), ...(schema?.current ?? {}) } as Record<string, unknown>;
-      if (typeof values.auto_update_mode === "string" && MODES.includes(values.auto_update_mode)) {
-        mode = values.auto_update_mode;
-      } else if (values.update_on_launch === false) {
-        mode = "check";
-      }
-      const stored = values.auto_update_triggers;
-      if (stored && typeof stored === "object" && !Array.isArray(stored)) {
-        const t = stored as Record<string, unknown>;
-        triggers = { loader: t.loader !== false, app: t.app !== false, cairn: t.cairn !== false };
-      }
-    } catch (e) {
-      loadError = (e as { message?: string }).message ?? String(e);
-    }
-  }
+  const values = $derived({ ...(schema?.defaults ?? {}), ...(schema?.current ?? {}) } as Record<string, unknown>);
+
+  const storedMode = $derived.by(() => {
+    if (typeof values.auto_update_mode === "string" && MODES.includes(values.auto_update_mode)) return values.auto_update_mode;
+    if (values.update_on_launch === false) return "check";
+    return "update";
+  });
+  const storedTriggers = $derived.by((): Triggers => {
+    const stored = values.auto_update_triggers;
+    if (!stored || typeof stored !== "object" || Array.isArray(stored)) return { loader: true, app: true, cairn: true };
+    const t = stored as Record<string, unknown>;
+    return { loader: t.loader !== false, app: t.app !== false, cairn: t.cairn !== false };
+  });
+
+  // A local override shows the change instantly; the stored value governs until then.
+  const mode = $derived(modeOverride ?? storedMode);
+  const triggers = $derived(triggersOverride ?? storedTriggers);
 
   async function write(key: string, value: unknown): Promise<void> {
     try {
@@ -53,17 +48,16 @@
   }
 
   async function setMode(next: string): Promise<void> {
-    mode = next;
+    modeOverride = next;
     await write("auto_update_mode", next);
   }
 
   // The triggers are one config key, so a single toggle writes the whole object.
   async function setTrigger(key: keyof Triggers, on: boolean): Promise<void> {
-    triggers = { ...triggers, [key]: on };
-    await write("auto_update_triggers", { ...triggers });
+    const next = { ...triggers, [key]: on };
+    triggersOverride = next;
+    await write("auto_update_triggers", next);
   }
-
-  onMount(() => { void load(); });
 </script>
 
 <div class="auto">

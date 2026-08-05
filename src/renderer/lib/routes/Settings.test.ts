@@ -137,3 +137,60 @@ describe("Settings screen", () => {
     await waitFor(() => expect(syncRun).toHaveBeenCalledOnce());
   });
 });
+
+// Reading a plugin's settings runs its bundle, so a screen with several apps must not pay
+// for every app on mount. The first app is open (the common single-app case needs no click);
+// the rest load when opened.
+describe("per-app settings loading", () => {
+  function homes() {
+    return [
+      { home: { id: "cairn", label: "Cairn", dir: "/c", present: true, hasUpdater: false }, rows: [] },
+      { home: { id: "claude", label: "Claude Code", dir: "/cc", present: true, hasUpdater: false }, rows: [] },
+      { home: { id: "opencode", label: "OpenCode", dir: "/oc", present: true, hasUpdater: false }, rows: [] },
+    ];
+  }
+
+  it("fetches only the first app's schemas on mount", async () => {
+    const asked: string[] = [];
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: homes() }),
+      configSchemas: async (home: string) => { asked.push(home); return { ok: true, data: [] }; },
+    });
+    render(Settings);
+
+    await waitFor(() => expect(asked).toEqual(["cairn"]));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(asked).toEqual(["cairn"]);
+  });
+
+  it("fetches an app's schemas when its section is opened", async () => {
+    const asked: string[] = [];
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: homes() }),
+      configSchemas: async (home: string) => { asked.push(home); return { ok: true, data: [] }; },
+    });
+    render(Settings);
+    await waitFor(() => expect(asked).toEqual(["cairn"]));
+
+    await fireEvent.click(screen.getByRole("button", { name: "Toggle Claude Code section" }));
+    await waitFor(() => expect(asked).toEqual(["cairn", "claude"]));
+  });
+
+  it("does not refetch a section that was already opened", async () => {
+    const asked: string[] = [];
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: homes() }),
+      configSchemas: async (home: string) => { asked.push(home); return { ok: true, data: [] }; },
+    });
+    render(Settings);
+    await waitFor(() => expect(asked).toEqual(["cairn"]));
+
+    const toggle = screen.getByRole("button", { name: "Toggle OpenCode section" });
+    await fireEvent.click(toggle);
+    await waitFor(() => expect(asked).toEqual(["cairn", "opencode"]));
+    await fireEvent.click(toggle);
+    await fireEvent.click(toggle);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(asked).toEqual(["cairn", "opencode"]);
+  });
+});

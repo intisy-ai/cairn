@@ -12,6 +12,7 @@
   import GlobalSettings from "../components/GlobalSettings.svelte";
   import AutoUpdateSettings from "../components/AutoUpdateSettings.svelte";
   import GitHubAccounts from "../components/GitHubAccounts.svelte";
+  import CollapsibleGroup from "../components/CollapsibleGroup.svelte";
 
   let themeSetting = $state<ThemeSetting>("system");
   let showDeprecated = $state(true);
@@ -38,6 +39,12 @@
     applyThemeSetting(themeSetting);
   }
 
+  // Resolving one app's plugin settings runs each of its plugin bundles, so a section pays
+  // for itself only once opened. The first app starts open, which is the whole cost for the
+  // common single-app case and keeps the screen useful without a click.
+  let openHomes = $state<Record<string, boolean>>({});
+  let loadedHomes = $state<Record<string, boolean>>({});
+
   async function loadAppGroups(): Promise<void> {
     const result = await cairn.pluginsList();
     if (!result.ok) {
@@ -45,11 +52,28 @@
       return;
     }
     sectionsError = "";
+    // Every group needs an explicit boolean before it renders: `bind:` cannot start from an
+    // absent value. Assign the flags first so the sections render already knowing their state.
+    const groups = result.data.filter((s) => s.home.id === "cairn" || s.home.present);
+    openHomes = Object.fromEntries(groups.map((group, index) => [group.home.id, index === 0]));
     sections = result.data;
-    for (const group of sections.filter((s) => s.home.id === "cairn" || s.home.present)) {
-      const schemas = await cairn.configSchemas(group.home.id);
-      if (schemas.ok) schemasByHome = { ...schemasByHome, [group.home.id]: schemas.data };
+  }
+
+  async function loadGroup(homeId: string): Promise<void> {
+    if (loadedHomes[homeId]) return;
+    loadedHomes = { ...loadedHomes, [homeId]: true };
+    const schemas = await cairn.configSchemas(homeId);
+    if (schemas.ok) schemasByHome = { ...schemasByHome, [homeId]: schemas.data };
+  }
+
+  $effect(() => {
+    for (const [homeId, open] of Object.entries(openHomes)) {
+      if (open && !loadedHomes[homeId]) void loadGroup(homeId);
     }
+  });
+
+  function updaterSchemaFor(homeId: string): PluginConfigSchema | null {
+    return (schemasByHome[homeId] ?? []).find((s) => s.plugin === "plugin-updater") ?? null;
   }
 
   async function handleThemeChange(next: ThemeSetting): Promise<void> {
@@ -243,25 +267,30 @@
   {/if}
   {#each appGroups as group (group.home.id)}
     <div class="apphome" data-testid={"settings-home-" + group.home.id}>
-      <h3>{group.home.label}</h3>
-      <Card>
-        {#if group.home.hasUpdater}
-          <div class="updates">
-            <AutoUpdateSettings homeId={group.home.id} />
-          </div>
-        {/if}
-        {#each schemasByHome[group.home.id] ?? [] as schema (schema.plugin)}
-          <details class="plugin">
-            <summary>{schema.plugin}</summary>
-            <div class="fields">
-              <PluginControls homeId={group.home.id} {schema} />
-            </div>
-          </details>
-        {/each}
-        {#if (schemasByHome[group.home.id] ?? []).length === 0}
-          <p class="empty">No configurable plugins.</p>
-        {/if}
-      </Card>
+      <CollapsibleGroup label={group.home.label} bind:open={openHomes[group.home.id]}>
+        {#snippet body()}
+          <Card>
+            {#if group.home.hasUpdater}
+              <div class="updates">
+                <AutoUpdateSettings homeId={group.home.id} schema={updaterSchemaFor(group.home.id)} />
+              </div>
+            {/if}
+            {#each schemasByHome[group.home.id] ?? [] as schema (schema.plugin)}
+              <details class="plugin">
+                <summary>{schema.plugin}</summary>
+                <div class="fields">
+                  <PluginControls homeId={group.home.id} {schema} />
+                </div>
+              </details>
+            {/each}
+            {#if !loadedHomes[group.home.id]}
+              <p class="empty">Loading settings…</p>
+            {:else if (schemasByHome[group.home.id] ?? []).length === 0}
+              <p class="empty">No configurable plugins.</p>
+            {/if}
+          </Card>
+        {/snippet}
+      </CollapsibleGroup>
     </div>
   {/each}
 </section>
@@ -332,12 +361,6 @@
   }
   .apphome {
     margin-bottom: 14px;
-  }
-  .apphome h3 {
-    margin: 0 2px 8px;
-    font-size: 12px;
-    font-weight: 650;
-    color: var(--muted);
   }
   .plugin {
     border-top: 1px solid var(--border);

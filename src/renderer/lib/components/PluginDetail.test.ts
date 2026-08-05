@@ -89,3 +89,24 @@ describe("PluginDetail availability", () => {
     expect(await screen.findByRole("switch", { name: "Auto-update Claude Code" })).toBeInTheDocument();
   });
 });
+
+describe("PluginDetail settings loading", () => {
+  it("fetches no schema while the Configure tab is closed", async () => {
+    const configSchemas = vi.fn(async () => ({ ok: true as const, data: [] }));
+    stubCairn({ pluginVersions: async () => ({ ok: true, data: { claude: version() } }), configSchemas });
+    render(PluginDetail, { props: props([{ id: "claude", label: "Claude Code", hasUpdater: true }]) });
+
+    await screen.findByRole("button", { name: "Availability" });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(configSchemas).not.toHaveBeenCalled();
+  });
+
+  it("fetches the schema once the Configure tab is opened", async () => {
+    const configSchemas = vi.fn(async () => ({ ok: true as const, data: [] }));
+    stubCairn({ pluginVersions: async () => ({ ok: true, data: { claude: version() } }), configSchemas });
+    render(PluginDetail, { props: props([{ id: "claude", label: "Claude Code", hasUpdater: true }]) });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Configure" }));
+    await waitFor(() => expect(configSchemas).toHaveBeenCalledWith("claude"));
+  });
+});
