@@ -11,7 +11,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 import { join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
-import { getConfigValue, isEngine } from "@core/index.js";
+import { getConfigValue, isEngine, activityEnv } from "@core/index.js";
 import { svgIconDataUri } from "../lib/pluginIcon.js";
 import { emitCairnAction } from "../activity.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
@@ -90,12 +90,29 @@ async function getNpmPlugins(configDir: string): Promise<NpmPlugin[]> {
 // each one sees only its own home's dir, then restores the Cairn scope.
 let writeChain: Promise<unknown> = Promise.resolve();
 
-function withHome<T>(dir: string, fn: () => Promise<T>): Promise<T> {
+// plugin-updater bundles its own core, so it has its own async-context store and cannot
+// see the cause scope this dispatch is running in. The environment is the one channel
+// both bundles share: exporting the cause and the app id here lets its records say who
+// asked and which app they belong to instead of "unknown" and "no app". Safe to touch
+// process-wide because writeChain serializes these calls.
+const ACTIVITY_ENV_KEYS = ["HUB_ACTIVITY_TRACE", "HUB_ACTIVITY_CAUSE", "HUB_ACTIVITY_PARENT", "CORE_APP"];
+
+function withHome<T>(dir: string, fn: () => Promise<T>, appId?: string): Promise<T> {
   const run = writeChain.then(async () => {
+    const saved: Record<string, string | undefined> = {};
+    for (const key of ACTIVITY_ENV_KEYS) saved[key] = process.env[key];
     await realSetEarlyLaunchConfigDir(dir);
+    try {
+      Object.assign(process.env, activityEnv());
+      if (appId) process.env.CORE_APP = appId;
+    } catch { /* attribution is never worth failing the operation */ }
     try {
       return await fn();
     } finally {
+      for (const key of ACTIVITY_ENV_KEYS) {
+        if (saved[key] === undefined) delete process.env[key];
+        else process.env[key] = saved[key];
+      }
       await realSetEarlyLaunchConfigDir(getConfigDir());
     }
   });
@@ -345,7 +362,7 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
       await updatePluginPublic(name, url);
       report?.("Registering", 90);
       await realRegisterPlugin(dir, name, url, autoUpdateDefault);
-    });
+    }, homeId);
     if (homeId !== "cairn") {
       report?.("Syncing to other apps", 95);
       const syncPluginsAcrossApps = deps.syncPluginsAcrossApps ?? realSyncPluginsAcrossApps;
@@ -428,7 +445,7 @@ export function pluginsDowngrade(homeId: PluginHomeId, name: string, hash: strin
     const plugin = (await safeGetPlugins(dir)).find((p) => p.name === name);
     if (!plugin) throw new Error(`plugin not found: ${name}`);
     const downgrade = deps.downgrade ?? requirePluginUpdater(await loadPluginUpdaterIndex()).downgrade;
-    const result = await withHome(dir, async () => downgrade({ name: plugin.name, url: plugin.url, branch: plugin.branch }, hash));
+    const result = await withHome(dir, async () => downgrade({ name: plugin.name, url: plugin.url, branch: plugin.branch }, hash), homeId);
     if (result) throw new Error(result);
   });
 }
@@ -439,13 +456,13 @@ export function pluginsUninstall(homeId: string, name: string, deps: PluginsDeps
     const dir = homeDir(homeId as PluginHomeId, homes);
     if ((await safeGetPlugins(dir)).some((p) => p.name === name)) {
       const uninstall = deps.uninstallPlugin ?? requirePluginUpdater(await loadPluginUpdaterIndex()).uninstallPlugin;
-      await withHome(dir, async () => uninstall(dir, name));
+      await withHome(dir, async () => uninstall(dir, name), homeId);
       return;
     }
     const npmList = deps.npmPlugins ?? getNpmPlugins;
     if ((await npmList(dir)).some((p) => p.name === name)) {
       const uninstallNpm = deps.uninstallNpmPlugin ?? requirePluginUpdater(await loadPluginUpdaterNpm()).uninstallNpmPlugin;
-      const message = await withHome(dir, async () => uninstallNpm(name, dir));
+      const message = await withHome(dir, async () => uninstallNpm(name, dir), homeId);
       if (message) throw new Error(message);
       return;
     }
