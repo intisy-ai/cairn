@@ -1,9 +1,3 @@
-// plugin-updater's index.js self-activates (runs a real update sequence) on import
-// unless this is set first. ESM hoists the static imports below above this line,
-// but none of them transitively reach index.js, so the flag is still set before
-// the lazy dynamic import() of index.js later in this module runs it.
-process.env.PLUGIN_UPDATER_LIBRARY_MODE = "1";
-
 import { existsSync, readFileSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";

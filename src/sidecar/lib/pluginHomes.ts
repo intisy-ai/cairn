@@ -57,8 +57,12 @@ export async function pluginHomes(deps: PluginHomesDeps = {}): Promise<PluginHom
   ];
 }
 
-export function homeDir(homeId: PluginHomeId, homes: PluginHome[]): string {
+export function homeById(homeId: PluginHomeId, homes: PluginHome[]): PluginHome {
   const home = homes.find((h) => h.id === homeId);
   if (!home) throw new Error(`unknown plugin home: ${homeId}`);
-  return home.dir;
+  return home;
+}
+
+export function homeDir(homeId: PluginHomeId, homes: PluginHome[]): string {
+  return homeById(homeId, homes).dir;
 }

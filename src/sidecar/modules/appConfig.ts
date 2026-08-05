@@ -1,10 +1,10 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
-import { setConfigValue } from "@core/index.js";
+import { setConfigValue, isEngine } from "@core/index.js";
 import type { PluginConfigSchema, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
-import { pluginHomes, homeDir } from "../lib/pluginHomes.js";
-import { safeGetPlugins, loadPluginUpdaterConfig } from "../lib/optionalEngines.js";
+import { pluginHomes, homeDir, homeById } from "../lib/pluginHomes.js";
+import { safeGetPlugins, loadPluginUpdaterConfig, loadPluginUpdaterIndex } from "../lib/optionalEngines.js";
 import { wrap } from "../result.js";
 
 type ProbeFn = (bundlePath: string) => Promise<PluginConfigSchema | null>;
@@ -33,22 +33,38 @@ function realProbe(bundlePath: string): Promise<PluginConfigSchema | null> {
   });
 }
 
+// An engine is installed in a home without necessarily having a bundle there to probe: it
+// can be registered as an npm plugin, or the home may have nothing deployed yet. It answers
+// as a library instead, so its settings stay reachable wherever it is installed.
+async function realEngineSchemas(home: PluginHome): Promise<PluginConfigSchema[]> {
+  if (!home.hasUpdater) return [];
+  const mod = await loadPluginUpdaterIndex();
+  if (!mod?.updaterSchema) return [];
+  return [mod.updaterSchema(home.dir) as PluginConfigSchema];
+}
+
 export interface ConfigSchemasDeps {
   homes?: PluginHome[];
   probe?: ProbeFn;
+  engineSchemas?: (home: PluginHome) => Promise<PluginConfigSchema[]>;
 }
 
 export function configSchemas(homeId: string, deps: ConfigSchemasDeps = {}): Promise<Result<PluginConfigSchema[]>> {
   return wrap(async () => {
     const homes = deps.homes ?? (await pluginHomes());
-    const dir = homeDir(homeId as PluginHomeId, homes);
+    const home = homeById(homeId as PluginHomeId, homes);
     const probe = deps.probe ?? realProbe;
     const schemas: PluginConfigSchema[] = [];
-    for (const plugin of await safeGetPlugins(dir)) {
-      const bundlePath = join(dir, "plugin", `${plugin.name}.js`);
+    for (const plugin of await safeGetPlugins(home.dir)) {
+      const bundlePath = join(home.dir, "plugin", `${plugin.name}.js`);
       if (!existsSync(bundlePath)) continue;
       const schema = await probe(bundlePath);
       if (schema) schemas.push(schema);
+    }
+    const probed = new Set(schemas.map((s) => s.plugin));
+    const engineSchemas = deps.engineSchemas ?? realEngineSchemas;
+    for (const schema of await engineSchemas(home)) {
+      if (!probed.has(schema.plugin)) schemas.push(schema);
     }
     return schemas;
   });
@@ -105,7 +121,9 @@ export function configWrite(homeId: string, plugin: string, key: string, value: 
     // safeGetPlugins degrades to [] when plugin-updater is unavailable, which would otherwise
     // read as "plugin not found" even when the named plugin is actually registered.
     if (!(await loadPluginUpdaterConfig())) throw new Error("plugin-updater is not available in this build");
-    if (!(await safeGetPlugins(dir)).some((p) => p.name === plugin)) {
+    // An engine settles into a home without a plugins.json entry of its own, so its own
+    // settings would otherwise be readable and never writable.
+    if (!(await safeGetPlugins(dir)).some((p) => p.name === plugin) && !isEngine(plugin)) {
       throw new Error(`plugin not found: ${plugin}`);
     }
     if (key === "__proto__" || key === "constructor" || key === "prototype") {

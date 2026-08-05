@@ -31,7 +31,7 @@ describe("appConfig sidecar module", () => {
     });
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], probe });
+    const result = await configSchemas("claude", { homes: [home], probe, engineSchemas: async () => [] });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
@@ -45,7 +45,7 @@ describe("appConfig sidecar module", () => {
     seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], probe: async () => null });
+    const result = await configSchemas("claude", { homes: [home], probe: async () => null, engineSchemas: async () => [] });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
@@ -209,10 +209,92 @@ describe("appConfig sidecar module", () => {
     });
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], probe });
+    const result = await configSchemas("claude", { homes: [home], probe, engineSchemas: async () => [] });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data[0].fields).toEqual([{ key: "x", type: "number" }]);
     expect(result.data[0].actions).toEqual([{ id: "go", label: "Go" }]);
+  });
+});
+
+// An engine can be installed in a home without a bundle to probe there: an npm-registered
+// updater, or a home with nothing deployed yet. Its settings have to be reachable anyway,
+// which is what makes the update controls configurable per app.
+describe("engine-contributed settings", () => {
+  it("lists the updater's own settings for a home with no deployed bundle", async () => {
+    const { home } = makeHome("cairn", "Cairn");
+
+    const { configSchemas } = await import("./appConfig.js");
+    const result = await configSchemas("cairn", { homes: [home], probe: async () => null });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    const updater = result.data.find((s) => s.plugin === "plugin-updater");
+    expect(updater).toBeDefined();
+    expect(updater!.defaults.auto_update_mode).toBe("update");
+    expect(updater!.fields?.some((f) => f.key === "auto_update_mode")).toBe(true);
+  });
+
+  it("reads the values that home has on disk, not another home's", async () => {
+    const { dir, home } = makeHome("cairn", "Cairn");
+    writeFileSync(join(dir, "config", "plugin-updater.json"), JSON.stringify({ auto_update_mode: "check" }), "utf8");
+
+    const { configSchemas } = await import("./appConfig.js");
+    const result = await configSchemas("cairn", { homes: [home], probe: async () => null });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data.find((s) => s.plugin === "plugin-updater")!.current.auto_update_mode).toBe("check");
+  });
+
+  it("prefers the deployed bundle's answer, which is the copy that home runs", async () => {
+    const { dir, home } = makeHome("claude", "Claude Code");
+    writeFileSync(join(dir, "plugin", "plugin-updater.js"), "// bundle", "utf8");
+    seedPlugins(dir, [{ name: "plugin-updater", url: "https://github.com/intisy-ai/plugin-updater", enabled: true }]);
+
+    const { configSchemas } = await import("./appConfig.js");
+    const result = await configSchemas("claude", {
+      homes: [home],
+      probe: async () => ({ plugin: "plugin-updater", defaults: { probed: true }, current: {} }),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    const found = result.data.filter((s) => s.plugin === "plugin-updater");
+    expect(found).toHaveLength(1);
+    expect(found[0].defaults).toEqual({ probed: true });
+  });
+
+  it("contributes nothing to a home that does not have the engine", async () => {
+    const { home } = makeHome("claude", "Claude Code");
+
+    const { configSchemas } = await import("./appConfig.js");
+    const result = await configSchemas("claude", { homes: [{ ...home, hasUpdater: false }], probe: async () => null });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data).toEqual([]);
+  });
+
+  it("writes an engine's setting even though it is not a plugins.json entry", async () => {
+    const { dir, home } = makeHome("cairn", "Cairn");
+
+    const { configWrite } = await import("./appConfig.js");
+    const result = await configWrite("cairn", "plugin-updater", "auto_update_mode", "check", { homes: [home] });
+
+    expect(result.ok).toBe(true);
+    const onDisk = JSON.parse(readFileSync(join(dir, "config", "plugin-updater.json"), "utf8"));
+    expect(onDisk.auto_update_mode).toBe("check");
+  });
+
+  it("still refuses a plugin that is neither installed nor an engine", async () => {
+    const { home } = makeHome("cairn", "Cairn");
+
+    const { configWrite } = await import("./appConfig.js");
+    const result = await configWrite("cairn", "not-a-thing", "k", 1, { homes: [home] });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("plugin not found: not-a-thing");
   });
 });
