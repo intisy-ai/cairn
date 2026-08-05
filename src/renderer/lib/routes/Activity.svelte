@@ -2,22 +2,21 @@
   import { onMount } from "svelte";
   import type { ActivityRecord, Impact } from "@cairn/shared";
   import { cairn } from "../ipc.js";
-  import { humanizeId } from "../util/appLabel.js";
   import { setActivityActive } from "../stores/activity.js";
   import Card from "../components/Card.svelte";
-  import SearchField from "../components/SearchField.svelte";
-  import Chip from "../components/Chip.svelte";
+  import ActivityFilters from "../components/ActivityFilters.svelte";
   import ActivityRow from "../components/ActivityRow.svelte";
   import Skeleton from "../components/Skeleton.svelte";
   import ErrorState from "../components/ErrorState.svelte";
   import EmptyState from "../components/EmptyState.svelte";
 
-  const IMPACTS: Impact[] = ["debug", "info", "notice", "warning", "error"];
   type Range = "1h" | "24h" | "7d" | "all";
   const HOUR_MS = 3_600_000;
   const RANGE_MS: Record<Range, number> = { "1h": HOUR_MS, "24h": HOUR_MS * 24, "7d": HOUR_MS * 24 * 7, all: 0 };
   const PAGE_LIMIT = 200;
-  const MAX_RECORDS = 500;
+  // Every "load older" page raises the cap, so a fetched page is never dropped by the
+  // merge that keeps a long-running session bounded.
+  const BASE_CAPACITY = 500;
 
   let records = $state<ActivityRecord[]>([]);
   let loadError = $state("");
@@ -25,16 +24,17 @@
   let activeImpacts = $state<Set<Impact>>(new Set());
   let sourceFilter = $state("");
   let topicFilter = $state("");
+  let appFilter = $state("");
+  let causeFilter = $state("");
+  let actorFilter = $state("");
   let query = $state("");
   let range = $state<Range>("24h");
   let expandedId = $state<string | null>(null);
+  let nextCursor = $state<string | undefined>(undefined);
+  let loadingOlder = $state(false);
+  let capacity = $state(BASE_CAPACITY);
 
   const cutoff = $derived(range === "all" ? 0 : Date.now() - RANGE_MS[range]);
-
-  // Filter options are derived from the records actually present, never a
-  // hardcoded app/plugin enum.
-  const sources = $derived.by(() => Array.from(new Set(records.map((r) => r.source))).sort());
-  const topics = $derived.by(() => Array.from(new Set(records.map((r) => r.topic))).sort());
 
   const filtered = $derived.by(() => {
     const q = query.trim().toLowerCase();
@@ -43,16 +43,22 @@
       if (activeImpacts.size > 0 && !activeImpacts.has(r.impact)) return false;
       if (sourceFilter && r.source !== sourceFilter) return false;
       if (topicFilter && r.topic !== topicFilter) return false;
+      if (appFilter && r.origin?.app !== appFilter) return false;
+      if (causeFilter && r.cause?.kind !== causeFilter) return false;
+      if (actorFilter && r.actor !== actorFilter) return false;
       if (q && !r.text.toLowerCase().includes(q)) return false;
       return true;
     });
   });
 
-  function toggleImpact(impact: Impact): void {
-    const next = new Set(activeImpacts);
-    if (next.has(impact)) next.delete(impact);
-    else next.add(impact);
-    activeImpacts = next;
+  function applyFilters(patch: Record<string, unknown>): void {
+    if (patch.impacts instanceof Set) activeImpacts = patch.impacts as Set<Impact>;
+    if (typeof patch.app === "string") appFilter = patch.app;
+    if (typeof patch.cause === "string") causeFilter = patch.cause;
+    if (typeof patch.actor === "string") actorFilter = patch.actor;
+    if (typeof patch.source === "string") sourceFilter = patch.source;
+    if (typeof patch.topic === "string") topicFilter = patch.topic;
+    if (typeof patch.range === "string") range = patch.range as Range;
   }
 
   function toggleExpanded(id: string): void {
@@ -70,18 +76,36 @@
     for (const record of existing) if (!byId.has(record.id)) byId.set(record.id, record);
     return Array.from(byId.values())
       .sort((a, b) => b.ts - a.ts)
-      .slice(0, MAX_RECORDS);
+      .slice(0, capacity);
   }
 
   async function load(): Promise<void> {
     const result = await cairn.activityRead({ limit: PAGE_LIMIT });
     if (result.ok) {
       records = mergeRecords(records, result.data.records);
+      nextCursor = result.data.nextCursor;
       loadError = "";
     } else {
       loadError = result.error;
     }
     loaded = true;
+  }
+
+  // Paging re-walks from the newest segment, so an older page carries an upper bound as
+  // well as the cursor: without it a deep page costs the whole history.
+  async function loadOlder(): Promise<void> {
+    if (!nextCursor || loadingOlder) return;
+    loadingOlder = true;
+    capacity += PAGE_LIMIT;
+    const oldest = records.length ? records[records.length - 1].ts : undefined;
+    const result = await cairn.activityRead({ limit: PAGE_LIMIT, cursor: nextCursor, until: oldest });
+    if (result.ok) {
+      records = mergeRecords(records, result.data.records);
+      nextCursor = result.data.nextCursor;
+    } else {
+      loadError = result.error;
+    }
+    loadingOlder = false;
   }
 
   onMount(() => {
@@ -104,32 +128,18 @@
   </div>
 </div>
 
-<div class="filters">
-  <div class="impacts" role="group" aria-label="Impact filter">
-    {#each IMPACTS as impact (impact)}
-      <Chip label={impact} on={activeImpacts.has(impact)} onclick={() => toggleImpact(impact)} />
-    {/each}
-  </div>
-  <select bind:value={sourceFilter} aria-label="Source">
-    <option value="">All sources</option>
-    {#each sources as source (source)}
-      <option value={source}>{humanizeId(source)}</option>
-    {/each}
-  </select>
-  <select bind:value={topicFilter} aria-label="Topic">
-    <option value="">All topics</option>
-    {#each topics as topic (topic)}
-      <option value={topic}>{topic}</option>
-    {/each}
-  </select>
-  <SearchField bind:value={query} placeholder="Search activity" />
-  <div class="ranges" role="group" aria-label="Time range">
-    <button class:active={range === "1h"} onclick={() => (range = "1h")}>1h</button>
-    <button class:active={range === "24h"} onclick={() => (range = "24h")}>24h</button>
-    <button class:active={range === "7d"} onclick={() => (range = "7d")}>7d</button>
-    <button class:active={range === "all"} onclick={() => (range = "all")}>All</button>
-  </div>
-</div>
+<ActivityFilters
+  records={records}
+  impacts={activeImpacts}
+  app={appFilter}
+  cause={causeFilter}
+  actor={actorFilter}
+  source={sourceFilter}
+  topic={topicFilter}
+  bind:query
+  range={range}
+  onchange={applyFilters}
+/>
 
 {#if loadError}
   <ErrorState message={`Could not load activity: ${loadError}`} onRetry={load} />
@@ -151,6 +161,11 @@
       {/each}
     </ul>
   </Card>
+  {#if nextCursor}
+    <div class="more">
+      <button onclick={loadOlder} disabled={loadingOlder}>{loadingOlder ? "Loading..." : "Load older"}</button>
+    </div>
+  {/if}
 {/if}
 
 <style>
@@ -172,60 +187,23 @@
     color: var(--muted);
     font-size: 12.5px;
   }
-  .filters {
+  .more {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 16px;
+    justify-content: center;
+    padding: 12px 0 4px;
   }
-  .impacts {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-  .filters select {
-    font-family: var(--ui);
-    font-size: 12.5px;
-    color: var(--text);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 10px;
-  }
-  .ranges {
-    display: flex;
-    gap: 2px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 2px;
-    flex: none;
-    margin-left: auto;
-  }
-  .ranges button {
-    border: none;
-    background: none;
-    color: var(--muted);
+  .more button {
     font-family: var(--ui);
     font-size: 12px;
-    padding: 5px 12px;
-    border-radius: 6px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 14px;
     cursor: pointer;
   }
-  .ranges button.active {
-    background: var(--surface);
-    color: var(--text);
-    box-shadow: var(--shadow);
-  }
-  .skeletons {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
+  .more button:disabled {
+    color: var(--muted);
+    cursor: default;
   }
 </style>

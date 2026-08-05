@@ -18,7 +18,9 @@ function record(over: Partial<ActivityRecord> & { id: string }): ActivityRecord 
     subject: over.subject,
     details: over.details ?? { key: "value" },
     text: over.text ?? "Something happened",
-  };
+    // spread last so a test can supply any v2 field (origin, cause, trace, target)
+    ...over,
+  } as ActivityRecord;
 }
 
 beforeEach(() => {
@@ -54,6 +56,78 @@ describe("Activity screen", () => {
     await fireEvent.click(getByText("error"));
     expect(getByText("Upstream request failed")).toBeInTheDocument();
     expect(queryByText("Configuration saved")).toBeNull();
+  });
+
+  it("filters by the app an event ran in", async () => {
+    stubCairn({
+      activityRead: async () => ({
+        ok: true,
+        data: {
+          records: [
+            record({ id: "a1", text: "In app one", origin: { app: "appone", home: "/h1" } }),
+            record({ id: "a2", text: "In app two", origin: { app: "apptwo", home: "/h2" } }),
+          ],
+        },
+      }),
+    });
+    const { getByLabelText, getByText, queryByText } = await mount();
+
+    await fireEvent.change(getByLabelText("App"), { target: { value: "appone" } });
+
+    expect(getByText("In app one")).toBeInTheDocument();
+    expect(queryByText("In app two")).toBeNull();
+  });
+
+  it("filters by cause kind and by actor", async () => {
+    stubCairn({
+      activityRead: async () => ({
+        ok: true,
+        data: {
+          records: [
+            record({ id: "c1", text: "Started up", actor: "app", cause: { kind: "startup" } }),
+            record({ id: "c2", text: "Clicked", actor: "user", cause: { kind: "user" } }),
+          ],
+        },
+      }),
+    });
+    const { getByLabelText, getByText, queryByText } = await mount();
+
+    await fireEvent.change(getByLabelText("Cause"), { target: { value: "startup" } });
+    expect(getByText("Started up")).toBeInTheDocument();
+    expect(queryByText("Clicked")).toBeNull();
+
+    await fireEvent.change(getByLabelText("Cause"), { target: { value: "" } });
+    await fireEvent.change(getByLabelText("Actor"), { target: { value: "user" } });
+    expect(getByText("Clicked")).toBeInTheDocument();
+    expect(queryByText("Started up")).toBeNull();
+  });
+
+  it("asks for older records bounded by the oldest one it already has, and keeps both pages", async () => {
+    const NEWER_TS = Date.now() - 60_000;
+    const OLDER_TS = Date.now() - 120_000;
+    const calls: Record<string, unknown>[] = [];
+    stubCairn({
+      activityRead: async (query: Record<string, unknown>) => {
+        calls.push(query);
+        if (!query.cursor) {
+          return { ok: true, data: { records: [record({ id: "new1", ts: NEWER_TS, text: "Newer event" })], nextCursor: "cursor-1" } };
+        }
+        return { ok: true, data: { records: [record({ id: "old1", ts: OLDER_TS, text: "Older event" })] } };
+      },
+    });
+    const { getByRole, getByText } = await mount();
+
+    await fireEvent.click(getByRole("button", { name: /load older/i }));
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(calls[1]).toMatchObject({ cursor: "cursor-1", until: NEWER_TS });
+    expect(getByText("Newer event")).toBeInTheDocument();
+    expect(getByText("Older event")).toBeInTheDocument();
+  });
+
+  it("offers no load-older control once the reader reports no further page", async () => {
+    const { queryByRole } = await mount();
+    expect(queryByRole("button", { name: /load older/i })).toBeNull();
   });
 
   it("keeps a live record that arrives before the initial load resolves", async () => {
