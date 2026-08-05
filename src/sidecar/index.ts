@@ -19,6 +19,9 @@ import { ledgerHomes, ledgerCommit, ledgerRestore, ledgerDiffRefs, ledgerProfile
 import { busDrain } from "./modules/bus.js";
 import { activityRead, activityStatsRead } from "./modules/activity.js";
 import { globalSettingsRead } from "./modules/globalSettings.js";
+import { updatesCheck, updatesOne, updatesAll } from "./modules/updates.js";
+import { requirePluginUpdater, withHome } from "./modules/plugins.js";
+import { loadPluginUpdaterIndex } from "./lib/optionalEngines.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
 import type { ActivityQuery } from "@core/index.js";
 import { setActivityContext, withCause } from "@core/index.js";
@@ -49,6 +52,23 @@ try {
 
 export function registerHandler(channel: string, handler: SidecarHandler): void {
   handlers[channel] = handler;
+}
+
+export interface BackgroundUpdateDeps {
+  home?: string;
+  runUpdates?: (dir: string, trigger: string) => Promise<unknown>;
+}
+
+// Fire and forget on purpose: the dashboard must open whether or not an update run
+// works, and must not wait on ls-remote before answering its first request.
+export function startBackgroundUpdates(deps: BackgroundUpdateDeps = {}): void {
+  const home = deps.home ?? getConfigDir();
+  void (async () => {
+    try {
+      const run = deps.runUpdates ?? requirePluginUpdater(await loadPluginUpdaterIndex()).runUpdates;
+      await withHome(home, () => run(home, "cairn"), "cairn");
+    } catch { /* an update run is never worth a dashboard that will not start */ }
+  })();
 }
 
 // A download-task id (passed as the trailing install arg) turns into a reporter
@@ -126,6 +146,9 @@ registerHandler("ledger:diffRefs", (home, refA, refB) => ledgerDiffRefs(home as 
 registerHandler("ledger:profileCreate", (home, name) => ledgerProfileCreate(home as string, name as string));
 registerHandler("ledger:profileSwitch", (home, name) => ledgerProfileSwitch(home as string, name as string));
 registerHandler("bus:drain", () => busDrain());
+registerHandler("updates:check", (homeId) => updatesCheck(homeId as string));
+registerHandler("updates:one", (homeId, name) => updatesOne(homeId as string, name as string));
+registerHandler("updates:all", (homeId) => updatesAll(homeId as string));
 registerHandler("activity:read", (query) => activityRead(query as ActivityQuery));
 registerHandler("activity:stats", () => activityStatsRead());
 registerHandler("settings:read", () => globalSettingsRead());
@@ -167,4 +190,7 @@ if (process.parentPort) {
   void usageSnapshot();
   // Populate the app registry on boot so it's ready before the first apps:list call.
   void discoverApps();
+  // Refresh update state for this home in the background. Its own trigger setting
+  // decides whether anything happens, so there is no separate dashboard switch.
+  startBackgroundUpdates();
 }
