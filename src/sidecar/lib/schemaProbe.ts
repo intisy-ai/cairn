@@ -47,9 +47,13 @@ export function bundleId(path: string): string | null {
   }
 }
 
+// A bundle that exits non-zero or prints something else has no settings to offer, and that
+// answer keeps until the bundle itself changes, so it resolves to null (which is cached).
+// A timeout says nothing about the bundle, so it throws instead and is never remembered.
 function realSpawn(bundlePath: string): Promise<ProbeOutput> {
-  return new Promise((done) => {
+  return new Promise((done, fail) => {
     execFile("node", [bundlePath, "config", "schema"], { timeout: PROBE_TIMEOUT_MS }, (error, stdout) => {
+      if (error && (error as { killed?: boolean }).killed) { fail(new Error(`probe timed out: ${bundlePath}`)); return; }
       if (error) { done(null); return; }
       try {
         done(JSON.parse(stdout.trim()) as ProbeOutput);
@@ -91,24 +95,31 @@ export async function probeDeclarations(bundles: Bundle[], deps: ProbeDeps = {})
     const id = bundleId(bundle.path);
     if (!id) continue;
     ids.set(bundle.plugin, id);
-    const cached = readCache<{ id: string; declaration: Declaration }>(SCHEMA_NS, bundle.plugin, cacheDir);
-    if (cached && cached.value.id === id && cached.value.declaration) resolved.set(bundle.plugin, cached.value.declaration);
-    else misses.push(bundle);
+    // Keyed by the bundle's PATH, not the plugin name: the same plugin is deployed into
+    // several homes, and keying by name alone makes those homes evict each other's entries.
+    const cached = readCache<{ id: string; declaration: Declaration | null }>(SCHEMA_NS, bundle.path, cacheDir);
+    if (cached && cached.value.id === id) {
+      // A remembered null means this exact bundle has no settings: nothing to resolve, and
+      // nothing to re-run either.
+      if (cached.value.declaration) resolved.set(bundle.plugin, cached.value.declaration);
+      continue;
+    }
+    misses.push(bundle);
   }
 
-  const fresh: Record<string, { id: string; declaration: Declaration }> = {};
+  const fresh: Record<string, { id: string; declaration: Declaration | null }> = {};
   await drain(misses, async (bundle) => {
-    let declaration: Declaration | null = null;
-    // One wedged or throwing bundle must cost only its own settings, not the batch's.
+    let declaration: Declaration | null;
+    // A wedged bundle must cost only its own settings, not the batch's, and must not be
+    // remembered: leaving it out of `fresh` is what makes the next pass try again.
     try {
       declaration = toDeclaration(await spawn(bundle.path));
     } catch {
       return;
     }
-    if (!declaration) return;
-    resolved.set(bundle.plugin, declaration);
+    if (declaration) resolved.set(bundle.plugin, declaration);
     const id = ids.get(bundle.plugin);
-    if (id) fresh[bundle.plugin] = { id, declaration };
+    if (id) fresh[bundle.path] = { id, declaration };
   });
   if (Object.keys(fresh).length > 0) writeCacheMany(SCHEMA_NS, fresh, cacheDir);
 

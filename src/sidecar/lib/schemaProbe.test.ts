@@ -31,7 +31,7 @@ function tick(): Promise<void> {
 describe("probeDeclarations", () => {
   it("spawns nothing when the cached entry matches the bundle on disk", async () => {
     const b = bundle("plugin-a");
-    writeCache(SCHEMA_NS, "plugin-a", { id: bundleId(b.path), declaration: { defaults: { logging: true } } }, dir);
+    writeCache(SCHEMA_NS, b.path, { id: bundleId(b.path), declaration: { defaults: { logging: true } } }, dir);
     const spawn = vi.fn();
 
     const result = await probeDeclarations([b], { spawn, cacheDir: dir });
@@ -43,7 +43,7 @@ describe("probeDeclarations", () => {
   // A redeploy rewrites the bundle, so the cached declaration must not survive it.
   it("re-probes a bundle that changed since it was cached", async () => {
     const b = bundle("plugin-a");
-    writeCache(SCHEMA_NS, "plugin-a", { id: "0:0", declaration: { defaults: { logging: true } } }, dir);
+    writeCache(SCHEMA_NS, b.path, { id: "0:0", declaration: { defaults: { logging: true } } }, dir);
     const spawn = vi.fn(async () => ({ name: "plugin-a", defaults: { logging: false } }));
 
     const result = await probeDeclarations([b], { spawn, cacheDir: dir });
@@ -115,6 +115,29 @@ describe("probeDeclarations", () => {
     expect([...result.keys()]).toEqual(["good"]);
   });
 
+  // A plugin with no config CLI answers "nothing" every time it is asked, and asking cost
+  // real time on a real home (one third-party bundle took ~1s to refuse, on every load).
+  it("remembers that a bundle has no settings, so it is not re-run every load", async () => {
+    const b = bundle("plain");
+    const spawn = vi.fn(async () => null);
+
+    await probeDeclarations([b], { spawn, cacheDir: dir });
+    const second = await probeDeclarations([b], { spawn, cacheDir: dir });
+
+    expect(spawn).toHaveBeenCalledOnce();
+    expect(second.size).toBe(0);
+  });
+
+  it("asks again once a bundle that had no settings is redeployed", async () => {
+    const b = bundle("plain");
+    await probeDeclarations([b], { spawn: async () => null, cacheDir: dir });
+    writeFileSync(b.path, "// redeployed, now with a config CLI", "utf8");
+
+    const result = await probeDeclarations([b], { spawn: async () => ({ name: "plain", defaults: { now: true } }), cacheDir: dir });
+
+    expect(result.get("plain")).toEqual({ defaults: { now: true } });
+  });
+
   it("does not cache a failure, so a transient timeout is retried next time", async () => {
     const b = bundle("flaky");
     await probeDeclarations([b], { spawn: async () => { throw new Error("timeout"); }, cacheDir: dir });
@@ -173,5 +196,35 @@ describe("readCurrentValues", () => {
 
   it("refuses a plugin name that would escape the home", () => {
     expect(readCurrentValues(dir, "../escape")).toEqual({});
+  });
+});
+
+// Two homes deploy the same plugin name with different bundles. Measured against real homes,
+// keying the cache by name alone made each home evict the other's entry, so every pass
+// re-spawned everything and the cache bought nothing.
+describe("several homes, same plugin names", () => {
+  it("keeps one entry per deployed bundle, so warm passes stay warm", async () => {
+    const homeA = join(dir, "a");
+    const homeB = join(dir, "b");
+    mkdirSync(homeA, { recursive: true });
+    mkdirSync(homeB, { recursive: true });
+    const inA = { plugin: "shared", path: join(homeA, "shared.js") };
+    const inB = { plugin: "shared", path: join(homeB, "shared.js") };
+    writeFileSync(inA.path, "// bundle A", "utf8");
+    writeFileSync(inB.path, "// bundle B, deliberately a different size", "utf8");
+
+    let spawns = 0;
+    const spawn = async (): Promise<{ name: string; defaults: Record<string, unknown> }> => {
+      spawns += 1;
+      return { name: "shared", defaults: {} };
+    };
+
+    await probeDeclarations([inA], { spawn, cacheDir: dir });
+    await probeDeclarations([inB], { spawn, cacheDir: dir });
+    expect(spawns).toBe(2);
+
+    await probeDeclarations([inA], { spawn, cacheDir: dir });
+    await probeDeclarations([inB], { spawn, cacheDir: dir });
+    expect(spawns).toBe(2);
   });
 });
