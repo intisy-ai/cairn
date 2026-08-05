@@ -10,6 +10,7 @@
   import Spinner from "../components/Spinner.svelte";
   import PluginControls from "../components/PluginControls.svelte";
   import GlobalSettings from "../components/GlobalSettings.svelte";
+  import AutoUpdateSettings from "../components/AutoUpdateSettings.svelte";
   import GitHubAccounts from "../components/GitHubAccounts.svelte";
 
   let themeSetting = $state<ThemeSetting>("system");
@@ -244,6 +245,9 @@
     <div class="apphome" data-testid={"settings-home-" + group.home.id}>
       <h3>{group.home.label}</h3>
       <Card>
+        <div class="updates">
+          <AutoUpdateSettings homeId={group.home.id} />
+        </div>
         {#each schemasByHome[group.home.id] ?? [] as schema (schema.plugin)}
           <details class="plugin">
             <summary>{schema.plugin}</summary>
@@ -261,6 +265,11 @@
 </section>
 
 <style>
+  .updates {
+    padding-bottom: 10px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
   .head {
     display: flex;
     align-items: flex-start;

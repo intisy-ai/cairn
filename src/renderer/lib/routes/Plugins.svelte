@@ -136,6 +136,7 @@
     favoritesOnly = false;
   }
   const addPluginHome = $derived(homes[0]?.id ?? "cairn");
+  const anyUpdateAvailable = $derived(unified.some((p) => p.updateAvailable));
   // Derive from the live list by name so the open detail reflects installs/removes.
   const selectedPlugin = $derived(selectedName ? unified.find((p) => p.name === selectedName) ?? null : null);
   const showRateLimitBanner = $derived(catalogRateLimited && !!ghStatus && !ghStatus.connected && !rateLimitBannerDismissed);
@@ -331,6 +332,39 @@
     const targets = notInstalledApplicable(p).filter((id) => canInstallInto(p, id));
     for (const homeId of targets) await addHome(p, homeId);
   }
+let checking = $state(false);
+  let updatingAll = $state(false);
+
+  // A check refreshes the update cache every badge is read from, so the rows are
+  // reloaded straight after. Both run for every home the dashboard manages.
+  async function handleCheckUpdates(): Promise<void> {
+    if (checking) return;
+    checking = true;
+    try {
+      for (const home of homes) {
+        if (home.id !== "cairn" && !home.present) continue;
+        await cairn.updatesCheck(home.id);
+      }
+      await loadPlugins();
+    } finally {
+      checking = false;
+    }
+  }
+
+  async function handleUpdateAll(): Promise<void> {
+    if (updatingAll) return;
+    updatingAll = true;
+    try {
+      for (const home of homes) {
+        if (home.id !== "cairn" && !home.present) continue;
+        await cairn.updatesAll(home.id);
+      }
+      await loadPlugins();
+    } finally {
+      updatingAll = false;
+    }
+  }
+
   async function handleUpdate(p: UnifiedPlugin): Promise<void> {
     for (const homeId of installedApplicable(p)) await updateHome(p, homeId);
   }
@@ -395,6 +429,10 @@
 {:else}
   <div class="toolbar">
     <SearchField bind:value={searchRaw} placeholder="Search plugins…" />
+    <Button onclick={handleCheckUpdates} disabled={checking}>{checking ? "Checking..." : "Check for updates"}</Button>
+    {#if anyUpdateAvailable}
+      <Button onclick={handleUpdateAll} disabled={updatingAll}>{updatingAll ? "Updating..." : "Update all"}</Button>
+    {/if}
     <Button variant="primary" onclick={() => (addOpen = true)}>+ Add from URL</Button>
     <ViewToggle value={view} onChange={setView} />
   </div>

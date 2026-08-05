@@ -52,6 +52,56 @@ describe("Plugins screen", () => {
     expect(screen.getByText("Demo from catalog")).toBeInTheDocument();
   });
 
+  it("checks every managed home for updates and reloads the rows afterwards", async () => {
+    const checked: string[] = [];
+    let listCalls = 0;
+    stubCairn({
+      pluginsList: async () => { listCalls += 1; return { ok: true, data: baseSections() }; },
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      updatesCheck: async (homeId: string) => {
+        checked.push(homeId);
+        return { ok: true, data: { checkedAt: "t", available: [] } };
+      },
+    });
+    render(Plugins);
+    await screen.findByText("wakatime-sync");
+    const before = listCalls;
+
+    await fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
+
+    await waitFor(() => expect(checked).toEqual(["cairn", "claude", "opencode"]));
+    await waitFor(() => expect(listCalls).toBeGreaterThan(before));
+  });
+
+  it("offers Update all only while something is actually behind", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+    });
+    render(Plugins);
+    await screen.findByText("wakatime-sync");
+    expect(screen.queryByRole("button", { name: "Update all" })).toBeNull();
+  });
+
+  it("updates every managed home when something is behind, then reloads", async () => {
+    const behind = baseSections();
+    behind[1].rows[0].updateAvailable = true;
+    const updated: string[] = [];
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: behind }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      updatesAll: async (homeId: string) => {
+        updated.push(homeId);
+        return { ok: true, data: { updated: [], skipped: [], failed: [], checkedAt: "t" } };
+      },
+    });
+    render(Plugins);
+    await screen.findByText("wakatime-sync");
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Update all" }));
+    await waitFor(() => expect(updated).toEqual(["cairn", "claude", "opencode"]));
+  });
+
   it("clicking the star button favorites a plugin locally and mirrors the star to GitHub, without opening the detail view", async () => {
     const favoritesToggle = vi.fn(async (name: string) => ({ ok: true, data: [name] }) as const);
     const githubSetStar = vi.fn(async () => ({ ok: true, data: undefined }) as const);
