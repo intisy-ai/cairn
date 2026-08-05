@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
 import { getConfigValue, isEngine } from "@core/index.js";
 import { svgIconDataUri } from "../lib/pluginIcon.js";
+import { emitCairnAction } from "../activity.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
 import type { Plugin, NpmPlugin } from "@plugin-updater/types.js";
 import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, PluginVersion, Result, CliResult, InstallManyResult, InstallOutcome } from "../../../packages/shared/src/domain.js";
@@ -390,19 +391,33 @@ export function pluginsRemoveEverywhere(name: string, deps: PluginsDeps = {}): P
 
 export function pluginsSetEnabled(homeId: PluginHomeId, name: string, on: boolean, deps: PluginsDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
-    const dir = homeDir(homeId, await resolveHomes(deps));
+    const homes = await resolveHomes(deps);
+    const dir = homeDir(homeId, homes);
     const result = await realSetPluginEnabled(dir, name, on);
     if (result === null) throw new Error("plugin-updater is not available in this build");
     if (!result) throw new Error(`plugin not found: ${name}`);
+    await emitCairnAction({
+      action: on ? "plugin_enabled" : "plugin_disabled",
+      subject: { kind: "plugin", id: name, label: name },
+      homeId,
+      details: { message: `${on ? "Enabled" : "Disabled"} ${name}` },
+    }, homes);
   });
 }
 
 export function pluginsSetAutoUpdate(homeId: PluginHomeId, name: string, on: boolean, deps: PluginsDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
-    const dir = homeDir(homeId, await resolveHomes(deps));
+    const homes = await resolveHomes(deps);
+    const dir = homeDir(homeId, homes);
     const result = await realSetPluginAutoUpdate(dir, name, on);
     if (result === null) throw new Error("plugin-updater is not available in this build");
     if (!result) throw new Error(`plugin not found: ${name}`);
+    await emitCairnAction({
+      action: "plugin_autoupdate_changed",
+      subject: { kind: "plugin", id: name, label: name },
+      homeId,
+      details: { autoUpdate: on, message: `Auto-update ${on ? "on" : "off"} for ${name}` },
+    }, homes);
   });
 }
 

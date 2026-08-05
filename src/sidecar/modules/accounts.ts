@@ -4,6 +4,7 @@ import { reposDir } from "@core-auth/index.js";
 import type { AccountController } from "@core-auth/index.js";
 import type { AccountView, Result } from "../../../packages/shared/src/domain.js";
 import { ok, err } from "../result.js";
+import { emitCairnAction } from "../activity.js";
 
 async function resolveController(provider: string): Promise<AccountController | null> {
   const deployed = readDeployedProviders(reposDir()).find((p) => p.provider === provider);
@@ -38,6 +39,12 @@ export function accountsList(provider: string): Promise<Result<AccountView[]>> {
 export function accountsEnable(provider: string, id: string, on: boolean): Promise<Result<void>> {
   return guarded(async () => {
     (await requireController(provider)).enable(id, on);
+    await emitCairnAction({
+      action: on ? "account_enabled" : "account_disabled",
+      subject: { kind: "account", id, label: id },
+      topic: "account.state",
+      details: { provider, message: `${on ? "Enabled" : "Disabled"} ${id} (${provider})` },
+    });
   });
 }
 

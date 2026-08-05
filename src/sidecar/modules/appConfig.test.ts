@@ -71,6 +71,28 @@ describe("appConfig sidecar module", () => {
     expect(onDisk).toEqual({ logging: false });
   });
 
+  it("configWrite records the change, with the before and after values and the affected home", async () => {
+    const { dir, home } = makeHome("claude", "Claude Code");
+    seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
+    writeFileSync(join(dir, "config", "plugin-a.json"), JSON.stringify({ logging: true }), "utf8");
+    const cairnHome = mkdtempSync(join(tmpdir(), "dash-appconfig-own-"));
+    vi.stubEnv("HUB_CONFIG_DIR", cairnHome);
+    try {
+      const { configWrite } = await import("./appConfig.js");
+      const result = await configWrite("claude", "plugin-a", "logging", false, { homes: [home] });
+      expect(result.ok).toBe(true);
+
+      const { readActivity } = await import("@core/index.js");
+      const { records } = readActivity([cairnHome], { topics: ["config.changed"] });
+      const rec = records.find((r) => r.details.key === "logging");
+      expect(rec).toBeDefined();
+      expect(rec!.changes).toEqual([{ key: "logging", from: true, to: false }]);
+      expect(rec!.target).toEqual({ home: dir });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("configWrite merges into an existing file, preserving unrelated keys", async () => {
     const { dir, home } = makeHome("claude", "Claude Code");
     seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);

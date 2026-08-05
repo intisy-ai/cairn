@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve, sep } from "node:path";
+import { existsSync } from "node:fs";
+import { join, resolve, sep } from "node:path";
+import { setConfigValue } from "@core/index.js";
 import type { PluginConfigSchema, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir } from "../lib/pluginHomes.js";
 import { safeGetPlugins, loadPluginUpdaterConfig } from "../lib/optionalEngines.js";
@@ -115,9 +116,9 @@ export function configWrite(homeId: string, plugin: string, key: string, value: 
     if (!resolve(file).startsWith(base + sep)) {
       throw new Error(`invalid config target: ${plugin}`);
     }
-    const existing = existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>) : {};
-    existing[key] = value;
-    mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, JSON.stringify(existing, null, 2), "utf8");
+    // core owns config writing (it is the only writer, and it records the change with
+    // the before/after values redacted); the guards above still describe the target it
+    // computes, which is this same <dir>/config/<plugin>.json.
+    setConfigValue(plugin, key, value, dir);
   });
 }
