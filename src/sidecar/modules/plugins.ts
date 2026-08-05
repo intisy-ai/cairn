@@ -43,7 +43,7 @@ const EMPTY_UPDATE_CACHE: UpdateCache = { checkedAt: new Date(0).toISOString(), 
 // Every plugin-updater call below is a soft reference: with the sibling repo absent from
 // this build, reads degrade to empty results and writes fail with a clear, catchable error
 // (via wrap()) instead of an unhandled module-resolution crash.
-function requirePluginUpdater<T>(mod: T | null): T {
+export function requirePluginUpdater<T>(mod: T | null): T {
   if (!mod) throw new Error("plugin-updater is not available in this build");
   return mod;
 }
@@ -97,7 +97,7 @@ let writeChain: Promise<unknown> = Promise.resolve();
 // process-wide because writeChain serializes these calls.
 const ACTIVITY_ENV_KEYS = ["HUB_ACTIVITY_TRACE", "HUB_ACTIVITY_CAUSE", "HUB_ACTIVITY_PARENT", "CORE_APP"];
 
-function withHome<T>(dir: string, fn: () => Promise<T>, appId?: string): Promise<T> {
+export function withHome<T>(dir: string, fn: () => Promise<T>, appId?: string): Promise<T> {
   const run = writeChain.then(async () => {
     const saved: Record<string, string | undefined> = {};
     for (const key of ACTIVITY_ENV_KEYS) saved[key] = process.env[key];

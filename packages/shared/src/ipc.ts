@@ -65,6 +65,9 @@ export const INVOKE_CHANNELS = {
   busDrain: "bus:drain",
   activityRead: "activity:read",
   activityStats: "activity:stats",
+  updatesCheck: "updates:check",
+  updatesOne: "updates:one",
+  updatesAll: "updates:all",
   globalSettingsRead: "settings:read",
   usageSnapshot: "usage:snapshot",
   importApps: "import:apps",
@@ -112,7 +115,7 @@ void _invokeChannelsMatchApi;
 // timer, so attributing them to a user action would make routine polling look like
 // something a person did. Anything not listed here is treated as a change.
 const READ_ONLY_ACTIONS: readonly string[] = [
-  "apps", "connection", "detect", "diffRefs", "drain", "device-poll", "get", "homes",
+  "apps", "check", "connection", "detect", "diffRefs", "drain", "device-poll", "get", "homes",
   "list", "meta", "metaCached", "preview", "read", "schemas", "snapshot", "stats",
   "status", "summary", "versions", "versionsAll", "versionsCached",
 ];
