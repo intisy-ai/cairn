@@ -9,13 +9,13 @@
   import Button from "../components/Button.svelte";
   import Spinner from "../components/Spinner.svelte";
   import PluginControls from "../components/PluginControls.svelte";
+  import GlobalSettings from "../components/GlobalSettings.svelte";
   import GitHubAccounts from "../components/GitHubAccounts.svelte";
 
   let themeSetting = $state<ThemeSetting>("system");
   let showDeprecated = $state(true);
   let autoUpdateDefault = $state(true);
   let proxyAutostart = $state(false);
-  let logConsole = $state(false);
 
   let sections = $state<HomePlugins[]>([]);
   let sectionsError = $state("");
@@ -24,18 +24,16 @@
   const appGroups = $derived(sections.filter((s) => s.home.id === "cairn" || s.home.present));
 
   async function loadCairnSettings(): Promise<void> {
-    const [theme, deprecated, autoUpdate, autostart, consoleMirror] = await Promise.all([
+    const [theme, deprecated, autoUpdate, autostart] = await Promise.all([
       cairn.getConfig("cairn", "theme"),
       cairn.getConfig("cairn", "showDeprecated"),
       cairn.getConfig("cairn", "autoUpdateDefault"),
       cairn.getConfig("cairn", "proxyAutostart"),
-      cairn.getConfig("settings", "logConsole"),
     ]);
     themeSetting = theme.ok && (theme.data === "light" || theme.data === "dark" || theme.data === "system") ? theme.data : "system";
     showDeprecated = !(deprecated.ok && deprecated.data === false);
     autoUpdateDefault = !(autoUpdate.ok && autoUpdate.data === false);
     proxyAutostart = autostart.ok && autostart.data === true;
-    logConsole = consoleMirror.ok && consoleMirror.data === true;
     applyThemeSetting(themeSetting);
   }
 
@@ -72,11 +70,6 @@
   async function handleProxyAutostartChange(on: boolean): Promise<void> {
     proxyAutostart = on;
     await cairn.setConfig("cairn", "proxyAutostart", on);
-  }
-
-  async function handleLogConsoleChange(on: boolean): Promise<void> {
-    logConsole = on;
-    await cairn.setConfig("settings", "logConsole", on);
   }
 
   const SYNC_CATEGORIES: { key: keyof SyncCategories; label: string; desc: string }[] = [
@@ -200,15 +193,7 @@
 
 <section class="category">
   <h2>Advanced</h2>
-  <Card>
-    <div class="row">
-      <div class="info">
-        <b>Mirror plugin logs to the console</b>
-        <span class="desc">Every plugin's log lines also print to stderr.</span>
-      </div>
-      <ToggleSwitch checked={logConsole} label="Mirror plugin logs to the console" onchange={handleLogConsoleChange} />
-    </div>
-  </Card>
+  <GlobalSettings />
 </section>
 
 <section class="category">
