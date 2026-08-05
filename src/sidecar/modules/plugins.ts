@@ -349,8 +349,10 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
         }
       } else {
         report?.("Installing plugin-updater", 10);
+        // The bootstrap has to act on the very home this install targets, so it gets this
+        // call's home list rather than resolving its own.
         const ensureUpdater = deps.ensureUpdater
-          ?? ((id: string) => import("./engines.js").then((m) => m.ensureEngineIn("plugin-management", id)));
+          ?? ((id: string) => import("./engines.js").then((m) => m.ensureEngineIn("plugin-management", id, { homes })));
         const result = await ensureUpdater(homeId);
         if (!result.ok) throw new Error(result.error);
       }

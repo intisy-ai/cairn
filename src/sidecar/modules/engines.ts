@@ -22,7 +22,7 @@ export interface EnginesDeps {
   homes?: PluginHome[];
   getPlugins?: (dir: string) => Plugin[] | Promise<Plugin[]>;
   appsInit?: (app: string) => Promise<Result<CliResult>>;
-  pluginsInstall?: (homeId: string, name: string, url: string) => Promise<Result<void>>;
+  pluginsInstall?: (homeId: string, name: string, url: string, deps?: { homes?: PluginHome[] }) => Promise<Result<void>>;
 }
 
 const PLUGIN_MANAGEMENT = "plugin-management";
@@ -41,7 +41,9 @@ async function resolveHomes(deps: EnginesDeps): Promise<PluginHome[]> {
   return deps.homes ?? (await pluginHomes());
 }
 
-async function installEngine(engine: EngineDescriptor, home: PluginHome, deps: EnginesDeps): Promise<void> {
+// `homes` is the list the caller resolved: the nested install must land in the very home
+// named here, never in whatever a fresh resolution would pick.
+async function installEngine(engine: EngineDescriptor, home: PluginHome, homes: PluginHome[], deps: EnginesDeps): Promise<void> {
   // An app home registers the plugin manager through its own CLI. Cairn's home has no CLI,
   // so the bundled copy clones it in place like any other engine.
   if (engine.capability === PLUGIN_MANAGEMENT && home.id !== "cairn") {
@@ -51,7 +53,7 @@ async function installEngine(engine: EngineDescriptor, home: PluginHome, deps: E
     return;
   }
   const install = deps.pluginsInstall ?? (await import("./plugins.js")).pluginsInstall;
-  const res = await install(home.id, engine.id, engine.url);
+  const res = await install(home.id, engine.id, engine.url, { homes });
   if (!res.ok) throw new Error(res.error);
 }
 
@@ -83,7 +85,7 @@ export function ensureEngineIn(capability: string, homeId: string, deps: Engines
     const home = homeById(homeId as PluginHomeId, homes);
     const getPlugins = deps.getPlugins ?? safeGetPlugins;
     if ((await stateIn(engine, home, getPlugins)).installed) return;
-    await installEngine(engine, home, deps);
+    await installEngine(engine, home, homes, deps);
   });
 }
 

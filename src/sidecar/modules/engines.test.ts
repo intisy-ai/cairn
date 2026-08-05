@@ -27,7 +27,7 @@ describe("ensureEngine", () => {
     const pluginsInstall = vi.fn(async () => ({ ok: true, data: undefined }));
     const res = await ensureEngine("custom-endpoints", { homes, getPlugins: () => [], pluginsInstall } as any);
     expect(res.ok).toBe(true);
-    expect(pluginsInstall).toHaveBeenCalledWith("cairn", "custom-auth", expect.stringContaining("custom-auth"));
+    expect(pluginsInstall).toHaveBeenCalledWith("cairn", "custom-auth", expect.stringContaining("custom-auth"), { homes });
   });
 
   it("is a no-op when the engine is already installed", async () => {
@@ -66,6 +66,23 @@ describe("ensureEngineIn", () => {
     } as any);
     expect(res.ok).toBe(true);
     expect(installs).toEqual(["cairn/plugin-updater"]);
+  });
+
+  // Without this the nested install re-resolves homes and can land in a completely
+  // different home than the one being installed into.
+  it("hands the nested install the same home list it was given", async () => {
+    const seen: unknown[] = [];
+    const targetHomes = homes.map((h) => (h.id === "cairn" ? { ...h, dir: "/tmp/somewhere", hasUpdater: false } : h));
+    const res = await ensureEngineIn("plugin-management", "cairn", {
+      homes: targetHomes,
+      getPlugins: () => [],
+      pluginsInstall: async (_homeId: string, _name: string, _url: string, deps?: { homes?: unknown }) => {
+        seen.push(deps?.homes);
+        return { ok: true, data: undefined };
+      },
+    } as any);
+    expect(res.ok).toBe(true);
+    expect(seen).toEqual([targetHomes]);
   });
 
   it("is a no-op when that home already has the engine", async () => {
