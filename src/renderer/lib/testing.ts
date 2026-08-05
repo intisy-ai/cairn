@@ -68,6 +68,7 @@ function defaultCairn(): CairnAPI {
     pluginVersions: async () => ({ ok: true, data: {} }),
     pluginVersionsAll: async () => ({ ok: true, data: {} }),
     pluginVersionsCached: async () => ({ ok: true, data: {} }),
+    menusList: async () => ({ ok: true, data: [] }),
     enginesList: async () => ({ ok: true, data: [] }),
     enginesEnsure: async () => ({ ok: true, data: undefined }),
     pluginsInstall: async (_home, _name, _url) => ({ ok: true, data: undefined }),

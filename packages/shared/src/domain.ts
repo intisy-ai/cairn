@@ -202,13 +202,18 @@ export type FieldSpec = {
   placeholder?: string;
 };
 export type ActionSpec = { id: string; label: string; description?: string; confirm?: string; danger?: boolean };
+// What a plugin asks for when it wants a place of its own in the dashboard's navigation.
+export type MenuSpec = { label: string; glyph?: string; order?: number };
 export type PluginConfigSchema = {
   plugin: string;
   defaults: Record<string, unknown>;
   current: Record<string, unknown>;
   fields?: FieldSpec[];
   actions?: ActionSpec[];
+  menu?: MenuSpec;
 };
+// One contributed menu, folded across every home that offers it.
+export type PluginMenu = MenuSpec & { plugin: string; homes: string[] };
 export type AppAccountSummary = { provider: string; label: string; enabled: boolean; quotaPct: number | null };
 export type AppProviderAgg = { provider: string; accounts: number; enabled: number };
 export type AppSummary = {

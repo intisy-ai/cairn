@@ -51,6 +51,7 @@ export const INVOKE_CHANNELS = {
   pluginsDowngrade: "plugins:downgrade",
   pluginsUninstall: "plugins:uninstall",
   configSchemas: "config:schemas",
+  menusList: "menus:list",
   configWrite: "config:write",
   configAction: "config:action",
   syncStatus: "sync:status",

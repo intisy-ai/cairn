@@ -14,6 +14,7 @@ import { enginesList, ensureEngine } from "./modules/engines.js";
 import { proxiesList, proxiesSetEnabled } from "./modules/proxies.js";
 import { repoMeta, repoMetaCached } from "./modules/repo.js";
 import { configSchemas, configWrite, configAction } from "./modules/appConfig.js";
+import { menusList } from "./modules/menus.js";
 import { syncStatus, syncRun, syncSetConfig } from "./modules/sync.js";
 import { ledgerHomes, ledgerCommit, ledgerRestore, ledgerDiffRefs, ledgerProfileCreate, ledgerProfileSwitch } from "./modules/ledger.js";
 import { busDrain } from "./modules/bus.js";
@@ -134,6 +135,7 @@ registerHandler("plugins:uninstall", (home, name) => pluginsUninstall(home as st
 registerHandler("proxies:list", () => proxiesList());
 registerHandler("proxies:setEnabled", (name, on) => proxiesSetEnabled(name as string, on as boolean));
 registerHandler("config:schemas", (home) => configSchemas(home as string));
+registerHandler("menus:list", () => menusList());
 registerHandler("config:write", (home, plugin, key, value) => configWrite(home as string, plugin as string, key as string, value));
 registerHandler("config:action", (home, plugin, actionId) => configAction(home as string, plugin as string, actionId as string));
 registerHandler("sync:status", () => syncStatus());

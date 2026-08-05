@@ -1,11 +1,26 @@
 import { writable } from "svelte/store";
+import type { PluginMenu } from "@cairn/shared";
 
-export type ScreenId = "overview" | "providers" | "accounts" | "routing" | "usage" | "activity" | "localApi" | "apps" | "plugins" | "config" | "settings";
+export type CairnScreenId = "overview" | "providers" | "accounts" | "routing" | "usage" | "activity" | "localApi" | "apps" | "plugins" | "config" | "settings";
+// A plugin that declared a menu gets a screen of its own, addressed by its name. Cairn's
+// own screens stay a closed set; anything a plugin contributes lives behind this prefix.
+export type PluginScreenId = `plugin:${string}`;
+export type ScreenId = CairnScreenId | PluginScreenId;
+
+const PLUGIN_PREFIX = "plugin:";
+
+export function pluginScreen(plugin: string): PluginScreenId {
+  return `${PLUGIN_PREFIX}${plugin}`;
+}
+
+export function pluginOfScreen(screen: string): string | null {
+  return screen.startsWith(PLUGIN_PREFIX) ? screen.slice(PLUGIN_PREFIX.length) : null;
+}
 
 export type ScreenSection = "main" | "network";
 
 export type ScreenDef = {
-  id: ScreenId;
+  id: CairnScreenId;
   label: string;
   glyph: string;
   section: ScreenSection;
@@ -40,7 +55,16 @@ const past: RouterState[] = [];
 const future: RouterState[] = [];
 let redirectedFrom: ScreenId | null = null;
 
+// The contributed menus the sidebar has loaded, so history can name their screens.
+let PLUGIN_MENUS: PluginMenu[] = [];
+
+export function setPluginMenus(menus: PluginMenu[]): void {
+  PLUGIN_MENUS = menus;
+}
+
 function labelOf(id: ScreenId): string {
+  const plugin = pluginOfScreen(id);
+  if (plugin) return PLUGIN_MENUS.find((menu) => menu.plugin === plugin)?.label ?? plugin;
   return SCREENS.find((screen) => screen.id === id)?.label ?? "";
 }
 

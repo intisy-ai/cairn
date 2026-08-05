@@ -3,8 +3,9 @@
   import Titlebar from "./lib/components/Titlebar.svelte";
   import Sidebar from "./lib/components/Sidebar.svelte";
   import Skeleton from "./lib/components/Skeleton.svelte";
-  import { router, nav, back, SCREENS } from "./lib/router.js";
+  import { router, nav, back, SCREENS, pluginOfScreen } from "./lib/router.js";
   import type { ScreenId } from "./lib/router.js";
+  import PluginMenu from "./lib/routes/PluginMenu.svelte";
 
   // Routes load on first visit (code-split) instead of all up front.
   const ROUTES: Record<string, () => Promise<{ default: unknown }>> = {
@@ -30,7 +31,8 @@
   import { watchActivityErrors } from "./lib/stores/activity.js";
   import ToastHost from "./lib/components/ToastHost.svelte";
 
-  const activeLabel = $derived(SCREENS.find((screen) => screen.id === $router.screen)?.label ?? "");
+  const contributedPlugin = $derived(pluginOfScreen($router.screen));
+  const activeLabel = $derived(SCREENS.find((screen) => screen.id === $router.screen)?.label ?? contributedPlugin ?? "");
 
   // Depend only on the screen value, never the whole router store: a route that
   // mutates params in onMount (Plugins clears its deep-link param) must not make
@@ -69,14 +71,18 @@
           {#if $nav.redirected}
             <button class="backbar" onclick={back} title="Go back">‹ Back to {$nav.redirectLabel}</button>
           {/if}
-          {#await routeModule}
-            <div class="route-loading"><Skeleton height="80px" radius="12px" /></div>
-          {:then module}
-            {@const Route = module.default as typeof Skeleton}
-            <Route />
-          {:catch}
-            <p class="route-error">Could not load this screen.</p>
-          {/await}
+          {#if contributedPlugin}
+            <PluginMenu plugin={contributedPlugin} />
+          {:else}
+            {#await routeModule}
+              <div class="route-loading"><Skeleton height="80px" radius="12px" /></div>
+            {:then module}
+              {@const Route = module.default as typeof Skeleton}
+              <Route />
+            {:catch}
+              <p class="route-error">Could not load this screen.</p>
+            {/await}
+          {/if}
         </div>
       {/key}
     </main>
