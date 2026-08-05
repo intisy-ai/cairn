@@ -7,13 +7,17 @@
     expanded = false,
     follower = false,
     followerCount = 0,
+    cascadeExpanded = false,
     ontoggle,
+    oncascade,
   }: {
     record: ActivityRecord;
     expanded?: boolean;
     follower?: boolean;
     followerCount?: number;
+    cascadeExpanded?: boolean;
     ontoggle: () => void;
+    oncascade?: () => void;
   } = $props();
 
   function impactVariant(impact: Impact): string {
@@ -74,20 +78,29 @@
 </script>
 
 <div class="wrap" class:follower>
-  <button type="button" class="row" onclick={ontoggle} aria-expanded={expanded}>
-    <span class="impact impact-{impactVariant(record.impact)}" title={record.impact}>{impactGlyph(record.impact)}</span>
-    <span class="text" title={record.text}>{record.text}</span>
-    {#if followerCount > 0}
-      <span class="count" data-testid="activity-followers">+{followerCount}</span>
+  <div class="line">
+    <button type="button" class="row" onclick={ontoggle} aria-expanded={expanded}>
+      <span class="impact impact-{impactVariant(record.impact)}" title={record.impact}>{impactGlyph(record.impact)}</span>
+      <span class="text" title={record.text}>{record.text}</span>
+      {#if record.origin?.app}
+        <span class="badge">{humanizeId(record.origin.app)}</span>
+      {/if}
+      {#if targetLabel}
+        <span class="badge badge-target" data-testid="activity-target">{targetLabel}</span>
+      {/if}
+      <span class="time">{relativeTime(record.ts)}</span>
+    </button>
+    {#if followerCount > 0 && oncascade}
+      <button
+        type="button"
+        class="count"
+        data-testid="activity-followers"
+        aria-expanded={cascadeExpanded}
+        aria-label={`${followerCount} caused by this`}
+        onclick={oncascade}
+      >+{followerCount}</button>
     {/if}
-    {#if record.origin?.app}
-      <span class="badge">{humanizeId(record.origin.app)}</span>
-    {/if}
-    {#if targetLabel}
-      <span class="badge badge-target" data-testid="activity-target">{targetLabel}</span>
-    {/if}
-    <span class="time">{relativeTime(record.ts)}</span>
-  </button>
+  </div>
 
   {#if causeParts.length > 0}
     <p class="cause" data-testid="activity-cause">{causeParts.join(" / ")}</p>
@@ -165,9 +178,20 @@
     content: "to ";
     color: var(--border-strong);
   }
+  .line {
+    display: flex;
+    align-items: center;
+  }
   .count {
     font-size: 11px;
     color: var(--accent);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1px 6px;
+    margin-right: 12px;
+    cursor: pointer;
+    font-family: inherit;
   }
   .time {
     font-size: 11px;

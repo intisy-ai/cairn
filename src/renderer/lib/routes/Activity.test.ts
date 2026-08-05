@@ -130,6 +130,28 @@ describe("Activity screen", () => {
     expect(queryByRole("button", { name: /load older/i })).toBeNull();
   });
 
+  it("hides an event's cascade until the group is expanded", async () => {
+    const now = Date.now();
+    stubCairn({
+      activityRead: async () => ({
+        ok: true,
+        data: {
+          records: [
+            record({ id: "root", ts: now - 2000, text: "Installed a plugin", trace: { id: "t1" } }),
+            record({ id: "kid", ts: now - 1000, text: "Registered an app", trace: { id: "t1", causedBy: "root" } }),
+          ],
+        },
+      }),
+    });
+    const { getByText, queryByText, getByTestId } = await mount();
+
+    expect(getByText("Installed a plugin")).toBeInTheDocument();
+    expect(queryByText("Registered an app")).toBeNull();
+
+    await fireEvent.click(getByTestId("activity-followers"));
+    expect(getByText("Registered an app")).toBeInTheDocument();
+  });
+
   it("keeps a live record that arrives before the initial load resolves", async () => {
     type ReadResult = Result<{ records: ActivityRecord[] }>;
     let resolveLoad: ((value: ReadResult) => void) | undefined;

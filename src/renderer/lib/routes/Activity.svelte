@@ -6,6 +6,7 @@
   import Card from "../components/Card.svelte";
   import ActivityFilters from "../components/ActivityFilters.svelte";
   import ActivityRow from "../components/ActivityRow.svelte";
+  import { groupByTrace } from "../util/activityTrace.js";
   import Skeleton from "../components/Skeleton.svelte";
   import ErrorState from "../components/ErrorState.svelte";
   import EmptyState from "../components/EmptyState.svelte";
@@ -30,6 +31,7 @@
   let query = $state("");
   let range = $state<Range>("24h");
   let expandedId = $state<string | null>(null);
+  let expandedGroupId = $state<string | null>(null);
   let nextCursor = $state<string | undefined>(undefined);
   let loadingOlder = $state(false);
   let capacity = $state(BASE_CAPACITY);
@@ -61,8 +63,15 @@
     if (typeof patch.range === "string") range = patch.range as Range;
   }
 
+  // A group's cascade and a row's payload expand independently, so they are separate.
+  const groups = $derived.by(() => groupByTrace(filtered));
+
   function toggleExpanded(id: string): void {
     expandedId = expandedId === id ? null : id;
+  }
+
+  function toggleGroup(id: string): void {
+    expandedGroupId = expandedGroupId === id ? null : id;
   }
 
   // Merges by id (priority wins on a duplicate) and sorts newest-first, so a
@@ -154,9 +163,26 @@
 {:else}
   <Card>
     <ul class="list">
-      {#each filtered as record (record.id)}
+      {#each groups as group (group.root.id)}
         <li>
-          <ActivityRow record={record} expanded={expandedId === record.id} ontoggle={() => toggleExpanded(record.id)} />
+          <ActivityRow
+            record={group.root}
+            expanded={expandedId === group.root.id}
+            followerCount={group.followers.length}
+            cascadeExpanded={expandedGroupId === group.root.id}
+            ontoggle={() => toggleExpanded(group.root.id)}
+            oncascade={() => toggleGroup(group.root.id)}
+          />
+          {#if expandedGroupId === group.root.id}
+            {#each group.followers as follower (follower.id)}
+              <ActivityRow
+                record={follower}
+                follower={true}
+                expanded={expandedId === follower.id}
+                ontoggle={() => toggleExpanded(follower.id)}
+              />
+            {/each}
+          {/if}
         </li>
       {/each}
     </ul>

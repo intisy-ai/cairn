@@ -104,6 +104,31 @@ describe("ActivityRow", () => {
     expect(queryByTestId("activity-details")).toBeNull();
   });
 
+  it("keeps the cascade toggle separate from the row's own payload", async () => {
+    const { getByTestId, getByRole, queryByTestId } = render(ActivityRow, {
+      props: { record: record(), expanded: false, followerCount: 2, ontoggle: noop, oncascade: noop },
+    });
+
+    const cascade = getByTestId("activity-followers");
+    expect(cascade).toHaveTextContent("+2");
+    expect(cascade).toHaveAttribute("aria-expanded", "false");
+    // the row's own control is a separate button, so the payload is still reachable
+    expect(getByRole("button", { expanded: false, name: /Updated demo-plugin/ })).toBeInTheDocument();
+    expect(queryByTestId("activity-details")).toBeNull();
+  });
+
+  it("offers no cascade toggle when nothing followed, or when no handler is given", () => {
+    const withoutFollowers = render(ActivityRow, {
+      props: { record: record(), expanded: false, followerCount: 0, ontoggle: noop, oncascade: noop },
+    });
+    expect(withoutFollowers.queryByTestId("activity-followers")).toBeNull();
+
+    const withoutHandler = render(ActivityRow, {
+      props: { record: record(), expanded: false, followerCount: 3, ontoggle: noop },
+    });
+    expect(withoutHandler.queryByTestId("activity-followers")).toBeNull();
+  });
+
   it("renders a v1 record that carries no origin, cause, or target", () => {
     const bare = {
       id: "old-1", ts: Date.now(), home: "/tmp/home-a", topic: "notification", action: "notified",
