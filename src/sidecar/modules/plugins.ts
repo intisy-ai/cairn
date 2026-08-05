@@ -1,9 +1,3 @@
-// plugin-updater's index.js self-activates (runs a real update sequence) on import
-// unless this is set first. ESM hoists the static imports below above this line,
-// but none of them transitively reach index.js, so the flag is still set before
-// the lazy dynamic import() of index.js later in this module runs it.
-process.env.PLUGIN_UPDATER_LIBRARY_MODE = "1";
-
 import { existsSync, readFileSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -43,7 +37,7 @@ const EMPTY_UPDATE_CACHE: UpdateCache = { checkedAt: new Date(0).toISOString(), 
 // Every plugin-updater call below is a soft reference: with the sibling repo absent from
 // this build, reads degrade to empty results and writes fail with a clear, catchable error
 // (via wrap()) instead of an unhandled module-resolution crash.
-function requirePluginUpdater<T>(mod: T | null): T {
+export function requirePluginUpdater<T>(mod: T | null): T {
   if (!mod) throw new Error("plugin-updater is not available in this build");
   return mod;
 }
@@ -97,7 +91,7 @@ let writeChain: Promise<unknown> = Promise.resolve();
 // process-wide because writeChain serializes these calls.
 const ACTIVITY_ENV_KEYS = ["HUB_ACTIVITY_TRACE", "HUB_ACTIVITY_CAUSE", "HUB_ACTIVITY_PARENT", "CORE_APP"];
 
-function withHome<T>(dir: string, fn: () => Promise<T>, appId?: string): Promise<T> {
+export function withHome<T>(dir: string, fn: () => Promise<T>, appId?: string): Promise<T> {
   const run = writeChain.then(async () => {
     const saved: Record<string, string | undefined> = {};
     for (const key of ACTIVITY_ENV_KEYS) saved[key] = process.env[key];
@@ -174,6 +168,7 @@ export interface PluginsDeps {
   uninstallNpmPlugin?: (name: string, dir: string) => string;
   hasUpdater?: HasUpdaterFn;
   initApp?: InitAppFn;
+  ensureUpdater?: (homeId: string) => Promise<Result<void>>;
   getPlugins?: (dir: string) => Plugin[] | Promise<Plugin[]>;
   // Called at each phase boundary so a download row can show live progress;
   // percent is coarse phase-based progress 0..100.
@@ -341,14 +336,24 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
     const report = deps.report;
     const hasUpdater = deps.hasUpdater ?? updaterInstalled;
     if (!(await hasUpdater(dir))) {
-      // Every home (Cairn included) needs plugin-updater before it takes a
-      // non-engine; an engine may install to bootstrap it. An app home gets the
-      // updater set up via its CLI; Cairn clones directly with its bundled copy.
-      if (!isEngine(name)) throw new Error("install plugin-updater in this app before adding plugins");
-      if (homeId !== "cairn") {
-        report?.("Setting up plugin-updater", 10);
-        const initApp = deps.initApp ?? (await import("./apps.js")).appsInit;
-        const result = await initApp(homeId);
+      // Every home (Cairn included) needs plugin-updater before it can manage a
+      // non-engine, so bring the updater in rather than turning the install away.
+      // An engine bootstraps itself: an app home through its CLI, Cairn's home by
+      // cloning directly with the bundled copy.
+      if (isEngine(name)) {
+        if (homeId !== "cairn") {
+          report?.("Setting up plugin-updater", 10);
+          const initApp = deps.initApp ?? (await import("./apps.js")).appsInit;
+          const result = await initApp(homeId);
+          if (!result.ok) throw new Error(result.error);
+        }
+      } else {
+        report?.("Installing plugin-updater", 10);
+        // The bootstrap has to act on the very home this install targets, so it gets this
+        // call's home list rather than resolving its own.
+        const ensureUpdater = deps.ensureUpdater
+          ?? ((id: string) => import("./engines.js").then((m) => m.ensureEngineIn("plugin-management", id, { homes })));
+        const result = await ensureUpdater(homeId);
         if (!result.ok) throw new Error(result.error);
       }
     }

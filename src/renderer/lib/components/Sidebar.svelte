@@ -1,6 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { router, navigate, SCREENS } from "../router.js";
+  import { router, navigate, SCREENS, pluginScreen, setPluginMenus } from "../router.js";
+  import type { ScreenId } from "../router.js";
+  import { cairn } from "../ipc.js";
+  import type { PluginMenu } from "@cairn/shared";
   import { serverStatus, watchServerStatus } from "../serverStatus.js";
   import { unseenErrorCount } from "../stores/activity.js";
   import { PROXY_PORT } from "@cairn/shared";
@@ -21,9 +24,20 @@
   const running = $derived($serverStatus ? $serverStatus.running : true);
   const port = $derived($serverStatus?.port ?? apiPort);
 
-  onMount(() => watchServerStatus());
+  // Whatever plugins asked for a place in the navigation. Loaded once: it comes from
+  // probing installed bundles, which is too slow to sit in front of the first paint.
+  let pluginMenus = $state<PluginMenu[]>([]);
 
-  function go(id: (typeof SCREENS)[number]["id"]): (event: MouseEvent) => void {
+  onMount(() => {
+    void cairn.menusList().then((result) => {
+      if (!result.ok) return;
+      pluginMenus = result.data;
+      setPluginMenus(result.data);
+    });
+    return watchServerStatus();
+  });
+
+  function go(id: ScreenId): (event: MouseEvent) => void {
     return (event: MouseEvent) => {
       event.preventDefault();
       navigate(id);
@@ -54,6 +68,17 @@
       </button>
     {/each}
   </nav>
+  {#if pluginMenus.length > 0}
+    <div class="navsec"><p class="label">Plugins</p></div>
+    <nav class="nav">
+      {#each pluginMenus as menu (menu.plugin)}
+        {@const id = pluginScreen(menu.plugin)}
+        <button type="button" class={$router.screen === id ? "active" : ""} title={menu.label} onclick={go(id)}>
+          <span class="ic">{menu.glyph ?? "◇"}</span> <span class="lbl">{menu.label}</span>
+        </button>
+      {/each}
+    </nav>
+  {/if}
   <div class="foot" title="Local API :{port}"><span class="dot" class:off={!running}></span> <span class="foottext">Local API · <span class="num">:{port}</span></span></div>
 </aside>
 

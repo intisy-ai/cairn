@@ -8,6 +8,11 @@
 // mid-run, so there is no benefit to retrying.
 import type { Plugin } from "@plugin-updater/types.js";
 
+// Every engine import in the app goes through this module, so this is the one place that
+// can promise an engine is loaded as a library: plugin-updater's entry otherwise activates
+// itself on import and would run against whatever home happens to be ambient.
+process.env.PLUGIN_UPDATER_LIBRARY_MODE = "1";
+
 type PluginUpdaterConfig = typeof import("@plugin-updater/config.js");
 type PluginUpdaterCache = typeof import("@plugin-updater/cache.js");
 type PluginUpdaterSyncbridge = typeof import("@plugin-updater/syncbridge.js");

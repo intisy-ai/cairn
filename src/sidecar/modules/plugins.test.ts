@@ -241,10 +241,10 @@ describe("plugins sidecar module", () => {
     expect(steps).toEqual(["Downloading and building", "Registering", "Syncing to other apps"]);
   });
 
-  it("reports the plugin-updater bootstrap phase for an app home that lacks it", async () => {
+  it("reports the bootstrap phase when an engine is installed into an app home that lacks the updater", async () => {
     const steps: string[] = [];
     const { pluginsInstall } = await import("./plugins.js");
-    await pluginsInstall("claude", "custom-auth", "https://github.com/intisy-ai/custom-auth", {
+    const result = await pluginsInstall("claude", "plugin-updater", "https://github.com/intisy-ai/plugin-updater", {
       updatePluginPublic: async () => {},
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
@@ -252,7 +252,51 @@ describe("plugins sidecar module", () => {
       initApp: async () => ({ ok: true, data: { stdout: "", stderr: "" } }),
       report: (step) => steps.push(step),
     });
+    expect(result.ok).toBe(true);
     expect(steps[0]).toBe("Setting up plugin-updater");
+  });
+
+  it("installs the updater first rather than turning an ordinary plugin away", async () => {
+    const order: string[] = [];
+    const steps: string[] = [];
+    const { pluginsInstall } = await import("./plugins.js");
+    const result = await pluginsInstall("claude", "custom-auth", "https://github.com/intisy-ai/custom-auth", {
+      updatePluginPublic: async (name) => { order.push("install:" + name); },
+      homes: fakeHomes,
+      syncPluginsAcrossApps: async () => {},
+      hasUpdater: () => false,
+      ensureUpdater: async (homeId) => { order.push("updater:" + homeId); return { ok: true, data: undefined }; },
+      report: (step) => steps.push(step),
+    });
+    expect(result.ok).toBe(true);
+    expect(order).toEqual(["updater:claude", "install:custom-auth"]);
+    expect(steps[0]).toBe("Installing plugin-updater");
+  });
+
+  it("stops at a failed bootstrap instead of installing into a home that cannot manage it", async () => {
+    const { pluginsInstall } = await import("./plugins.js");
+    const result = await pluginsInstall("claude", "custom-auth", "https://github.com/intisy-ai/custom-auth", {
+      updatePluginPublic: async () => { throw new Error("must not run"); },
+      homes: fakeHomes,
+      syncPluginsAcrossApps: async () => {},
+      hasUpdater: () => false,
+      ensureUpdater: async () => ({ ok: false, error: "no network" }),
+    });
+    expect(result).toEqual({ ok: false, error: "no network" });
+    expect(existsSync(join(claudeDir, "config", "plugins.json"))).toBe(false);
+  });
+
+  it("does not bootstrap when the plugin being installed is the updater itself", async () => {
+    let bootstraps = 0;
+    const { pluginsInstall } = await import("./plugins.js");
+    const result = await pluginsInstall("cairn", "plugin-updater", "https://github.com/intisy-ai/plugin-updater", {
+      updatePluginPublic: async () => {},
+      homes: fakeHomes,
+      hasUpdater: () => false,
+      ensureUpdater: async () => { bootstraps++; return { ok: true, data: undefined }; },
+    });
+    expect(result.ok).toBe(true);
+    expect(bootstraps).toBe(0);
   });
 
   it("install does not duplicate an existing entry and preserves its other fields", async () => {
@@ -351,18 +395,6 @@ describe("plugins sidecar module", () => {
     expect(order).toEqual(["init:claude", "install"]);
   });
 
-  it("refuses to install a non-engine into an app home without plugin-updater", async () => {
-    const { pluginsInstall } = await import("./plugins.js");
-    const result = await pluginsInstall("claude", "plugin-a", "https://github.com/intisy-ai/plugin-a", {
-      homes: fakeHomes,
-      hasUpdater: () => false,
-      initApp: async () => ({ ok: true, data: { stdout: "", stderr: "" } }),
-      updatePluginPublic: async () => {},
-      syncPluginsAcrossApps: async () => {},
-    });
-    expect(result.ok).toBe(false);
-  });
-
   it("bootstraps an engine into the cairn home by cloning directly, never initializing it", async () => {
     const inits: string[] = [];
     const installed: string[] = [];
@@ -379,15 +411,18 @@ describe("plugins sidecar module", () => {
     expect(installed).toEqual(["plugin-updater"]);
   });
 
-  it("refuses to install a non-engine into the cairn home without plugin-updater", async () => {
+  it("brings the updater into Cairn's own home too, so a plugin can be installed there", async () => {
+    const order: string[] = [];
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("cairn", "some-provider", "u", {
       homes: fakeHomes,
       hasUpdater: () => false,
-      updatePluginPublic: async () => {},
+      ensureUpdater: async (homeId) => { order.push("updater:" + homeId); return { ok: true, data: undefined }; },
+      updatePluginPublic: async (name) => { order.push("install:" + name); },
       syncPluginsAcrossApps: async () => {},
     });
-    expect(result.ok).toBe(false);
+    expect(result.ok).toBe(true);
+    expect(order).toEqual(["updater:cairn", "install:some-provider"]);
   });
 
   it("new installs honor the autoUpdateDefault setting", async () => {

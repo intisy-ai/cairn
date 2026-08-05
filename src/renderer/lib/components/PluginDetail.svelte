@@ -3,7 +3,6 @@
   import type { UnifiedPlugin, PluginConfigSchema, PluginVersion } from "@cairn/shared";
   import PluginControls from "./PluginControls.svelte";
   import RepoDetail from "./RepoDetail.svelte";
-  import IconButton from "./IconButton.svelte";
   import ToggleSwitch from "./ToggleSwitch.svelte";
   import PluginInstallControl from "./PluginInstallControl.svelte";
   import { cairn } from "../ipc.js";
@@ -11,7 +10,6 @@
   let {
     plugin,
     homes,
-    canInstallHome,
     activity = null,
     onClose,
     onInstallAll,
@@ -23,8 +21,7 @@
     onChanged,
   }: {
     plugin: UnifiedPlugin;
-    homes: { id: string; label: string; icon?: string }[];
-    canInstallHome?: (homeId: string) => boolean;
+    homes: { id: string; label: string; icon?: string; hasUpdater?: boolean }[];
     activity?: import("../downloads.js").DownloadTask | null;
     onClose: () => void;
     onInstallAll: () => void;
@@ -49,10 +46,15 @@
   const installedCount = $derived(homes.filter((h) => plugin.homes[h.id]?.installed).length);
   const fullyInstalled = $derived(installedCount === homes.length && homes.length > 0);
   const installedHomes = $derived(homes.filter((h) => plugin.homes[h.id]?.installed));
+  // Updates are only actionable where an updater manages this plugin.
+  const updatesEnabled = $derived(homes.some((h) => h.hasUpdater));
 
   let versions = $state<Record<string, PluginVersion>>({});
   const representativeVersion = $derived(
     installedHomes.map((h) => versions[h.id]?.label).find((v): v is string => !!v) ?? "",
+  );
+  const behindHomes = $derived(
+    installedHomes.filter((h) => h.hasUpdater && versions[h.id]?.updateAvailable).map((h) => h.id),
   );
 
   let busyHome = $state<Record<string, boolean>>({});
@@ -128,10 +130,19 @@
       {plugin.favorite ? "★" : "☆"}
     </button>
   {/if}
-  {#if plugin.updateAvailable}
-    <IconButton name="refresh" title="Update" onclick={onUpdate} />
-  {/if}
-  <PluginInstallControl {plugin} {homes} {canInstallHome} {activity} {onInstallAll} {onRemoveEverywhere} {onToggleHome} />
+  <PluginInstallControl
+    {plugin}
+    {homes}
+    {activity}
+    updateAvailable={plugin.updateAvailable}
+    {updatesEnabled}
+    {behindHomes}
+    {onUpdate}
+    onUpdateHome={(homeId) => updateHome(homeId)}
+    {onInstallAll}
+    {onRemoveEverywhere}
+    {onToggleHome}
+  />
 {/snippet}
 
 {#snippet content(active: string)}
@@ -153,10 +164,7 @@
                 <span class="src">{v?.kind}</span>
                 {#if v?.label}<span class="num">{v.label}</span>{:else}<span class="num unknown">unknown</span>{/if}
               </span>
-              {#if v?.kind === "git"}
-                {#if v.updateAvailable}
-                  <button class="mini" disabled={busyHome[h.id]} onclick={() => updateHome(h.id)}>Update</button>
-                {/if}
+              {#if v?.kind === "git" && h.hasUpdater}
                 <label class="auto" title="Auto-update on launch">
                   <ToggleSwitch checked={v.autoUpdate} label={`Auto-update ${h.label}`} onchange={(o) => setAutoUpdate(h.id, o)} />
                 </label>
@@ -164,12 +172,14 @@
             {:else}
               <span class="state">{on ? "Installed" : "Not installed"}</span>
             {/if}
-            {#if on}
+            <!-- An update is the action worth offering while one is pending; removing this
+                 home stays available from the install control's menu above. -->
+            {#if on && behindHomes.includes(h.id)}
+              <button class="toggle update" disabled={busyHome[h.id]} onclick={() => updateHome(h.id)}>Update</button>
+            {:else if on}
               <button class="toggle on" onclick={() => onToggleHome(h.id, false)}>Remove</button>
-            {:else if !canInstallHome || canInstallHome(h.id)}
-              <button class="toggle" onclick={() => onToggleHome(h.id, true)}>Install</button>
             {:else}
-              <button class="toggle" disabled title="Install plugin-updater in this app first">Install</button>
+              <button class="toggle" onclick={() => onToggleHome(h.id, true)}>Install</button>
             {/if}
           </li>
         {/each}
@@ -313,19 +323,10 @@
     font-style: italic;
     color: var(--faint);
   }
-  .mini {
-    font-size: 11px;
-    font-weight: 600;
-    border: 1px solid var(--accent-border);
-    background: var(--accent-weak);
+  .toggle.update {
     color: var(--accent);
-    border-radius: 7px;
-    padding: 3px 10px;
-    cursor: pointer;
-  }
-  .mini:disabled {
-    opacity: .5;
-    cursor: default;
+    border-color: var(--accent-border);
+    background: var(--accent-weak);
   }
   .auto {
     display: inline-flex;

@@ -1,4 +1,4 @@
-import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec } from "./domain.js";
+import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, PluginMenu, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec, UpdateSummary } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -45,6 +45,7 @@ export interface CairnAPI {
   pluginsDowngrade(home: string, name: string, hash: string): Promise<Result<void>>;
   pluginsUninstall(home: string, name: string): Promise<Result<void>>;
   configSchemas(home: string): Promise<Result<PluginConfigSchema[]>>;
+  menusList(): Promise<Result<PluginMenu[]>>;
   configWrite(home: string, plugin: string, key: string, value: unknown): Promise<Result<void>>;
   configAction(home: string, plugin: string, actionId: string): Promise<Result<{ stdout: string; stderr: string }>>;
   syncStatus(): Promise<Result<SyncStatus>>;
@@ -59,6 +60,9 @@ export interface CairnAPI {
   busDrain(): Promise<Result<BusEvent[]>>;
   activityRead(query: ActivityQuery): Promise<Result<{ records: ActivityRecord[]; nextCursor?: string }>>;
   activityStats(): Promise<Result<ActivityStats>>;
+  updatesCheck(homeId: string): Promise<Result<{ checkedAt: string; available: string[] }>>;
+  updatesOne(homeId: string, name: string): Promise<Result<UpdateSummary>>;
+  updatesAll(homeId: string): Promise<Result<UpdateSummary>>;
   globalSettingsRead(): Promise<Result<{ defaults: Record<string, unknown>; fields: FieldSpec[]; current: Record<string, unknown> }>>;
   usageSnapshot(): Promise<Result<UsageSnapshot>>;
   importApps(): Promise<Result<ImportableApp[]>>;

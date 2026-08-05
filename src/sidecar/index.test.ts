@@ -78,3 +78,31 @@ describe("activity home", () => {
     expect(getActivityContext().home).toBe(cairnHome.dir);
   });
 });
+
+describe("background updates on launch", () => {
+  it("starts a run for its own home without blocking startup", async () => {
+    const { startBackgroundUpdates } = await import("./index.js");
+    const calls: { dir: string; trigger: string }[] = [];
+
+    const returned = startBackgroundUpdates({
+      home: "/tmp/cairn-home",
+      runUpdates: async (dir: string, trigger: string) => { calls.push({ dir, trigger }); return {}; },
+    });
+
+    // fire and forget: boot never awaits it, and nothing has run yet at this point
+    expect(returned).toBeUndefined();
+    expect(calls).toEqual([]);
+    // the run goes through the serialized withHome queue, so it lands a few ticks later
+    for (let i = 0; i < 50 && calls.length === 0; i++) await new Promise((r) => setTimeout(r, 10));
+    expect(calls).toEqual([{ dir: "/tmp/cairn-home", trigger: "cairn" }]);
+  });
+
+  it("survives an engine that throws, because the dashboard still has to open", async () => {
+    const { startBackgroundUpdates } = await import("./index.js");
+    expect(() => startBackgroundUpdates({
+      home: "/tmp/cairn-home",
+      runUpdates: async () => { throw new Error("boom"); },
+    })).not.toThrow();
+    await new Promise((r) => setTimeout(r, 0));
+  });
+});
