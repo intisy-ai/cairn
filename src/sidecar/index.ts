@@ -1,4 +1,5 @@
 import type { Result } from "../../packages/shared/src/domain.js";
+import { isReadOnlyChannel } from "../../packages/shared/src/ipc.js";
 import { initCoreProxy } from "@core-proxy/index.js";
 import { err } from "./result.js";
 import { configGet, configSet } from "./modules/config.js";
@@ -61,9 +62,11 @@ export async function dispatch(channel: string, args: unknown[]): Promise<Result
   const handler = handlers[channel];
   if (!handler) return err(`no handler registered for channel: ${channel}`);
   try {
-    // One scope over every registered channel: whatever a handler goes on to do
-    // inherits "a user did this, here", so no handler needs its own attribution.
-    return await withCause({ kind: "user", surface: channel }, () => handler(...args));
+    // One scope over every registered channel, so no handler needs its own attribution.
+    // A read is the dashboard watching state (often on a timer); everything else is a
+    // change someone asked for.
+    const kind = isReadOnlyChannel(channel) ? "watch" : "user";
+    return await withCause({ kind, surface: channel }, () => handler(...args));
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e));
   }

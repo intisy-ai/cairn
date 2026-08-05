@@ -19,14 +19,28 @@ describe("dispatch", () => {
     expect(await dispatch("succeeds", [5])).toEqual({ ok: true, data: 5 });
   });
 
-  it("runs every handler inside a user cause naming its channel", async () => {
+  async function causeFor(channel: string): Promise<{ kind: string; surface?: string }> {
     let seen: { kind: string; surface?: string } | null = null;
-    registerHandler("probes-cause", async () => { seen = currentCause(); return ok(null); });
-
-    expect(await dispatch("probes-cause", [])).toEqual({ ok: true, data: null });
+    registerHandler(channel, async () => { seen = currentCause(); return ok(null); });
+    expect(await dispatch(channel, [])).toEqual({ ok: true, data: null });
     expect(seen).not.toBeNull();
-    expect((seen as unknown as { kind: string }).kind).toBe("user");
-    expect((seen as unknown as { surface?: string }).surface).toBe("probes-cause");
+    return seen as unknown as { kind: string; surface?: string };
+  }
+
+  it("runs a state-changing handler inside a user cause naming its channel", async () => {
+    const cause = await causeFor("probes:setEnabled");
+    expect(cause.kind).toBe("user");
+    expect(cause.surface).toBe("probes:setEnabled");
+  });
+
+  it("does not claim a user action for a read the dashboard polls", async () => {
+    expect((await causeFor("probes:list")).kind).toBe("watch");
+    expect((await causeFor("probes:read")).kind).toBe("watch");
+    expect((await causeFor("probes:status")).kind).toBe("watch");
+  });
+
+  it("treats an unrecognized channel shape as a change, not as a read", async () => {
+    expect((await causeFor("probes-cause")).kind).toBe("user");
   });
 });
 

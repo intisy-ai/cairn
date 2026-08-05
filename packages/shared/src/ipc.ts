@@ -107,3 +107,17 @@ type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 // more and no less. A drift on either side turns this into `never` and fails the build.
 const _invokeChannelsMatchApi: Exact<InvokeMethod, ApiInvokeMethod> = true;
 void _invokeChannelsMatchApi;
+
+// A channel whose action only READS state. The dashboard polls several of these on a
+// timer, so attributing them to a user action would make routine polling look like
+// something a person did. Anything not listed here is treated as a change.
+const READ_ONLY_ACTIONS: readonly string[] = [
+  "apps", "connection", "detect", "diffRefs", "drain", "device-poll", "get", "homes",
+  "list", "meta", "metaCached", "preview", "read", "schemas", "snapshot", "stats",
+  "status", "summary", "versions", "versionsAll", "versionsCached",
+];
+
+export function isReadOnlyChannel(channel: string): boolean {
+  const at = String(channel).indexOf(":");
+  return at >= 0 && READ_ONLY_ACTIONS.includes(channel.slice(at + 1));
+}
