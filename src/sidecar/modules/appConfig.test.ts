@@ -25,18 +25,21 @@ describe("appConfig sidecar module", () => {
       { name: "plugin-b", url: "https://github.com/intisy-ai/plugin-b", enabled: true },
     ]);
 
-    const probe = vi.fn(async (bundlePath: string): Promise<PluginConfigSchema | null> => {
-      expect(bundlePath.replaceAll("\\", "/")).toContain("/plugin/plugin-a.js");
-      return { plugin: "plugin-a", defaults: { logging: true }, current: {} };
+    // Only the plugin with a deployed bundle is offered for declaration resolution at all,
+    // so a plugin with nothing to run is skipped without paying for a probe.
+    const declarations = vi.fn(async (bundles: { plugin: string; path: string }[]) => {
+      expect(bundles.map((b) => b.plugin)).toEqual(["plugin-a"]);
+      expect(bundles[0].path.replaceAll("\\", "/")).toContain("/plugin/plugin-a.js");
+      return new Map([["plugin-a", { defaults: { logging: true } }]]);
     });
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], probe, engineSchemas: async () => [] });
+    const result = await configSchemas("claude", { homes: [home], declarations, engineSchemas: async () => [] });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data).toEqual([{ plugin: "plugin-a", defaults: { logging: true }, current: {} }]);
-    expect(probe).toHaveBeenCalledTimes(1);
+    expect(declarations).toHaveBeenCalledTimes(1);
   });
 
   it("omits a plugin when the probe returns null", async () => {
@@ -45,7 +48,7 @@ describe("appConfig sidecar module", () => {
     seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], probe: async () => null, engineSchemas: async () => [] });
+    const result = await configSchemas("claude", { homes: [home], declarations: async () => new Map(), engineSchemas: async () => [] });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
@@ -55,7 +58,7 @@ describe("appConfig sidecar module", () => {
   it("returns ok:false for an unknown home id", async () => {
     const { home } = makeHome("claude", "Claude Code");
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("nope", { homes: [home], probe: async () => null });
+    const result = await configSchemas("nope", { homes: [home], declarations: async () => new Map() });
     expect(result.ok).toBe(false);
   });
 
@@ -203,13 +206,12 @@ describe("appConfig sidecar module", () => {
     writeFileSync(join(dir, "plugin", "plugin-a.js"), "// bundle", "utf8");
     seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
 
-    const probe = async (): Promise<PluginConfigSchema> => ({
-      plugin: "plugin-a", defaults: { x: 1 }, current: {},
-      fields: [{ key: "x", type: "number" }], actions: [{ id: "go", label: "Go" }],
-    });
+    const declarations = async () => new Map([["plugin-a", {
+      defaults: { x: 1 }, fields: [{ key: "x", type: "number" as const }], actions: [{ id: "go", label: "Go" }],
+    }]]);
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], probe, engineSchemas: async () => [] });
+    const result = await configSchemas("claude", { homes: [home], declarations, engineSchemas: async () => [] });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data[0].fields).toEqual([{ key: "x", type: "number" }]);
@@ -225,7 +227,7 @@ describe("engine-contributed settings", () => {
     const { home } = makeHome("cairn", "Cairn");
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("cairn", { homes: [home], probe: async () => null });
+    const result = await configSchemas("cairn", { homes: [home], declarations: async () => new Map() });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
@@ -240,7 +242,7 @@ describe("engine-contributed settings", () => {
     writeFileSync(join(dir, "config", "plugin-updater.json"), JSON.stringify({ auto_update_mode: "check" }), "utf8");
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("cairn", { homes: [home], probe: async () => null });
+    const result = await configSchemas("cairn", { homes: [home], declarations: async () => new Map() });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
@@ -255,7 +257,7 @@ describe("engine-contributed settings", () => {
     const { configSchemas } = await import("./appConfig.js");
     const result = await configSchemas("claude", {
       homes: [home],
-      probe: async () => ({ plugin: "plugin-updater", defaults: { probed: true }, current: {} }),
+      declarations: async () => new Map([["plugin-updater", { defaults: { probed: true } }]]),
     });
 
     expect(result.ok).toBe(true);
@@ -269,7 +271,7 @@ describe("engine-contributed settings", () => {
     const { home } = makeHome("claude", "Claude Code");
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [{ ...home, hasUpdater: false }], probe: async () => null });
+    const result = await configSchemas("claude", { homes: [{ ...home, hasUpdater: false }], declarations: async () => new Map() });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
@@ -296,7 +298,7 @@ describe("engine-contributed settings", () => {
     const { configWrite, configSchemas } = await import("./appConfig.js");
     expect((await configWrite("cairn", "plugin-updater", "auto_update_triggers.app", false, { homes: [home] })).ok).toBe(true);
 
-    const result = await configSchemas("cairn", { homes: [home], probe: async () => null });
+    const result = await configSchemas("cairn", { homes: [home], declarations: async () => new Map() });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data.find((s) => s.plugin === "plugin-updater")!.current.auto_update_triggers).toEqual({
