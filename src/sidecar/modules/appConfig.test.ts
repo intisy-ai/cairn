@@ -287,6 +287,23 @@ describe("engine-contributed settings", () => {
     expect(onDisk.auto_update_mode).toBe("check");
   });
 
+  // The triggers are declared as dot-path fields, so a generic control edits one of them
+  // without rewriting its siblings.
+  it("writes one nested trigger and reads the whole object back", async () => {
+    const { dir, home } = makeHome("cairn", "Cairn");
+    writeFileSync(join(dir, "config", "plugin-updater.json"), JSON.stringify({ auto_update_triggers: { loader: true, app: true, cairn: true } }), "utf8");
+
+    const { configWrite, configSchemas } = await import("./appConfig.js");
+    expect((await configWrite("cairn", "plugin-updater", "auto_update_triggers.app", false, { homes: [home] })).ok).toBe(true);
+
+    const result = await configSchemas("cairn", { homes: [home], probe: async () => null });
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data.find((s) => s.plugin === "plugin-updater")!.current.auto_update_triggers).toEqual({
+      loader: true, app: false, cairn: true,
+    });
+  });
+
   it("still refuses a plugin that is neither installed nor an engine", async () => {
     const { home } = makeHome("cairn", "Cairn");
 

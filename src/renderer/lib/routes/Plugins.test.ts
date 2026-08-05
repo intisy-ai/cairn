@@ -113,6 +113,24 @@ describe("Plugins screen", () => {
     expect(screen.queryByRole("button", { name: "Update" })).toBeNull();
   });
 
+  // A plugin behind in a home nothing manages cannot be pulled, so "Update all" would be
+  // a button that does nothing.
+  it("offers Update all only when something behind sits in a home with an updater", async () => {
+    const behindWhereUnmanaged = [
+      { home: home("cairn", "Cairn"), rows: [] },
+      { home: home("claude", "Claude Code", { hasUpdater: false }), rows: [{ name: "wakatime-sync", kind: "git" as const, enabled: true, updateAvailable: true, description: "Tracks time" }] },
+    ];
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: behindWhereUnmanaged }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+    });
+    render(Plugins);
+    await screen.findByText("wakatime-sync");
+
+    expect(screen.getByRole("button", { name: "Check for updates" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Update all" })).toBeNull();
+  });
+
   it("checks only the homes that actually have an updater", async () => {
     const mixed = [
       { home: home("cairn", "Cairn", { hasUpdater: false }), rows: [] },

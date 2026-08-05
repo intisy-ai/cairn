@@ -137,7 +137,9 @@
     favoritesOnly = false;
   }
   const addPluginHome = $derived(homes[0]?.id ?? "cairn");
-  const anyUpdateAvailable = $derived(unified.some((p) => p.updateAvailable));
+  // Only counts what an updater could actually pull, so the button never promises a
+  // no-op for a plugin sitting behind in an unmanaged home.
+  const anyUpdateAvailable = $derived(unified.some((p) => behindHomesFor(p).length > 0));
   // Derive from the live list by name so the open detail reflects installs/removes.
   const selectedPlugin = $derived(selectedName ? unified.find((p) => p.name === selectedName) ?? null : null);
   const showRateLimitBanner = $derived(catalogRateLimited && !!ghStatus && !ghStatus.connected && !rateLimitBannerDismissed);
