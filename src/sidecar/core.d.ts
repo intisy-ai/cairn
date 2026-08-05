@@ -71,6 +71,7 @@ declare module "@core/index.js" {
   export function setActivityContext(patch: { app?: string; entry?: string; home?: string; target?: ActivityTarget }): void;
   export function getActivityContext(): { app?: string; entry?: string; home?: string; target?: ActivityTarget };
   export function withCause<T>(cause: ActivityCause, fn: () => T): T;
+  export function activityEnv(): Record<string, string>;
   export function currentCause(): ActivityCause;
   export function normalizeActivity(envelope: EventEnvelope, home?: string): ActivityRecord;
   export function readActivity(homes: string[], query?: ActivityQuery): { records: ActivityRecord[]; nextCursor?: string };
