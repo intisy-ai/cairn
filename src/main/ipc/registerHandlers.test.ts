@@ -26,5 +26,9 @@ describe("registerHandlers", () => {
 
     expect(calls.find((c) => c.channel === "plugins:install")?.timeout).toBe(600000);
     expect(calls.find((c) => c.channel === "providers:list")?.timeout).toBeUndefined();
+    // Resolving a home's plugin declarations can legitimately need seconds on a cold cache,
+    // which the 15s default is too tight for.
+    expect(calls.find((c) => c.channel === "config:schemas")?.timeout).toBe(60000);
+    expect(calls.find((c) => c.channel === "menus:list")?.timeout).toBe(60000);
   });
 });

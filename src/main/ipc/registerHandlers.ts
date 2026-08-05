@@ -16,7 +16,13 @@ const MAIN_HANDLED = new Set(["proxy:status", "proxy:start", "proxy:stop"]);
 // Channels that do real work (git clone + npm install + build, a full usage scan,
 // a cross-app sync) need deadlines far wider than the supervisor's 15s default.
 const LONG_MS = 600000;
+// Resolving a home's plugin declarations spawns each plugin's bundle. That is cached by
+// bundle identity and bounded (MAX_PARALLEL x PROBE_TIMEOUT_MS in the sidecar's schemaProbe),
+// but a cold cache across several homes still outlasts the 15s default.
+const PROBING_MS = 60000;
 const CHANNEL_TIMEOUTS: Record<string, number> = {
+  "config:schemas": PROBING_MS,
+  "menus:list": PROBING_MS,
   "usage:snapshot": 120000,
   "plugins:versionsAll": 120000,
   "repo:meta": 60000,
