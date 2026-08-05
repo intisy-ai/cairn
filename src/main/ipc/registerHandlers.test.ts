@@ -23,6 +23,8 @@ describe("registerHandlers", () => {
 
     await handlers["plugins:install"]({}, "a", "b", "c");
     await handlers["providers:list"]({});
+    await handlers["config:schemas"]({}, "claude");
+    await handlers["menus:list"]({});
 
     expect(calls.find((c) => c.channel === "plugins:install")?.timeout).toBe(600000);
     expect(calls.find((c) => c.channel === "providers:list")?.timeout).toBeUndefined();
