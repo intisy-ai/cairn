@@ -7,6 +7,7 @@
   import Card from "../components/Card.svelte";
   import SearchField from "../components/SearchField.svelte";
   import Chip from "../components/Chip.svelte";
+  import ActivityRow from "../components/ActivityRow.svelte";
   import Skeleton from "../components/Skeleton.svelte";
   import ErrorState from "../components/ErrorState.svelte";
   import EmptyState from "../components/EmptyState.svelte";
@@ -56,33 +57,6 @@
 
   function toggleExpanded(id: string): void {
     expandedId = expandedId === id ? null : id;
-  }
-
-  function impactVariant(impact: Impact): string {
-    if (impact === "error") return "crit";
-    if (impact === "warning") return "warn";
-    if (impact === "notice") return "accent";
-    if (impact === "info") return "muted";
-    return "faint";
-  }
-
-  function impactGlyph(impact: Impact): string {
-    if (impact === "error") return "●";
-    if (impact === "warning") return "▲";
-    if (impact === "notice") return "◆";
-    if (impact === "info") return "○";
-    return "·";
-  }
-
-  function relativeTime(ts: number): string {
-    const diffSec = Math.max(0, Math.round((Date.now() - ts) / 1000));
-    if (diffSec < 60) return "just now";
-    const diffMin = Math.round(diffSec / 60);
-    if (diffMin < 60) return `${diffMin}m ago`;
-    const diffHour = Math.round(diffMin / 60);
-    if (diffHour < 24) return `${diffHour}h ago`;
-    const diffDay = Math.round(diffHour / 24);
-    return `${diffDay}d ago`;
   }
 
   // Merges by id (priority wins on a duplicate) and sorts newest-first, so a
@@ -172,15 +146,7 @@
     <ul class="list">
       {#each filtered as record (record.id)}
         <li>
-          <button type="button" class="row" onclick={() => toggleExpanded(record.id)} aria-expanded={expandedId === record.id}>
-            <span class="impact impact-{impactVariant(record.impact)}" title={record.impact}>{impactGlyph(record.impact)}</span>
-            <span class="text" title={record.text}>{record.text}</span>
-            <span class="home">{humanizeId(record.home)}</span>
-            <span class="time">{relativeTime(record.ts)}</span>
-          </button>
-          {#if expandedId === record.id}
-            <pre class="details">{JSON.stringify(record.details, null, 2)}</pre>
-          {/if}
+          <ActivityRow record={record} expanded={expandedId === record.id} ontoggle={() => toggleExpanded(record.id)} />
         </li>
       {/each}
     </ul>
@@ -261,76 +227,5 @@
     list-style: none;
     margin: 0;
     padding: 0;
-  }
-  .row {
-    width: 100%;
-    display: grid;
-    grid-template-columns: 20px minmax(0, 1fr) auto auto;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 16px;
-    border: none;
-    border-top: 1px solid var(--border);
-    background: none;
-    font-family: var(--ui);
-    text-align: left;
-    cursor: pointer;
-  }
-  li:first-child .row {
-    border-top: 0;
-  }
-  .row:hover {
-    background: var(--surface-2);
-  }
-  .impact {
-    text-align: center;
-    font-size: 12px;
-  }
-  .impact-crit {
-    color: var(--crit);
-  }
-  .impact-warn {
-    color: var(--warn);
-  }
-  .impact-accent {
-    color: var(--accent);
-  }
-  .impact-muted {
-    color: var(--muted);
-  }
-  .impact-faint {
-    color: var(--faint);
-  }
-  .text {
-    font-size: 13px;
-    color: var(--text);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .home {
-    font-size: 11px;
-    color: var(--faint);
-    background: var(--surface-2);
-    border-radius: 20px;
-    padding: 2px 9px;
-    white-space: nowrap;
-  }
-  .time {
-    font-size: 11.5px;
-    color: var(--faint);
-    white-space: nowrap;
-    font-family: var(--mono);
-  }
-  .details {
-    margin: 0;
-    padding: 12px 16px 14px 48px;
-    background: var(--surface-2);
-    border-top: 1px solid var(--border);
-    font-family: var(--mono);
-    font-size: 11.5px;
-    color: var(--muted);
-    overflow-x: auto;
-    white-space: pre;
   }
 </style>
