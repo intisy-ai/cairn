@@ -69,22 +69,20 @@
 </script>
 
 {#snippet menu()}
-  <div class="imenu">
-    {#each behindInstalledHomes as h (h.id)}
-      <button class="mrow" onclick={() => onUpdateHome?.(h.id)}>Update in {h.label}</button>
-    {/each}
-    {#each homes as h (h.id)}
-      {@const on = !!plugin.homes[h.id]?.installed}
-      {#if on}
-        <button class="mrow danger" onclick={() => onToggleHome(h.id, false)}>Remove from {h.label}</button>
-      {:else}
-        <button class="mrow" onclick={() => onToggleHome(h.id, true)}>Install in {h.label}</button>
-      {/if}
-    {/each}
-    {#if installedCount > 0 && (!fullyInstalled || isUpdate)}
-      <button class="mrow danger" onclick={onRemoveEverywhere}>Remove everywhere</button>
+  {#each behindInstalledHomes as h (h.id)}
+    <button onclick={() => onUpdateHome?.(h.id)}>Update in {h.label}</button>
+  {/each}
+  {#each homes as h (h.id)}
+    {@const on = !!plugin.homes[h.id]?.installed}
+    {#if on}
+      <button class="danger" onclick={() => onToggleHome(h.id, false)}>Remove from {h.label}</button>
+    {:else}
+      <button onclick={() => onToggleHome(h.id, true)}>Install in {h.label}</button>
     {/if}
-  </div>
+  {/each}
+  {#if installedCount > 0 && (!fullyInstalled || isUpdate)}
+    <button class="danger" onclick={onRemoveEverywhere}>Remove everywhere</button>
+  {/if}
 {/snippet}
 
 <SplitButton
@@ -98,9 +96,4 @@
 />
 
 <style>
-  .imenu {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
 </style>
