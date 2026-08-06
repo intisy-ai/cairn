@@ -6,6 +6,7 @@
     record,
     expanded = false,
     follower = false,
+    depth = 1,
     followerCount = 0,
     cascadeExpanded = false,
     ontoggle,
@@ -14,6 +15,7 @@
     record: ActivityRecord;
     expanded?: boolean;
     follower?: boolean;
+    depth?: number;
     followerCount?: number;
     cascadeExpanded?: boolean;
     ontoggle: () => void;
@@ -61,6 +63,14 @@
     return "";
   });
 
+  // Which copy ran this hop: the app and home it acted on plus its entry point, so a
+  // flow naming several plugin managers says which one.
+  const hopWhere = $derived.by(() => {
+    const origin = record.origin;
+    if (!origin) return "";
+    return [origin.app ? humanizeId(origin.app) : "", origin.entry ?? ""].filter(Boolean).join(" - ");
+  });
+
   const causeParts = $derived.by(() => {
     const parts: string[] = [];
     if (record.cause?.kind) parts.push(record.cause.kind);
@@ -77,7 +87,7 @@
   }
 </script>
 
-<div class="wrap" class:follower>
+<div class="wrap" class:follower data-testid={follower ? "activity-hop" : undefined} style={follower ? `--depth: ${depth}` : undefined}>
   <div class="line">
     <button type="button" class="row" onclick={ontoggle} aria-expanded={expanded}>
       <span class="impact impact-{impactVariant(record.impact)}" title={record.impact}>{impactGlyph(record.impact)}</span>
@@ -101,6 +111,10 @@
       >+{followerCount}</button>
     {/if}
   </div>
+
+  {#if follower && hopWhere}
+    <p class="hop-where">{hopWhere}</p>
+  {/if}
 
   {#if causeParts.length > 0}
     <p class="cause" data-testid="activity-cause">{causeParts.join(" / ")}</p>
@@ -133,8 +147,14 @@
     border-bottom: 1px solid var(--border);
   }
   .follower {
-    padding-left: 22px;
+    padding-left: calc(22px + (var(--depth, 1) - 1) * 16px);
     background: var(--bg-subtle, transparent);
+    border-left: 1px solid var(--border);
+  }
+  .hop-where {
+    margin: 0 0 4px 22px;
+    font-size: 11px;
+    color: var(--muted);
   }
   .row {
     display: flex;

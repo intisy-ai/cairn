@@ -137,4 +137,23 @@ describe("ActivityRow", () => {
     const { getByText } = render(ActivityRow, { props: { record: bare, expanded: false, ontoggle: noop } });
     expect(getByText("Switched provider")).toBeInTheDocument();
   });
+  it("indents a hop by its depth and names where it ran", () => {
+    const { container } = render(ActivityRow, {
+      props: {
+        record: record({ origin: { app: "claude", home: "/home/me/.claude", entry: "updater", pid: 1 } } as Partial<ActivityRecord>),
+        follower: true,
+        depth: 2,
+        ontoggle: noop,
+      },
+    });
+    const hop = container.querySelector("[data-testid='activity-hop']") as HTMLElement;
+    expect(hop).toBeTruthy();
+    expect(hop.style.getPropertyValue("--depth")).toBe("2");
+    expect(container.textContent).toContain("updater");
+  });
+
+  it("marks a root row as no hop at all", () => {
+    const { container } = render(ActivityRow, { props: { record: record(), ontoggle: noop } });
+    expect(container.querySelector("[data-testid='activity-hop']")).toBeNull();
+  });
 });

@@ -174,12 +174,13 @@
             oncascade={() => toggleGroup(group.root.id)}
           />
           {#if expandedGroupId === group.root.id}
-            {#each group.followers as follower (follower.id)}
+            {#each group.followers as hop (hop.record.id)}
               <ActivityRow
-                record={follower}
+                record={hop.record}
                 follower={true}
-                expanded={expandedId === follower.id}
-                ontoggle={() => toggleExpanded(follower.id)}
+                depth={hop.depth}
+                expanded={expandedId === hop.record.id}
+                ontoggle={() => toggleExpanded(hop.record.id)}
               />
             {/each}
           {/if}
