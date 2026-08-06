@@ -4,11 +4,13 @@
   import { formatBytes, formatRate, formatDuration } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { rows, cancelRow, clearFinished, type DownloadRow } from "../downloads.js";
+  import { groupHistory } from "../util/downloadHistory.js";
   import { humanizeId } from "../util/appLabel.js";
   import PageHeader from "../components/PageHeader.svelte";
   import Card from "../components/Card.svelte";
   import Button from "../components/Button.svelte";
   import EmptyState from "../components/EmptyState.svelte";
+  import Skeleton from "../components/Skeleton.svelte";
   import SpeedGraph from "../charts/SpeedGraph.svelte";
 
   const LIVE = ["pending", "installing", "cancelling"];
@@ -23,11 +25,12 @@
   let now = $state(Date.now());
 
   let installed = $state<Set<string>>(new Set());
+  let historyLoading = $state(true);
 
   async function loadInstalled(): Promise<void> {
     const result = await cairn.pluginsList();
-    if (!result.ok) return;
-    installed = new Set(result.data.flatMap((section) => section.rows.map((row) => row.name)));
+    if (result.ok) installed = new Set(result.data.flatMap((section) => section.rows.map((row) => row.name)));
+    historyLoading = false;
   }
 
   async function loadHistory(): Promise<void> {
@@ -57,40 +60,8 @@
     return formatDuration(Math.max(0, (row.endedAt ?? now) - (row.startedAt ?? row.queuedAt)));
   }
 
-  function shortVersion(value: unknown): string {
-    return typeof value === "string" && value ? value.slice(0, 8) : "";
-  }
-
-  function versionChange(record: ActivityRecord): { from: string; to: string } {
-    return {
-      from: shortVersion(record.details?.fromVersion),
-      to: shortVersion(record.details?.toVersion ?? record.details?.version),
-    };
-  }
-
-  function historyHome(record: ActivityRecord): string {
-    return record.origin?.app ? humanizeId(record.origin.app) : "";
-  }
-
-  function outcomeOf(record: ActivityRecord): string {
-    return record.outcome === "failed" ? "failed" : "ok";
-  }
-
-  const visibleHistory = $derived.by(() => {
-    const seen = new Set<string>();
-    const out: ActivityRecord[] = [];
-    for (const record of [...history].sort((a, b) => b.ts - a.ts)) {
-      const plugin = record.subject?.id;
-      if (!plugin || record.ts <= hiddenBefore) continue;
-      if (!installed.has(plugin)) continue;
-      const key = `${plugin}:${record.origin?.app ?? ""}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(record);
-    }
-    return out;
-  });
-  const hasAnything = $derived(active.length + queued.length + recentRows.length + visibleHistory.length > 0);
+  const visibleHistory = $derived(groupHistory(history, { installed, hiddenBefore }));
+  const hasAnything = $derived(historyLoading || active.length + queued.length + recentRows.length + visibleHistory.length > 0);
   const totalRate = $derived(active.reduce((sum, r) => sum + (r.bytesPerSecond ?? 0), 0));
 
   function clearAll(): void {
@@ -188,43 +159,50 @@
     </Card>
   {/if}
 
-  {#if recentRows.length > 0 || visibleHistory.length > 0}
+  {#if historyLoading}
     <Card>
-      <table class="log">
-        <thead>
-          <tr>
-            <th>Result</th>
-            <th>Work</th>
-            <th>Home</th>
-            <th class="num">Took</th>
-            <th class="num">Version</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each recentRows as row (row.id)}
-            <tr data-testid="recent-row">
-              <td class="out out-{row.status}">{row.status === "done" ? "ok" : row.status}</td>
-              <td class="lname">{row.label}</td>
-              <td class="lhome">{row.home}</td>
-              <td class="ltime num">{elapsed(row)}</td>
-              <td class="lver">{#if row.error}<span class="err" title={row.error}>{row.error}</span>{/if}</td>
-            </tr>
-          {/each}
-          {#each visibleHistory as record (record.id)}
-            {@const change = versionChange(record)}
-            <tr data-testid="history-row">
-              <td class="out out-{outcomeOf(record)}">{outcomeOf(record)}</td>
-              <td class="lname">{record.subject?.label ?? record.subject?.id}</td>
-              <td class="lhome">{historyHome(record)}</td>
-              <td class="ltime num">{typeof record.durationMs === "number" ? formatDuration(record.durationMs) : ""}</td>
-              <td class="lver num">
-                {#if change.from && change.to}<span class="from">{change.from}</span><span class="to">{change.to}</span>
-                {:else if change.to}<span class="to">{change.to}</span>{/if}
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+      <h3 class="section">Recent</h3>
+      <Skeleton height="34px" radius="8px" lines={4} />
+    </Card>
+  {:else if recentRows.length > 0 || visibleHistory.length > 0}
+    <Card>
+      <h3 class="section">Recent</h3>
+      <ul class="log">
+        <!-- This session's own work keeps its duration, which is the only place a real one exists. -->
+        {#each recentRows as row (row.id)}
+          <li data-testid="recent-row" class:bad={row.status === "failed"}>
+            <span class="dot" class:crit={row.status === "failed"} class:idle={row.status === "cancelled"}></span>
+            <span class="what">{row.label}</span>
+            <span class="took num">{elapsed(row)}</span>
+            {#if row.error}
+              <span class="why" title={row.error}>{row.error}</span>
+            {:else if row.status === "cancelled"}
+              <span class="why">cancelled</span>
+            {:else}
+              <span class="where"><span class="chip">{row.home}</span></span>
+            {/if}
+          </li>
+        {/each}
+        {#each visibleHistory as entry (entry.key)}
+          <li data-testid="history-row" class:bad={entry.failed}>
+            <span class="dot" class:crit={entry.failed}></span>
+            <span class="what">{entry.plugin}</span>
+            <span class="ver num">
+              {#if entry.fromVersion}<span class="from">{entry.fromVersion}</span>{/if}
+              {#if entry.toVersion}<span class="to">{entry.toVersion}</span>{/if}
+            </span>
+            {#if entry.failed && entry.error}
+              <span class="why" title={entry.error}>{entry.error}</span>
+            {:else}
+              <span class="where">
+                {#each entry.homes as home (home)}
+                  <span class="chip">{humanizeId(home)}</span>
+                {/each}
+              </span>
+            {/if}
+          </li>
+        {/each}
+      </ul>
     </Card>
   {/if}
 {/if}
@@ -429,86 +407,77 @@
     color: var(--faint);
   }
 
-  /* History as a real table so every column lines up down the page. */
+  /* One line per plugin: status, name, version and the homes it landed in, as a grid so the
+     columns line up down the page and nothing is stranded against the far edge. */
   .log {
-    width: 100%;
-    border-collapse: collapse;
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
-  .log tr {
+  .log li {
+    display: grid;
+    grid-template-columns: 7px minmax(0, 15rem) 7.5rem minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    padding: 7px 0;
     border-top: 1px solid var(--border);
+    font-size: 12.5px;
   }
-  .log tr:first-child {
+  .log li:first-child {
     border-top: none;
   }
-  .log th {
-    text-align: left;
-    padding: 0 12px 8px 0;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--faint);
-    border-bottom: 1px solid var(--border);
-    white-space: nowrap;
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--good);
   }
-  .log th.num {
-    text-align: right;
+  .dot.crit {
+    background: var(--crit);
   }
-  .log td {
-    padding: 5px 12px 5px 0;
-    font-size: 12.5px;
-    vertical-align: baseline;
-    white-space: nowrap;
+  .dot.idle {
+    background: var(--faint);
+  }
+  .what {
+    font-weight: 500;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
   }
-  .out {
-    width: 58px;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-  }
-  .out-done,
-  .out-ok {
-    color: var(--good);
-  }
-  .out-failed {
-    color: var(--crit);
-  }
-  .out-cancelled {
-    color: var(--faint);
-  }
-  .lname {
-    font-weight: 500;
-    max-width: 0;
-  }
-  .lhome {
-    color: var(--muted);
-    font-size: 11.5px;
-    width: 26%;
-    max-width: 0;
-  }
-  .ltime {
-    width: 76px;
-    text-align: right;
-    color: var(--muted);
-    font-size: 11.5px;
-  }
-  .lver {
-    width: 30%;
-    text-align: right;
+  .ver,
+  .took {
     font-size: 11px;
     color: var(--faint);
     white-space: nowrap;
   }
-  .lver .from::after {
-    content: "→";
-    margin: 0 5px;
+  .ver .from::after {
+    content: "92";
+    margin: 0 4px;
     color: var(--border-strong);
   }
-  .lver .to {
+  .ver .to {
     color: var(--muted);
   }
-  .err {
+  .where {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    min-width: 0;
+  }
+  .chip {
+    padding: 1px 7px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 10.5px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .why {
+    grid-column: 4;
     color: var(--crit);
     font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>

@@ -96,8 +96,9 @@ describe("Downloads screen", () => {
     seedJobsForTest([job({ id: "old", plugin: "failed-one", status: "failed", error: "disk full", endedAt: 1000 })]);
     historyRecords = [record()];
     const { container } = render(Downloads);
-    expect(container.querySelector("[data-testid='recent-row']")).toBeTruthy();
+    // Recent shows a skeleton until the installed set resolves, so the rows are awaited.
     expect(await screen.findByText("config-ledger")).toBeTruthy();
+    expect(container.querySelector("[data-testid='recent-row']")).toBeTruthy();
     expect(await screen.findByText("disk full")).toBeTruthy();
   });
 
@@ -141,25 +142,38 @@ describe("Downloads screen", () => {
     expect(container.querySelector("svg path.trace")).toBeNull();
   });
 
-  it("lists one entry per plugin and home, keeping the newest", async () => {
+  it("keeps only the newest version of a plugin", async () => {
     historyRecords = [
-      record({ id: "old", ts: 1000, durationMs: 1000 }),
-      record({ id: "new", ts: 2000, durationMs: 2000 }),
+      record({ id: "old", ts: 1000, details: { version: "aaaaaaaa11" } }),
+      record({ id: "new", ts: 2000, details: { version: "bbbbbbbb22" } }),
+    ];
+    const { container } = render(Downloads);
+    await screen.findByText("bbbbbbbb");
+    // Both versions are real history, so both stay; the newest leads.
+    const versions = [...container.querySelectorAll("[data-testid='history-row'] .to")].map((n) => n.textContent);
+    expect(versions[0]).toBe("bbbbbbbb");
+  });
+
+  // Three near-identical rows for one plugin at one version is what made this a data dump.
+  it("collapses one plugin at one version into a single row listing its homes", async () => {
+    historyRecords = [
+      record({ id: "a", ts: 3, origin: { app: "claude", home: "/c" } } as Partial<ActivityRecord>),
+      record({ id: "b", ts: 2, origin: { app: "opencode", home: "/o" } } as Partial<ActivityRecord>),
+      record({ id: "c", ts: 1, origin: { app: "cairn", home: "/k" } } as Partial<ActivityRecord>),
     ];
     const { container } = render(Downloads);
     await screen.findByText("config-ledger");
-    expect(container.querySelectorAll("[data-testid='history-row']")).toHaveLength(1);
-    expect(container.querySelector("[data-testid='history-row']")).toHaveTextContent("2.0s");
+    const rows = container.querySelectorAll("[data-testid='history-row']");
+    expect(rows).toHaveLength(1);
+    expect([...rows[0].querySelectorAll(".chip")].map((c) => c.textContent)).toEqual(["Claude", "Opencode", "Cairn"]);
   });
 
-  it("keeps a plugin's entries apart per home", async () => {
-    historyRecords = [
-      record({ id: "a", origin: { app: "claude", home: "/c" } } as Partial<ActivityRecord>),
-      record({ id: "b", origin: { app: "opencode", home: "/o" } } as Partial<ActivityRecord>),
-    ];
+  it("carries no column the log cannot fill", async () => {
+    historyRecords = [record()];
     const { container } = render(Downloads);
-    await screen.findAllByText("config-ledger");
-    expect(container.querySelectorAll("[data-testid='history-row']")).toHaveLength(2);
+    await screen.findByText("config-ledger");
+    expect(container.querySelector("thead")).toBeNull();
+    expect(container.textContent).not.toContain("Took");
   });
 
   it("leaves out history for a plugin that is no longer installed", async () => {

@@ -384,35 +384,9 @@
     font-style: italic;
     color: var(--faint);
   }
-  .toggle.update {
-    color: var(--accent);
-    border-color: var(--accent-border);
-    background: var(--accent-weak);
-  }
   .auto {
     display: inline-flex;
     align-items: center;
-  }
-  .toggle {
-    font-size: 11.5px;
-    font-weight: 600;
-    border: 1px solid var(--border-strong);
-    background: var(--surface);
-    color: var(--text);
-    border-radius: 7px;
-    padding: 4px 12px;
-    cursor: pointer;
-  }
-  .toggle:hover {
-    background: var(--surface-2);
-  }
-  .toggle.on {
-    color: var(--crit);
-    border-color: var(--crit);
-  }
-  .toggle:disabled {
-    opacity: .5;
-    cursor: default;
   }
   .controls {
     display: flex;
