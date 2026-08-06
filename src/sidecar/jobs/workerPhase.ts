@@ -1,0 +1,40 @@
+// Reads the plugin manager's own progress off a worker's stderr. A job's coarse phases come
+// from the worker itself and jump straight from the git fetch to registering, which left an
+// update sitting at one percentage for the whole npm install and build. The manager already
+// says what it is doing in its log; mirroring that to stderr and reading it here is what makes
+// those minutes legible.
+//
+// Matching is on the shape of the manager's log lines, not on any plugin or app name.
+
+export interface WorkerPhase {
+  phase: string;
+  percent: number;
+}
+
+// Ordered: the first pattern that matches a line wins, and later stages carry higher
+// percentages so the bar only ever moves forward (the job model clamps it monotonically).
+const STAGES: Array<{ pattern: RegExp; phase: string; percent: number }> = [
+  { pattern: /\bRunning npm install\b/i, phase: "installing dependencies", percent: 30 },
+  { pattern: /\bFinished npm install\b/i, phase: "dependencies installed", percent: 45 },
+  { pattern: /\bRunning npm run build\b/i, phase: "building", percent: 50 },
+  { pattern: /\bSkipped npm run build\b/i, phase: "building", percent: 65 },
+  { pattern: /\bFinished npm run build\b/i, phase: "built", percent: 65 },
+  { pattern: /\bInstalling runtime dependencies\b/i, phase: "installing runtime dependencies", percent: 70 },
+  { pattern: /\bFinished runtime dependencies\b/i, phase: "runtime dependencies installed", percent: 74 },
+  { pattern: /\bRunning copy\b/i, phase: "deploying", percent: 76 },
+  { pattern: /\bFinished copy\b/i, phase: "deployed", percent: 78 },
+];
+
+export function parseWorkerPhase(chunk: string): WorkerPhase | undefined {
+  let last: WorkerPhase | undefined;
+  for (const line of chunk.split(/[\r\n]+/)) {
+    if (!line) continue;
+    for (const stage of STAGES) {
+      if (stage.pattern.test(line)) {
+        last = { phase: stage.phase, percent: stage.percent };
+        break;
+      }
+    }
+  }
+  return last;
+}

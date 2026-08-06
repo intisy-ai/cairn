@@ -66,11 +66,14 @@
 </div>
 
 <style>
+  /* No column may carry a minimum the panel cannot give it: fixed widths added up to more
+     than the dialog is wide, which pushed the toggle and Remove past its edge where they
+     could not be reached. The name and the quotas absorb whatever space there is. */
   .row {
     display: grid;
-    grid-template-columns: minmax(150px, 1.4fr) 118px 150px 46px 80px;
+    grid-template-columns: minmax(0, 1.6fr) auto minmax(0, 1fr) auto auto;
     align-items: center;
-    gap: 14px;
+    gap: 12px;
     padding: 12px 16px;
     border-top: 1px solid var(--border);
   }

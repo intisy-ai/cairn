@@ -6,6 +6,7 @@ import { activityEnv } from "@core/index.js";
 import { newJob, nextRunnable, applyEvent, cancelJob, isEnded, noteTransfer } from "./model.js";
 import type { Job, JobSpec, Rollback } from "./model.js";
 import { parseGitProgress } from "./gitProgress.js";
+import { parseWorkerPhase } from "./workerPhase.js";
 import { safeGetPlugins, loadPluginUpdaterIndex } from "../lib/optionalEngines.js";
 
 // What the worker is told to do. Mirrors src/installer/index.ts's JobMessage.
@@ -74,8 +75,10 @@ function realSpawn(_job: Job, message: JobMessage): WorkerHandle {
     stdio: ["ignore", "pipe", "pipe", "ipc"],
     env: {
       ...process.env, ...activityEnv(), ELECTRON_RUN_AS_NODE: "1", CORE_APP: message.home,
-      // Ask git to stream its progress so the transfer can be reported as it happens.
+      // Ask git to stream its progress so the transfer can be reported as it happens, and
+      // ask the manager to mirror its log to stderr so its own stages are readable too.
       PLUGIN_UPDATER_GIT_PROGRESS: "1",
+      CORE_LOG_CONSOLE: "1",
     },
   });
   // Nobody reads stdout, so a chatty child would eventually wedge on a full buffer.
@@ -190,11 +193,16 @@ export function createRunner(deps: RunnerDeps = {}): Runner {
     });
 
     worker.onStderr?.((chunk) => {
-      const transfer = parseGitProgress(chunk);
-      if (!transfer) return;
       const job = get(started.id);
       if (!job || isEnded(job) || job.status === "cancelling") return;
-      replace(noteTransfer(job, transfer, now()));
+      const transfer = parseGitProgress(chunk);
+      if (transfer) {
+        replace(noteTransfer(job, transfer, now()));
+        return;
+      }
+      // No transfer in this chunk, but the manager may have said which stage it reached.
+      const stage = parseWorkerPhase(chunk);
+      if (stage) replace(applyEvent(job, { phase: stage.phase, percent: stage.percent }, now()));
     });
 
     worker.onExit((code) => {

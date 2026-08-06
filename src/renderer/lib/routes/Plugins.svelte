@@ -358,8 +358,12 @@
     if (queued.ok) await jobSettled(queued.data.id);
     await reload();
   }
+  // Through the same queue as an install, so a removal shows its progress, can be cancelled,
+  // and lands in the download history instead of happening invisibly.
   async function removeHome(p: UnifiedPlugin, homeId: string): Promise<void> {
-    await cairn.pluginsUninstall(homeId, p.name);
+    const queued = await enqueueJob("remove", p.name, p.url ?? "", homeId);
+    if (queued.ok) await jobSettled(queued.data.id);
+    else await cairn.pluginsUninstall(homeId, p.name);
     await reload();
   }
   // Install/update home-by-home (each its own queued task) and reload after each,
@@ -448,7 +452,7 @@
   }
   async function installFromUrl(repo: RepoRef): Promise<Result<unknown>> {
     const kind = classifyRepoName(repo.repo) ?? "plugin";
-    const homeIds = applicableHomeIds(kind, homes);
+    const homeIds = applicableHomeIds(kind, homes, repo.repo);
     return installManyTracked(repo.repo, repo.url, homeIds);
   }
 
@@ -581,11 +585,13 @@
         </div>
       </button>
       {@render favoriteButton(p)}
-      <AppPills
-        apps={applicableHomesFor(p)}
-        values={installedMap(p)}
-        onToggle={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
-      />
+      {#if applicableHomesFor(p).length > 1}
+        <AppPills
+          apps={applicableHomesFor(p)}
+          values={installedMap(p)}
+          onToggle={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
+        />
+      {/if}
       {@render installActions(p)}
     </div>
   {/snippet}

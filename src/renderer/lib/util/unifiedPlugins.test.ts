@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildUnifiedPlugins } from "./unifiedPlugins.js";
+import { buildUnifiedPlugins, applicableHomeIds } from "./unifiedPlugins.js";
 import type { HomePlugins, CatalogEntry, PluginHome } from "@cairn/shared";
 
 const homes: PluginHome[] = [
@@ -104,5 +104,30 @@ describe("buildUnifiedPlugins", () => {
   it("defaults every plugin to not favorite when no favorites list is given", () => {
     const out = buildUnifiedPlugins([{ home: homes[1], rows: [row("x")] }], [], homes);
     expect(out.find((p) => p.name === "x")!.favorite).toBe(false);
+  });
+});
+
+// A loader is the one plugin that is not portable: it connects a single app, the one whose
+// registry entry names it. Offering it to the other app promised an install that could not work.
+describe("a loader's applicable homes", () => {
+  const withLoaders: PluginHome[] = [
+    { id: "cairn", label: "Cairn", dir: "/k", present: true, hasUpdater: true },
+    { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true, loaderId: "claude-code-loader" },
+    { id: "opencode", label: "OpenCode", dir: "/o", present: true, hasUpdater: true, loaderId: "opencode-loader" },
+  ];
+
+  it("offers a loader only to the app that names it", () => {
+    expect(applicableHomeIds("loader", withLoaders, "claude-code-loader")).toEqual(["claude"]);
+    expect(applicableHomeIds("loader", withLoaders, "opencode-loader")).toEqual(["opencode"]);
+  });
+
+  it("leaves every other kind on the generic rule", () => {
+    expect(applicableHomeIds("plugin", withLoaders, "wakatime-sync")).toEqual(["claude", "opencode"]);
+    expect(applicableHomeIds("provider", withLoaders, "stub-auth")).toEqual(["cairn", "claude", "opencode"]);
+    expect(applicableHomeIds("proxy", withLoaders, "claude-code-proxy")).toEqual(["cairn"]);
+  });
+
+  it("falls back to the generic rule for a loader whose app is not registered here", () => {
+    expect(applicableHomeIds("loader", withLoaders, "some-other-loader")).toEqual(["claude", "opencode"]);
   });
 });

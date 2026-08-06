@@ -28,8 +28,9 @@ async function run(job: JobMessage): Promise<void> {
   env.setEarlyLaunchConfigDir(job.homeDir);
 
   if (job.kind === "remove") {
-    report(job.jobId, "removing", 50);
+    report(job.jobId, "removing", 25);
     index.uninstallPlugin(job.homeDir, job.plugin);
+    report(job.jobId, "removed", 90);
     return;
   }
 

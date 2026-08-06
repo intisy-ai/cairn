@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { ProviderRow as ProviderRowData, HostApp } from "@cairn/shared";
-  import { cairnMarkDataUri, CAIRN_SLATE_DARK } from "@cairn/shared";
+  import { renderCairnMark } from "@cairn/shared";
   import StatusPill, { type StatusVariant } from "../components/StatusPill.svelte";
   import { cairn } from "../ipc.js";
   import { toast } from "../toast.js";
@@ -142,9 +142,10 @@
   }
 
   // Providers are installed into Cairn's own home too, so it belongs beside the host apps
-  // here. Its mark is the one logo Cairn owns, from the canonical module.
+  // here. Its mark is the one logo Cairn owns, from the canonical module, passed as markup so
+  // it follows the theme.
   const availabilityApps = $derived<HostApp[]>([
-    { id: "cairn", label: "Cairn", icon: cairnMarkDataUri(CAIRN_SLATE_DARK) },
+    { id: "cairn", label: "Cairn", icon: renderCairnMark() },
     ...apps,
   ]);
 

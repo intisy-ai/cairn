@@ -45,13 +45,13 @@ export async function pluginHomes(deps: PluginHomesDeps = {}): Promise<PluginHom
   const appHomes: PluginHome[] = await Promise.all(
     getApps().map(async (desc) => {
       const dir = appHomeForId(desc.id);
-      return { id: desc.id, label: desc.label, icon: desc.icon ? svgIconDataUri(desc.icon) : undefined, dir, present: !!present[desc.id], hasUpdater: await hasUpdater(dir) };
+      return { id: desc.id, label: desc.label, icon: desc.icon ? svgIconDataUri(desc.icon) : undefined, dir, present: !!present[desc.id], hasUpdater: await hasUpdater(dir), loaderId: desc.loader?.id };
     }),
   );
   return [
     // Cairn bundles the updater to perform installs, but it ships with no plugins:
     // until plugin-updater is installed here too, only engines can be added.
-    { id: "cairn", label: "Cairn", icon: svgIconDataUri(renderCairnMark()), dir: cairnDir, present: true, hasUpdater: await hasUpdater(cairnDir) },
+    { id: "cairn", label: "Cairn", icon: renderCairnMark(), dir: cairnDir, present: true, hasUpdater: await hasUpdater(cairnDir) },
     ...appHomes,
   ];
 }

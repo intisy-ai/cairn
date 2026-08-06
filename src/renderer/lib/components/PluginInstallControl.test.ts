@@ -45,6 +45,18 @@ describe("PluginInstallControl", () => {
     expect(screen.getByRole("button", { name: "Remove everywhere" })).toBeInTheDocument();
   });
 
+  // "everywhere" is one app for a loader, which only ever serves the app that names it.
+  it("names the single app instead of saying everywhere when only one applies", () => {
+    render(PluginInstallControl, {
+      props: {
+        ...props(),
+        homes: [{ id: "claude", label: "Claude Code" }],
+        plugin: { ...plugin(["claude"]), homes: { claude: { installed: true } } },
+      },
+    });
+    expect(screen.getByRole("button", { name: "Remove from Claude Code" })).toBeInTheDocument();
+  });
+
   // A half-built copy is broken now, so repairing it comes before updating or removing.
   it("offers Repair ahead of everything else when a copy is only partly built", async () => {
     const onRepairHome = vi.fn();

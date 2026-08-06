@@ -64,7 +64,7 @@
       : isUpdate
       ? "Update"
       : isRemoveAll
-        ? "Remove everywhere"
+        ? (homes.length === 1 ? `Remove from ${homes[0].label}` : "Remove everywhere")
         : installableRemainingHomes.length === 1
           ? `Install in ${installableRemainingHomes[0].label}`
           : installedCount === 0 && installableRemainingHomes.length === homes.length
