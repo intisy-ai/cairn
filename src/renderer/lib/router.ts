@@ -1,7 +1,7 @@
 import { writable } from "svelte/store";
 import type { PluginMenu } from "@cairn/shared";
 
-export type CairnScreenId = "overview" | "providers" | "accounts" | "routing" | "usage" | "activity" | "localApi" | "apps" | "plugins" | "config" | "settings";
+export type CairnScreenId = "overview" | "providers" | "accounts" | "routing" | "usage" | "activity" | "localApi" | "apps" | "plugins" | "downloads" | "config" | "settings";
 // A plugin that declared a menu gets a screen of its own, addressed by its name. Cairn's
 // own screens stay a closed set; anything a plugin contributes lives behind this prefix.
 export type PluginScreenId = `plugin:${string}`;
