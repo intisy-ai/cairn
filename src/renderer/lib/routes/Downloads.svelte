@@ -16,10 +16,12 @@
   import { whenLabel, exactTime } from "../util/time.js";
   import SpeedGraph from "../charts/SpeedGraph.svelte";
 
-  const LIVE = ["pending", "installing", "cancelling"];
   const active = $derived($rows.filter((r) => r.status === "installing" || r.status === "cancelling"));
   const queued = $derived($rows.filter((r) => r.status === "pending"));
-  const recentRows = $derived($rows.filter((r) => !LIVE.includes(r.status)));
+  // Work that succeeded is already described by its Recent row, so it leaves the screen when it
+  // finishes. Work that failed or was cancelled gets no Recent row at all, so it stays up top
+  // until it is cleared rather than vanishing unseen.
+  const failures = $derived($rows.filter((r) => r.status === "failed" || r.status === "cancelled"));
 
   // History is whatever the activity log already recorded, so it survives a restart with no
   // storage of its own. Cleared entries are hidden here, never deleted from the log.
@@ -78,7 +80,7 @@
   }
 
   const visibleHistory = $derived(groupHistory(history, { installed, hiddenBefore }));
-  const hasAnything = $derived(historyLoading || active.length + queued.length + recentRows.length + visibleHistory.length > 0);
+  const hasAnything = $derived(historyLoading || active.length + queued.length + failures.length + visibleHistory.length > 0);
   const totalRate = $derived(active.reduce((sum, r) => sum + (r.bytesPerSecond ?? 0), 0));
 
   function clearAll(): void {
@@ -92,7 +94,7 @@
     {#if totalRate > 0}
       <span class="headrate" data-testid="total-rate">{formatRate(totalRate)}</span>
     {/if}
-    {#if recentRows.length > 0 || visibleHistory.length > 0}
+    {#if failures.length > 0 || visibleHistory.length > 0}
       <Button variant="ghost" onclick={clearAll}>Clear history</Button>
     {/if}
   {/snippet}
@@ -101,6 +103,25 @@
 {#if !hasAnything}
   <EmptyState message="Nothing has been downloaded yet. Installing a plugin queues it here." />
 {:else}
+  {#if failures.length > 0}
+    <Card>
+      <div class="pad">
+        <h3 class="section">Did not finish <span class="count">{failures.length}</span></h3>
+        <ul class="log">
+          {#each failures as row (row.id)}
+            <li class="job-row" data-testid="failed-row">
+              <span class="dot" class:crit={row.status === "failed"} class:idle={row.status === "cancelled"}></span>
+              <span class="what">{row.label}</span>
+              <span class="took num">{elapsed(row)}</span>
+              <span class="where"><span class="chip">{row.home}</span></span>
+              <span class="why" title={row.error}>{row.error || "cancelled"}</span>
+            </li>
+          {/each}
+        </ul>
+      </div>
+    </Card>
+  {/if}
+
   {#if active.length > 0}
     {#each active as row (row.id)}
       <Card>
@@ -185,26 +206,11 @@
         <Skeleton height="34px" radius="8px" lines={4} />
       </div>
     </Card>
-  {:else if recentRows.length > 0 || visibleHistory.length > 0}
+  {:else if visibleHistory.length > 0}
     <Card>
       <div class="pad">
       <h3 class="section">Recent</h3>
       <ul class="log">
-        <!-- This session's own work keeps its duration, which is the only place a real one exists. -->
-        {#each recentRows as row (row.id)}
-          <li class="job-row" data-testid="recent-row" class:bad={row.status === "failed"}>
-            <span class="dot" class:crit={row.status === "failed"} class:idle={row.status === "cancelled"}></span>
-            <span class="what">{row.label}</span>
-            <span class="took num">{elapsed(row)}</span>
-            {#if row.error}
-              <span class="why" title={row.error}>{row.error}</span>
-            {:else if row.status === "cancelled"}
-              <span class="why">cancelled</span>
-            {:else}
-              <span class="where"><span class="chip">{row.home}</span></span>
-            {/if}
-          </li>
-        {/each}
         {#each visibleHistory as entry (entry.key)}
           <li data-testid="history-row" class:bad={entry.failed}>
             <button class="row" title={`View ${labelOf(entry.plugin)}`} onclick={() => openPlugin(entry.plugin)}>
@@ -447,8 +453,7 @@
   .log li {
     border-top: 1px solid var(--border);
   }
-  .log li > .row,
-  .log li > :global(*) {
+  .log li > .row {
     display: grid;
     grid-template-columns: 7px auto minmax(0, 13rem) 7.5rem minmax(0, 1fr) 5.5rem;
     align-items: center;
@@ -473,7 +478,7 @@
   /* A row for this session's own work has no plugin mark, so it keeps the narrower grid. */
   .log li.job-row {
     display: grid;
-    grid-template-columns: 7px minmax(0, 13rem) 7.5rem minmax(0, 1fr);
+    grid-template-columns: 7px minmax(0, 13rem) 7.5rem auto minmax(0, 1fr);
     align-items: center;
     gap: 12px;
     padding: 7px 0;

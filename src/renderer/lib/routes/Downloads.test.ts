@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, fireEvent, screen } from "@testing-library/svelte";
 import type { Job, ActivityRecord } from "@cairn/shared";
-import { resetDownloadsForTest, seedJobsForTest } from "../downloads.js";
+import { resetDownloadsForTest, seedJobsForTest, seedTasksForTest } from "../downloads.js";
 
 const cancelled: string[] = [];
 let historyRecords: ActivityRecord[] = [];
@@ -92,14 +92,44 @@ describe("Downloads screen", () => {
     expect(queryByText("Cancel")).toBeNull();
   });
 
-  it("shows finished jobs and the activity log's history together", async () => {
+  it("keeps a job that did not finish, with its reason and the home it targeted", async () => {
     seedJobsForTest([job({ id: "old", plugin: "failed-one", status: "failed", error: "disk full", endedAt: 1000 })]);
     historyRecords = [record()];
     const { container } = render(Downloads);
     // Recent shows a skeleton until the installed set resolves, so the rows are awaited.
     expect(await screen.findByText("config-ledger")).toBeTruthy();
-    expect(container.querySelector("[data-testid='recent-row']")).toBeTruthy();
-    expect(await screen.findByText("disk full")).toBeTruthy();
+    const failed = container.querySelector("[data-testid='failed-row']");
+    expect(failed).toHaveTextContent("disk full");
+    expect(failed).toHaveTextContent("Claude");
+    // It appears up top and nowhere else, so Recent carries no second copy of it.
+    expect(screen.getAllByText("Install failed-one")).toHaveLength(1);
+    // One cell per grid column; a sixth would land in a track that does not exist.
+    expect(failed?.children).toHaveLength(5);
+  });
+
+  // A finished job said the same thing twice: once as its own row, once as the plugin's history.
+  it("drops a job from the screen once it has finished successfully", async () => {
+    seedJobsForTest([job({ id: "ok", status: "done", endedAt: 2000 })]);
+    historyRecords = [record()];
+    const { container } = render(Downloads);
+    await screen.findByText("config-ledger");
+    expect(container.querySelector("[data-testid='failed-row']")).toBeNull();
+    expect(container.textContent).not.toContain("Install plugin-x");
+  });
+
+  it("reports a cancelled job as cancelled rather than as a failure", async () => {
+    seedJobsForTest([job({ id: "c", status: "cancelled", endedAt: 2000 })]);
+    const { container } = render(Downloads);
+    const row = container.querySelector("[data-testid='failed-row']");
+    expect(row).toHaveTextContent("cancelled");
+    expect(row?.querySelector(".dot.crit")).toBeNull();
+  });
+
+  // The clock used to count up forever, because a local task recorded no end time.
+  it("freezes a local task's duration when it settles", async () => {
+    seedTasksForTest([{ label: "Remove thing everywhere", status: "failed", error: "nope", startedAt: 1000, endedAt: 18_100 }]);
+    const { container } = render(Downloads);
+    expect(container.querySelector("[data-testid='failed-row'] .took")).toHaveTextContent("17.1s");
   });
 
   it("shows an update's version change from the history record", async () => {

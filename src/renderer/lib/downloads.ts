@@ -42,6 +42,8 @@ type LocalTask = {
   percent: number;
   error: string;
   queuedAt: number;
+  startedAt: number;
+  endedAt?: number;
 };
 
 const jobs = writable<Job[]>([]);
@@ -176,13 +178,19 @@ function patchLocal(id: number, partial: Partial<LocalTask>): void {
   localTasks.update((list) => list.map((task) => (task.id === id ? { ...task, ...partial } : task)));
 }
 
+// Without an end time a finished task's elapsed clock keeps counting up from when it started.
+function settleLocal(id: number, partial: Partial<LocalTask>): void {
+  patchLocal(id, { ...partial, endedAt: Date.now() });
+}
+
 // A local operation with no sidecar job behind it. Runs immediately: the sidecar queue exists
 // to serialize plugin builds, and these are not that.
 export function enqueue<T>(spec: EnqueueSpec<T>): Promise<Result<T>> {
   const id = nextLocalId++;
+  const at = Date.now();
   localTasks.update((list) => [
     ...list,
-    { id, label: spec.label, home: spec.home, status: "installing", step: "", percent: -1, error: "", queuedAt: Date.now() },
+    { id, label: spec.label, home: spec.home, status: "installing", step: "", percent: -1, error: "", queuedAt: at, startedAt: at },
   ]);
   panelOpen.set(true);
 
@@ -190,15 +198,15 @@ export function enqueue<T>(spec: EnqueueSpec<T>): Promise<Result<T>> {
     (result) => {
       if (result.ok) {
         const failure = spec.summarizeFailure?.(result.data) ?? null;
-        patchLocal(id, failure ? { status: "failed", error: failure } : { status: "done" });
+        settleLocal(id, failure ? { status: "failed", error: failure } : { status: "done" });
       } else {
-        patchLocal(id, { status: "failed", error: result.error });
+        settleLocal(id, { status: "failed", error: result.error });
       }
       return result;
     },
     (thrown: unknown) => {
       const error = thrown instanceof Error ? thrown.message : String(thrown);
-      patchLocal(id, { status: "failed", error });
+      settleLocal(id, { status: "failed", error });
       return { ok: false, error } as Result<T>;
     },
   );
@@ -249,7 +257,8 @@ export function seedJobsForTest(list: Job[]): void {
 
 export function seedTasksForTest(list: Array<Partial<LocalTask>>): void {
   localTasks.set(list.map((task, index) => ({
-    id: index + 1, label: "task", home: "/h", status: "installing", step: "", percent: -1, error: "", queuedAt: index,
+    id: index + 1, label: "task", home: "/h", status: "installing", step: "", percent: -1, error: "",
+    queuedAt: index, startedAt: index,
     ...task,
   })));
 }
