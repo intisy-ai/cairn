@@ -140,6 +140,33 @@ describe("Plugins screen", () => {
     expect(screen.queryByRole("button", { name: "Update all" })).toBeNull();
   });
 
+  it("narrows the list to what is behind, counting only homes that can update", async () => {
+    const behind = baseSections();
+    behind[1].rows[0].updateAvailable = true;
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: behind }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+    });
+    render(Plugins);
+    await screen.findByText("demo");
+
+    const chip = screen.getByRole("button", { name: /^Updates / });
+    expect(chip).toHaveTextContent("Updates 1");
+    await fireEvent.click(chip);
+    await waitFor(() => expect(screen.queryByText("demo")).toBeNull());
+    expect(screen.getByText("wakatime-sync")).toBeTruthy();
+  });
+
+  it("offers no update filter matches when nothing is behind", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+    });
+    render(Plugins);
+    await screen.findByText("wakatime-sync");
+    expect(screen.getByRole("button", { name: /^Updates / })).toHaveTextContent("Updates 0");
+  });
+
   it("checks only the homes that actually have an updater", async () => {
     const mixed = [
       { home: home("cairn", "Cairn", { hasUpdater: false }), rows: [] },

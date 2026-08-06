@@ -37,9 +37,10 @@
   const fullyInstalled = $derived(installedCount === homes.length && homes.length > 0);
   const installableRemainingHomes = $derived(homes.filter((h) => !plugin.homes[h.id]?.installed));
   const showUpdate = $derived(updatesEnabled && updateAvailable);
-  // An update is the more useful thing to offer than removal, so it takes the primary
-  // slot; removal stays in the menu below, where nothing is lost.
-  const isUpdate = $derived(showUpdate && fullyInstalled && !!onUpdate);
+  // An update outranks both removal and installing into the homes that are still missing
+  // it: a copy that is behind is the one thing here that is actually broken. Both of the
+  // others stay in the menu below, where nothing is lost.
+  const isUpdate = $derived(showUpdate && installedCount > 0 && !!onUpdate);
   const isRemoveAll = $derived(fullyInstalled && !isUpdate);
   const behindInstalledHomes = $derived(
     showUpdate && onUpdateHome ? homes.filter((h) => plugin.homes[h.id]?.installed && behindHomes.includes(h.id)) : [],
@@ -72,6 +73,10 @@
   {#each behindInstalledHomes as h (h.id)}
     <button onclick={() => onUpdateHome?.(h.id)}>Update in {h.label}</button>
   {/each}
+  <!-- One remaining home is already covered by its own entry below. -->
+  {#if isUpdate && installableRemainingHomes.length > 1}
+    <button onclick={onInstallAll}>Install in {installableRemainingHomes.length} more</button>
+  {/if}
   {#each homes as h (h.id)}
     {@const on = !!plugin.homes[h.id]?.installed}
     {#if on}

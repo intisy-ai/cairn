@@ -83,6 +83,21 @@ setJobListener((job) => {
   } catch { /* a dropped update must never fail the job it describes */ }
 });
 
+// A value the message channel cannot clone (a promise, a function, a live handle) throws
+// on postMessage, and an unhandled throw here takes the whole sidecar down with every
+// pending request. Answering with the clone error instead keeps one bad payload local to
+// the call that produced it.
+function reply(response: SidecarResponse): void {
+  try {
+    process.parentPort.postMessage(response);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    try {
+      process.parentPort.postMessage({ id: response.id, result: err(`result could not be sent: ${message}`) });
+    } catch { /* nothing left to try; the supervisor's timeout answers the caller */ }
+  }
+}
+
 function reportFor(progressId: unknown): ((step: string, percent: number) => void) | undefined {
   if (typeof progressId !== "number" || !process.parentPort) return undefined;
   return (step, percent) => process.parentPort.postMessage({ progress: { id: progressId, step, percent } });
@@ -194,8 +209,9 @@ if (process.parentPort) {
   process.parentPort.on("message", (messageEvent) => {
     const { id, channel, args } = messageEvent.data as SidecarRequest;
     dispatch(channel, args).then((result) => {
-      const response: SidecarResponse = { id, result };
-      process.parentPort.postMessage(response);
+      reply({ id, result });
+    }, (thrown: unknown) => {
+      reply({ id, result: err(thrown instanceof Error ? thrown.message : String(thrown)) });
     });
   });
   // Prewarm the transcript cache so the first Usage view doesn't sit on a

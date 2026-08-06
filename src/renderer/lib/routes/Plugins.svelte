@@ -76,6 +76,7 @@
   let installedOnly = $state(false);
   let externalOnly = $state(false);
   let favoritesOnly = $state(false);
+  let updatableOnly = $state(false);
 
   // A plugin can be external and a kind at once, so the badge prefixes its kind
   // (the .chip style upper-cases it), e.g. "external provider" -> "EXTERNAL PROVIDER".
@@ -108,6 +109,7 @@
     installed: unified.filter(isInstalled).length,
     external: unified.filter((p) => p.external).length,
     favorite: unified.filter((p) => p.favorite).length,
+    updatable: unified.filter((p) => behindHomesFor(p).length > 0).length,
   });
   const filtered = $derived(
     unified.filter((p) => {
@@ -119,6 +121,7 @@
       if (installedOnly && !isInstalled(p)) return false;
       if (externalOnly && !p.external) return false;
       if (favoritesOnly && !p.favorite) return false;
+      if (updatableOnly && behindHomesFor(p).length === 0) return false;
       const needle = search.trim().toLowerCase();
       return !needle
         || p.name.toLowerCase().includes(needle)
@@ -130,7 +133,7 @@
   function setKind(kind: KindFilter): void {
     kindFilter = kind;
   }
-  const isFiltering = $derived(search.trim() !== "" || kindFilter !== "all" || installedOnly || externalOnly || favoritesOnly);
+  const isFiltering = $derived(search.trim() !== "" || kindFilter !== "all" || installedOnly || externalOnly || favoritesOnly || updatableOnly);
   function clearFilters(): void {
     searchRaw = "";
     search = "";
@@ -138,6 +141,7 @@
     installedOnly = false;
     externalOnly = false;
     favoritesOnly = false;
+    updatableOnly = false;
   }
   const addPluginHome = $derived(homes[0]?.id ?? "cairn");
   // Only counts what an updater could actually pull, so the button never promises a
@@ -485,6 +489,7 @@
     <Chip label={`Engines ${counts.engine}`} on={kindFilter === "engine"} onclick={() => setKind("engine")} />
     <span class="sep"></span>
     <Chip label={`Installed ${counts.installed}`} on={installedOnly} onclick={() => (installedOnly = !installedOnly)} />
+    <Chip label={`Updates ${counts.updatable}`} on={updatableOnly} onclick={() => (updatableOnly = !updatableOnly)} />
     <Chip label={`External ${counts.external}`} on={externalOnly} onclick={() => (externalOnly = !externalOnly)} />
     <Chip label={`Favorites ${counts.favorite}`} on={favoritesOnly} onclick={() => (favoritesOnly = !favoritesOnly)} />
   </div>

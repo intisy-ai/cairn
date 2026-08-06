@@ -28,6 +28,35 @@ describe("accountsLogin", () => {
     const res = await accountsLoginComplete("never-began", "x");
     expect(res.ok).toBe(false);
   });
+  // A provider that catches the redirect itself returns a live promise here. Sending it to
+  // the renderer throws DataCloneError on postMessage, which took the whole sidecar down.
+  it("reports loopback as a flag, never as the provider's promise", async () => {
+    const flow = fakeFlow({ loopback: new Promise(() => {}) });
+    const res = await accountsLoginBegin("stub", { resolveLoginFlow: async () => flow });
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.data.loopback).toBe(true);
+      expect(() => structuredClone(res.data)).not.toThrow();
+    }
+  });
+
+  it("says there is no loopback when the provider offers none", async () => {
+    const res = await accountsLoginBegin("stub", { resolveLoginFlow: async () => fakeFlow() });
+    if (res.ok) expect(res.data.loopback).toBe(false);
+  });
+
+  // The provider saves the account itself when its listener fires, so a later paste must not
+  // run the flow a second time.
+  it("retires the flow once the provider's own listener completes it", async () => {
+    let land: (value: { id: string } | null) => void = () => {};
+    const flow = fakeFlow({ loopback: new Promise<{ id: string } | null>((r) => { land = r; }) });
+    await accountsLoginBegin("stub", { resolveLoginFlow: async () => flow });
+    land({ id: "acc1" });
+    await new Promise((r) => setTimeout(r, 0));
+    expect((await accountsLoginComplete("stub", "the-code")).ok).toBe(false);
+    expect(flow.complete).not.toHaveBeenCalled();
+  });
+
   it("cancel invokes the flow cancel and clears it", async () => {
     const flow = fakeFlow();
     await accountsLoginBegin("stub", { resolveLoginFlow: async () => flow });

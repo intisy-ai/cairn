@@ -60,11 +60,31 @@
     onAdded();
   }
 
-  onMount(async () => {
-    const result = await cairn.accountsLoginBegin(provider.id);
-    if (result.ok) begin = result.data;
-    else beginError = result.error;
-    panel?.focus();
+  // When the provider catches the browser redirect itself, it saves the account and says so
+  // on the event bus. Watching for that is what lets the dialog finish on its own, instead of
+  // waiting for a paste that is no longer needed.
+  function watchForAutoLogin(): () => void {
+    return cairn.onActivityEvent((record) => {
+      if (record.action !== "account_added") return;
+      if (record.details?.provider !== provider.id) return;
+      toast.success(record.subject?.label ? `Added account: ${record.subject.label}` : "Account added");
+      onAdded();
+    });
+  }
+
+  onMount(() => {
+    let stop: (() => void) | undefined;
+    void (async () => {
+      const result = await cairn.accountsLoginBegin(provider.id);
+      if (result.ok) {
+        begin = result.data;
+        if (result.data.loopback) stop = watchForAutoLogin();
+      } else {
+        beginError = result.error;
+      }
+      panel?.focus();
+    })();
+    return () => stop?.();
   });
 </script>
 
