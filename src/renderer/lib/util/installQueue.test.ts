@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { get } from "svelte/store";
 import { prerequisiteInstalls } from "./installQueue.js";
-import { downloads, enqueue, resetDownloadsForTest } from "../downloads.js";
+import { rows, resetDownloadsForTest, seedJobsForTest } from "../downloads.js";
 
 const engines = [
   { id: "plugin-updater", capability: "plugin-management", url: "https://example/plugin-updater", homes: {} },
@@ -43,27 +43,19 @@ describe("prerequisiteInstalls", () => {
   });
 });
 
-describe("queue ordering", () => {
-  it("holds the plugin's task pending while the manager's task runs", async () => {
+// Ordering is the sidecar queue's guarantee now (see src/sidecar/jobs/runner.test.ts).
+// What the renderer owns is showing that order faithfully.
+describe("the mirrored queue", () => {
+  it("shows the manager installing and the plugin waiting behind it", () => {
     resetDownloadsForTest();
-    let releaseManager: () => void = () => {};
-    const managerDone = new Promise<void>((resolve) => { releaseManager = resolve; });
-    const manager = enqueue({
-      label: "Install plugin-updater", home: "Claude", key: "plugin-updater",
-      run: async () => { await managerDone; return { ok: true as const, data: undefined }; },
-    });
-    const plugin = enqueue({
-      label: "Install wakatime-sync", home: "Claude", key: "wakatime-sync",
-      run: async () => ({ ok: true as const, data: undefined }),
-    });
-
-    await Promise.resolve();
-    const midway = get(downloads).tasks;
-    expect(midway.find((t) => t.key === "plugin-updater")?.status).toBe("installing");
-    expect(midway.find((t) => t.key === "wakatime-sync")?.status).toBe("pending");
-
-    releaseManager();
-    await Promise.all([manager, plugin]);
-    expect(get(downloads).tasks.every((t) => t.status === "done")).toBe(true);
+    seedJobsForTest([
+      { id: "j1", kind: "install", plugin: "plugin-updater", url: "u", home: "claude", status: "running", phase: "downloading", percent: 10, phases: [], queuedAt: 1 },
+      { id: "j2", kind: "install", plugin: "wakatime-sync", url: "u", home: "claude", status: "queued", phase: "", percent: -1, phases: [], queuedAt: 2 },
+    ]);
+    const shown = get(rows);
+    expect(shown.map((r) => [r.plugin, r.status])).toEqual([
+      ["plugin-updater", "installing"],
+      ["wakatime-sync", "pending"],
+    ]);
   });
 });

@@ -1,57 +1,79 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { get } from "svelte/store";
-import { downloads, activeByKey, enqueue, track, toggleDownloads, closeDownloads, clearFinished, setStep, resetDownloadsForTest } from "./downloads.js";
+import { downloads, rows, activeByPlugin, activeByPluginHome, enqueue, track, toggleDownloads, closeDownloads, clearFinished, setStep, resetDownloadsForTest, seedJobsForTest, jobKey } from "./downloads.js";
+import type { Job } from "@cairn/shared";
+
+vi.mock("./ipc.js", () => ({
+  cairn: {
+    jobsCancel: async () => ({ ok: true, data: true }),
+    jobsClearFinished: async () => ({ ok: true, data: undefined }),
+    jobsList: async () => ({ ok: true, data: [] }),
+    jobsEnqueue: async () => ({ ok: false, error: "not wired in tests" }),
+  },
+}));
+
+function job(overrides: Partial<Job> = {}): Job {
+  return {
+    id: "j1", kind: "install", plugin: "plugin-x", url: "u", home: "claude",
+    status: "running", phase: "", percent: -1, phases: [], queuedAt: 0, ...overrides,
+  };
+}
 
 describe("downloads", () => {
   beforeEach(() => {
     resetDownloadsForTest();
   });
 
-  it("starts the first task installing and opens the panel", () => {
+  it("shows a tracked operation immediately and opens the panel", () => {
     void track("Installing foo", "Claude Code", () => new Promise(() => {}));
     const state = get(downloads);
     expect(state.tasks).toHaveLength(1);
-    expect(state.tasks[0]).toMatchObject({ label: "Installing foo", home: "Claude Code", status: "installing", error: "", source: null });
+    expect(state.tasks[0]).toMatchObject({ label: "Installing foo", home: "Claude Code", status: "installing", error: "" });
     expect(state.open).toBe(true);
   });
 
-  it("runs one at a time: the second task waits as pending", () => {
+  // Serializing work is the sidecar queue's job; a local operation is not a plugin build.
+  it("runs tracked operations without queueing them behind each other", () => {
     void track("first", "/h", () => new Promise(() => {}));
     void track("second", "/h", () => new Promise(() => {}));
-    const tasks = get(downloads).tasks;
-    expect(tasks.map((t) => t.status)).toEqual(["installing", "pending"]);
+    expect(get(downloads).tasks.map((t) => t.status)).toEqual(["installing", "installing"]);
   });
 
-  it("carries the source through to the task", () => {
-    void enqueue({ label: "engine", home: "cairn", source: "cairn", run: () => new Promise(() => {}) });
-    expect(get(downloads).tasks[0].source).toBe("cairn");
+  it("mirrors sidecar jobs as rows, labelled by what they do", () => {
+    seedJobsForTest([job({ kind: "update", plugin: "wakatime-sync", home: "opencode" })]);
+    expect(get(rows)[0]).toMatchObject({ label: "Update wakatime-sync", home: "Opencode", status: "installing", cancellable: true });
   });
 
-  it("indexes in-flight tasks by key and drops them once finished", async () => {
-    await enqueue({ label: "install y", home: "/h", key: "plugin-y", run: async () => ({ ok: true, data: undefined }) });
-    expect(get(activeByKey)["plugin-y"]).toBeUndefined();
-    void enqueue({ label: "install x", home: "/h", key: "plugin-x", run: () => new Promise(() => {}) });
-    expect(get(activeByKey)["plugin-x"]).toBeTruthy();
+  it("indexes live jobs by plugin and by plugin+home, and drops finished ones", () => {
+    seedJobsForTest([
+      job({ id: "a", plugin: "plugin-x", home: "claude", status: "running" }),
+      job({ id: "b", plugin: "plugin-x", home: "opencode", status: "queued" }),
+      job({ id: "c", plugin: "plugin-y", home: "claude", status: "done" }),
+    ]);
+    expect(get(activeByPlugin)["plugin-x"]).toBeTruthy();
+    expect(get(activeByPlugin)["plugin-y"]).toBeUndefined();
+    expect(get(activeByPluginHome)[jobKey("plugin-x", "claude")]?.status).toBe("installing");
+    expect(get(activeByPluginHome)[jobKey("plugin-x", "opencode")]?.status).toBe("pending");
+    expect(get(activeByPluginHome)[jobKey("plugin-y", "claude")]).toBeUndefined();
   });
 
-  it("setStep records the percent while in flight", () => {
-    void track("first", "/h", () => new Promise(() => {}));
-    const id = get(downloads).tasks[0].id;
-    setStep(id, "Downloading and building", 40);
-    expect(get(downloads).tasks[0].percent).toBe(40);
+  it("marks a cancelling job as such and stops offering to cancel it again", () => {
+    seedJobsForTest([job({ status: "cancelling" })]);
+    expect(get(rows)[0]).toMatchObject({ status: "cancelling", cancellable: false });
   });
 
-  it("setStep updates the live step of an in-flight task", () => {
-    void track("first", "/h", () => new Promise(() => {}));
-    const id = get(downloads).tasks[0].id;
-    setStep(id, "Downloading and building");
-    expect(get(downloads).tasks[0].step).toBe("Downloading and building");
+  // setStep is keyed by the id handed to run(), which is the pushed progress event's id.
+  it("setStep records the step and percent while in flight", () => {
+    let taskId = 0;
+    void enqueue({ label: "first", home: "/h", run: (id) => { taskId = id; return new Promise(() => {}); } });
+    setStep(taskId, "Downloading and building", 40);
+    expect(get(downloads).tasks[0]).toMatchObject({ step: "Downloading and building", percent: 40 });
   });
 
   it("setStep leaves a finished task's step untouched", async () => {
-    await track("done-task", "/h", async () => ({ ok: true, data: undefined }));
-    const id = get(downloads).tasks[0].id;
-    setStep(id, "late step");
+    let taskId = 0;
+    await enqueue({ label: "done-task", home: "/h", run: async (id) => { taskId = id; return { ok: true as const, data: undefined }; } });
+    setStep(taskId, "late step");
     expect(get(downloads).tasks[0].step).toBe("");
   });
 
@@ -108,12 +130,15 @@ describe("downloads", () => {
     expect(get(downloads).open).toBe(false);
   });
 
-  it("clearFinished drops done/failed tasks but keeps in-flight ones", async () => {
+  it("clearFinished drops finished work of both kinds but keeps what is live", async () => {
     await track("finished", "/home", async () => ({ ok: true, data: undefined }));
     void track("still running", "/home", () => new Promise(() => {}));
+    seedJobsForTest([job({ id: "old", status: "done" }), job({ id: "live", plugin: "p2", status: "running" })]);
     clearFinished();
-    const tasks = get(downloads).tasks;
-    expect(tasks).toHaveLength(1);
-    expect(tasks[0].label).toBe("still running");
+    const labels = get(downloads).tasks.map((t) => t.label);
+    expect(labels).toContain("still running");
+    expect(labels).toContain("Install p2");
+    expect(labels).not.toContain("finished");
+    expect(labels).not.toContain("Install plugin-x");
   });
 });

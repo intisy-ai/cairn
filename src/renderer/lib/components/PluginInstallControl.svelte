@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { UnifiedPlugin } from "@cairn/shared";
-  import type { DownloadTask } from "../downloads.js";
+  import type { DownloadRow } from "../downloads.js";
   import SplitButton from "./SplitButton.svelte";
 
   let {
@@ -20,7 +20,7 @@
     plugin: UnifiedPlugin;
     homes: { id: string; label: string; icon?: string }[];
     block?: boolean;
-    activity?: DownloadTask | null;
+    activity?: DownloadRow | null;
     updateAvailable?: boolean;
     // False hides every update affordance: nothing here manages updates, so offering
     // one would promise something no installed plugin can carry out.

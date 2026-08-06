@@ -22,7 +22,7 @@
   }: {
     plugin: UnifiedPlugin;
     homes: { id: string; label: string; icon?: string; hasUpdater?: boolean }[];
-    activity?: import("../downloads.js").DownloadTask | null;
+    activity?: import("../downloads.js").DownloadRow | null;
     onClose: () => void;
     onInstallAll: () => void;
     onRemoveEverywhere: () => void;

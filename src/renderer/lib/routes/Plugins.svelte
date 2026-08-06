@@ -4,7 +4,7 @@
   import { classifyRepoName } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { consumeParams } from "../router.js";
-  import { enqueue, activeByKey, type DownloadSource } from "../downloads.js";
+  import { enqueue, enqueueJob, jobSettled, activeByPlugin } from "../downloads.js";
   import { toast } from "../toast.js";
   import { debounce } from "../util/debounce.js";
   import { buildUnifiedPlugins, applicableHomeIds } from "../util/unifiedPlugins.js";
@@ -272,14 +272,6 @@
     return failed.map((o) => `${o.home}: ${o.error ?? "failed"}`).join("; ");
   }
 
-  // Cairn only downloads directly to bootstrap an engine into an app home that has
-  // no plugin-updater yet; every other install is handled by plugin-updater.
-  function sourceFor(name: string, homeIds: string[]): DownloadSource {
-    const by = homesById();
-    const allBootstrap = homeIds.length > 0
-      && homeIds.every((id) => engineIds.has(name) && !by[id]?.hasUpdater);
-    return allBootstrap ? "cairn" : "plugin-updater";
-  }
   // Which homes report this plugin as behind, from each home's own row.
   function behindHomesFor(p: UnifiedPlugin): string[] {
     return sections
@@ -299,14 +291,14 @@
     for (const prereq of prerequisiteInstalls(name, homeIds, homes, engines)) {
       if (queuedManagerHomes.has(prereq.homeId)) continue;
       queuedManagerHomes.add(prereq.homeId);
-      const result = await enqueue({
-        label: `Install ${prereq.id}`,
-        home: homesLabel([prereq.homeId]),
-        source: "cairn",
-        key: prereq.id,
-        run: (id) => cairn.pluginsInstall(prereq.homeId, prereq.id, prereq.url, id),
-      });
-      if (!result.ok) {
+      const queued = await enqueueJob("install", prereq.id, prereq.url, prereq.homeId);
+      if (!queued.ok) {
+        queuedManagerHomes.delete(prereq.homeId);
+        return false;
+      }
+      // The manager has to be there before the plugin's own job runs, so this one is awaited.
+      const settled = await jobSettled(queued.data.id);
+      if (settled?.status !== "done") {
         queuedManagerHomes.delete(prereq.homeId);
         return false;
       }
@@ -318,17 +310,15 @@
     if (!(await installPrerequisites(name, homeIds))) {
       return { ok: false, error: "could not install the plugin manager" };
     }
-    const result = await enqueue({
-      label,
-      home: homesLabel(homeIds),
-      source: sourceFor(name, homeIds),
-      key: name,
-      run: (id) => cairn.pluginsInstallMany(name, url, homeIds, id),
-      summarizeFailure: (data) => outcomesError(data.outcomes),
-    });
-    if (!result.ok) return result;
-    const error = outcomesError(result.data.outcomes);
-    return error ? { ok: false, error } : result;
+    // One job per home, so each home shows its own progress and can be cancelled alone.
+    const outcomes: InstallOutcome[] = [];
+    for (const homeId of homeIds) {
+      const queued = await enqueueJob("install", name, url, homeId);
+      outcomes.push(queued.ok ? { home: homeId, ok: true } : { home: homeId, ok: false, error: queued.error });
+    }
+    void label;
+    const error = outcomesError(outcomes);
+    return error ? { ok: false, error } : { ok: true, data: { outcomes } };
   }
 
   async function addHome(p: UnifiedPlugin, homeId: string): Promise<void> {
@@ -336,25 +326,15 @@
       await reload();
       return;
     }
-    await enqueue({
-      label: `Install ${p.displayName}`,
-      home: homesLabel([homeId]),
-      source: sourceFor(p.name, [homeId]),
-      key: p.name,
-      run: (id) => cairn.pluginsInstall(homeId, p.name, p.url ?? "", id),
-    });
+    const queued = await enqueueJob("install", p.name, p.url ?? "", homeId);
+    if (queued.ok) await jobSettled(queued.data.id);
     await reload();
   }
   // A per-home update is a re-clone/pull through the same install path, routed
   // through the download queue so it shows progress like every other download.
   async function updateHome(p: UnifiedPlugin, homeId: string): Promise<void> {
-    await enqueue({
-      label: `Update ${p.displayName}`,
-      home: homesLabel([homeId]),
-      source: sourceFor(p.name, [homeId]),
-      key: p.name,
-      run: (id) => cairn.pluginsInstall(homeId, p.name, p.url ?? "", id),
-    });
+    const queued = await enqueueJob("update", p.name, p.url ?? "", homeId);
+    if (queued.ok) await jobSettled(queued.data.id);
     await reload();
   }
   async function removeHome(p: UnifiedPlugin, homeId: string): Promise<void> {
@@ -409,8 +389,6 @@
     const result = await enqueue({
       label: `Remove ${p.displayName} everywhere`,
       home: homesLabel(homeIds) || "all homes",
-      source: sourceFor(p.name, homeIds),
-      key: p.name,
       run: () => cairn.pluginsRemoveEverywhere(p.name),
       summarizeFailure: (data) => outcomesError(data.outcomes),
     });
@@ -520,7 +498,7 @@
           block
           plugin={p}
           homes={applicableHomesFor(p)}
-          activity={$activeByKey[p.name] ?? null}
+          activity={$activeByPlugin[p.name] ?? null}
           updateAvailable={p.updateAvailable}
           {updatesEnabled}
           behindHomes={behindHomesFor(p)}
@@ -627,7 +605,7 @@
     <PluginDetail
       plugin={selectedPlugin}
       homes={applicableHomesFor(selectedPlugin)}
-      activity={$activeByKey[selectedPlugin.name] ?? null}
+      activity={$activeByPlugin[selectedPlugin.name] ?? null}
       onClose={() => (selectedName = null)}
       onInstallAll={() => handleInstallAll(selectedPlugin)}
       onRemoveEverywhere={() => confirmRemoveEverywhere(selectedPlugin)}

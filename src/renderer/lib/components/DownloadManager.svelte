@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { downloads, toggleDownloads, closeDownloads, clearFinished, type DownloadTask } from "../downloads.js";
+  import { downloads, toggleDownloads, closeDownloads, clearFinished, cancelRow, type DownloadRow } from "../downloads.js";
 
-  const inFlight = $derived($downloads.tasks.filter((t) => t.status === "pending" || t.status === "installing").length);
-  const hasFinished = $derived($downloads.tasks.some((t) => t.status === "done" || t.status === "failed"));
+  const LIVE = ["pending", "installing", "cancelling"];
+  const inFlight = $derived($downloads.tasks.filter((t) => LIVE.includes(t.status)).length);
+  const hasFinished = $derived($downloads.tasks.some((t) => !LIVE.includes(t.status)));
 
   let root = $state<HTMLElement | null>(null);
   function onWindowClick(e: MouseEvent): void {
@@ -12,22 +13,21 @@
     if (e.key === "Escape") closeDownloads();
   }
 
-  function sourceLabel(task: DownloadTask): string {
-    return task.source === "cairn" ? "Cairn direct" : task.source === "plugin-updater" ? "plugin-updater" : "";
-  }
-  function progressLine(task: DownloadTask): string {
+  function progressLine(task: DownloadRow): string {
     if (task.status === "pending") return "Queued";
+    if (task.status === "cancelling") return "Cancelling…";
     if (task.status === "installing") {
-      const step = task.step || "Installing…";
+      const step = task.step || "Working…";
       return task.percent >= 0 ? `${step} · ${task.percent}%` : step;
     }
     if (task.status === "done") return "Done";
+    if (task.status === "cancelled") return "Cancelled";
     return task.error || "Failed";
   }
 
   // Aggregate progress of everything in flight drives the ring; a pending or
   // not-yet-reported task counts as 0 so the ring only fills as work completes.
-  const active = $derived($downloads.tasks.filter((t) => t.status === "pending" || t.status === "installing"));
+  const active = $derived($downloads.tasks.filter((t) => LIVE.includes(t.status)));
   const aggregate = $derived(active.length ? active.reduce((sum, t) => sum + Math.max(t.percent, 0), 0) / active.length : 0);
   const RING = 2 * Math.PI * 12;
 </script>
@@ -74,8 +74,8 @@
           </div>
           <div class="meta">
             <span class="home">{task.home}</span>
-            {#if sourceLabel(task)}
-              <span class="src src-{task.source}">{sourceLabel(task)}</span>
+            {#if task.cancellable}
+              <button class="cancelbtn" onclick={() => cancelRow(task)}>Cancel</button>
             {/if}
           </div>
           {#if task.status === "installing"}
