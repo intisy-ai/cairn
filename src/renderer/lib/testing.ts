@@ -120,6 +120,7 @@ function defaultCairn(): CairnAPI {
     favoritesList: async () => ({ ok: true, data: [] }),
     favoritesToggle: async (_name: string) => ({ ok: true, data: [] }),
     customEndpointsList: async () => ({ ok: true, data: [] }),
+    customEndpointsFormats: async () => ({ ok: true, data: ["openai"] }),
     customEndpointsUpsert: async () => ({ ok: true, data: undefined }),
     customEndpointsRemove: async () => ({ ok: true, data: undefined }),
     customEndpointsSaveKey: async () => ({ ok: true, data: undefined }),

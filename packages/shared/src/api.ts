@@ -83,6 +83,8 @@ export interface CairnAPI {
   favoritesList(): Promise<Result<string[]>>;
   favoritesToggle(name: string): Promise<Result<string[]>>;
   customEndpointsList(): Promise<Result<CustomEndpointView[]>>;
+  // The wire formats the provider plugin can translate, asked of it rather than restated here.
+  customEndpointsFormats(): Promise<Result<string[]>>;
   customEndpointsUpsert(endpoint: CustomEndpoint): Promise<Result<void>>;
   customEndpointsRemove(id: string): Promise<Result<void>>;
   customEndpointsSaveKey(endpointId: string, key: string): Promise<Result<void>>;

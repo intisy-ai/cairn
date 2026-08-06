@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { CustomEndpointView } from "@cairn/shared";
-  import { SUPPORTED_ENDPOINT_FORMATS } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { track } from "../downloads.js";
   import Button from "./Button.svelte";
@@ -15,7 +14,10 @@
   let busy = $state(false);
   let dirtyHint = $state(false);
 
-  let form = $state({ id: "", label: "", baseUrl: "", format: SUPPORTED_ENDPOINT_FORMATS[0] as string, models: "" });
+  // The plugin translates the wire formats, so it is asked which exist rather than the
+  // dashboard keeping a list that would drift from what the plugin can actually serve.
+  let formats = $state<string[]>([]);
+  let form = $state({ id: "", label: "", baseUrl: "", format: "", models: "" });
   let keyDraft = $state<Record<string, string>>({});
   let panel = $state<HTMLDivElement | undefined>(undefined);
 
@@ -28,9 +30,13 @@
     const engine = engines.ok ? engines.data.find((e) => e.capability === "custom-endpoints") : undefined;
     installed = !!engine && Object.values(engine.homes).some((h) => h.installed);
     if (!installed) { endpoints = []; return; }
-    const list = await cairn.customEndpointsList();
+    const [list, supported] = await Promise.all([cairn.customEndpointsList(), cairn.customEndpointsFormats()]);
     if (list.ok) endpoints = list.data;
     else error = list.error;
+    if (supported.ok) {
+      formats = supported.data;
+      if (!form.format && formats.length > 0) form.format = formats[0];
+    }
   }
 
   async function install(): Promise<void> {
@@ -57,7 +63,7 @@
     const result = await cairn.customEndpointsUpsert(endpoint);
     busy = false;
     if (result.ok) {
-      form = { id: "", label: "", baseUrl: "", format: SUPPORTED_ENDPOINT_FORMATS[0] as string, models: "" };
+      form = { id: "", label: "", baseUrl: "", format: formats[0] ?? "", models: "" };
       dirtyHint = true;
       await refresh();
     } else {
@@ -122,7 +128,7 @@
       <label>Base URL<input aria-label="Base URL" bind:value={form.baseUrl} placeholder="https://host/v1" /></label>
       <label>Format
         <select aria-label="Format" bind:value={form.format}>
-          {#each SUPPORTED_ENDPOINT_FORMATS as f (f)}<option value={f}>{f}</option>{/each}
+          {#each formats as f (f)}<option value={f}>{f}</option>{/each}
         </select>
       </label>
       <label>Models<input aria-label="Models (comma separated)" bind:value={form.models} placeholder="gpt-4o, gpt-4o-mini" /></label>

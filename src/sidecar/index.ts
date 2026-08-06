@@ -35,7 +35,7 @@ import { importApps, importPreview, importRun } from "./modules/import.js";
 import type { ImportSelection } from "../../packages/shared/src/domain.js";
 import { catalogList } from "./modules/catalog.js";
 import { githubStatus, githubAddAccount, githubSwitchAccount, githubRemoveAccount, githubConnectGhCli, githubSetStar, githubStarCairn, githubDeviceStart, githubDevicePoll } from "./modules/github.js";
-import { customEndpointsList, customEndpointsUpsert, customEndpointsRemove, customEndpointsSaveKey } from "./modules/customEndpoints.js";
+import { customEndpointsList, customEndpointsUpsert, customEndpointsRemove, customEndpointsSaveKey, customEndpointsFormats } from "./modules/customEndpoints.js";
 import type { CustomEndpoint } from "../../packages/shared/src/domain.js";
 import { favoritesList, favoritesToggle } from "./modules/favorites.js";
 
@@ -197,6 +197,7 @@ registerHandler("github:device-poll", (star) => githubDevicePoll(star as boolean
 registerHandler("favorites:list", () => favoritesList());
 registerHandler("favorites:toggle", (name) => favoritesToggle(name as string));
 registerHandler("customEndpoints:list", () => customEndpointsList());
+registerHandler("customEndpoints:formats", () => customEndpointsFormats());
 registerHandler("customEndpoints:upsert", (endpoint) => customEndpointsUpsert(endpoint as CustomEndpoint));
 registerHandler("customEndpoints:remove", (id) => customEndpointsRemove(id as string));
 registerHandler("customEndpoints:saveKey", (endpointId, key) => customEndpointsSaveKey(endpointId as string, key as string));

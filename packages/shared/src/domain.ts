@@ -256,8 +256,6 @@ export type AppSummary = {
   pluginCount: number;
   routingSlots: number | null;
 };
-export const SUPPORTED_ENDPOINT_FORMATS = ["openai"] as const;
-export type EndpointFormat = (typeof SUPPORTED_ENDPOINT_FORMATS)[number];
 export type CustomEndpoint = { id: string; label: string; baseUrl: string; format: string; models: string[] };
 export type CustomEndpointView = CustomEndpoint & { hasKey: boolean };
 
