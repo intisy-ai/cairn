@@ -8,6 +8,7 @@
   import { toast } from "../toast.js";
   import { debounce } from "../util/debounce.js";
   import { buildUnifiedPlugins, applicableHomeIds } from "../util/unifiedPlugins.js";
+  import { prerequisiteInstalls } from "../util/installQueue.js";
   import Button from "../components/Button.svelte";
   import IconButton from "../components/IconButton.svelte";
   import Card from "../components/Card.svelte";
@@ -215,6 +216,7 @@
 
   async function reload(): Promise<void> {
     await Promise.all([loadPlugins(), loadCatalog(), loadEngines(), loadFavorites(), loadGithubStatus()]);
+    queuedManagerHomes = new Set();
     loaded = true;
     void loadVersions();
   }
@@ -289,7 +291,33 @@
     return homeIds.map((id) => by[id]?.label ?? id).join(", ") || "none";
   }
 
+  // A home whose manager install is already queued must not get a second row when the
+  // user starts another install before the list reloads.
+  let queuedManagerHomes = new Set<string>();
+
+  async function installPrerequisites(name: string, homeIds: string[]): Promise<boolean> {
+    for (const prereq of prerequisiteInstalls(name, homeIds, homes, engines)) {
+      if (queuedManagerHomes.has(prereq.homeId)) continue;
+      queuedManagerHomes.add(prereq.homeId);
+      const result = await enqueue({
+        label: `Install ${prereq.id}`,
+        home: homesLabel([prereq.homeId]),
+        source: "cairn",
+        key: prereq.id,
+        run: (id) => cairn.pluginsInstall(prereq.homeId, prereq.id, prereq.url, id),
+      });
+      if (!result.ok) {
+        queuedManagerHomes.delete(prereq.homeId);
+        return false;
+      }
+    }
+    return true;
+  }
+
   async function installManyTracked(label: string, name: string, url: string, homeIds: string[]): Promise<Result<InstallManyResult>> {
+    if (!(await installPrerequisites(name, homeIds))) {
+      return { ok: false, error: "could not install the plugin manager" };
+    }
     const result = await enqueue({
       label,
       home: homesLabel(homeIds),
@@ -304,6 +332,10 @@
   }
 
   async function addHome(p: UnifiedPlugin, homeId: string): Promise<void> {
+    if (!(await installPrerequisites(p.name, [homeId]))) {
+      await reload();
+      return;
+    }
     await enqueue({
       label: `Install ${p.displayName}`,
       home: homesLabel([homeId]),
