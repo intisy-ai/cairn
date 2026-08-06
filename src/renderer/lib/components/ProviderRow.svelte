@@ -3,11 +3,11 @@
   import StatusPill from "./StatusPill.svelte";
   import type { StatusVariant } from "./StatusPill.svelte";
   import AppPills from "./AppPills.svelte";
+  import PluginIcon, { LOGO_SIZE } from "./PluginIcon.svelte";
   import ToggleSwitch from "./ToggleSwitch.svelte";
   import Chip from "./Chip.svelte";
 
   let {
-    avatar,
     name,
     subtitle,
     translator,
@@ -20,7 +20,6 @@
     onToggleExposure,
     onOpen,
   }: {
-    avatar: string;
     name: string;
     subtitle: string;
     translator?: string;
@@ -52,7 +51,7 @@
   onclick={onOpen}
   onkeydown={onKeydown}
 >
-  <div class="mono-ic">{avatar}</div>
+  <PluginIcon name={name} kind="provider" size={LOGO_SIZE.list} />
   <div class="pname">
     <b>{name}</b>
     <span>{subtitle}</span>
@@ -92,18 +91,6 @@
   }
   .interactive {
     display: contents;
-  }
-  .mono-ic {
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    display: grid;
-    place-items: center;
-    font-weight: 700;
-    font-size: 13px;
-    color: var(--muted);
   }
   .pname {
     min-width: 0;

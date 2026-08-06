@@ -112,10 +112,6 @@
     loaded = true;
   }
 
-  function initials(label: string): string {
-    return label.slice(0, 2);
-  }
-
   function statusFor(row: ProviderRowData): { variant: StatusVariant; label: string } {
     return isConnected(row) ? { variant: "good", label: "Connected" } : { variant: "off", label: "Not connected" };
   }
@@ -295,7 +291,6 @@
 
 {#snippet providerRow(row: ProviderRowData)}
   <ProviderRow
-    avatar={initials(row.label)}
     name={row.label}
     subtitle={row.authKind === "oauth" ? "OAuth" : "API key"}
     translator={row.translator}

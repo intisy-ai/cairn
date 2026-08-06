@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ActivityRecord, Impact } from "@cairn/shared";
+  import { formatDuration } from "@cairn/shared";
   import { humanizeId } from "../util/appLabel.js";
   import { relativeTime } from "../util/time.js";
 
@@ -39,10 +40,6 @@
     return ".";
   }
 
-  function duration(ms: number): string {
-    return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
-  }
-
   // A target that names neither an app nor a different home says nothing new. A home
   // with no app id shows its directory name, which reads better than a full path and
   // still names nothing specific.
@@ -67,7 +64,7 @@
     if (record.cause?.kind) parts.push(record.cause.kind);
     if (record.cause?.surface) parts.push(record.cause.surface);
     if (record.outcome) parts.push(record.outcome);
-    if (typeof record.durationMs === "number") parts.push(duration(record.durationMs));
+    if (typeof record.durationMs === "number") parts.push(formatDuration(record.durationMs));
     return parts;
   });
 

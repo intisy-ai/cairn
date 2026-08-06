@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { formatBytes } from "@cairn/shared";
   import { onMount } from "svelte";
   import type { FieldSpec } from "@cairn/shared";
   import { cairn } from "../ipc.js";
@@ -23,12 +24,6 @@
 
   function labelFor(field: FieldSpec): string {
     return field.label || field.key;
-  }
-
-  function formatBytes(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   async function load(): Promise<void> {
