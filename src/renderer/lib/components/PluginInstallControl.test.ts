@@ -45,6 +45,33 @@ describe("PluginInstallControl", () => {
     expect(screen.getByRole("button", { name: "Remove everywhere" })).toBeInTheDocument();
   });
 
+  // A half-built copy is broken now, so repairing it comes before updating or removing.
+  it("offers Repair ahead of everything else when a copy is only partly built", async () => {
+    const onRepairHome = vi.fn();
+    render(PluginInstallControl, {
+      props: props({ updateAvailable: true, updatesEnabled: true, onUpdate: vi.fn(), onRepairHome, brokenHomes: ["claude"] }),
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Repair in Claude Code" }));
+    expect(onRepairHome).toHaveBeenCalledWith("claude");
+    expect(screen.queryByRole("button", { name: "Update" })).not.toBeInTheDocument();
+  });
+
+  it("keeps updating and removing in the menu while the primary offers a repair", async () => {
+    render(PluginInstallControl, {
+      props: props({ updateAvailable: true, updatesEnabled: true, onUpdate: vi.fn(), onUpdateHome: vi.fn(), onRepairHome: vi.fn(), behindHomes: ["claude"], brokenHomes: ["claude"] }),
+    });
+    await openMenu();
+    expect(screen.getByRole("button", { name: "Update in Claude Code" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove everywhere" })).toBeInTheDocument();
+  });
+
+  it("ignores a broken home the plugin is not installed in", () => {
+    render(PluginInstallControl, {
+      props: props({ plugin: plugin(["claude"]), onRepairHome: vi.fn(), brokenHomes: ["opencode"] }),
+    });
+    expect(screen.getByRole("button", { name: "Install in OpenCode" })).toBeInTheDocument();
+  });
+
   // A copy that is behind is the broken thing here; installing into a home that simply has
   // not got it yet can wait for the menu.
   it("offers Update ahead of installing into the homes still missing it", async () => {

@@ -278,6 +278,14 @@
     return failed.map((o) => `${o.home}: ${o.error ?? "failed"}`).join("; ");
   }
 
+  // Homes where this plugin is installed but only partly built, so it loads with pieces of
+  // itself missing. A rebuild from the clone already on disk is what fixes that.
+  function brokenHomesFor(p: UnifiedPlugin): string[] {
+    return sections
+      .filter((s) => s.rows.some((r) => r.name === p.name && (r.missingArtifacts?.length ?? 0) > 0))
+      .map((s) => s.home.id);
+  }
+
   // Which homes report this plugin as behind, from each home's own row.
   function behindHomesFor(p: UnifiedPlugin): string[] {
     return sections
@@ -340,6 +348,13 @@
   // through the download queue so it shows progress like every other download.
   async function updateHome(p: UnifiedPlugin, homeId: string): Promise<void> {
     const queued = await enqueueJob("update", p.name, p.url ?? "", homeId);
+    if (queued.ok) await jobSettled(queued.data.id);
+    await reload();
+  }
+  // A repair rebuilds from the clone that is already there, so it goes through the same
+  // queue as an install and shows the same progress.
+  async function repairHome(p: UnifiedPlugin, homeId: string): Promise<void> {
+    const queued = await enqueueJob("repair", p.name, p.url ?? "", homeId);
     if (queued.ok) await jobSettled(queued.data.id);
     await reload();
   }
@@ -530,7 +545,9 @@
           updateAvailable={p.updateAvailable}
           {updatesEnabled}
           behindHomes={behindHomesFor(p)}
+          brokenHomes={brokenHomesFor(p)}
           onUpdate={() => handleUpdate(p)}
+          onRepairHome={(homeId) => repairHome(p, homeId)}
           onUpdateHome={(homeId) => updateHome(p, homeId)}
           onInstallAll={() => handleInstallAll(p)}
           onRemoveEverywhere={() => confirmRemoveEverywhere(p)}
@@ -633,11 +650,13 @@
     <PluginDetail
       plugin={selectedPlugin}
       homes={applicableHomesFor(selectedPlugin)}
+      brokenHomes={brokenHomesFor(selectedPlugin)}
       activity={$activeByPlugin[selectedPlugin.name] ?? null}
       onClose={() => (selectedName = null)}
       onInstallAll={() => handleInstallAll(selectedPlugin)}
       onRemoveEverywhere={() => confirmRemoveEverywhere(selectedPlugin)}
       onUpdate={() => handleUpdate(selectedPlugin)}
+      onRepairHome={(homeId) => repairHome(selectedPlugin, homeId)}
       onUpdateHome={(homeId) => updateHome(selectedPlugin, homeId)}
       onToggleHome={(homeId, on) => (on ? addHome(selectedPlugin, homeId) : removeHome(selectedPlugin, homeId))}
       onToggleFavorite={() => toggleFavorite(selectedPlugin)}

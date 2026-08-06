@@ -105,16 +105,32 @@ describe("plugins sidecar module", () => {
     const byName = new Map(claudeSection.rows.map((row) => [row.name, row]));
     expect(byName.get("plugin-a")).toEqual({
       name: "plugin-a", kind: "git", enabled: true, url: "https://github.com/intisy-ai/plugin-a",
-      installedVersion: null, updateAvailable: true, description: "",
+      installedVersion: null, updateAvailable: true, description: "", missingArtifacts: [],
     });
     expect(byName.get("plugin-b")).toEqual({
       name: "plugin-b", kind: "git", enabled: false, url: "https://github.com/intisy-ai/plugin-b",
-      installedVersion: null, updateAvailable: false, description: "",
+      installedVersion: null, updateAvailable: false, description: "", missingArtifacts: [],
     });
     expect(byName.get("npm-plugin-x")).toEqual({
       name: "npm-plugin-x", kind: "npm", enabled: true, url: undefined,
       installedVersion: "1.2.3", updateAvailable: true, description: "",
     });
+  });
+
+  // A clone whose build half-landed loads with pieces of itself missing, which is what the
+  // Repair action keys off. Only a git clone has a build that can be incomplete.
+  it("reports the build outputs a clone declares but does not have", async () => {
+    seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
+    seedNpmPlugins(claudeDir, ["npm-plugin-x"]);
+    const { pluginsList } = await import("./plugins.js");
+    const result = await pluginsList({
+      homes: fakeHomes,
+      missingArtifacts: async (_dir, name) => (name === "plugin-a" ? ["dist/handler.js"] : []),
+    });
+    if (!result.ok) throw new Error("unreachable");
+    const rows = result.data.find((s) => s.home.id === "claude")!.rows;
+    expect(rows.find((r) => r.name === "plugin-a")?.missingArtifacts).toEqual(["dist/handler.js"]);
+    expect(rows.find((r) => r.name === "npm-plugin-x")?.missingArtifacts).toBeUndefined();
   });
 
   it("install targets the requested home's dir via the write scope", async () => {

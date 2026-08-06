@@ -15,6 +15,7 @@ import { pluginHomes, homeDir, homeById, updaterInstalled } from "../lib/pluginH
 import { readNamespace, writeCacheMany } from "../lib/cache.js";
 import {
   safeGetPlugins,
+  safeMissingArtifacts,
   loadPluginUpdaterConfig,
   loadPluginUpdaterCache,
   loadPluginUpdaterSyncbridge,
@@ -173,6 +174,7 @@ function rowFor(name: string, kind: "git" | "npm", enabled: boolean, url: string
 
 export interface PluginsDeps {
   homes?: PluginHome[];
+  missingArtifacts?: (dir: string, name: string) => Promise<string[]>;
   updatePluginPublic?: UpdatePluginPublicFn;
   syncPluginsAcrossApps?: SyncPluginsAcrossAppsFn;
   downgrade?: DowngradeFn;
@@ -196,6 +198,7 @@ export function pluginsList(deps: PluginsDeps = {}): Promise<Result<HomePlugins[
   return wrap(async () => {
     const homes = await resolveHomes(deps);
     const listGit = deps.getPlugins ?? safeGetPlugins;
+    const missingArtifacts = deps.missingArtifacts ?? safeMissingArtifacts;
     const sections: HomePlugins[] = [];
     for (const home of homes) {
       if (!home.present) {
@@ -203,7 +206,11 @@ export function pluginsList(deps: PluginsDeps = {}): Promise<Result<HomePlugins[
         continue;
       }
       const cache = await realReadUpdateCache(home.dir);
-      const gitRows = (await listGit(home.dir)).map((p) => rowFor(p.name, "git", p.enabled !== false, p.url, cache, home.dir));
+      const gitRows = await Promise.all((await listGit(home.dir)).map(async (p) => ({
+        ...rowFor(p.name, "git", p.enabled !== false, p.url, cache, home.dir),
+        // Only a git clone has a build to be incomplete; an npm install either resolved or did not.
+        missingArtifacts: await missingArtifacts(home.dir, p.name),
+      })));
       const npmRows = (await getNpmPlugins(home.dir)).map((p) => rowFor(p.name, "npm", true, undefined, cache, home.dir));
       sections.push({ home, rows: [...gitRows, ...npmRows] });
     }

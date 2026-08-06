@@ -4,6 +4,7 @@ import { getConfigDir } from "@core-auth/index.js";
 import { getApps, getAppDescriptor, resolveHome } from "@core/index.js";
 import { appsDetect } from "../modules/apps.js";
 import { renderCairnMark } from "../../../packages/shared/src/logo.js";
+import { svgIconDataUri } from "./pluginIcon.js";
 import type { AppPresence, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
 import { safeGetPlugins, loadPluginUpdaterConfig } from "./optionalEngines.js";
 
@@ -44,15 +45,13 @@ export async function pluginHomes(deps: PluginHomesDeps = {}): Promise<PluginHom
   const appHomes: PluginHome[] = await Promise.all(
     getApps().map(async (desc) => {
       const dir = appHomeForId(desc.id);
-      // The home pills inline the mark as raw SVG (like the Cairn mark), so pass the
-      // descriptor's raw icon through rather than a data URI.
-      return { id: desc.id, label: desc.label, icon: desc.icon || undefined, dir, present: !!present[desc.id], hasUpdater: await hasUpdater(dir) };
+      return { id: desc.id, label: desc.label, icon: desc.icon ? svgIconDataUri(desc.icon) : undefined, dir, present: !!present[desc.id], hasUpdater: await hasUpdater(dir) };
     }),
   );
   return [
     // Cairn bundles the updater to perform installs, but it ships with no plugins:
     // until plugin-updater is installed here too, only engines can be added.
-    { id: "cairn", label: "Cairn", icon: renderCairnMark(), dir: cairnDir, present: true, hasUpdater: await hasUpdater(cairnDir) },
+    { id: "cairn", label: "Cairn", icon: svgIconDataUri(renderCairnMark()), dir: cairnDir, present: true, hasUpdater: await hasUpdater(cairnDir) },
     ...appHomes,
   ];
 }

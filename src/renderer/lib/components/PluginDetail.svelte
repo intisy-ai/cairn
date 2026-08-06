@@ -5,6 +5,7 @@
   import RepoDetail from "./RepoDetail.svelte";
   import ToggleSwitch from "./ToggleSwitch.svelte";
   import SplitButton from "./SplitButton.svelte";
+  import PluginIcon, { LOGO_SIZE } from "./PluginIcon.svelte";
   import PluginInstallControl from "./PluginInstallControl.svelte";
   import { cairn } from "../ipc.js";
   import { activeByPluginHome, jobKey, cancelRow, type DownloadRow } from "../downloads.js";
@@ -12,11 +13,13 @@
   let {
     plugin,
     homes,
+    brokenHomes = [],
     activity = null,
     onClose,
     onInstallAll,
     onRemoveEverywhere,
     onUpdate,
+    onRepairHome,
     onUpdateHome,
     onToggleHome,
     onToggleFavorite,
@@ -24,11 +27,14 @@
   }: {
     plugin: UnifiedPlugin;
     homes: { id: string; label: string; icon?: string; hasUpdater?: boolean }[];
+    // Homes where the plugin is installed but only partly built.
+    brokenHomes?: string[];
     activity?: import("../downloads.js").DownloadRow | null;
     onClose: () => void;
     onInstallAll: () => void;
     onRemoveEverywhere: () => void;
     onUpdate: () => void;
+    onRepairHome?: (homeId: string) => void;
     onUpdateHome: (homeId: string) => Promise<void>;
     onToggleHome: (homeId: string, on: boolean) => void;
     onToggleFavorite?: () => void;
@@ -127,9 +133,6 @@
     });
   });
 
-  function letters(label: string): string {
-    return label.replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase();
-  }
 </script>
 
 {#snippet topActions()}
@@ -152,6 +155,8 @@
     updateAvailable={plugin.updateAvailable}
     {updatesEnabled}
     {behindHomes}
+    {brokenHomes}
+    {onRepairHome}
     {onUpdate}
     onUpdateHome={(homeId) => updateHome(homeId)}
     {onInstallAll}
@@ -167,10 +172,9 @@
       <ul class="apps">
         {#each homes as h (h.id)}
           {@const on = !!plugin.homes[h.id]?.installed}
-          {@const icon = h.icon}
           <li>
             <span class="appmark" class:na={!on}>
-              {#if icon}<span class="glyph">{@html icon}</span>{:else}<span class="lm">{letters(h.label)}</span>{/if}
+              <PluginIcon icon={h.icon} name={h.label} size={LOGO_SIZE.compact} />
             </span>
             <span class="appname">{h.label}</span>
             {#if on && versions[h.id]}
@@ -322,8 +326,6 @@
     background: var(--surface-2);
   }
   .appmark {
-    width: 24px;
-    height: 24px;
     border-radius: 6px;
     overflow: hidden;
     flex: none;
@@ -332,23 +334,6 @@
   .appmark.na {
     filter: grayscale(0.85);
     opacity: 0.45;
-  }
-  .appmark .glyph :global(svg) {
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
-  .lm {
-    width: 100%;
-    height: 100%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-family: var(--mono);
-    font-size: 9px;
-    font-weight: 700;
-    color: #fff;
-    background: var(--faint);
   }
   .appname {
     font-size: 13px;

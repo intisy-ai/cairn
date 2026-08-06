@@ -66,6 +66,17 @@ export function resetOptionalEngineCacheForTests(): void {
 // getPlugins (a home's plugins.json contents) is read by nearly every sidecar module; centralized
 // here so an absent plugin-updater degrades once, consistently, to "no plugins" instead of each
 // call site reimplementing the same fallback.
+// Reports which of a plugin's declared build outputs are missing. Without the engine there is
+// nothing that could repair it either, so "unknown" reads as healthy rather than alarming.
+export async function safeMissingArtifacts(dir: string, name: string): Promise<string[]> {
+  try {
+    const index = await loadPluginUpdaterIndex();
+    return index ? index.checkPluginHealth(dir, name).missing : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function safeGetPlugins(dir: string): Promise<Plugin[]> {
   const mod = await loadPluginUpdaterConfig();
   return mod ? mod.getPlugins(dir) : [];

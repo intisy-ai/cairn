@@ -92,6 +92,9 @@ export type PluginRow = {
   description: string;
   displayName?: string;
   icon?: string;
+  // Files the clone declares that its build did not produce; a non-empty list means the
+  // plugin is installed but only partly built, and a repair is what fixes it.
+  missingArtifacts?: string[];
 };
 export type UsageAccount = {
   provider: string;
@@ -156,7 +159,7 @@ export type SyncStatus = { enabled: boolean; categories: SyncCategories; exclude
 // A unit of plugin work the sidecar runs one at a time in its own process. The renderer
 // mirrors this list rather than keeping a queue of its own, so cancel and per-home status
 // survive a reload.
-export type JobKind = "install" | "update" | "remove";
+export type JobKind = "install" | "update" | "remove" | "repair";
 export type JobStatus = "queued" | "running" | "cancelling" | "done" | "failed" | "cancelled";
 export type JobPhase = { name: string; ms: number };
 // One throughput reading, kept so a screen can chart the transfer rate over time.

@@ -59,7 +59,7 @@ const JOB_STATUS: Record<Job["status"], DownloadStatus> = {
   cancelled: "cancelled",
 };
 
-const VERB: Record<JobKind, string> = { install: "Install", update: "Update", remove: "Remove" };
+const VERB: Record<JobKind, string> = { install: "Install", update: "Update", remove: "Remove", repair: "Repair" };
 
 function jobRow(job: Job): DownloadRow {
   return {

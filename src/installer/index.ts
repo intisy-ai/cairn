@@ -5,7 +5,7 @@ process.env.PLUGIN_UPDATER_LIBRARY_MODE = "1";
 
 export interface JobMessage {
   jobId: string;
-  kind: "install" | "update" | "remove";
+  kind: "install" | "update" | "remove" | "repair";
   plugin: string;
   url: string;
   home: string;
@@ -30,6 +30,17 @@ async function run(job: JobMessage): Promise<void> {
   if (job.kind === "remove") {
     report(job.jobId, "removing", 50);
     index.uninstallPlugin(job.homeDir, job.plugin);
+    return;
+  }
+
+  // A repair rebuilds what is already cloned, so it skips git entirely: the commit is not
+  // what is wrong, the build output is.
+  if (job.kind === "repair") {
+    report(job.jobId, "rebuilding", 20);
+    const health = await index.repairPlugin(job.homeDir, job.plugin);
+    if (!health.healthy) throw new Error(`repair left ${health.missing.join(", ")} missing for ${job.plugin}`);
+    report(job.jobId, "rebuilt", 90);
+    await recordInstalledVersion(job);
     return;
   }
 

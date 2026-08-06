@@ -58,12 +58,13 @@ export function noteTransfer(job: Job, transfer: Transfer, now: number): Job {
 }
 
 // A queued job never touched the home, so it just ends. A running one has to be rolled back to
-// the state it started from, and stays "cancelling" until the runner has done that.
+// the state it started from, and stays "cancelling" until the runner has done that. An update
+// and a repair both work on a clone that was already there, so cancelling one keeps it.
 export function cancelJob(job: Job, now: number): { job: Job; rollback: Rollback } {
   if (isEnded(job)) return { job, rollback: "none" };
   if (job.status === "queued") return { job: { ...job, status: "cancelled", endedAt: now }, rollback: "none" };
   return {
     job: { ...job, status: "cancelling" },
-    rollback: job.kind === "update" ? "keep-previous" : "remove-clone",
+    rollback: job.kind === "update" || job.kind === "repair" ? "keep-previous" : "remove-clone",
   };
 }
