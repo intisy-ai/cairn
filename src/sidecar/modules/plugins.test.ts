@@ -1,4 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+
+const { emitted } = vi.hoisted(() => ({ emitted: [] as string[] }));
+vi.mock("../activity.js", () => ({
+  emitCairnAction: async (spec: { action: string }) => { emitted.push(spec.action); },
+}));
+
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -663,5 +669,35 @@ describe("pluginsInstall for the plugin manager", () => {
       ensureUpdater,
     } as never);
     expect(ensureUpdater).not.toHaveBeenCalled();
+  });
+});
+
+describe("the record that starts an install", () => {
+  it("is emitted before any install work", async () => {
+    emitted.length = 0;
+    const order: string[] = [];
+    const { pluginsInstall } = await import("./plugins.js");
+    const res = await pluginsInstall("claude", "wakatime-sync", "https://example/wakatime-sync", {
+      homes: fakeHomes,
+      hasUpdater: () => true,
+      updatePluginPublic: async () => { order.push("clone"); },
+      syncPluginsAcrossApps: async () => {},
+    } as never);
+    expect(res.ok).toBe(true);
+    expect(emitted).toContain("plugin_install_requested");
+    expect(order).toEqual(["clone"]);
+  });
+
+  it("is emitted even when the install then fails", async () => {
+    emitted.length = 0;
+    const { pluginsInstall } = await import("./plugins.js");
+    const res = await pluginsInstall("claude", "wakatime-sync", "https://example/wakatime-sync", {
+      homes: fakeHomes,
+      hasUpdater: () => true,
+      updatePluginPublic: async () => { throw new Error("clone refused"); },
+      syncPluginsAcrossApps: async () => {},
+    } as never);
+    expect(res.ok).toBe(false);
+    expect(emitted[0]).toBe("plugin_install_requested");
   });
 });

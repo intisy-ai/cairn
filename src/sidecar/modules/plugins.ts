@@ -11,7 +11,7 @@ import { emitCairnAction } from "../activity.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
 import type { Plugin, NpmPlugin } from "@plugin-updater/types.js";
 import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, PluginVersion, Result, InstallManyResult, InstallOutcome } from "../../../packages/shared/src/domain.js";
-import { pluginHomes, homeDir, updaterInstalled } from "../lib/pluginHomes.js";
+import { pluginHomes, homeDir, homeById, updaterInstalled } from "../lib/pluginHomes.js";
 import { readNamespace, writeCacheMany } from "../lib/cache.js";
 import {
   safeGetPlugins,
@@ -345,6 +345,16 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
   return wrap(async () => {
     const homes = await resolveHomes(deps);
     const dir = homeDir(homeId, homes);
+
+    // First event in this dispatch's cause scope, so it becomes the trace root every
+    // record the install produces chains back to (activityEnv exports it to the
+    // separately-bundled updater as HUB_ACTIVITY_PARENT).
+    await emitCairnAction({
+      action: "plugin_install_requested",
+      subject: { kind: "plugin", id: name, label: name },
+      homeId,
+      details: { url, message: `Installing ${name} into ${homeById(homeId, homes).label}` },
+    }, homes);
 
     const report = deps.report;
     const hasUpdater = deps.hasUpdater ?? updaterInstalled;
