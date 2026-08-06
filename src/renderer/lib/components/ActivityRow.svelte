@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ActivityRecord, Impact } from "@cairn/shared";
   import { humanizeId } from "../util/appLabel.js";
+  import { relativeTime } from "../util/time.js";
 
   let {
     record,
@@ -36,16 +37,6 @@
     if (impact === "notice") return "+";
     if (impact === "info") return "-";
     return ".";
-  }
-
-  function relativeTime(ts: number): string {
-    const diffSec = Math.max(0, Math.round((Date.now() - ts) / 1000));
-    if (diffSec < 60) return "just now";
-    const diffMin = Math.round(diffSec / 60);
-    if (diffMin < 60) return `${diffMin}m ago`;
-    const diffHour = Math.round(diffMin / 60);
-    if (diffHour < 24) return `${diffHour}h ago`;
-    return `${Math.round(diffHour / 24)}d ago`;
   }
 
   function duration(ms: number): string {

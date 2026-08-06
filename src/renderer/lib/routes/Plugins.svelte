@@ -63,7 +63,9 @@
 
   const startParams = consumeParams();
   let addOpen = $state(!!startParams?.add);
-  let selectedName = $state<string | null>(null);
+  // Arriving with ?plugin= opens that plugin straight away, so a link from another screen
+  // lands on the plugin itself rather than just the list.
+  let selectedName = $state<string | null>(startParams?.plugin ?? null);
   let pendingConfirm = $state<{ title: string; message: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
 
   type KindFilter = "all" | "provider" | "proxy" | "plugin" | "loader" | "engine";

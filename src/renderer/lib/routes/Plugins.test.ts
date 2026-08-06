@@ -635,4 +635,16 @@ describe("Plugins screen", () => {
     await waitFor(() => expect(getByText("opencode-loader")).toBeTruthy());
     expect(queryByText("demo")).toBeNull();
   });
+
+  // A row on the Downloads screen links here with the plugin named, so it must open.
+  it("opens the named plugin when arrived at with a plugin param", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+    });
+    navigate("plugins", { plugin: "wakatime-sync" });
+    render(Plugins);
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(within(screen.getByRole("dialog")).getByText("wakatime-sync")).toBeTruthy();
+  });
 });

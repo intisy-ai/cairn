@@ -11,6 +11,9 @@
   import Button from "../components/Button.svelte";
   import EmptyState from "../components/EmptyState.svelte";
   import Skeleton from "../components/Skeleton.svelte";
+  import PluginIcon, { LOGO_SIZE } from "../components/PluginIcon.svelte";
+  import { navigate } from "../router.js";
+  import { whenLabel, exactTime } from "../util/time.js";
   import SpeedGraph from "../charts/SpeedGraph.svelte";
 
   const LIVE = ["pending", "installing", "cancelling"];
@@ -25,12 +28,26 @@
   let now = $state(Date.now());
 
   let installed = $state<Set<string>>(new Set());
+  let meta = $state<Record<string, { displayName: string; icon: string }>>({});
   let historyLoading = $state(true);
 
   async function loadInstalled(): Promise<void> {
     const result = await cairn.pluginsList();
-    if (result.ok) installed = new Set(result.data.flatMap((section) => section.rows.map((row) => row.name)));
+    if (result.ok) {
+      const rows = result.data.flatMap((section) => section.rows);
+      installed = new Set(rows.map((row) => row.name));
+      meta = Object.fromEntries(rows.map((row) => [row.name, { displayName: row.displayName ?? row.name, icon: row.icon ?? "" }]));
+    }
     historyLoading = false;
+  }
+
+  function labelOf(plugin: string): string {
+    return meta[plugin]?.displayName ?? plugin;
+  }
+
+  // A row is a way into the plugin, the same as clicking it in the plugins list.
+  function openPlugin(plugin: string): void {
+    navigate("plugins", { plugin }, { redirect: true });
   }
 
   async function loadHistory(): Promise<void> {
@@ -87,7 +104,7 @@
   {#if active.length > 0}
     {#each active as row (row.id)}
       <Card>
-        <div class="job" data-testid="active-job">
+        <div class="pad job" data-testid="active-job">
           <div class="head">
             <div class="who">
               <span class="name">{row.label}</span>
@@ -141,6 +158,7 @@
 
   {#if queued.length > 0}
     <Card>
+      <div class="pad">
       <h3 class="section">Queued <span class="count">{queued.length}</span></h3>
       <ol class="queue">
         {#each queued as row, index (row.id)}
@@ -156,21 +174,25 @@
           </li>
         {/each}
       </ol>
+      </div>
     </Card>
   {/if}
 
   {#if historyLoading}
     <Card>
-      <h3 class="section">Recent</h3>
-      <Skeleton height="34px" radius="8px" lines={4} />
+      <div class="pad">
+        <h3 class="section">Recent</h3>
+        <Skeleton height="34px" radius="8px" lines={4} />
+      </div>
     </Card>
   {:else if recentRows.length > 0 || visibleHistory.length > 0}
     <Card>
+      <div class="pad">
       <h3 class="section">Recent</h3>
       <ul class="log">
         <!-- This session's own work keeps its duration, which is the only place a real one exists. -->
         {#each recentRows as row (row.id)}
-          <li data-testid="recent-row" class:bad={row.status === "failed"}>
+          <li class="job-row" data-testid="recent-row" class:bad={row.status === "failed"}>
             <span class="dot" class:crit={row.status === "failed"} class:idle={row.status === "cancelled"}></span>
             <span class="what">{row.label}</span>
             <span class="took num">{elapsed(row)}</span>
@@ -185,8 +207,10 @@
         {/each}
         {#each visibleHistory as entry (entry.key)}
           <li data-testid="history-row" class:bad={entry.failed}>
+            <button class="row" title={`View ${labelOf(entry.plugin)}`} onclick={() => openPlugin(entry.plugin)}>
             <span class="dot" class:crit={entry.failed}></span>
-            <span class="what">{entry.plugin}</span>
+            <PluginIcon icon={meta[entry.plugin]?.icon} name={labelOf(entry.plugin)} size={LOGO_SIZE.compact} />
+            <span class="what">{labelOf(entry.plugin)}</span>
             <span class="ver num">
               {#if entry.fromVersion}<span class="from">{entry.fromVersion}</span>{/if}
               {#if entry.toVersion}<span class="to">{entry.toVersion}</span>{/if}
@@ -200,14 +224,20 @@
                 {/each}
               </span>
             {/if}
+            <span class="when num" title={exactTime(entry.ts)}>{whenLabel(entry.ts, now)}</span>
+            </button>
           </li>
         {/each}
       </ul>
+      </div>
     </Card>
   {/if}
 {/if}
 
 <style>
+  .pad {
+    padding: 14px 18px;
+  }
   .headrate {
     font-family: var(--mono);
     font-variant-numeric: tabular-nums;
@@ -415,12 +445,38 @@
     list-style: none;
   }
   .log li {
+    border-top: 1px solid var(--border);
+  }
+  .log li > .row,
+  .log li > :global(*) {
     display: grid;
-    grid-template-columns: 7px minmax(0, 15rem) 7.5rem minmax(0, 1fr);
+    grid-template-columns: 7px auto minmax(0, 13rem) 7.5rem minmax(0, 1fr) 5.5rem;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 7px 8px;
+    margin: 0 -8px;
+    font-size: 12.5px;
+    text-align: left;
+    background: none;
+    border: none;
+    color: inherit;
+    font-family: inherit;
+    border-radius: 8px;
+  }
+  .log li > .row {
+    cursor: pointer;
+  }
+  .log li > .row:hover {
+    background: var(--surface-2);
+  }
+  /* A row for this session's own work has no plugin mark, so it keeps the narrower grid. */
+  .log li.job-row {
+    display: grid;
+    grid-template-columns: 7px minmax(0, 13rem) 7.5rem minmax(0, 1fr);
     align-items: center;
     gap: 12px;
     padding: 7px 0;
-    border-top: 1px solid var(--border);
     font-size: 12.5px;
   }
   .log li:first-child {
@@ -445,13 +501,17 @@
     white-space: nowrap;
   }
   .ver,
-  .took {
+  .took,
+  .when {
     font-size: 11px;
     color: var(--faint);
     white-space: nowrap;
   }
+  .when {
+    text-align: right;
+  }
   .ver .from::after {
-    content: "92";
+    content: " to ";
     margin: 0 4px;
     color: var(--border-strong);
   }
@@ -473,7 +533,6 @@
     white-space: nowrap;
   }
   .why {
-    grid-column: 4;
     color: var(--crit);
     font-size: 11px;
     overflow: hidden;

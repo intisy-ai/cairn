@@ -105,9 +105,28 @@ describe("Downloads screen", () => {
   it("shows an update's version change from the history record", async () => {
     historyRecords = [record({ action: "updated", details: { fromVersion: "0bd46a3cd6c1", toVersion: "5ff48beff275" } })];
     render(Downloads);
-    // The arrow between them is decoration, so each version is asserted on its own.
+    // The word between them is decoration, so each version is asserted on its own.
     expect(await screen.findByText("0bd46a3c")).toBeTruthy();
     expect(await screen.findByText("5ff48bef")).toBeTruthy();
+  });
+
+  it("says when a plugin was downloaded, with the exact stamp to hand", async () => {
+    const ts = Date.now() - 3 * 60 * 60 * 1000;
+    historyRecords = [record({ ts })];
+    const { container } = render(Downloads);
+    await screen.findByText("config-ledger");
+    const when = container.querySelector("[data-testid='history-row'] .when");
+    expect(when).toHaveTextContent("3h ago");
+    expect(when?.getAttribute("title")).toBe(new Date(ts).toLocaleString());
+  });
+
+  it("gives a download older than a week a date rather than a day count", async () => {
+    const ts = Date.now() - 40 * 24 * 60 * 60 * 1000;
+    historyRecords = [record({ ts })];
+    const { container } = render(Downloads);
+    await screen.findByText("config-ledger");
+    expect(container.querySelector("[data-testid='history-row'] .when"))
+      .toHaveTextContent(new Date(ts).toLocaleDateString());
   });
 
   it("leaves out a record that names no plugin, like an updates-available notice", async () => {
