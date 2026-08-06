@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { downloads, toggleDownloads, closeDownloads, clearFinished, cancelRow, type DownloadRow } from "../downloads.js";
+  import { downloads, toggleDownloads, closeDownloads, cancelRow, type DownloadRow } from "../downloads.js";
+  import { navigate } from "../router.js";
 
   const LIVE = ["pending", "installing", "cancelling"];
   const inFlight = $derived($downloads.tasks.filter((t) => LIVE.includes(t.status)).length);
-  const hasFinished = $derived($downloads.tasks.some((t) => !LIVE.includes(t.status)));
 
   let root = $state<HTMLElement | null>(null);
   function onWindowClick(e: MouseEvent): void {
@@ -28,6 +28,13 @@
   // Aggregate progress of everything in flight drives the ring; a pending or
   // not-yet-reported task counts as 0 so the ring only fills as work completes.
   const active = $derived($downloads.tasks.filter((t) => LIVE.includes(t.status)));
+  const MAX_GLANCE = 4;
+  const glance = $derived((active.length > 0 ? active : $downloads.tasks).slice(0, MAX_GLANCE));
+
+  function openDownloads(): void {
+    closeDownloads();
+    navigate("downloads");
+  }
   const aggregate = $derived(active.length ? active.reduce((sum, t) => sum + Math.max(t.percent, 0), 0) / active.length : 0);
   const RING = 2 * Math.PI * 12;
 </script>
@@ -59,14 +66,13 @@
     </button>
   {/if}
   {#if $downloads.open && $downloads.tasks.length > 0}
+    <!-- a glance at what is live, with the screen one click away -->
     <div class="panel">
       <div class="panelhead">
         <span class="title">Downloads</span>
-        {#if hasFinished}
-          <button class="clearbtn" onclick={clearFinished}>Clear</button>
-        {/if}
+        <button class="clearbtn" onclick={openDownloads}>View all</button>
       </div>
-      {#each $downloads.tasks as task (task.id)}
+      {#each glance as task (task.id)}
         <div class="task status-{task.status}">
           <div class="row">
             <span class="label">{task.label}</span>

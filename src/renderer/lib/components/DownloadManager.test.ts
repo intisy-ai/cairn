@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/svelte";
+import { get } from "svelte/store";
+import { router } from "../router.js";
 import { seedTasksForTest, seedJobsForTest, openPanelForTest, resetDownloadsForTest, type DownloadRow } from "../downloads.js";
 import type { Job } from "@cairn/shared";
 
@@ -127,32 +129,27 @@ describe("DownloadManager", () => {
     expect(getByText("network error")).toBeTruthy();
   });
 
-  it("hides the Clear button when no task is finished", () => {
-    seed([task({ status: "installing" })], true);
-    const { queryByRole } = render(DownloadManager);
-    expect(queryByRole("button", { name: "Clear" })).toBeNull();
-  });
-
-  it("clicking Clear removes finished tasks but keeps in-flight ones", async () => {
+  // Clearing and the full history moved to the Downloads screen; the popover is a glance
+  // at live work with a way to get there.
+  it("shows only live work when something is in flight, and links to the screen", () => {
     seed([task({ id: 1, label: "plugin-a", status: "done" }), task({ id: 2, label: "plugin-b", status: "installing" })], true);
     const { getByRole, getByText, queryByText } = render(DownloadManager);
-    expect(getByText("plugin-a")).toBeTruthy();
-
-    await fireEvent.click(getByRole("button", { name: "Clear" }));
-
-    expect(queryByText("plugin-a")).toBeNull();
     expect(getByText("plugin-b")).toBeTruthy();
+    expect(queryByText("plugin-a")).toBeNull();
+    expect(getByRole("button", { name: "View all" })).toBeTruthy();
   });
 
-  it("hides the panel and button after Clear empties all tasks", async () => {
+  it("falls back to finished work when nothing is live, so the glance is never empty", () => {
     seed([task({ label: "plugin-final", status: "done" })], true);
-    const { getByRole, queryByRole, queryByText, container } = render(DownloadManager);
-    expect(getByRole("button", { name: "Clear" })).toBeTruthy();
-    expect(queryByText("plugin-final")).toBeTruthy();
+    const { getByText } = render(DownloadManager);
+    expect(getByText("plugin-final")).toBeTruthy();
+  });
 
-    await fireEvent.click(getByRole("button", { name: "Clear" }));
-
-    expect(queryByRole("button", { name: "Toggle download manager" })).toBeNull();
+  it("navigates to the Downloads screen and closes the popover", async () => {
+    seed([task({ status: "installing" })], true);
+    const { getByRole, container } = render(DownloadManager);
+    await fireEvent.click(getByRole("button", { name: "View all" }));
+    expect(get(router).screen).toBe("downloads");
     expect(container.querySelector(".panel")).toBeNull();
   });
 });
