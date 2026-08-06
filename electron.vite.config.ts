@@ -36,6 +36,7 @@ export default defineConfig({
         input: {
           index: "src/main/index.ts",
           sidecar: "src/sidecar/index.ts",
+          installer: "src/installer/index.ts",
         },
         // core-loader's loadUpdater() dynamically imports plugin-updater, a package the
         // dashboard never installs (readDeployedProviders, the only export it uses, does
