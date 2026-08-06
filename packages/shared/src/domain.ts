@@ -1,5 +1,6 @@
 export type { AccountView, AccountQuota, AccountStatus } from "@core-auth/index.js";
-export type { Impact, ActivityRecord, ActivityQuery, ActivityStats, ActivityHomeStats, FieldSpec } from "@core/index.js";
+export type { Impact, ActivityRecord, ActivityQuery, ActivityStats, ActivityHomeStats, FieldType, FieldSpec, ActionSpec, MenuSpec } from "@core/index.js";
+import type { FieldSpec, ActionSpec, MenuSpec } from "@core/index.js";
 
 // What an update run did, as the dashboard reports it back to the renderer.
 export interface UpdateSummary {
@@ -152,6 +153,29 @@ export type RoutingApp = { app: string; label: string };
 export type SyncCategories = { accounts: boolean; plugins: boolean; settings: boolean; pluginConfigs: boolean };
 export type SyncStatus = { enabled: boolean; categories: SyncCategories; exclude: string[]; homes: string[]; pluginConfigs: string[] };
 
+// A unit of plugin work the sidecar runs one at a time in its own process. The renderer
+// mirrors this list rather than keeping a queue of its own, so cancel and per-home status
+// survive a reload.
+export type JobKind = "install" | "update" | "remove";
+export type JobStatus = "queued" | "running" | "cancelling" | "done" | "failed" | "cancelled";
+export type JobPhase = { name: string; ms: number };
+export type JobSpec = { kind: JobKind; plugin: string; url: string; home: string };
+export type Job = JobSpec & {
+  id: string;
+  status: JobStatus;
+  phase: string;
+  // Coarse phase-based progress 0..100; -1 means no phase has been reported yet.
+  percent: number;
+  phases: JobPhase[];
+  queuedAt: number;
+  startedAt?: number;
+  endedAt?: number;
+  phaseStartedAt?: number;
+  fromVersion?: string;
+  toVersion?: string;
+  error?: string;
+};
+
 export type PluginHomeId = string;
 export type PluginHome = {
   id: PluginHomeId;
@@ -187,23 +211,6 @@ export type InstallManyResult = { outcomes: InstallOutcome[] };
 // step; id correlates to the caller's download-task id. percent is coarse
 // phase-based progress 0..100 (-1 when indeterminate).
 export type DownloadProgress = { id: number; step: string; percent: number };
-export type FieldType = "boolean" | "number" | "string" | "secret" | "select" | "multiline" | "list";
-export type FieldSpec = {
-  key: string;
-  type: FieldType;
-  label?: string;
-  description?: string;
-  group?: string;
-  options?: { value: string; label: string }[];
-  min?: number;
-  max?: number;
-  step?: number;
-  itemType?: "string" | "number";
-  placeholder?: string;
-};
-export type ActionSpec = { id: string; label: string; description?: string; confirm?: string; danger?: boolean };
-// What a plugin asks for when it wants a place of its own in the dashboard's navigation.
-export type MenuSpec = { label: string; glyph?: string; order?: number };
 export type PluginConfigSchema = {
   plugin: string;
   defaults: Record<string, unknown>;

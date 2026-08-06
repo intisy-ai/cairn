@@ -44,6 +44,11 @@ function defaultCairn(): CairnAPI {
         { id: "opencode", label: "OpenCode" },
       ],
     }),
+    jobsList: async () => ({ ok: true, data: [] }),
+    jobsEnqueue: async () => ({ ok: false, error: "no job runner in tests" }),
+    jobsCancel: async () => ({ ok: true, data: false }),
+    jobsClearFinished: async () => ({ ok: true, data: undefined }),
+    onJobEvent: () => () => {},
     appsInstallCli: async () => ({ ok: true, data: { stdout: "", stderr: "" } }),
     appsUninstallCli: async () => ({ ok: true, data: { stdout: "", stderr: "" } }),
     appsSummary: async () => ({

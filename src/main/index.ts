@@ -118,6 +118,7 @@ if (!app.requestSingleInstanceLock()) {
       sidecarPath: join(dirName, "sidecar.js"),
       storeDir,
       onProgress: (progress) => mainWindow?.webContents.send("downloads:progress", progress),
+      onJob: (job) => mainWindow?.webContents.send("jobs:event", job),
     });
     registerHandlers(supervisor);
     registerWindowControls();

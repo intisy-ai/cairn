@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import { IPC_CHANNELS, INVOKE_CHANNELS } from "@cairn/shared";
-import type { CairnAPI, Result, ProxyStatus, DownloadProgress, ActivityRecord, InvokeMethod } from "@cairn/shared";
+import type { CairnAPI, Result, ProxyStatus, DownloadProgress, ActivityRecord, Job, InvokeMethod } from "@cairn/shared";
 
 const invokeChannels: readonly string[] = IPC_CHANNELS.invoke;
 const sendChannels: readonly string[] = IPC_CHANNELS.send;
@@ -44,6 +44,7 @@ const api: CairnAPI = {
   onServerStatus: (listener) => safeOn("server:status", (status) => listener(status as ProxyStatus)),
   onDownloadProgress: (listener) => safeOn("downloads:progress", (progress) => listener(progress as DownloadProgress)),
   onActivityEvent: (listener) => safeOn("activity:event", (record) => listener(record as ActivityRecord)),
+  onJobEvent: (listener) => safeOn("jobs:event", (job) => listener(job as Job)),
   isElectron: true,
   platform: process.platform,
 };

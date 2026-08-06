@@ -42,6 +42,10 @@ export const INVOKE_CHANNELS = {
   pluginsList: "plugins:list",
   enginesList: "engines:list",
   enginesEnsure: "engines:ensure",
+  jobsList: "jobs:list",
+  jobsEnqueue: "jobs:enqueue",
+  jobsCancel: "jobs:cancel",
+  jobsClearFinished: "jobs:clearFinished",
   pluginsInstall: "plugins:install",
   pluginsInstallMany: "plugins:installMany",
   pluginsRemoveEverywhere: "plugins:removeEverywhere",
@@ -97,12 +101,12 @@ export type InvokeChannel = (typeof INVOKE_CHANNELS)[InvokeMethod];
 export const IPC_CHANNELS = {
   invoke: Object.values(INVOKE_CHANNELS) as readonly InvokeChannel[],
   send: ["window:minimize", "window:maximize", "window:close"] as const,
-  receive: ["server:status", "downloads:progress", "activity:event"] as const,
+  receive: ["server:status", "downloads:progress", "activity:event", "jobs:event"] as const,
 };
 
 // The methods on CairnAPI that are NOT request/response invocations (window
 // controls, the push subscriptions, and the static flags).
-type NonInvokeMethod = "minimize" | "maximize" | "close" | "onServerStatus" | "onDownloadProgress" | "onActivityEvent" | "isElectron" | "platform";
+type NonInvokeMethod = "minimize" | "maximize" | "close" | "onServerStatus" | "onDownloadProgress" | "onActivityEvent" | "onJobEvent" | "isElectron" | "platform";
 type ApiInvokeMethod = Exclude<keyof CairnAPI, NonInvokeMethod>;
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 

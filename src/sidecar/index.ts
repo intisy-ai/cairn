@@ -18,6 +18,8 @@ import { menusList } from "./modules/menus.js";
 import { syncStatus, syncRun, syncSetConfig } from "./modules/sync.js";
 import { ledgerHomes, ledgerCommit, ledgerRestore, ledgerDiffRefs, ledgerProfileCreate, ledgerProfileSwitch } from "./modules/ledger.js";
 import { busDrain } from "./modules/bus.js";
+import { jobsList, jobsEnqueue, jobsCancel, jobsClearFinished, setJobListener } from "./modules/jobs.js";
+import type { JobKind } from "./jobs/model.js";
 import { activityRead, activityStatsRead } from "./modules/activity.js";
 import { globalSettingsRead } from "./modules/globalSettings.js";
 import { updatesCheck, updatesOne, updatesAll } from "./modules/updates.js";
@@ -74,6 +76,13 @@ export function startBackgroundUpdates(deps: BackgroundUpdateDeps = {}): void {
 
 // A download-task id (passed as the trailing install arg) turns into a reporter
 // that streams phase steps back to the renderer as out-of-band progress messages.
+// Every job transition is pushed, so the renderer mirrors the queue instead of owning one.
+setJobListener((job) => {
+  try {
+    process.parentPort.postMessage({ job });
+  } catch { /* a dropped update must never fail the job it describes */ }
+});
+
 function reportFor(progressId: unknown): ((step: string, percent: number) => void) | undefined {
   if (typeof progressId !== "number" || !process.parentPort) return undefined;
   return (step, percent) => process.parentPort.postMessage({ progress: { id: progressId, step, percent } });
@@ -124,6 +133,10 @@ registerHandler("plugins:versionsAll", () => pluginVersionsAll());
 registerHandler("plugins:versionsCached", () => pluginVersionsCached());
 registerHandler("engines:list", () => enginesList());
 registerHandler("engines:ensure", (capability) => ensureEngine(capability as string));
+registerHandler("jobs:list", () => jobsList());
+registerHandler("jobs:enqueue", (kind, plugin, url, home) => jobsEnqueue(kind as JobKind, plugin as string, url as string, home as string));
+registerHandler("jobs:cancel", (id) => jobsCancel(id as string));
+registerHandler("jobs:clearFinished", () => jobsClearFinished());
 registerHandler("plugins:install", (home, name, url, progressId) => pluginsInstall(home as PluginHomeId, name as string, url as string, { report: reportFor(progressId) }));
 registerHandler("plugins:installMany", (name, url, homeIds, progressId) => pluginsInstallMany(name as string, url as string, homeIds as string[], { report: reportFor(progressId) }));
 registerHandler("plugins:removeEverywhere", (name) => pluginsRemoveEverywhere(name as string));

@@ -1,36 +1,11 @@
 // Pure job state: no filesystem, no processes, no IPC. The runner owns those and reads its
 // decisions from here, so every transition is testable on its own.
 
-export type JobKind = "install" | "update" | "remove";
-export type JobStatus = "queued" | "running" | "cancelling" | "done" | "failed" | "cancelled";
+// The job's shape lives in packages/shared so the renderer and the sidecar cannot drift.
+export type { Job, JobKind, JobStatus, JobPhase, JobSpec } from "../../../packages/shared/src/domain.js";
+import type { Job, JobStatus, JobSpec } from "../../../packages/shared/src/domain.js";
+
 export type Rollback = "none" | "remove-clone" | "keep-previous";
-
-export interface JobSpec {
-  kind: JobKind;
-  plugin: string;
-  url: string;
-  home: string;
-}
-
-export interface JobPhase {
-  name: string;
-  ms: number;
-}
-
-export interface Job extends JobSpec {
-  id: string;
-  status: JobStatus;
-  phase: string;
-  percent: number;
-  phases: JobPhase[];
-  queuedAt: number;
-  startedAt?: number;
-  endedAt?: number;
-  phaseStartedAt?: number;
-  fromVersion?: string;
-  toVersion?: string;
-  error?: string;
-}
 
 export interface WorkerEvent {
   phase: string;
