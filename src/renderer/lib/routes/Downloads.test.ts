@@ -98,4 +98,14 @@ describe("Downloads screen", () => {
     render(Downloads);
     expect(await screen.findByText("0bd46a3c → 5ff48bef")).toBeTruthy();
   });
+
+  it("leaves out a record that names no plugin, like an updates-available notice", async () => {
+    historyRecords = [
+      record({ id: "notice", action: "updates_available", subject: undefined, details: { count: 1, names: ["x"] } }),
+      record({ id: "real" }),
+    ];
+    const { container } = render(Downloads);
+    await screen.findByText("config-ledger");
+    expect(container.querySelectorAll("[data-testid='history-row']")).toHaveLength(1);
+  });
 });

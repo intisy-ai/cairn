@@ -72,7 +72,7 @@
     return record.origin?.app ? humanizeId(record.origin.app) : "";
   }
 
-  const visibleHistory = $derived(history.filter((r) => r.ts > hiddenBefore));
+  const visibleHistory = $derived(history.filter((r) => r.ts > hiddenBefore && !!r.subject?.id));
   const hasAnything = $derived(active.length + queued.length + recentRows.length + visibleHistory.length > 0);
 
   function clearAll(): void {
@@ -158,7 +158,7 @@
       {#each visibleHistory as record (record.id)}
         <div class="entry" data-testid="history-row">
           <span class="outcome outcome-{record.outcome === "failed" ? "failed" : "done"}">{record.outcome === "failed" ? "failed" : "ok"}</span>
-          <span class="name">{record.subject?.label ?? record.subject?.id ?? record.action}</span>
+          <span class="name">{record.subject?.label ?? record.subject?.id}</span>
           <span class="home">{historyHome(record)}</span>
           <span class="spacer"></span>
           {#if typeof record.durationMs === "number"}<span class="time">{duration(record.durationMs)}</span>{/if}
