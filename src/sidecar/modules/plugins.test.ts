@@ -241,7 +241,7 @@ describe("plugins sidecar module", () => {
     expect(steps).toEqual(["Downloading and building", "Registering", "Syncing to other apps"]);
   });
 
-  it("reports the bootstrap phase when an engine is installed into an app home that lacks the updater", async () => {
+  it("reports the app-registration phase when the manager is installed into an app home", async () => {
     const steps: string[] = [];
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("claude", "plugin-updater", "https://github.com/intisy-ai/plugin-updater", {
@@ -249,11 +249,11 @@ describe("plugins sidecar module", () => {
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
       hasUpdater: () => false,
-      initApp: async () => ({ ok: true, data: { stdout: "", stderr: "" } }),
+      registerWithApp: () => {},
       report: (step) => steps.push(step),
-    });
+    } as never);
     expect(result.ok).toBe(true);
-    expect(steps[0]).toBe("Setting up plugin-updater");
+    expect(steps).toEqual(["Downloading and building", "Registering", "Registering with the app", "Syncing to other apps"]);
   });
 
   it("installs the updater first rather than turning an ordinary plugin away", async () => {
@@ -381,33 +381,19 @@ describe("plugins sidecar module", () => {
     expect(result.ok).toBe(false);
   });
 
-  it("bootstraps an engine into an app home missing the updater by initializing it first", async () => {
-    const order: string[] = [];
-    const { pluginsInstall } = await import("./plugins.js");
-    const result = await pluginsInstall("claude", "plugin-updater", "https://github.com/intisy-ai/plugin-updater", {
-      homes: fakeHomes,
-      hasUpdater: () => false,
-      initApp: async (app) => { order.push("init:" + app); return { ok: true, data: { stdout: "", stderr: "" } }; },
-      updatePluginPublic: async () => { order.push("install"); },
-      syncPluginsAcrossApps: async () => {},
-    });
-    expect(result.ok).toBe(true);
-    expect(order).toEqual(["init:claude", "install"]);
-  });
-
-  it("bootstraps an engine into the cairn home by cloning directly, never initializing it", async () => {
-    const inits: string[] = [];
+  it("installs the manager into the cairn home by cloning only, never registering it with an app", async () => {
+    const registrations: string[] = [];
     const installed: string[] = [];
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("cairn", "plugin-updater", "https://github.com/intisy-ai/plugin-updater", {
       homes: fakeHomes,
       hasUpdater: () => false,
-      initApp: async (a) => { inits.push(a); return { ok: true, data: { stdout: "", stderr: "" } }; },
+      registerWithApp: (_dir: string, app: string) => { registrations.push(app); },
       updatePluginPublic: async () => { installed.push("plugin-updater"); },
       syncPluginsAcrossApps: async () => {},
-    });
+    } as never);
     expect(result.ok).toBe(true);
-    expect(inits).toEqual([]);
+    expect(registrations).toEqual([]);
     expect(installed).toEqual(["plugin-updater"]);
   });
 
@@ -618,5 +604,64 @@ describe("plugin versions", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data["plugin-a"].claude).toEqual({ kind: "git", label: "v2.0.0", updateAvailable: true, autoUpdate: true });
+  });
+});
+
+describe("pluginsInstall for the plugin manager", () => {
+  it("clones, registers, then registers with the app, in that order", async () => {
+    const order: string[] = [];
+    const { pluginsInstall } = await import("./plugins.js");
+    const res = await pluginsInstall("claude", "plugin-updater", "https://example/plugin-updater", {
+      homes: fakeHomes,
+      hasUpdater: () => false,
+      updatePluginPublic: async () => { order.push("clone"); },
+      registerWithApp: (dir: string, app: string) => { order.push(`register-with-app:${dir}:${app}`); },
+      syncPluginsAcrossApps: async () => { order.push("sync"); },
+    } as never);
+    expect(res.ok).toBe(true);
+    expect(order).toEqual(["clone", `register-with-app:${claudeDir}:claude`, "sync"]);
+    expect(JSON.parse(readFileSync(join(claudeDir, "config", "plugins.json"), "utf8"))
+      .some((p: Plugin) => p.name === "plugin-updater")).toBe(true);
+  });
+
+  it("does not register with an app for Cairn's own home", async () => {
+    const calls: string[] = [];
+    const { pluginsInstall } = await import("./plugins.js");
+    const res = await pluginsInstall("cairn", "plugin-updater", "https://example/plugin-updater", {
+      homes: fakeHomes,
+      hasUpdater: () => false,
+      updatePluginPublic: async () => {},
+      registerWithApp: (dir: string, app: string) => { calls.push(`${dir}:${app}`); },
+    } as never);
+    expect(res.ok).toBe(true);
+    expect(calls).toEqual([]);
+  });
+
+  it("fails the install when app registration fails", async () => {
+    const { pluginsInstall } = await import("./plugins.js");
+    const res = await pluginsInstall("claude", "plugin-updater", "https://example/plugin-updater", {
+      homes: fakeHomes,
+      hasUpdater: () => false,
+      updatePluginPublic: async () => {},
+      registerWithApp: () => { throw new Error("settings.json is read-only"); },
+      syncPluginsAcrossApps: async () => {},
+    } as never);
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.error).toContain("read-only");
+  });
+
+  it("never bootstraps a manager in order to install the manager", async () => {
+    const ensureUpdater = vi.fn(async () => ({ ok: true, data: undefined }));
+    const { pluginsInstall } = await import("./plugins.js");
+    await pluginsInstall("claude", "plugin-updater", "https://example/plugin-updater", {
+      homes: fakeHomes,
+      hasUpdater: () => false,
+      updatePluginPublic: async () => {},
+      registerWithApp: () => {},
+      syncPluginsAcrossApps: async () => {},
+      ensureUpdater,
+    } as never);
+    expect(ensureUpdater).not.toHaveBeenCalled();
   });
 });

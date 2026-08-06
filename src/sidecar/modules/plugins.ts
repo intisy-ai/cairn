@@ -10,7 +10,7 @@ import { svgIconDataUri } from "../lib/pluginIcon.js";
 import { emitCairnAction } from "../activity.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
 import type { Plugin, NpmPlugin } from "@plugin-updater/types.js";
-import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, PluginVersion, Result, CliResult, InstallManyResult, InstallOutcome } from "../../../packages/shared/src/domain.js";
+import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, PluginVersion, Result, InstallManyResult, InstallOutcome } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir, updaterInstalled } from "../lib/pluginHomes.js";
 import { readNamespace, writeCacheMany } from "../lib/cache.js";
 import {
@@ -21,16 +21,25 @@ import {
   loadPluginUpdaterEnv,
   loadPluginUpdaterNpm,
   loadPluginUpdaterIndex,
+  loadPluginUpdaterInit,
 } from "../lib/optionalEngines.js";
+import { engineByCapability } from "./engines.js";
 import { wrap } from "../result.js";
 
 const VERSIONS_NS = "versions";
+const PLUGIN_MANAGEMENT = "plugin-management";
+
+// The plugin manager is identified by capability, never by name, so Cairn keeps no
+// plugin identity of its own.
+function isPluginManager(name: string): boolean {
+  return engineByCapability(PLUGIN_MANAGEMENT)?.id === name;
+}
 
 type UpdatePluginPublicFn = (name: string, url: string, branch?: string, commitHash?: string) => Promise<void | object>;
 type SyncPluginsAcrossAppsFn = (configDir: string) => Promise<void>;
 type DowngradeFn = (plugin: { name: string; url?: string; branch?: string }, commitHash: string) => string;
 type HasUpdaterFn = (dir: string) => boolean | Promise<boolean>;
-type InitAppFn = (app: string) => Promise<Result<CliResult>>;
+type RegisterWithAppFn = (dir: string, app: string) => void | Promise<void>;
 
 const EMPTY_UPDATE_CACHE: UpdateCache = { checkedAt: new Date(0).toISOString(), plugins: {} };
 
@@ -70,6 +79,10 @@ async function realSyncPluginsAcrossApps(dir: string): Promise<void> {
 
 async function realSetEarlyLaunchConfigDir(dir: string): Promise<void> {
   (await loadPluginUpdaterEnv())?.setEarlyLaunchConfigDir(dir);
+}
+
+async function realRegisterWithApp(dir: string, app: string): Promise<void> {
+  requirePluginUpdater(await loadPluginUpdaterInit()).registerUpdaterWithApp(dir, app);
 }
 
 // Loaded dynamically (not statically bundled) because npm.js's require.resolve
@@ -167,7 +180,7 @@ export interface PluginsDeps {
   uninstallPlugin?: (dir: string, name: string) => void;
   uninstallNpmPlugin?: (name: string, dir: string) => string;
   hasUpdater?: HasUpdaterFn;
-  initApp?: InitAppFn;
+  registerWithApp?: RegisterWithAppFn;
   ensureUpdater?: (homeId: string) => Promise<Result<void>>;
   getPlugins?: (dir: string) => Plugin[] | Promise<Plugin[]>;
   // Called at each phase boundary so a download row can show live progress;
@@ -335,27 +348,16 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
 
     const report = deps.report;
     const hasUpdater = deps.hasUpdater ?? updaterInstalled;
-    if (!(await hasUpdater(dir))) {
-      // Every home (Cairn included) needs plugin-updater before it can manage a
-      // non-engine, so bring the updater in rather than turning the install away.
-      // An engine bootstraps itself: an app home through its CLI, Cairn's home by
-      // cloning directly with the bundled copy.
-      if (isEngine(name)) {
-        if (homeId !== "cairn") {
-          report?.("Setting up plugin-updater", 10);
-          const initApp = deps.initApp ?? (await import("./apps.js")).appsInit;
-          const result = await initApp(homeId);
-          if (!result.ok) throw new Error(result.error);
-        }
-      } else {
-        report?.("Installing plugin-updater", 10);
-        // The bootstrap has to act on the very home this install targets, so it gets this
-        // call's home list rather than resolving its own.
-        const ensureUpdater = deps.ensureUpdater
-          ?? ((id: string) => import("./engines.js").then((m) => m.ensureEngineIn("plugin-management", id, { homes })));
-        const result = await ensureUpdater(homeId);
-        if (!result.ok) throw new Error(result.error);
-      }
+    // Every home needs the plugin manager before it can manage anything else. The
+    // manager itself is exempt: it is what is being installed.
+    if (!isEngine(name) && !(await hasUpdater(dir))) {
+      report?.("Installing plugin-updater", 10);
+      // The bootstrap has to act on the very home this install targets, so it gets this
+      // call's home list rather than resolving its own.
+      const ensureUpdater = deps.ensureUpdater
+        ?? ((id: string) => import("./engines.js").then((m) => m.ensureEngineIn(PLUGIN_MANAGEMENT, id, { homes })));
+      const result = await ensureUpdater(homeId);
+      if (!result.ok) throw new Error(result.error);
     }
 
     const updatePluginPublic = deps.updatePluginPublic ?? requirePluginUpdater(await loadPluginUpdaterIndex()).updatePluginPublic;
@@ -368,6 +370,14 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
       report?.("Registering", 90);
       await realRegisterPlugin(dir, name, url, autoUpdateDefault);
     }, homeId);
+
+    // An app loads the manager through its own config, so a clone alone would leave a
+    // manager that is installed but never runs.
+    if (isPluginManager(name) && homeId !== "cairn") {
+      report?.("Registering with the app", 93);
+      await (deps.registerWithApp ?? realRegisterWithApp)(dir, homeId);
+    }
+
     if (homeId !== "cairn") {
       report?.("Syncing to other apps", 95);
       const syncPluginsAcrossApps = deps.syncPluginsAcrossApps ?? realSyncPluginsAcrossApps;
