@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 import { join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
-import { getConfigValue, isEngine, activityEnv } from "@core/index.js";
+import { getConfigValue, isBootstrapPlugin, activityEnv } from "@core/index.js";
 import { svgIconDataUri } from "../lib/pluginIcon.js";
 import { emitCairnAction } from "../activity.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
@@ -24,7 +24,7 @@ import {
   loadPluginUpdaterIndex,
   loadPluginUpdaterInit,
 } from "../lib/optionalEngines.js";
-import { engineByCapability } from "./engines.js";
+import { pluginByCapability } from "./engines.js";
 import { wrap } from "../result.js";
 
 const VERSIONS_NS = "versions";
@@ -33,7 +33,7 @@ const PLUGIN_MANAGEMENT = "plugin-management";
 // The plugin manager is identified by capability, never by name, so Cairn keeps no
 // plugin identity of its own.
 function isPluginManager(name: string): boolean {
-  return engineByCapability(PLUGIN_MANAGEMENT)?.id === name;
+  return pluginByCapability(PLUGIN_MANAGEMENT)?.id === name;
 }
 
 type UpdatePluginPublicFn = (name: string, url: string, branch?: string, commitHash?: string) => Promise<void | object>;
@@ -376,7 +376,7 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
     const hasUpdater = deps.hasUpdater ?? updaterInstalled;
     // Every home needs the plugin manager before it can manage anything else. The
     // manager itself is exempt: it is what is being installed.
-    if (!isEngine(name) && !(await hasUpdater(dir))) {
+    if (!isBootstrapPlugin(name) && !(await hasUpdater(dir))) {
       report?.("Installing plugin-updater", 10);
       // The bootstrap has to act on the very home this install targets, so it gets this
       // call's home list rather than resolving its own.

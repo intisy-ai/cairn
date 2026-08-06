@@ -27,8 +27,8 @@ beforeAll(async () => {
   // Every ambient resolution must land inside the temp root, never a real home.
   process.env.HUB_CONFIG_DIR = homes[0].dir;
 
-  const { engineByCapability } = await import("../modules/engines.js");
-  const found = engineByCapability("plugin-management");
+  const { pluginByCapability } = await import("../modules/engines.js");
+  const found = pluginByCapability("plugin-management");
   if (!found) throw new Error("no engine declares plugin-management");
   manager = { id: found.id, url: found.url };
 });

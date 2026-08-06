@@ -2,10 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import { mkdtempSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { engineByCapability } from "./engines.js";
+import { pluginByCapability } from "./engines.js";
 import { customEndpointsList, customEndpointsUpsert, customEndpointsRemove, customEndpointsSaveKey } from "./customEndpoints.js";
 
-const meta = engineByCapability("custom-endpoints")!.meta!;
+const meta = pluginByCapability("custom-endpoints")!.meta!;
 
 function home(): string {
   const d = mkdtempSync(join(tmpdir(), "custom-ep-"));
