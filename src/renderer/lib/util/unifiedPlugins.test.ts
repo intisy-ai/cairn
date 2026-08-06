@@ -109,16 +109,16 @@ describe("buildUnifiedPlugins", () => {
 
 // A loader is the one plugin that is not portable: it connects a single app, the one whose
 // registry entry names it. Offering it to the other app promised an install that could not work.
-// A home's config can name a plugin that was never cloned there, or whose clone is gone.
-// Calling that installed offered a remove for something that is not there, and showed a
-// plugin as supported by an app it had never actually been installed into.
-describe("a leftover config entry", () => {
+// A home's config DECLARES what should be installed, and the manager clones whatever is named
+// there and missing. So an entry with no clone is an install that has not happened yet, and
+// calling it installed offered a remove for something that is not there.
+describe("a declared but absent plugin", () => {
   const withLeftover: HomePlugins[] = [
     { home: homes[1], rows: [{ name: "opencode-loader", kind: "git", enabled: true, updateAvailable: false, description: "", present: false }] },
     { home: homes[2], rows: [{ name: "opencode-loader", kind: "git", enabled: true, updateAvailable: false, description: "", present: true }] },
   ];
 
-  it("does not count as installed in the home that only names it", () => {
+  it("does not count as installed in the home that only declares it", () => {
     const out = buildUnifiedPlugins(withLeftover, [], homes);
     const plugin = out.find((p) => p.name === "opencode-loader")!;
     expect(plugin.homes.claude?.installed).toBe(false);

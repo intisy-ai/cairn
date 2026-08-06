@@ -162,8 +162,8 @@ function rowFor(name: string, kind: "git" | "npm", enabled: boolean, url: string
   return {
     name,
     kind,
-    // An npm plugin is present by virtue of being listed; a git one needs its clone, since a
-    // config entry with nothing behind it is a leftover rather than an install.
+    // An npm plugin is present by virtue of being listed; a git one needs its clone. A config
+    // entry with nothing behind it is an install the manager has not carried out yet.
     present: kind === "npm" || existsSync(join(homeDirPath, "repos", name)),
     enabled,
     url,
