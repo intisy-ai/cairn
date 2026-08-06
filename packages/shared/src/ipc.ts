@@ -30,7 +30,6 @@ export const INVOKE_CHANNELS = {
   appsDetect: "apps:detect",
   appsList: "apps:list",
   appsInstallCli: "apps:installCli",
-  appsInit: "apps:init",
   appsUninstallCli: "apps:uninstallCli",
   appsSummary: "apps:summary",
   appsConnection: "apps:connection",

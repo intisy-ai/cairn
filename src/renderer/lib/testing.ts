@@ -45,7 +45,6 @@ function defaultCairn(): CairnAPI {
       ],
     }),
     appsInstallCli: async () => ({ ok: true, data: { stdout: "", stderr: "" } }),
-    appsInit: async () => ({ ok: true, data: { stdout: "", stderr: "" } }),
     appsUninstallCli: async () => ({ ok: true, data: { stdout: "", stderr: "" } }),
     appsSummary: async () => ({
       ok: true,

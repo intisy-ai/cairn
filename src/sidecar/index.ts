@@ -8,7 +8,7 @@ import { accountsList, accountsEnable, accountsRemove, accountsRefreshQuota } fr
 import { accountsLoginBegin, accountsLoginComplete, accountsLoginCancel } from "./modules/accountsLogin.js";
 import { providersList, providersSetEnabled, providersSetExposure } from "./modules/providers.js";
 import { routingApps, routingGet, routingSetChain } from "./modules/routing.js";
-import { appsDetect, appsList, appsInstallCli, appsInit, appsUninstallCli, appsSummary, appsConnection, appsInstallLoader } from "./modules/apps.js";
+import { appsDetect, appsList, appsInstallCli, appsUninstallCli, appsSummary, appsConnection, appsInstallLoader } from "./modules/apps.js";
 import { pluginsList, pluginVersions, pluginVersionsAll, pluginVersionsCached, pluginsInstall, pluginsInstallMany, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsSetAutoUpdate, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
 import { enginesList, ensureEngine } from "./modules/engines.js";
 import { proxiesList, proxiesSetEnabled } from "./modules/proxies.js";
@@ -112,7 +112,6 @@ registerHandler("routing:setChain", (app, slot, chain) => routingSetChain(app as
 registerHandler("apps:detect", () => appsDetect());
 registerHandler("apps:list", () => appsList());
 registerHandler("apps:installCli", (app) => appsInstallCli(app as string));
-registerHandler("apps:init", (app) => appsInit(app as string));
 registerHandler("apps:uninstallCli", (app, wipeData) => appsUninstallCli(app as string, wipeData as boolean));
 registerHandler("apps:summary", (app) => appsSummary(app as string));
 registerHandler("apps:connection", (app) => appsConnection(app as string));

@@ -92,12 +92,6 @@ export function appsInstallCli(app: string, spawn: SpawnFn = realSpawn): Promise
   return wrap(() => spawn("npm", ["install", "-g", desc.detect.pkg]));
 }
 
-export function appsInit(app: string, spawn: SpawnFn = realSpawn): Promise<Result<CliResult>> {
-  const desc = getAppDescriptor(app);
-  if (!desc) return Promise.resolve(err(`unknown app: ${app}`));
-  return wrap(() => spawn("npx", ["plugin-updater", "init", "--app", desc.id]));
-}
-
 export interface AppsConnectionDeps {
   detect?: () => Promise<Result<AppPresence>>;
   listPlugins?: (dir: string) => Plugin[] | Promise<Plugin[]>;

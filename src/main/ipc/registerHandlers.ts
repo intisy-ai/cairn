@@ -32,7 +32,6 @@ const CHANNEL_TIMEOUTS: Record<string, number> = {
   "plugins:uninstall": LONG_MS,
   "plugins:downgrade": LONG_MS,
   "apps:installCli": LONG_MS,
-  "apps:init": LONG_MS,
   "apps:uninstallCli": LONG_MS,
   "sync:run": LONG_MS,
   "import:run": LONG_MS,

@@ -21,7 +21,6 @@ export function engineByCapability(capability: string): EngineDescriptor | undef
 export interface EnginesDeps {
   homes?: PluginHome[];
   getPlugins?: (dir: string) => Plugin[] | Promise<Plugin[]>;
-  appsInit?: (app: string) => Promise<Result<CliResult>>;
   pluginsInstall?: (homeId: string, name: string, url: string, deps?: { homes?: PluginHome[] }) => Promise<Result<void>>;
 }
 
@@ -45,14 +44,6 @@ async function resolveHomes(deps: EnginesDeps): Promise<PluginHome[]> {
 // `homes` is the list the caller resolved: the nested install must land in the very home
 // named here, never in whatever a fresh resolution would pick.
 async function installEngine(engine: EngineDescriptor, home: PluginHome, homes: PluginHome[], deps: EnginesDeps): Promise<void> {
-  // An app home registers the plugin manager through its own CLI. Cairn's home has no CLI,
-  // so the bundled copy clones it in place like any other engine.
-  if (engine.capability === PLUGIN_MANAGEMENT && home.id !== "cairn") {
-    const appsInit = deps.appsInit ?? (await import("./apps.js")).appsInit;
-    const res = await appsInit(home.id);
-    if (!res.ok) throw new Error(res.error);
-    return;
-  }
   const install = deps.pluginsInstall ?? (await import("./plugins.js")).pluginsInstall;
   const res = await install(home.id, engine.id, engine.url, { homes });
   if (!res.ok) throw new Error(res.error);

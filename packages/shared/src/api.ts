@@ -24,7 +24,6 @@ export interface CairnAPI {
   appsDetect(): Promise<Result<AppPresence>>;
   appsList(): Promise<Result<HostApp[]>>;
   appsInstallCli(app: string): Promise<Result<CliResult>>;
-  appsInit(app: string): Promise<Result<CliResult>>;
   appsUninstallCli(app: string, wipeData: boolean): Promise<Result<CliResult>>;
   appsSummary(app: string): Promise<Result<AppSummary>>;
   appsConnection(app: string): Promise<Result<AppConnection>>;
