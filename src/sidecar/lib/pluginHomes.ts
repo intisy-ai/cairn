@@ -5,6 +5,7 @@ import { getApps, getAppDescriptor, resolveHome } from "@core/index.js";
 import { appsDetect } from "../modules/apps.js";
 import { renderCairnMark } from "../../../packages/shared/src/logo.js";
 import { svgIconDataUri } from "./pluginIcon.js";
+import type { Plugin } from "@plugin-updater/types.js";
 import type { AppPresence, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
 import { safeGetPlugins, loadPluginUpdaterConfig } from "./optionalEngines.js";
 
@@ -28,16 +29,34 @@ export async function updaterInstalled(dir: string): Promise<boolean> {
   }
 }
 
+// An app is connected through its loader, so a home whose loader is absent cannot load
+// anything the ecosystem installs there. Both the Apps view and the plugin home list ask
+// this, and a second copy of the rule is how the two came to disagree elsewhere.
+export async function loaderInstalled(
+  dir: string,
+  loaderId?: string,
+  listPlugins: (dir: string) => Plugin[] | Promise<Plugin[]> = safeGetPlugins,
+): Promise<boolean> {
+  if (!loaderId) return false;
+  try {
+    return (await listPlugins(dir)).some((p) => p.name === loaderId);
+  } catch {
+    return false;
+  }
+}
+
 export interface PluginHomesDeps {
   detect?: () => Promise<Result<AppPresence>>;
   cairnDir?: string;
   hasUpdater?: (dir: string) => boolean | Promise<boolean>;
+  hasLoader?: (dir: string, loaderId?: string) => boolean | Promise<boolean>;
   appHome?: (app: string) => string;
 }
 
 export async function pluginHomes(deps: PluginHomesDeps = {}): Promise<PluginHome[]> {
   const detect = deps.detect ?? appsDetect;
   const hasUpdater = deps.hasUpdater ?? updaterInstalled;
+  const hasLoader = deps.hasLoader ?? loaderInstalled;
   const cairnDir = deps.cairnDir ?? getConfigDir();
   const appHomeForId = deps.appHome ?? appRealHome;
   const detected = await detect();
@@ -45,7 +64,16 @@ export async function pluginHomes(deps: PluginHomesDeps = {}): Promise<PluginHom
   const appHomes: PluginHome[] = await Promise.all(
     getApps().map(async (desc) => {
       const dir = appHomeForId(desc.id);
-      return { id: desc.id, label: desc.label, icon: desc.icon ? svgIconDataUri(desc.icon) : undefined, dir, present: !!present[desc.id], hasUpdater: await hasUpdater(dir), loaderId: desc.loader?.id };
+      return {
+        id: desc.id,
+        label: desc.label,
+        icon: desc.icon ? svgIconDataUri(desc.icon) : undefined,
+        dir,
+        present: !!present[desc.id],
+        hasUpdater: await hasUpdater(dir),
+        loaderId: desc.loader?.id,
+        loaderInstalled: await hasLoader(dir, desc.loader?.id),
+      };
     }),
   );
   return [

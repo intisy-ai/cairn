@@ -163,6 +163,41 @@ describe("a plugin that declares which apps it suits", () => {
   });
 });
 
+// An app is reached through its loader, so an app without one cannot run what is installed there.
+describe("an app whose loader is not installed", () => {
+  const homes: PluginHome[] = [
+    { id: "cairn", label: "Cairn", dir: "/k", present: true, hasUpdater: true },
+    { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true, loaderId: "claude-code-loader", loaderInstalled: true },
+    { id: "opencode", label: "OpenCode", dir: "/o", present: true, hasUpdater: true, loaderId: "opencode-loader", loaderInstalled: false },
+  ];
+
+  it("is not offered as a target for other plugins", () => {
+    expect(applicableHomeIds("plugin", homes, "some-plugin")).toEqual(["claude"]);
+    expect(applicableHomeIds("provider", homes, "some-provider")).toEqual(["cairn", "claude"]);
+  });
+
+  // Otherwise the loader could never be installed: the one home that needs it would be hidden.
+  it("is still offered its own loader", () => {
+    expect(applicableHomeIds("loader", homes, "opencode-loader")).toEqual(["opencode"]);
+  });
+
+  it("cannot be reached by a plugin that names it either", () => {
+    expect(applicableHomeIds("plugin", homes, "some-plugin", ["opencode"])).toEqual([]);
+  });
+
+  // Cairn's own home has no loader to require, and the whole list must not vanish for it.
+  it("does not affect a home that has no loader at all", () => {
+    expect(applicableHomeIds("provider", homes, "some-provider")).toContain("cairn");
+  });
+
+  // A sidecar predating this field sends no answer, and reading that as "absent" would
+  // empty the list for anyone who has not caught up.
+  it("treats a home that says nothing as reachable", () => {
+    const older: PluginHome[] = [{ id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true, loaderId: "claude-code-loader" }];
+    expect(applicableHomeIds("plugin", older, "some-plugin")).toEqual(["claude"]);
+  });
+});
+
 describe("a loader's applicable homes", () => {
   const withLoaders: PluginHome[] = [
     { id: "cairn", label: "Cairn", dir: "/k", present: true, hasUpdater: true },

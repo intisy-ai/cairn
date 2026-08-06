@@ -10,7 +10,11 @@ function kindOf(name: string, catalog: CatalogEntry[]): CatalogKind {
 // Which homes a plugin can go in, most specific answer first.
 //
 // A loader connects exactly one app: the one whose registry entry names it. Offering it to any
-// other home promises an install that could never work there.
+// other home promises an install that could never work there. That answer comes first, so a
+// loader is still offered to its own app while it is the thing not yet installed.
+//
+// An app whose loader is absent loads nothing the ecosystem installs, so it is not a target for
+// anything else either. Cairn's own home has no loader and is unaffected.
 //
 // Any other plugin may declare the apps it suits, and that declaration is honoured as given:
 // an app-specific plugin offered everywhere is how one app's plugins ended up installed in
@@ -21,6 +25,7 @@ export function applicableHomeIds(kind: CatalogKind, homes: PluginHome[], plugin
   if (ownApp) return [ownApp.id];
   const generic = homes
     .filter((h) => (h.id === "cairn" ? kind !== "plugin" && kind !== "loader" : kind !== "proxy"))
+    .filter((h) => !h.loaderId || h.loaderInstalled !== false)
     .map((h) => h.id);
   if (!apps || apps.length === 0) return generic;
   return generic.filter((id) => apps.includes(id));

@@ -202,6 +202,9 @@ export type PluginHome = {
   // The loader plugin that connects this app, straight from the app registry. A loader only
   // ever serves the one app that names it, so this is how a home claims its own loader.
   loaderId?: string;
+  // Whether that loader is actually installed here. Without it the app loads nothing the
+  // ecosystem installs, so offering it as a target promises something that cannot work.
+  loaderInstalled?: boolean;
 };
 export type HomePlugins = { home: PluginHome; rows: PluginRow[] };
 // "unknown" is distinct from "current": a home whose clone could not be read has no answer,
