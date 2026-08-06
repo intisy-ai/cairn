@@ -47,7 +47,6 @@ export const INVOKE_CHANNELS = {
   jobsCancel: "jobs:cancel",
   jobsClearFinished: "jobs:clearFinished",
   pluginsInstall: "plugins:install",
-  pluginsInstallMany: "plugins:installMany",
   pluginsRemoveEverywhere: "plugins:removeEverywhere",
   pluginsSetEnabled: "plugins:setEnabled",
   pluginsSetAutoUpdate: "plugins:setAutoUpdate",

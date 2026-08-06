@@ -9,7 +9,7 @@ import { accountsLoginBegin, accountsLoginComplete, accountsLoginCancel } from "
 import { providersList, providersSetEnabled, providersSetExposure } from "./modules/providers.js";
 import { routingApps, routingGet, routingSetChain } from "./modules/routing.js";
 import { appsDetect, appsList, appsInstallCli, appsUninstallCli, appsSummary, appsConnection, appsInstallLoader } from "./modules/apps.js";
-import { pluginsList, pluginVersions, pluginVersionsAll, pluginVersionsCached, pluginsInstall, pluginsInstallMany, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsSetAutoUpdate, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
+import { pluginsList, pluginVersions, pluginVersionsAll, pluginVersionsCached, pluginsInstall, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsSetAutoUpdate, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
 import { enginesList, ensureEngine } from "./modules/engines.js";
 import { proxiesList, proxiesSetEnabled } from "./modules/proxies.js";
 import { repoMeta, repoMetaCached } from "./modules/repo.js";
@@ -138,7 +138,6 @@ registerHandler("jobs:enqueue", (kind, plugin, url, home) => jobsEnqueue(kind as
 registerHandler("jobs:cancel", (id) => jobsCancel(id as string));
 registerHandler("jobs:clearFinished", () => jobsClearFinished());
 registerHandler("plugins:install", (home, name, url, progressId) => pluginsInstall(home as PluginHomeId, name as string, url as string, { report: reportFor(progressId) }));
-registerHandler("plugins:installMany", (name, url, homeIds, progressId) => pluginsInstallMany(name as string, url as string, homeIds as string[], { report: reportFor(progressId) }));
 registerHandler("plugins:removeEverywhere", (name) => pluginsRemoveEverywhere(name as string));
 registerHandler("plugins:setEnabled", (home, name, on) => pluginsSetEnabled(home as PluginHomeId, name as string, on as boolean));
 registerHandler("plugins:setAutoUpdate", (home, name, on) => pluginsSetAutoUpdate(home as PluginHomeId, name as string, on as boolean));

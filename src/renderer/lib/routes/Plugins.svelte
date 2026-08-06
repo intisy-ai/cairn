@@ -307,7 +307,7 @@
     return true;
   }
 
-  async function installManyTracked(label: string, name: string, url: string, homeIds: string[]): Promise<Result<InstallManyResult>> {
+  async function installManyTracked(name: string, url: string, homeIds: string[]): Promise<Result<InstallManyResult>> {
     if (!(await installPrerequisites(name, homeIds))) {
       return { ok: false, error: "could not install the plugin manager" };
     }
@@ -317,7 +317,6 @@
       const queued = await enqueueJob("install", name, url, homeId);
       outcomes.push(queued.ok ? { home: homeId, ok: true } : { home: homeId, ok: false, error: queued.error });
     }
-    void label;
     const error = outcomesError(outcomes);
     return error ? { ok: false, error } : { ok: true, data: { outcomes } };
   }
@@ -408,7 +407,7 @@
   async function installFromUrl(repo: RepoRef): Promise<Result<unknown>> {
     const kind = classifyRepoName(repo.repo) ?? "plugin";
     const homeIds = applicableHomeIds(kind, homes);
-    return installManyTracked(`Install ${repo.repo}`, repo.repo, repo.url, homeIds);
+    return installManyTracked(repo.repo, repo.url, homeIds);
   }
 
   onMount(() => {

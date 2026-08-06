@@ -159,7 +159,6 @@ let nextLocalId = 1;
 export type EnqueueSpec<T> = {
   label: string;
   home: string;
-  key?: string;
   run: (id: number) => Promise<Result<T>>;
   // Flags a partial failure a plain ok/error Result cannot express, e.g. a multi-home
   // operation where the call succeeded but some homes failed.

@@ -405,27 +405,6 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
   });
 }
 
-export function pluginsInstallMany(name: string, url: string, homeIds: string[], deps: PluginsDeps = {}): Promise<Result<InstallManyResult>> {
-  return wrap(async () => {
-    const outcomes: InstallOutcome[] = [];
-    for (let i = 0; i < homeIds.length; i++) {
-      const homeId = homeIds[i];
-      const base = deps.report;
-      // Spread each home's 0..100 across its slice of the overall bar so the
-      // percentage advances smoothly through a multi-home install.
-      const report = base
-        ? (step: string, percent: number) => {
-            const overall = Math.round(((i + Math.max(percent, 0) / 100) / homeIds.length) * 100);
-            base(homeIds.length > 1 ? `${homeId} (${i + 1}/${homeIds.length}): ${step}` : step, overall);
-          }
-        : undefined;
-      const res = await pluginsInstall(homeId, name, url, { ...deps, report });
-      outcomes.push(res.ok ? { home: homeId, ok: true } : { home: homeId, ok: false, error: res.error });
-    }
-    return { outcomes };
-  });
-}
-
 export function pluginsRemoveEverywhere(name: string, deps: PluginsDeps = {}): Promise<Result<InstallManyResult>> {
   return wrap(async () => {
     const homes = await resolveHomes(deps);

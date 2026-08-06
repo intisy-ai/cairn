@@ -27,7 +27,6 @@ const CHANNEL_TIMEOUTS: Record<string, number> = {
   "plugins:versionsAll": 120000,
   "repo:meta": 60000,
   "plugins:install": LONG_MS,
-  "plugins:installMany": LONG_MS,
   "plugins:removeEverywhere": LONG_MS,
   "plugins:uninstall": LONG_MS,
   "plugins:downgrade": LONG_MS,

@@ -442,41 +442,6 @@ describe("plugins sidecar module", () => {
     });
   });
 
-  it("pluginsInstallMany installs to each home and reports per-home outcomes", async () => {
-    const deps = {
-      homes: fakeHomes,
-      hasUpdater: () => true,
-      updatePluginPublic: async () => {},
-      syncPluginsAcrossApps: async () => {},
-    };
-    const { pluginsInstallMany } = await import("./plugins.js");
-    const res = await pluginsInstallMany("wakatime-sync", "https://github.com/intisy-ai/wakatime-sync", ["claude", "opencode"], deps);
-    expect(res.ok).toBe(true);
-    if (res.ok) expect(res.data.outcomes.map((o) => [o.home, o.ok])).toEqual([["claude", true], ["opencode", true]]);
-  });
-
-  it("pluginsInstallMany reports a per-home failure without aborting the rest", async () => {
-    let first = true;
-    const deps = {
-      homes: fakeHomes,
-      hasUpdater: () => true,
-      updatePluginPublic: async () => {
-        if (first) {
-          first = false;
-          throw new Error("bad");
-        }
-      },
-      syncPluginsAcrossApps: async () => {},
-    };
-    const { pluginsInstallMany } = await import("./plugins.js");
-    const res = await pluginsInstallMany("p", "u", ["claude", "opencode"], deps);
-    expect(res.ok).toBe(true);
-    if (res.ok) {
-      expect(res.data.outcomes[0]).toMatchObject({ home: "claude", ok: false });
-      expect(res.data.outcomes[1]).toMatchObject({ home: "opencode", ok: true });
-    }
-  });
-
   it("pluginsRemoveEverywhere uninstalls only from homes where the plugin is installed", async () => {
     seedPlugins(claudeDir, [{ name: "shared-plugin", url: "u", enabled: true }]);
     const calls: Array<[string, string]> = [];
