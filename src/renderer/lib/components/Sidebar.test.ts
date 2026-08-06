@@ -5,6 +5,7 @@ import { get } from "svelte/store";
 import { stubCairn } from "../testing.js";
 import { router, navigate } from "../router.js";
 import Sidebar from "./Sidebar.svelte";
+import { serverStatus } from "../serverStatus.js";
 
 describe("Sidebar", () => {
   it("hides the Routing nav item when hasRouting is false", () => {
@@ -75,5 +76,33 @@ describe("menu painting", () => {
     render(Sidebar, { props: { hasRouting: true } });
 
     expect(await screen.findByRole("button", { name: /Ledger/ })).toBeInTheDocument();
+  });
+
+  // The reported bug: a stopped proxy read as online because unknown defaulted to running.
+  it("shows the Local API as unknown until a status arrives, never as running", () => {
+    serverStatus.set(null);
+    const { container } = render(Sidebar);
+    const dot = container.querySelector(".foot .dot");
+    expect(dot?.classList.contains("unknown")).toBe(true);
+    expect(dot?.classList.contains("off")).toBe(false);
+    expect(container.querySelector(".foot")?.getAttribute("title")).toContain("unknown");
+  });
+
+  it("shows the Local API as stopped once a stopped status arrives", () => {
+    serverStatus.set({ running: false, port: 34567 });
+    const { container } = render(Sidebar);
+    const dot = container.querySelector(".foot .dot");
+    expect(dot?.classList.contains("off")).toBe(true);
+    expect(dot?.classList.contains("unknown")).toBe(false);
+    expect(container.querySelector(".foot")?.getAttribute("title")).toContain("stopped");
+  });
+
+  it("shows the Local API as running only when it really is", () => {
+    serverStatus.set({ running: true, port: 34567 });
+    const { container } = render(Sidebar);
+    const dot = container.querySelector(".foot .dot");
+    expect(dot?.classList.contains("off")).toBe(false);
+    expect(dot?.classList.contains("unknown")).toBe(false);
+    expect(container.querySelector(".foot")?.getAttribute("title")).toContain("running");
   });
 });

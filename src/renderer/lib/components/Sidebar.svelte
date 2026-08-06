@@ -21,7 +21,9 @@
   );
   const networkScreens = SCREENS.filter((screen) => screen.section === "network");
 
-  const running = $derived($serverStatus ? $serverStatus.running : true);
+  // Three states, because "not yet known" must not read as running.
+  const known = $derived($serverStatus !== null);
+  const running = $derived($serverStatus?.running === true);
   const port = $derived($serverStatus?.port ?? apiPort);
 
   // Whatever plugins asked for a place in the navigation. Painted from the last known set
@@ -86,7 +88,10 @@
       {/each}
     </nav>
   {/if}
-  <div class="foot" title="Local API :{port}"><span class="dot" class:off={!running}></span> <span class="foottext">Local API · <span class="num">:{port}</span></span></div>
+  <div class="foot" title={known ? `Local API :${port} ${running ? "running" : "stopped"}` : "Local API status unknown"}>
+    <span class="dot" class:off={known && !running} class:unknown={!known}></span>
+    <span class="foottext">Local API · <span class="num">:{port}</span></span>
+  </div>
 </aside>
 
 <style>
@@ -185,6 +190,10 @@
   .dot.off {
     background: var(--faint);
     box-shadow: 0 0 0 3px var(--surface-2);
+  }
+  .dot.unknown {
+    background: var(--border-strong);
+    box-shadow: none;
   }
 
   /* Narrow window: collapse to an icon rail */
