@@ -159,6 +159,8 @@ export type SyncStatus = { enabled: boolean; categories: SyncCategories; exclude
 export type JobKind = "install" | "update" | "remove";
 export type JobStatus = "queued" | "running" | "cancelling" | "done" | "failed" | "cancelled";
 export type JobPhase = { name: string; ms: number };
+// One throughput reading, kept so a screen can chart the transfer rate over time.
+export type JobSample = { ts: number; bytesPerSecond: number };
 export type JobSpec = { kind: JobKind; plugin: string; url: string; home: string };
 export type Job = JobSpec & {
   id: string;
@@ -167,6 +169,11 @@ export type Job = JobSpec & {
   // Coarse phase-based progress 0..100; -1 means no phase has been reported yet.
   percent: number;
   phases: JobPhase[];
+  // Real transfer figures, read from git's own progress output; absent when nothing is
+  // transferring (a build reports no bytes).
+  bytes?: number;
+  bytesPerSecond?: number;
+  samples: JobSample[];
   queuedAt: number;
   startedAt?: number;
   endedAt?: number;

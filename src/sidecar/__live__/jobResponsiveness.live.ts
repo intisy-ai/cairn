@@ -101,4 +101,36 @@ describe("a running job and the sidecar", () => {
 
     expect(existsSync(join(target.dir, "repos", "plugin-updater")), "clone rolled back").toBe(false);
   }, 600_000);
+
+  it("reports real byte throughput read from git during a clone", async () => {
+    const { jobsEnqueue, jobsList } = await import("../modules/jobs.js");
+    const target = homes[1];
+    const queued = await jobsEnqueue("install", "stub-auth", "https://github.com/intisy-ai/stub-auth", target.id, { homes });
+    expect(queued.ok).toBe(true);
+    if (!queued.ok) return;
+
+    let peak = 0;
+    let bytes = 0;
+    let samples = 0;
+    const percents: number[] = [];
+    for (let i = 0; i < 600; i++) {
+      const jobs = await jobsList();
+      const job = jobs.ok ? jobs.data.find((j) => j.id === queued.data.id) : undefined;
+      if (job) {
+        peak = Math.max(peak, job.bytesPerSecond ?? 0);
+        bytes = Math.max(bytes, job.bytes ?? 0);
+        samples = Math.max(samples, job.samples.length);
+        if (job.percent >= 0) percents.push(job.percent);
+        if (["done", "failed", "cancelled"].includes(job.status)) break;
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
+    console.log(`transfer: ${bytes} bytes, peak ${peak} B/s, ${samples} rate samples`);
+    expect(bytes, "git reported a byte count").toBeGreaterThan(0);
+    expect(peak, "git reported a rate").toBeGreaterThan(0);
+    expect(samples, "rate samples were kept for charting").toBeGreaterThan(1);
+    // Monotonic progress is what makes the bar usable.
+    expect(percents.every((p, i) => i === 0 || p >= percents[i - 1])).toBe(true);
+  }, 600_000);
 });

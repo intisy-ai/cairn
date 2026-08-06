@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { newJob, nextRunnable, applyEvent, cancelJob, isEnded } from "./model.js";
+import { newJob, nextRunnable, applyEvent, cancelJob, isEnded, noteTransfer, MAX_SAMPLES } from "./model.js";
 import type { Job } from "./model.js";
 
 const base = { kind: "install" as const, plugin: "wakatime-sync", url: "u", home: "claude" };
@@ -71,5 +71,37 @@ describe("job model", () => {
     expect(isEnded({ ...newJob("1", base, 0), status: "done" })).toBe(true);
     expect(isEnded({ ...newJob("1", base, 0), status: "running" })).toBe(false);
     expect(isEnded(newJob("1", base, 0))).toBe(false);
+  });
+
+  it("takes the byte count, rate and percent from a git transfer", () => {
+    const job: Job = { ...newJob("1", base, 0), status: "running", phase: "downloading", percent: 10 };
+    const next = noteTransfer(job, { stage: "Receiving objects", percent: 42, bytes: 1000, bytesPerSecond: 500 }, 1000);
+    expect(next).toMatchObject({ bytes: 1000, bytesPerSecond: 500, percent: 42 });
+    expect(next.samples).toEqual([{ ts: 1000, bytesPerSecond: 500 }]);
+  });
+
+  it("keeps a bounded history of rate samples for charting", () => {
+    let job: Job = { ...newJob("1", base, 0), status: "running" };
+    for (let i = 0; i < MAX_SAMPLES + 20; i++) {
+      job = noteTransfer(job, { stage: "Receiving objects", percent: 50, bytes: i, bytesPerSecond: i }, i);
+    }
+    expect(job.samples).toHaveLength(MAX_SAMPLES);
+    expect(job.samples[job.samples.length - 1].bytesPerSecond).toBe(MAX_SAMPLES + 19);
+  });
+
+  it("never moves the percent backwards, from a transfer or a phase boundary", () => {
+    let job: Job = { ...newJob("1", base, 0), status: "running", phase: "downloading", percent: 10 };
+    job = noteTransfer(job, { stage: "Receiving objects", percent: 95, bytes: 10, bytesPerSecond: 1 }, 100);
+    expect(job.percent).toBe(95);
+    job = applyEvent(job, { phase: "registering", percent: 80 }, 200);
+    expect(job.percent).toBe(95);
+  });
+
+  it("records a rate-less stage without inventing a byte count", () => {
+    const job: Job = { ...newJob("1", base, 0), status: "running", percent: 30 };
+    const next = noteTransfer(job, { stage: "Resolving deltas", percent: 80 }, 500);
+    expect(next.bytes).toBeUndefined();
+    expect(next.samples).toEqual([]);
+    expect(next.percent).toBe(30);
   });
 });

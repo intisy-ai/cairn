@@ -5,6 +5,7 @@ import type { Job } from "./model.js";
 
 interface FakeWorker extends WorkerHandle {
   emit(message: unknown): void;
+  stderr(chunk: string): void;
   exit(code: number | null): void | Promise<void>;
   killed: boolean;
   sent: unknown;
@@ -14,11 +15,14 @@ function fakeWorkers() {
   const made: FakeWorker[] = [];
   const spawn = (_job: Job, message: unknown): WorkerHandle => {
     let onMessage: (m: unknown) => void = () => {};
+    let onStderr: (chunk: string) => void = () => {};
     let onExit: (c: number | null) => void | Promise<void> = () => {};
     const worker: FakeWorker = {
       sent: message,
       killed: false,
       onMessage: (fn) => { onMessage = fn; },
+      onStderr: (fn) => { onStderr = fn; },
+      stderr: (chunk) => onStderr(chunk),
       onExit: (fn) => { onExit = fn; },
       kill: () => { worker.killed = true; },
       emit: (m) => onMessage(m),
@@ -180,5 +184,30 @@ describe("job runner", () => {
     made[0].exit(0);
     runner.clearFinished();
     expect(runner.list().map((j) => j.plugin)).toEqual(["second"]);
+  });
+
+  it("reports the real transfer read off git's progress output", () => {
+    const { runner, made } = runnerWith();
+    runner.enqueue(spec);
+    made[0].emit({ jobId: "j1", phase: "downloading", percent: 10 });
+    made[0].stderr("Receiving objects:  60% (600/1000), 3.00 MiB | 1.50 MiB/s");
+    const job = runner.list()[0];
+    expect(job).toMatchObject({ bytes: 3145728, bytesPerSecond: 1572864, percent: 60 });
+    expect(job.samples).toHaveLength(1);
+  });
+
+  it("ignores git output once the job has been cancelled", () => {
+    const { runner, made } = runnerWith();
+    const job = runner.enqueue(spec);
+    runner.cancel(job.id);
+    made[0].stderr("Receiving objects:  60% (600/1000), 3.00 MiB | 1.50 MiB/s");
+    expect(runner.list()[0].bytes).toBeUndefined();
+  });
+
+  it("ignores worker output that carries no progress", () => {
+    const { runner, made } = runnerWith();
+    runner.enqueue(spec);
+    made[0].stderr("Cloning into 'wakatime-sync'...");
+    expect(runner.list()[0].samples).toEqual([]);
   });
 });

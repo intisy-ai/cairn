@@ -3,8 +3,9 @@ import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { activityEnv } from "@core/index.js";
-import { newJob, nextRunnable, applyEvent, cancelJob, isEnded } from "./model.js";
+import { newJob, nextRunnable, applyEvent, cancelJob, isEnded, noteTransfer } from "./model.js";
 import type { Job, JobSpec, Rollback } from "./model.js";
+import { parseGitProgress } from "./gitProgress.js";
 import { safeGetPlugins, loadPluginUpdaterIndex } from "../lib/optionalEngines.js";
 
 // What the worker is told to do. Mirrors src/installer/index.ts's JobMessage.
@@ -17,6 +18,8 @@ export interface JobMessage extends JobSpec {
 
 export interface WorkerHandle {
   onMessage(fn: (message: unknown) => void): void;
+  // git writes its transfer progress to stderr, which is the only real byte count available.
+  onStderr?(fn: (chunk: string) => void): void;
   onExit(fn: (code: number | null) => void | Promise<void>): void;
   kill(): void;
 }
@@ -69,14 +72,21 @@ function realSpawn(_job: Job, message: JobMessage): WorkerHandle {
   const child = fork(workerPath(), {
     execArgv: [],
     stdio: ["ignore", "pipe", "pipe", "ipc"],
-    env: { ...process.env, ...activityEnv(), ELECTRON_RUN_AS_NODE: "1", CORE_APP: message.home },
+    env: {
+      ...process.env, ...activityEnv(), ELECTRON_RUN_AS_NODE: "1", CORE_APP: message.home,
+      // Ask git to stream its progress so the transfer can be reported as it happens.
+      PLUGIN_UPDATER_GIT_PROGRESS: "1",
+    },
   });
-  // Nobody drains these pipes, so a chatty child would eventually wedge on a full buffer.
+  // Nobody reads stdout, so a chatty child would eventually wedge on a full buffer.
   child.stdout?.resume();
-  child.stderr?.resume();
   child.send(message);
   return {
     onMessage: (fn) => child.on("message", fn),
+    onStderr: (fn) => {
+      child.stderr?.setEncoding("utf8");
+      child.stderr?.on("data", (chunk: string) => fn(chunk));
+    },
     onExit: (fn) => child.on("exit", (code) => fn(code)),
     kill: () => killTree(child.pid),
   };
@@ -177,6 +187,14 @@ export function createRunner(deps: RunnerDeps = {}): Runner {
       }
       if (message.error) { end(started.id, "failed", message.error); return; }
       if (message.done) end(started.id, "done");
+    });
+
+    worker.onStderr?.((chunk) => {
+      const transfer = parseGitProgress(chunk);
+      if (!transfer) return;
+      const job = get(started.id);
+      if (!job || isEnded(job) || job.status === "cancelling") return;
+      replace(noteTransfer(job, transfer, now()));
     });
 
     worker.onExit((code) => {

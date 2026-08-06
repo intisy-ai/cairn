@@ -2,10 +2,12 @@
 // decisions from here, so every transition is testable on its own.
 
 // The job's shape lives in packages/shared so the renderer and the sidecar cannot drift.
-export type { Job, JobKind, JobStatus, JobPhase, JobSpec } from "../../../packages/shared/src/domain.js";
+export type { Job, JobKind, JobStatus, JobPhase, JobSample, JobSpec } from "../../../packages/shared/src/domain.js";
 import type { Job, JobStatus, JobSpec } from "../../../packages/shared/src/domain.js";
 
 export type Rollback = "none" | "remove-clone" | "keep-previous";
+
+import type { Transfer } from "./gitProgress.js";
 
 export interface WorkerEvent {
   phase: string;
@@ -15,7 +17,7 @@ export interface WorkerEvent {
 const ENDED: JobStatus[] = ["done", "failed", "cancelled"];
 
 export function newJob(id: string, spec: JobSpec, now: number): Job {
-  return { id, ...spec, status: "queued", phase: "", percent: -1, phases: [], queuedAt: now };
+  return { id, ...spec, status: "queued", phase: "", percent: -1, phases: [], samples: [], queuedAt: now };
 }
 
 export function isEnded(job: Job): boolean {
@@ -34,7 +36,25 @@ export function nextRunnable(jobs: Job[]): Job | undefined {
 export function applyEvent(job: Job, event: WorkerEvent, now: number): Job {
   const startedAt = job.phaseStartedAt ?? job.startedAt ?? now;
   const phases = job.phase ? [...job.phases, { name: job.phase, ms: now - startedAt }] : job.phases;
-  return { ...job, phases, phase: event.phase, percent: event.percent, phaseStartedAt: now };
+  // Never let the bar walk backwards: a coarse phase boundary can sit below the fine-grained
+  // transfer percent the previous phase already reached.
+  return { ...job, phases, phase: event.phase, percent: Math.max(job.percent, event.percent), phaseStartedAt: now };
+}
+
+// git's transfer progress: the only real byte count and rate in an install. During a transfer
+// its percent IS the job's progress, which is what makes the bar move smoothly rather than
+// jumping between phase boundaries.
+export const MAX_SAMPLES = 120;
+
+export function noteTransfer(job: Job, transfer: Transfer, now: number): Job {
+  const next: Job = { ...job };
+  if (transfer.bytes !== undefined) next.bytes = transfer.bytes;
+  if (transfer.bytesPerSecond !== undefined) {
+    next.bytesPerSecond = transfer.bytesPerSecond;
+    next.samples = [...job.samples, { ts: now, bytesPerSecond: transfer.bytesPerSecond }].slice(-MAX_SAMPLES);
+  }
+  if (transfer.bytes !== undefined) next.percent = Math.max(job.percent, transfer.percent);
+  return next;
 }
 
 // A queued job never touched the home, so it just ends. A running one has to be rolled back to
