@@ -97,7 +97,7 @@ declare module "@core/index.js" {
     id: string;
     url: string;
     capability: string;
-    target: "all-apps" | "cairn";
+    target: "everywhere" | "all-apps" | "cairn";
     meta?: Record<string, string>;
   }
   export function getEngines(): EngineDescriptor[];

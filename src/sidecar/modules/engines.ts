@@ -28,6 +28,7 @@ export interface EnginesDeps {
 const PLUGIN_MANAGEMENT = "plugin-management";
 
 function targetHomes(engine: EngineDescriptor, homes: PluginHome[]): PluginHome[] {
+  if (engine.target === "everywhere") return homes;
   return engine.target === "cairn" ? homes.filter((h) => h.id === "cairn") : homes.filter((h) => h.id !== "cairn");
 }
 

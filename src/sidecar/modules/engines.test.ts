@@ -14,7 +14,7 @@ describe("enginesList", () => {
     if (!res.ok) return;
     const byId = Object.fromEntries(res.data.map((e) => [e.id, e]));
     // plugin-updater targets host apps only (not cairn); presence = hasUpdater
-    expect(Object.keys(byId["plugin-updater"].homes).sort()).toEqual(["claude", "opencode"]);
+    expect(Object.keys(byId["plugin-updater"].homes).sort()).toEqual(["cairn", "claude", "opencode"]);
     expect(byId["plugin-updater"].homes.claude.installed).toBe(false);
     // custom-auth targets cairn; installed because getPlugins on /cairn lists it
     expect(Object.keys(byId["custom-auth"].homes)).toEqual(["cairn"]);
