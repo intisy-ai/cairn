@@ -461,7 +461,7 @@ describe("Plugins screen", () => {
     stubCairn({
       pluginsList: async () => ({ ok: true, data: baseSections() }),
       catalogList: async () => ({ ok: true, data: baseCatalog() }),
-      pluginVersions: async () => ({ ok: true, data: { claude: { kind: "git", label: "v1.0.0", updateAvailable: true, autoUpdate: true } } }),
+      pluginVersions: async () => ({ ok: true, data: { claude: { kind: "git", label: "v1.0.0", updateState: "behind", autoUpdate: true } } }),
       pluginsSetAutoUpdate,
       jobsEnqueue,
     });

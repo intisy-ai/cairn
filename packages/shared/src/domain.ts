@@ -186,7 +186,17 @@ export type PluginHome = {
   hasUpdater: boolean;
 };
 export type HomePlugins = { home: PluginHome; rows: PluginRow[] };
-export type PluginVersion = { kind: "git" | "npm"; label: string | null; updateAvailable: boolean; autoUpdate: boolean };
+// "unknown" is distinct from "current": a home whose clone could not be read has no answer,
+// and rendering that as up to date is what made stale badges look authoritative.
+export type UpdateState = "current" | "behind" | "unknown";
+export type PluginVersion = {
+  kind: "git" | "npm";
+  label: string | null;
+  updateState: UpdateState;
+  autoUpdate: boolean;
+  // When this home's update cache was last written, so a day-old answer can read as day-old.
+  checkedAt?: string | null;
+};
 export type EngineHomeState = { installed: boolean; enabled: boolean };
 export type EngineView = { id: string; capability: string; url: string; homes: Record<string, EngineHomeState> };
 export type UnifiedHomeState = { installed: boolean; version?: string | null };

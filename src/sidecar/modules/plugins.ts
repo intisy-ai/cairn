@@ -10,7 +10,7 @@ import { svgIconDataUri } from "../lib/pluginIcon.js";
 import { emitCairnAction } from "../activity.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
 import type { Plugin, NpmPlugin } from "@plugin-updater/types.js";
-import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, PluginVersion, Result, InstallManyResult, InstallOutcome } from "../../../packages/shared/src/domain.js";
+import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, PluginVersion, UpdateState, Result, InstallManyResult, InstallOutcome } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir, homeById, updaterInstalled } from "../lib/pluginHomes.js";
 import { readNamespace, writeCacheMany } from "../lib/cache.js";
 import {
@@ -255,9 +255,17 @@ export function pluginVersionsCached(deps: PluginVersionsDeps = {}): Promise<Res
   });
 }
 
-async function gitVersionFor(repoDir: string, entry: UpdateCache["plugins"][string] | undefined, describe: (dir: string) => string | null | Promise<string | null>, autoUpdate: boolean): Promise<PluginVersion> {
+// An entry with no local head was never successfully read, so its remote comparison says
+// nothing: report that rather than letting a missing side pass for "up to date".
+export function gitUpdateState(entry: UpdateCache["plugins"][string] | undefined): UpdateState {
+  if (!entry) return "unknown";
+  if (entry.updateAvailable) return "behind";
+  return entry.localHead ? "current" : "unknown";
+}
+
+async function gitVersionFor(repoDir: string, entry: UpdateCache["plugins"][string] | undefined, describe: (dir: string) => string | null | Promise<string | null>, autoUpdate: boolean, checkedAt: string | null): Promise<PluginVersion> {
   const label = formatGitVersion(await describe(repoDir)) ?? (entry?.localHead ? entry.localHead.slice(0, 7) : null);
-  return { kind: "git", label, updateAvailable: entry?.updateAvailable ?? false, autoUpdate };
+  return { kind: "git", label, updateState: gitUpdateState(entry), autoUpdate, checkedAt };
 }
 
 // A plugin can be registered in a home's plugins.json but not yet cloned there
@@ -265,7 +273,7 @@ async function gitVersionFor(repoDir: string, entry: UpdateCache["plugins"][stri
 // genuinely unknown until it is cloned, so report it as such (label null) rather
 // than borrowing another home's version and implying a certainty we don't have.
 function markUnknown(perHome: Record<string, PluginVersion>, homes: { id: string; autoUpdate: boolean }[]): void {
-  for (const h of homes) perHome[h.id] = { kind: "git", label: null, updateAvailable: false, autoUpdate: h.autoUpdate };
+  for (const h of homes) perHome[h.id] = { kind: "git", label: null, updateState: "unknown", autoUpdate: h.autoUpdate };
 }
 
 export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Promise<Result<Record<string, PluginVersion>>> {
@@ -279,14 +287,15 @@ export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Pro
     const registeredWithoutClone: { id: string; autoUpdate: boolean }[] = [];
     for (const home of homes) {
       if (!home.present) continue;
-      const entry = (await readCache(home.dir)).plugins[name];
+      const cache = await readCache(home.dir);
+      const entry = cache.plugins[name];
       const gitEntry = (await listGit(home.dir)).find((p) => p.name === name);
       const autoUpdate = gitEntry ? gitEntry.autoUpdate !== false : true;
       const repoDir = join(home.dir, "repos", name);
       if (exists(repoDir)) {
-        out[home.id] = await gitVersionFor(repoDir, entry, describe, autoUpdate);
+        out[home.id] = await gitVersionFor(repoDir, entry, describe, autoUpdate, cache.checkedAt ?? null);
       } else if (entry?.kind === "npm") {
-        out[home.id] = { kind: "npm", label: entry.installedVersion, updateAvailable: entry.updateAvailable, autoUpdate: true };
+        out[home.id] = { kind: "npm", label: entry.installedVersion, updateState: entry.updateAvailable ? "behind" : "current", autoUpdate: true };
       } else if (gitEntry) {
         registeredWithoutClone.push({ id: home.id, autoUpdate });
       }
@@ -318,7 +327,7 @@ export function pluginVersionsAll(deps: PluginVersionsDeps = {}): Promise<Result
         gitEntries.map(async (p) => {
           const repoDir = join(home.dir, "repos", p.name);
           if (!exists(repoDir)) return { p, version: null };
-          return { p, version: await gitVersionFor(repoDir, cache.plugins[p.name], describe, p.autoUpdate !== false) };
+          return { p, version: await gitVersionFor(repoDir, cache.plugins[p.name], describe, p.autoUpdate !== false, cache.checkedAt ?? null) };
         }),
       );
       for (const { p, version } of described) {
@@ -328,7 +337,7 @@ export function pluginVersionsAll(deps: PluginVersionsDeps = {}): Promise<Result
       }
       for (const p of await listNpm(home.dir)) {
         const entry = cache.plugins[p.name];
-        (out[p.name] ??= {})[home.id] = { kind: "npm", label: entry?.installedVersion ?? null, updateAvailable: entry?.updateAvailable ?? false, autoUpdate: true };
+        (out[p.name] ??= {})[home.id] = { kind: "npm", label: entry?.installedVersion ?? null, updateState: entry?.updateAvailable ? "behind" : "current", autoUpdate: true };
       }
     }
     for (const { name, homeId, autoUpdate } of missing) {

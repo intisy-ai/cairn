@@ -528,7 +528,7 @@ describe("plugin versions", () => {
     });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data.claude).toEqual({ kind: "git", label: "v1.2.3 +5", updateAvailable: true, autoUpdate: true });
+    expect(result.data.claude).toEqual({ kind: "git", label: "v1.2.3 +5", updateState: "behind", autoUpdate: true, checkedAt: "" });
     expect(result.data.cairn).toBeUndefined();
   });
 
@@ -541,7 +541,7 @@ describe("plugin versions", () => {
     const result = await pluginVersions("npm-x", { homes: fakeHomes, describe: () => null, exists: () => false });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data.claude).toEqual({ kind: "npm", label: "2.0.1", updateAvailable: true, autoUpdate: true });
+    expect(result.data.claude).toEqual({ kind: "npm", label: "2.0.1", updateState: "behind", autoUpdate: true });
   });
 
   it("falls back to the short commit sha for a git repo with no describe output", async () => {
@@ -553,7 +553,7 @@ describe("plugin versions", () => {
     const result = await pluginVersions("plugin-a", { homes: fakeHomes, describe: () => null, exists: (p) => p.includes("claude") });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data.claude).toEqual({ kind: "git", label: "abcdef1", updateAvailable: false, autoUpdate: true });
+    expect(result.data.claude).toEqual({ kind: "git", label: "abcdef1", updateState: "current", autoUpdate: true, checkedAt: "" });
   });
 
   it("reports a registered-but-not-cloned home's version as unknown, not borrowed", async () => {
@@ -570,8 +570,8 @@ describe("plugin versions", () => {
     });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data.claude).toEqual({ kind: "git", label: "v0.2.0 +5", updateAvailable: false, autoUpdate: true });
-    expect(result.data.opencode).toEqual({ kind: "git", label: null, updateAvailable: false, autoUpdate: true });
+    expect(result.data.claude).toEqual({ kind: "git", label: "v0.2.0 +5", updateState: "current", autoUpdate: true, checkedAt: "" });
+    expect(result.data.opencode).toEqual({ kind: "git", label: null, updateState: "unknown", autoUpdate: true });
   });
 
   it("persists computed versions so a later cached read returns them instantly", async () => {
@@ -591,7 +591,9 @@ describe("plugin versions", () => {
     const cached = await pluginVersionsCached({ cacheDir: cairnDir });
     expect(cached.ok).toBe(true);
     if (!cached.ok) throw new Error("unreachable");
-    expect(cached.data["plugin-a"].claude).toEqual({ kind: "git", label: "v3.1.0", updateAvailable: false, autoUpdate: true });
+    // No cache entry was seeded, so nothing is known about this home's update state. It used
+    // to report "no update available", which is how a never-checked home looked up to date.
+    expect(cached.data["plugin-a"].claude).toEqual({ kind: "git", label: "v3.1.0", updateState: "unknown", autoUpdate: true, checkedAt: "" });
   });
 
   it("collects versions for every installed plugin across homes in one pass", async () => {
@@ -609,7 +611,7 @@ describe("plugin versions", () => {
     });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data["plugin-a"].claude).toEqual({ kind: "git", label: "v2.0.0", updateAvailable: true, autoUpdate: true });
+    expect(result.data["plugin-a"].claude).toEqual({ kind: "git", label: "v2.0.0", updateState: "behind", autoUpdate: true, checkedAt: "" });
   });
 });
 

@@ -6,6 +6,7 @@
   import ToggleSwitch from "./ToggleSwitch.svelte";
   import PluginInstallControl from "./PluginInstallControl.svelte";
   import { cairn } from "../ipc.js";
+  import { activeByPluginHome, jobKey, cancelRow, type DownloadRow } from "../downloads.js";
 
   let {
     plugin,
@@ -54,10 +55,26 @@
     installedHomes.map((h) => versions[h.id]?.label).find((v): v is string => !!v) ?? "",
   );
   const behindHomes = $derived(
-    installedHomes.filter((h) => h.hasUpdater && versions[h.id]?.updateAvailable).map((h) => h.id),
+    installedHomes.filter((h) => h.hasUpdater && versions[h.id]?.updateState === "behind").map((h) => h.id),
   );
 
-  let busyHome = $state<Record<string, boolean>>({});
+  // A home's own live job, so a row can say "queued here, installing there" instead of
+  // sharing one busy flag across every home.
+  function jobFor(homeId: string): DownloadRow | undefined {
+    return $activeByPluginHome[jobKey(plugin.name, homeId)];
+  }
+
+  function jobLabel(row: DownloadRow | undefined): string {
+    if (!row) return "";
+    if (row.status === "pending") return "queued";
+    if (row.status === "cancelling") return "cancelling";
+    return row.label.startsWith("Update") ? "updating" : "installing";
+  }
+
+  function checkedLabel(checkedAt: string | null | undefined): string {
+    if (!checkedAt) return "never checked for updates";
+    return `last checked ${new Date(checkedAt).toLocaleString()}`;
+  }
 
   async function loadVersions(): Promise<void> {
     const result = await cairn.pluginVersions(plugin.name);
@@ -65,14 +82,8 @@
   }
 
   async function updateHome(homeId: string): Promise<void> {
-    if (busyHome[homeId]) return;
-    busyHome = { ...busyHome, [homeId]: true };
-    try {
-      await onUpdateHome(homeId);
-      await loadVersions();
-    } finally {
-      busyHome = { ...busyHome, [homeId]: false };
-    }
+    await onUpdateHome(homeId);
+    await loadVersions();
   }
 
   async function setAutoUpdate(homeId: string, on: boolean): Promise<void> {
@@ -175,11 +186,20 @@
             {:else}
               <span class="state">{on ? "Installed" : "Not installed"}</span>
             {/if}
-            <!-- An update is the action worth offering while one is pending; removing this
-                 home stays available from the install control's menu above. -->
-            {#if on && behindHomes.includes(h.id)}
-              <button class="toggle update" disabled={busyHome[h.id]} onclick={() => updateHome(h.id)}>Update</button>
+            {#if on && versions[h.id]?.updateState === "unknown"}
+              <span class="unknown" title={checkedLabel(versions[h.id]?.checkedAt)}>update state unknown</span>
+            {/if}
+            {#if jobFor(h.id)}
+              {@const running = jobFor(h.id)}
+              <span class="jobstate" data-testid={`job-${h.id}`}>{jobLabel(running)}</span>
+              {#if running?.cancellable}
+                <button class="toggle" onclick={() => running && cancelRow(running)}>Cancel</button>
+              {/if}
             {:else if on}
+              <!-- An update being available never removes the option to remove this home. -->
+              {#if behindHomes.includes(h.id)}
+                <button class="toggle update" onclick={() => updateHome(h.id)}>Update</button>
+              {/if}
               <button class="toggle on" onclick={() => onToggleHome(h.id, false)}>Remove</button>
             {:else}
               <button class="toggle" onclick={() => onToggleHome(h.id, true)}>Install</button>
@@ -211,6 +231,16 @@
 <RepoDetail {repo} {onClose} {tabs} tabContent={content} actions={topActions} versionLabel={representativeVersion} onTab={(id) => (activeTab = id)} />
 
 <style>
+  .jobstate {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+  }
+  .unknown {
+    font-size: 11px;
+    color: var(--warn);
+  }
   .favorite {
     display: inline-flex;
     align-items: center;

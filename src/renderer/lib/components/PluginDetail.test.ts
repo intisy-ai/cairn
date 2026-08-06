@@ -2,6 +2,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/svelte";
 import { stubCairn } from "../testing.js";
+import { seedJobsForTest, resetDownloadsForTest } from "../downloads.js";
 import PluginDetail from "./PluginDetail.svelte";
 import type { UnifiedPlugin, PluginVersion } from "@cairn/shared";
 
@@ -20,7 +21,7 @@ const PLUGIN: UnifiedPlugin = {
 };
 
 function version(overrides: Partial<PluginVersion> = {}): PluginVersion {
-  return { kind: "git", label: "v1.0.0", updateAvailable: false, autoUpdate: true, ...overrides };
+  return { kind: "git", label: "v1.0.0", updateState: "current", autoUpdate: true, ...overrides };
 }
 
 function props(homes: { id: string; label: string; hasUpdater?: boolean }[]) {
@@ -51,15 +52,17 @@ function row(label: string): HTMLElement {
 }
 
 describe("PluginDetail availability", () => {
-  it("offers Update in place of Remove for the home that is behind", async () => {
+  // An update being available is not a reason to take removal away from the user.
+  it("offers Update AND Remove for the home that is behind", async () => {
     stubCairn({
-      pluginVersions: async () => ({ ok: true, data: { claude: version({ updateAvailable: true }), opencode: version() } }),
+      pluginVersions: async () => ({ ok: true, data: { claude: version({ updateState: "behind" }), opencode: version() } }),
     });
     await openAvailability([{ id: "claude", label: "Claude Code", hasUpdater: true }, { id: "opencode", label: "OpenCode", hasUpdater: true }]);
 
     await waitFor(() => expect(within(row("Claude Code")).getByRole("button", { name: "Update" })).toBeInTheDocument());
-    expect(within(row("Claude Code")).queryByRole("button", { name: "Remove" })).toBeNull();
+    expect(within(row("Claude Code")).getByRole("button", { name: "Remove" })).toBeInTheDocument();
     expect(within(row("OpenCode")).getByRole("button", { name: "Remove" })).toBeInTheDocument();
+    expect(within(row("OpenCode")).queryByRole("button", { name: "Update" })).toBeNull();
   });
 
   it("keeps Remove for a home that is up to date", async () => {
@@ -73,7 +76,7 @@ describe("PluginDetail availability", () => {
 
   it("shows no update or auto-update control for a home with no updater", async () => {
     stubCairn({
-      pluginVersions: async () => ({ ok: true, data: { claude: version({ updateAvailable: true }), opencode: version({ updateAvailable: true }) } }),
+      pluginVersions: async () => ({ ok: true, data: { claude: version({ updateState: "behind" }), opencode: version({ updateState: "behind" }) } }),
     });
     await openAvailability([{ id: "claude", label: "Claude Code", hasUpdater: false }, { id: "opencode", label: "OpenCode", hasUpdater: false }]);
 
@@ -108,5 +111,31 @@ describe("PluginDetail settings loading", () => {
 
     await fireEvent.click(await screen.findByRole("button", { name: "Configure" }));
     await waitFor(() => expect(configSchemas).toHaveBeenCalledWith("claude"));
+  });
+
+  it("shows this home's own job state, not a flag shared across homes", async () => {
+    seedJobsForTest([{
+      id: "j1", kind: "install", plugin: "wakatime-sync", url: "u", home: "opencode",
+      status: "queued", phase: "", percent: -1, phases: [], queuedAt: 0,
+    }]);
+    stubCairn({ pluginVersions: async () => ({ ok: true, data: { claude: version(), opencode: version() } }) });
+    await openAvailability([{ id: "claude", label: "Claude Code", hasUpdater: true }, { id: "opencode", label: "OpenCode", hasUpdater: true }]);
+
+    await waitFor(() => expect(within(row("OpenCode")).getByTestId("job-opencode")).toHaveTextContent("queued"));
+    expect(within(row("Claude Code")).queryByTestId("job-claude")).toBeNull();
+    // The row is busy, so it offers cancelling rather than another install.
+    expect(within(row("OpenCode")).getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    expect(within(row("OpenCode")).queryByRole("button", { name: "Remove" })).toBeNull();
+    resetDownloadsForTest();
+  });
+
+  it("says the update state is unknown rather than implying it is current", async () => {
+    stubCairn({ pluginVersions: async () => ({ ok: true, data: { claude: version({ updateState: "unknown", checkedAt: null }), opencode: version() } }) });
+    await openAvailability([{ id: "claude", label: "Claude Code", hasUpdater: true }, { id: "opencode", label: "OpenCode", hasUpdater: true }]);
+
+    await waitFor(() => expect(within(row("Claude Code")).getByText("update state unknown")).toBeInTheDocument());
+    expect(within(row("OpenCode")).queryByText("update state unknown")).toBeNull();
+    // Unknown is not "behind", so it must not offer an update it cannot justify.
+    expect(within(row("Claude Code")).queryByRole("button", { name: "Update" })).toBeNull();
   });
 });

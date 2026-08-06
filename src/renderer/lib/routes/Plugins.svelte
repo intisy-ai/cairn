@@ -278,6 +278,7 @@
       .filter((s) => s.home.hasUpdater && s.rows.some((r) => r.name === p.name && r.updateAvailable))
       .map((s) => s.home.id);
   }
+
   function homesLabel(homeIds: string[]): string {
     const by = homesById();
     return homeIds.map((id) => by[id]?.label ?? id).join(", ") || "none";
