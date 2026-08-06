@@ -4,6 +4,7 @@
   import PluginControls from "./PluginControls.svelte";
   import RepoDetail from "./RepoDetail.svelte";
   import ToggleSwitch from "./ToggleSwitch.svelte";
+  import SplitButton from "./SplitButton.svelte";
   import PluginInstallControl from "./PluginInstallControl.svelte";
   import { cairn } from "../ipc.js";
   import { activeByPluginHome, jobKey, cancelRow, type DownloadRow } from "../downloads.js";
@@ -186,23 +187,40 @@
             {:else}
               <span class="state">{on ? "Installed" : "Not installed"}</span>
             {/if}
+            {#if on && behindHomes.includes(h.id)}
+              <span class="behind" data-testid={`behind-${h.id}`}>update available</span>
+            {/if}
             {#if on && versions[h.id]?.updateState === "unknown"}
               <span class="unknown" title={checkedLabel(versions[h.id]?.checkedAt)}>update state unknown</span>
             {/if}
+            <!-- One control per home. What it offers depends on that home's real state: the
+                 work it is doing, an update it is behind on, or nothing but removal. -->
             {#if jobFor(h.id)}
               {@const running = jobFor(h.id)}
               <span class="jobstate" data-testid={`job-${h.id}`}>{jobLabel(running)}</span>
-              {#if running?.cancellable}
-                <button class="toggle" onclick={() => running && cancelRow(running)}>Cancel</button>
-              {/if}
+              <SplitButton
+                label={jobLabel(running)}
+                progress={running && running.percent >= 0 ? running.percent : -1}
+                title={running?.step}
+              >
+                {#snippet menu()}
+                  <button onclick={() => running && cancelRow(running)} disabled={!running?.cancellable}>Cancel</button>
+                {/snippet}
+              </SplitButton>
+            {:else if on && behindHomes.includes(h.id)}
+              <SplitButton label="Update" title="An update is available for this home" onPrimary={() => updateHome(h.id)}>
+                {#snippet menu()}
+                  <button onclick={() => onToggleHome(h.id, false)}>Remove</button>
+                {/snippet}
+              </SplitButton>
             {:else if on}
-              <!-- An update being available never removes the option to remove this home. -->
-              {#if behindHomes.includes(h.id)}
-                <button class="toggle update" onclick={() => updateHome(h.id)}>Update</button>
-              {/if}
-              <button class="toggle on" onclick={() => onToggleHome(h.id, false)}>Remove</button>
+              <SplitButton label="Remove" danger onPrimary={() => onToggleHome(h.id, false)}>
+                {#snippet menu()}
+                  <button onclick={() => updateHome(h.id)}>Reinstall</button>
+                {/snippet}
+              </SplitButton>
             {:else}
-              <button class="toggle" onclick={() => onToggleHome(h.id, true)}>Install</button>
+              <SplitButton label="Install" onPrimary={() => onToggleHome(h.id, true)} />
             {/if}
           </li>
         {/each}
@@ -240,6 +258,16 @@
   .unknown {
     font-size: 11px;
     color: var(--warn);
+  }
+  .behind {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--accent);
+    padding: 1px 6px;
+    border: 1px solid var(--accent-border);
+    border-radius: 999px;
+    background: var(--accent-weak);
   }
   .favorite {
     display: inline-flex;

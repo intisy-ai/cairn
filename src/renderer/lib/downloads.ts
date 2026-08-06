@@ -1,5 +1,5 @@
 import { writable, derived, get } from "svelte/store";
-import type { Job, JobKind, JobPhase, Result } from "@cairn/shared";
+import type { Job, JobKind, JobPhase, JobSample, Result } from "@cairn/shared";
 import { cairn } from "./ipc.js";
 import { humanizeId } from "./util/appLabel.js";
 
@@ -23,6 +23,10 @@ export type DownloadRow = {
   homeId?: string;
   jobId?: string;
   phases: JobPhase[];
+  // Real transfer figures, absent for work that transfers nothing.
+  bytes?: number;
+  bytesPerSecond?: number;
+  samples: JobSample[];
   queuedAt: number;
   startedAt?: number;
   endedAt?: number;
@@ -67,7 +71,10 @@ function jobRow(job: Job): DownloadRow {
     plugin: job.plugin,
     homeId: job.home,
     jobId: job.id,
-    phases: job.phases,
+    phases: job.phases ?? [],
+    bytes: job.bytes,
+    bytesPerSecond: job.bytesPerSecond,
+    samples: job.samples ?? [],
     queuedAt: job.queuedAt,
     startedAt: job.startedAt,
     endedAt: job.endedAt,
@@ -76,7 +83,7 @@ function jobRow(job: Job): DownloadRow {
 }
 
 function localRow(task: LocalTask): DownloadRow {
-  return { ...task, id: `task:${task.id}`, phases: [], cancellable: false };
+  return { ...task, id: `task:${task.id}`, phases: [], samples: [], cancellable: false };
 }
 
 export const rows = derived([jobs, localTasks], ([$jobs, $local]) =>

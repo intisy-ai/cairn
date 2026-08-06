@@ -49,8 +49,8 @@ describe("the mirrored queue", () => {
   it("shows the manager installing and the plugin waiting behind it", () => {
     resetDownloadsForTest();
     seedJobsForTest([
-      { id: "j1", kind: "install", plugin: "plugin-updater", url: "u", home: "claude", status: "running", phase: "downloading", percent: 10, phases: [], queuedAt: 1 },
-      { id: "j2", kind: "install", plugin: "wakatime-sync", url: "u", home: "claude", status: "queued", phase: "", percent: -1, phases: [], queuedAt: 2 },
+      { id: "j1", kind: "install", plugin: "plugin-updater", url: "u", home: "claude", status: "running", phase: "downloading", percent: 10, phases: [], samples: [], queuedAt: 1 },
+      { id: "j2", kind: "install", plugin: "wakatime-sync", url: "u", home: "claude", status: "queued", phase: "", percent: -1, phases: [], samples: [], queuedAt: 2 },
     ]);
     const shown = get(rows);
     expect(shown.map((r) => [r.plugin, r.status])).toEqual([

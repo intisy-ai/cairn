@@ -9,7 +9,7 @@ import Plugins from "./Plugins.svelte";
 import type { HomePlugins, PluginHome, Job } from "@cairn/shared";
 
 function jobFor(home: string, plugin = "demo"): Job {
-  return { id: `job-${home}-${plugin}`, kind: "install", plugin, url: "u", home, status: "done", phase: "", percent: 100, phases: [], queuedAt: 0, endedAt: 1 };
+  return { id: `job-${home}-${plugin}`, kind: "install", plugin, url: "u", home, status: "done", phase: "", percent: 100, phases: [], samples: [], queuedAt: 0, endedAt: 1 };
 }
 
 // Jobs resolve as already done so the route's await of settlement does not hang a test.

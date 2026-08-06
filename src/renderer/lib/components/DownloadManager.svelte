@@ -1,6 +1,8 @@
 <script lang="ts">
   import { downloads, toggleDownloads, closeDownloads, cancelRow, type DownloadRow } from "../downloads.js";
   import { navigate } from "../router.js";
+  import { formatRate } from "@cairn/shared";
+  import SpeedGraph from "../charts/SpeedGraph.svelte";
 
   const LIVE = ["pending", "installing", "cancelling"];
   const inFlight = $derived($downloads.tasks.filter((t) => LIVE.includes(t.status)).length);
@@ -16,10 +18,7 @@
   function progressLine(task: DownloadRow): string {
     if (task.status === "pending") return "Queued";
     if (task.status === "cancelling") return "Cancelling…";
-    if (task.status === "installing") {
-      const step = task.step || "Working…";
-      return task.percent >= 0 ? `${step} · ${task.percent}%` : step;
-    }
+    if (task.status === "installing") return task.step || "Working…";
     if (task.status === "done") return "Done";
     if (task.status === "cancelled") return "Cancelled";
     return task.error || "Failed";
@@ -75,20 +74,29 @@
       {#each glance as task (task.id)}
         <div class="task status-{task.status}">
           <div class="row">
-            <span class="label">{task.label}</span>
-            <span class="statedot" aria-hidden="true"></span>
+            <span class="label" title={task.label}>{task.label}</span>
+            {#if task.cancellable}
+              <button class="cancelbtn" onclick={() => cancelRow(task)}>Cancel</button>
+            {:else}
+              <span class="statedot" aria-hidden="true"></span>
+            {/if}
           </div>
           <div class="meta">
             <span class="home">{task.home}</span>
-            {#if task.cancellable}
-              <button class="cancelbtn" onclick={() => cancelRow(task)}>Cancel</button>
+            <span class="metagrow"></span>
+            {#if task.bytesPerSecond !== undefined}
+              <span class="rate" data-testid="glance-rate">{formatRate(task.bytesPerSecond)}</span>
             {/if}
+            {#if task.percent >= 0}<span class="pct">{task.percent}%</span>{/if}
           </div>
           {#if task.status === "installing"}
             {#if task.percent >= 0}
               <div class="bar"><span class="fill det" style={`width:${Math.max(4, task.percent)}%`}></span></div>
             {:else}
               <div class="bar"><span class="fill"></span></div>
+            {/if}
+            {#if task.samples.length > 1}
+              <SpeedGraph samples={task.samples} height={26} label={task.label} />
             {/if}
           {/if}
           <div class="progress">{progressLine(task)}</div>
@@ -222,6 +230,10 @@
     gap: 8px;
   }
   .label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: 12.5px;
     font-weight: 600;
     overflow: hidden;
@@ -249,9 +261,39 @@
   }
   .meta {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     gap: 6px;
-    margin-top: 2px;
+    margin-top: 3px;
+  }
+  .metagrow {
+    flex: 1;
+  }
+  .rate,
+  .pct {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 10.5px;
+  }
+  .rate {
+    color: var(--accent);
+  }
+  .pct {
+    color: var(--muted);
+  }
+  /* Was an unstyled button crowding the row; now a quiet affordance that only darkens on hover. */
+  .cancelbtn {
+    flex: none;
+    padding: 1px 7px;
+    font-size: 10.5px;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .cancelbtn:hover {
+    color: var(--crit);
+    border-color: var(--crit);
   }
   .home {
     font-size: 11px;
@@ -294,7 +336,8 @@
   }
   .fill.det {
     animation: none;
-    transition: width 0.25s ease;
+    /* Matches the Downloads screen: real steps, eased into movement. */
+    transition: width 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
   }
   @keyframes slide {
     0% { transform: translateX(-100%); }

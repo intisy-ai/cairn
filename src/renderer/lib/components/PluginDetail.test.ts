@@ -38,6 +38,12 @@ function props(homes: { id: string; label: string; hasUpdater?: boolean }[]) {
 }
 
 // The detail view opens on the readme; the per-home list lives behind its own tab.
+async function openMenuIn(label: string) {
+  const scope = within(row(label));
+  await fireEvent.click(scope.getByRole("button", { name: "More install options" }));
+  return scope;
+}
+
 async function openAvailability(homes: { id: string; label: string; hasUpdater?: boolean }[]): Promise<void> {
   render(PluginDetail, { props: props(homes) });
   await fireEvent.click(await screen.findByRole("button", { name: "Availability" }));
@@ -59,8 +65,10 @@ describe("PluginDetail availability", () => {
     });
     await openAvailability([{ id: "claude", label: "Claude Code", hasUpdater: true }, { id: "opencode", label: "OpenCode", hasUpdater: true }]);
 
+    // A behind home leads with Update and says so; Remove stays reachable in its dropdown.
     await waitFor(() => expect(within(row("Claude Code")).getByRole("button", { name: "Update" })).toBeInTheDocument());
-    expect(within(row("Claude Code")).getByRole("button", { name: "Remove" })).toBeInTheDocument();
+    expect(within(row("Claude Code")).getByTestId("behind-claude")).toBeInTheDocument();
+    expect((await openMenuIn("Claude Code")).getByRole("button", { name: "Remove" })).toBeInTheDocument();
     expect(within(row("OpenCode")).getByRole("button", { name: "Remove" })).toBeInTheDocument();
     expect(within(row("OpenCode")).queryByRole("button", { name: "Update" })).toBeNull();
   });
@@ -116,7 +124,7 @@ describe("PluginDetail settings loading", () => {
   it("shows this home's own job state, not a flag shared across homes", async () => {
     seedJobsForTest([{
       id: "j1", kind: "install", plugin: "wakatime-sync", url: "u", home: "opencode",
-      status: "queued", phase: "", percent: -1, phases: [], queuedAt: 0,
+      status: "queued", phase: "", percent: -1, phases: [], samples: [], queuedAt: 0,
     }]);
     stubCairn({ pluginVersions: async () => ({ ok: true, data: { claude: version(), opencode: version() } }) });
     await openAvailability([{ id: "claude", label: "Claude Code", hasUpdater: true }, { id: "opencode", label: "OpenCode", hasUpdater: true }]);
@@ -124,8 +132,8 @@ describe("PluginDetail settings loading", () => {
     await waitFor(() => expect(within(row("OpenCode")).getByTestId("job-opencode")).toHaveTextContent("queued"));
     expect(within(row("Claude Code")).queryByTestId("job-claude")).toBeNull();
     // The row is busy, so it offers cancelling rather than another install.
-    expect(within(row("OpenCode")).getByRole("button", { name: "Cancel" })).toBeInTheDocument();
     expect(within(row("OpenCode")).queryByRole("button", { name: "Remove" })).toBeNull();
+    expect((await openMenuIn("OpenCode")).getByRole("button", { name: "Cancel" })).toBeInTheDocument();
     resetDownloadsForTest();
   });
 

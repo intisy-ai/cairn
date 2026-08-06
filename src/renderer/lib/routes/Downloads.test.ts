@@ -21,7 +21,7 @@ const { default: Downloads } = await import("./Downloads.svelte");
 function job(overrides: Partial<Job> = {}): Job {
   return {
     id: "j1", kind: "install", plugin: "plugin-x", url: "u", home: "claude",
-    status: "running", phase: "building", percent: 40, phases: [{ name: "downloading", ms: 3700 }],
+    status: "running", phase: "building", percent: 40, phases: [{ name: "downloading", ms: 3700 }], samples: [],
     queuedAt: 0, startedAt: 0, ...overrides,
   };
 }
@@ -55,8 +55,9 @@ describe("Downloads screen", () => {
     expect(container.querySelector("[data-testid='active-job']")).toBeTruthy();
     expect(getByText("Install plugin-x")).toBeTruthy();
     // A finished phase carries the time it really took, not a guess.
-    expect(getByText(/downloading 3\.7s/)).toBeTruthy();
-    expect(getByText(/building/)).toBeTruthy();
+    expect(getByText("downloading")).toBeTruthy();
+    expect(getByText("3.7s")).toBeTruthy();
+    expect(container.querySelector(".stats")).toHaveTextContent("building");
   });
 
   it("lists queued jobs separately, with a count and a cancel each", () => {
@@ -66,7 +67,7 @@ describe("Downloads screen", () => {
       job({ id: "c", plugin: "third", status: "queued" }),
     ]);
     const { container, getByText } = render(Downloads);
-    expect(getByText("Queued (2)")).toBeTruthy();
+    expect(container.querySelector(".section .count")).toHaveTextContent("2");
     expect(container.querySelectorAll("[data-testid='queued-job']")).toHaveLength(2);
   });
 
@@ -96,7 +97,9 @@ describe("Downloads screen", () => {
   it("shows an update's version change from the history record", async () => {
     historyRecords = [record({ action: "updated", details: { fromVersion: "0bd46a3cd6c1", toVersion: "5ff48beff275" } })];
     render(Downloads);
-    expect(await screen.findByText("0bd46a3c → 5ff48bef")).toBeTruthy();
+    // The arrow between them is decoration, so each version is asserted on its own.
+    expect(await screen.findByText("0bd46a3c")).toBeTruthy();
+    expect(await screen.findByText("5ff48bef")).toBeTruthy();
   });
 
   it("leaves out a record that names no plugin, like an updates-available notice", async () => {
@@ -107,5 +110,27 @@ describe("Downloads screen", () => {
     const { container } = render(Downloads);
     await screen.findByText("config-ledger");
     expect(container.querySelectorAll("[data-testid='history-row']")).toHaveLength(1);
+  });
+
+  it("shows the transfer figures and a rate trace for an active job", () => {
+    seedJobsForTest([job({
+      status: "running", percent: 55, bytes: 5 * 1024 * 1024, bytesPerSecond: 3 * 1024 * 1024,
+      samples: [{ ts: 1, bytesPerSecond: 1024 }, { ts: 2, bytesPerSecond: 2048 }],
+    })]);
+    const { getByText, getByTestId, container } = render(Downloads);
+    expect(getByText("5.0 MB")).toBeTruthy();
+    expect(container.querySelector(".stats")).toHaveTextContent("3.0 MB/s");
+    expect(getByText("55%")).toBeTruthy();
+    expect(getByTestId("total-rate")).toHaveTextContent("3.0 MB/s");
+    // The trace is an svg path, not text.
+    expect(container.querySelector("svg path.trace")).toBeTruthy();
+  });
+
+  it("shows an indeterminate bar and no figures before anything is reported", () => {
+    seedJobsForTest([job({ status: "running", percent: -1, phases: [], samples: [] })]);
+    const { container, getByText } = render(Downloads);
+    expect(container.querySelector(".fill.indeterminate")).toBeTruthy();
+    expect(getByText("--")).toBeTruthy();
+    expect(container.querySelector("svg path.trace")).toBeNull();
   });
 });

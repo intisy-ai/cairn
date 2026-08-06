@@ -18,7 +18,7 @@ vi.mock("../ipc.js", () => ({
 function job(overrides: Partial<Job> = {}): Job {
   return {
     id: "j1", kind: "install", plugin: "plugin-x", url: "u", home: "claude",
-    status: "running", phase: "", percent: -1, phases: [], queuedAt: 0, ...overrides,
+    status: "running", phase: "", percent: -1, phases: [], samples: [], queuedAt: 0, ...overrides,
   };
 }
 import DownloadManager from "./DownloadManager.svelte";
@@ -85,10 +85,18 @@ describe("DownloadManager", () => {
     expect(getByText("building… (3/4)")).toBeTruthy();
   });
 
-  it("appends the percent to the step when known", () => {
+  it("shows the stage and the percent as separate readouts", () => {
     seed([task({ status: "installing", step: "Downloading and building", percent: 40 })], true);
     const { getByText } = render(DownloadManager);
-    expect(getByText("Downloading and building · 40%")).toBeTruthy();
+    expect(getByText("Downloading and building")).toBeTruthy();
+    expect(getByText("40%")).toBeTruthy();
+  });
+
+  it("shows the live transfer rate for a job that reports one", () => {
+    seedJobsForTest([job({ status: "running", percent: 30, bytesPerSecond: 2 * 1024 * 1024 })]);
+    openPanelForTest();
+    const { getByTestId } = render(DownloadManager);
+    expect(getByTestId("glance-rate")).toHaveTextContent("2.0 MB/s");
   });
 
   it("renders the aggregate progress ring while work is in flight", () => {

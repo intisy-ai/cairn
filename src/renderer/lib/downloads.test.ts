@@ -15,7 +15,7 @@ vi.mock("./ipc.js", () => ({
 function job(overrides: Partial<Job> = {}): Job {
   return {
     id: "j1", kind: "install", plugin: "plugin-x", url: "u", home: "claude",
-    status: "running", phase: "", percent: -1, phases: [], queuedAt: 0, ...overrides,
+    status: "running", phase: "", percent: -1, phases: [], samples: [], queuedAt: 0, ...overrides,
   };
 }
 

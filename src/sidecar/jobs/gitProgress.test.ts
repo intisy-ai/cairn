@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { parseGitProgress, toBytes, formatBytes, formatRate } from "./gitProgress.js";
+import { parseGitProgress, toBytes } from "./gitProgress.js";
+import { formatBytes, formatRate } from "../../../packages/shared/src/bytes.js";
 
 describe("parseGitProgress", () => {
   it("reads the stage, percent, byte count and rate from a receiving line", () => {
