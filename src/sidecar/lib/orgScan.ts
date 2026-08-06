@@ -8,7 +8,7 @@ import type { AppDescriptor } from "@core/index.js";
 const TTL_MS = 60_000;
 
 interface RepoJson { name?: string; html_url?: string; description?: string | null; archived?: boolean; topics?: string[] }
-interface Manifest { displayName?: string; icon?: string; app?: AppDescriptor }
+interface Manifest { displayName?: string; icon?: string; app?: AppDescriptor; apps?: string[] }
 
 let cache: { at: number; result: CatalogResult } | null = null;
 const MANIFEST_TTL_MS = 1_800_000;
@@ -113,6 +113,9 @@ async function fetchManifestUncached(
     // The app block is a self-contained AppDescriptor; discovery validates it
     // (via registerApp), so only the shape is checked here.
     if (manifest.app && typeof manifest.app === "object" && !Array.isArray(manifest.app)) out.app = manifest.app as AppDescriptor;
+    // Which apps a plugin suits. Declaring none means it suits any, which is what most do;
+    // one that only works in a particular app says so and is then offered nowhere else.
+    if (Array.isArray(manifest.apps)) out.apps = (manifest.apps as unknown[]).filter((a): a is string => typeof a === "string" && !!a);
     return out;
   } catch {
     return {};
@@ -159,6 +162,7 @@ export async function scanOrg(deps: OrgScanDeps = {}): Promise<CatalogResult> {
             if (manifest.displayName) entry.displayName = manifest.displayName;
             if (manifest.icon) entry.icon = manifest.icon;
             if (manifest.app) entry.app = manifest.app;
+            if (manifest.apps) entry.apps = manifest.apps;
           }),
         );
       } catch {

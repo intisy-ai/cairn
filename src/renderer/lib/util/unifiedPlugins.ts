@@ -7,15 +7,23 @@ function kindOf(name: string, catalog: CatalogEntry[]): CatalogKind {
   return classifyRepoName(name) ?? "plugin";
 }
 
-// A loader connects exactly one app: the one whose registry entry names it. Offering it to
-// any other home promises an install that could never work there, so a loader's own app is
-// the whole answer and the generic rule below never applies to it.
-export function applicableHomeIds(kind: CatalogKind, homes: PluginHome[], pluginName?: string): string[] {
+// Which homes a plugin can go in, most specific answer first.
+//
+// A loader connects exactly one app: the one whose registry entry names it. Offering it to any
+// other home promises an install that could never work there.
+//
+// Any other plugin may declare the apps it suits, and that declaration is honoured as given:
+// an app-specific plugin offered everywhere is how one app's plugins ended up installed in
+// another. Declaring nothing means suiting any app, which is what most do, so the generic rule
+// by kind is what remains.
+export function applicableHomeIds(kind: CatalogKind, homes: PluginHome[], pluginName?: string, apps?: string[]): string[] {
   const ownApp = pluginName ? homes.find((h) => h.loaderId === pluginName) : undefined;
   if (ownApp) return [ownApp.id];
-  return homes
+  const generic = homes
     .filter((h) => (h.id === "cairn" ? kind !== "plugin" && kind !== "loader" : kind !== "proxy"))
     .map((h) => h.id);
+  if (!apps || apps.length === 0) return generic;
+  return generic.filter((id) => apps.includes(id));
 }
 
 // GitHub owner of a repo URL (or owner/repo shorthand); null if it isn't one.
@@ -50,7 +58,7 @@ export function buildUnifiedPlugins(
     const engineUrl = engineUrls.get(name);
     // Engines are Cairn-installable into every home (bootstrap) and carry their
     // clone URL from the engine registry when the catalog has none.
-    const homeIds = engineUrl !== undefined ? homes.map((h) => h.id) : applicableHomeIds(kind, homes, name);
+    const homeIds = engineUrl !== undefined ? homes.map((h) => h.id) : applicableHomeIds(kind, homes, name, catEntry?.apps);
     const rows = sections.flatMap((s) => s.rows.filter((r) => r.name === name).map((r) => ({ home: s.home.id, r })));
     const installedDesc = rows.map((x) => x.r.description).find((d) => d && d.length > 0) ?? "";
     const installedName = rows.map((x) => x.r.displayName).find((d) => d && d.length > 0);
@@ -79,6 +87,7 @@ export function buildUnifiedPlugins(
       displayName: installedName || catEntry?.displayName || name,
       icon: installedIcon || catEntry?.icon || "",
       external,
+      apps: catEntry?.apps,
       favorite: favorites.includes(name),
     });
   }

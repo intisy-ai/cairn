@@ -136,6 +136,33 @@ describe("a leftover config entry", () => {
   });
 });
 
+// One app's plugins ending up installed in another is what this declaration prevents.
+describe("a plugin that declares which apps it suits", () => {
+  const withLoaders: PluginHome[] = [
+    { id: "cairn", label: "Cairn", dir: "/k", present: true, hasUpdater: true },
+    { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true, loaderId: "claude-code-loader" },
+    { id: "opencode", label: "OpenCode", dir: "/o", present: true, hasUpdater: true, loaderId: "opencode-loader" },
+  ];
+
+  it("is offered only to the apps it names", () => {
+    expect(applicableHomeIds("plugin", withLoaders, "some-plugin", ["opencode"])).toEqual(["opencode"]);
+  });
+
+  it("declaring nothing still means any app, which is what most plugins want", () => {
+    expect(applicableHomeIds("plugin", withLoaders, "some-plugin")).toEqual(["claude", "opencode"]);
+    expect(applicableHomeIds("plugin", withLoaders, "some-plugin", [])).toEqual(["claude", "opencode"]);
+  });
+
+  // The declaration narrows; it cannot widen into a home the kind rules exclude.
+  it("cannot claim a home its kind is not allowed in", () => {
+    expect(applicableHomeIds("plugin", withLoaders, "some-plugin", ["cairn", "claude"])).toEqual(["claude"]);
+  });
+
+  it("gives a plugin naming an app that is not here no home at all", () => {
+    expect(applicableHomeIds("plugin", withLoaders, "some-plugin", ["some-future-app"])).toEqual([]);
+  });
+});
+
 describe("a loader's applicable homes", () => {
   const withLoaders: PluginHome[] = [
     { id: "cairn", label: "Cairn", dir: "/k", present: true, hasUpdater: true },

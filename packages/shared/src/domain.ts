@@ -13,7 +13,7 @@ export type { Chain, ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-p
 import type { ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/index.js";
 import type { AppDescriptor } from "@core/index.js";
 export type CatalogKind = "provider" | "proxy" | "plugin" | "loader";
-export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string; deprecated: boolean; topics: string[]; displayName?: string; icon?: string; app?: AppDescriptor };
+export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string; deprecated: boolean; topics: string[]; displayName?: string; icon?: string; app?: AppDescriptor; apps?: string[] };
 export type RepoMeta = { owner: string; repo: string; htmlUrl: string; stars: number | null; description: string; topics: string[]; readme: string | null };
 export type CatalogTokenSource = "env" | "config" | "anonymous";
 export type CatalogResult = { entries: CatalogEntry[]; source: CatalogTokenSource; org: string; rateLimited: boolean };
@@ -229,6 +229,9 @@ export type UnifiedPlugin = {
   // True when the plugin's repo owner is not the configured marketplace org, i.e.
   // it was installed from an outside source rather than the trusted catalog.
   external: boolean;
+  // The apps this plugin declares it suits. Empty means it declares nothing, which is read
+  // as suiting any app rather than none.
+  apps?: string[];
   favorite: boolean;
 };
 export type InstallOutcome = { home: string; ok: boolean; error?: string };
