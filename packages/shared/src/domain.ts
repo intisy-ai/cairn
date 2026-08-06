@@ -95,6 +95,9 @@ export type PluginRow = {
   // Files the clone declares that its build did not produce; a non-empty list means the
   // plugin is installed but only partly built, and a repair is what fixes it.
   missingArtifacts?: string[];
+  // Whether the plugin is actually present in this home. A git plugin can be listed in a
+  // home's config with no clone behind it, which is a leftover entry, not an install.
+  present: boolean;
 };
 export type UsageAccount = {
   provider: string;

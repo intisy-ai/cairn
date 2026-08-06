@@ -63,7 +63,9 @@ export function buildUnifiedPlugins(
     const external = !!marketplaceOrg && !!owner && owner !== marketplaceOrg;
     const homesMap: UnifiedPlugin["homes"] = {};
     for (const id of homeIds) {
-      const hit = rows.find((x) => x.home === id);
+      // A row that names the plugin without it being present is a leftover config entry, not
+      // an install, and calling it installed offers a remove for something that is not there.
+      const hit = rows.find((x) => x.home === id && x.r.present !== false);
       homesMap[id] = { installed: !!hit, version: hit?.r.installedVersion };
     }
     out.push({

@@ -109,6 +109,33 @@ describe("buildUnifiedPlugins", () => {
 
 // A loader is the one plugin that is not portable: it connects a single app, the one whose
 // registry entry names it. Offering it to the other app promised an install that could not work.
+// A home's config can name a plugin that was never cloned there, or whose clone is gone.
+// Calling that installed offered a remove for something that is not there, and showed a
+// plugin as supported by an app it had never actually been installed into.
+describe("a leftover config entry", () => {
+  const withLeftover: HomePlugins[] = [
+    { home: homes[1], rows: [{ name: "opencode-loader", kind: "git", enabled: true, updateAvailable: false, description: "", present: false }] },
+    { home: homes[2], rows: [{ name: "opencode-loader", kind: "git", enabled: true, updateAvailable: false, description: "", present: true }] },
+  ];
+
+  it("does not count as installed in the home that only names it", () => {
+    const out = buildUnifiedPlugins(withLeftover, [], homes);
+    const plugin = out.find((p) => p.name === "opencode-loader")!;
+    expect(plugin.homes.claude?.installed).toBe(false);
+    expect(plugin.homes.opencode?.installed).toBe(true);
+  });
+
+  // Rows predating this field carry no answer, and treating that as "not installed" would
+  // empty the list for anyone whose sidecar has not caught up.
+  it("treats a row that says nothing as installed", () => {
+    const out = buildUnifiedPlugins(
+      [{ home: homes[1], rows: [{ name: "wakatime-sync", kind: "git", enabled: true, updateAvailable: false, description: "" }] }],
+      [], homes,
+    );
+    expect(out.find((p) => p.name === "wakatime-sync")!.homes.claude?.installed).toBe(true);
+  });
+});
+
 describe("a loader's applicable homes", () => {
   const withLoaders: PluginHome[] = [
     { id: "cairn", label: "Cairn", dir: "/k", present: true, hasUpdater: true },

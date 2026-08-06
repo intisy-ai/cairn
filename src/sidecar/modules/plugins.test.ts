@@ -105,15 +105,15 @@ describe("plugins sidecar module", () => {
     const byName = new Map(claudeSection.rows.map((row) => [row.name, row]));
     expect(byName.get("plugin-a")).toEqual({
       name: "plugin-a", kind: "git", enabled: true, url: "https://github.com/intisy-ai/plugin-a",
-      installedVersion: null, updateAvailable: true, description: "", missingArtifacts: [],
+      installedVersion: null, updateAvailable: true, description: "", missingArtifacts: [], present: false,
     });
     expect(byName.get("plugin-b")).toEqual({
       name: "plugin-b", kind: "git", enabled: false, url: "https://github.com/intisy-ai/plugin-b",
-      installedVersion: null, updateAvailable: false, description: "", missingArtifacts: [],
+      installedVersion: null, updateAvailable: false, description: "", missingArtifacts: [], present: false,
     });
     expect(byName.get("npm-plugin-x")).toEqual({
       name: "npm-plugin-x", kind: "npm", enabled: true, url: undefined,
-      installedVersion: "1.2.3", updateAvailable: true, description: "",
+      installedVersion: "1.2.3", updateAvailable: true, description: "", present: true,
     });
   });
 
