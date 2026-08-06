@@ -5,7 +5,7 @@ import type { Job } from "./model.js";
 
 interface FakeWorker extends WorkerHandle {
   emit(message: unknown): void;
-  exit(code: number | null): void;
+  exit(code: number | null): void | Promise<void>;
   killed: boolean;
   sent: unknown;
 }
@@ -14,7 +14,7 @@ function fakeWorkers() {
   const made: FakeWorker[] = [];
   const spawn = (_job: Job, message: unknown): WorkerHandle => {
     let onMessage: (m: unknown) => void = () => {};
-    let onExit: (c: number | null) => void = () => {};
+    let onExit: (c: number | null) => void | Promise<void> = () => {};
     const worker: FakeWorker = {
       sent: message,
       killed: false,
@@ -115,7 +115,7 @@ describe("job runner", () => {
     expect(made).toHaveLength(1);
   });
 
-  it("cancels a running install by killing the worker, then rolls back the clone", () => {
+  it("cancels a running install by killing the worker, then rolls back the clone", async () => {
     const rollbackClone = vi.fn();
     const { runner, made } = runnerWith({ rollbackClone });
     const job = runner.enqueue(spec);
@@ -124,37 +124,37 @@ describe("job runner", () => {
     expect(made[0].killed).toBe(true);
     expect(rollbackClone).not.toHaveBeenCalled();
 
-    made[0].exit(null);
+    await made[0].exit(null);
     expect(rollbackClone).toHaveBeenCalledWith("/homes/claude", "wakatime-sync");
     expect(runner.list()[0].status).toBe("cancelled");
   });
 
-  it("keeps the previous version when a cancelled job was an update", () => {
+  it("keeps the previous version when a cancelled job was an update", async () => {
     const rollbackClone = vi.fn();
     const { runner, made } = runnerWith({ rollbackClone });
     const job = runner.enqueue({ ...spec, kind: "update" });
     runner.cancel(job.id);
-    made[0].exit(null);
+    await made[0].exit(null);
     expect(rollbackClone).not.toHaveBeenCalled();
     expect(runner.list()[0].status).toBe("cancelled");
   });
 
-  it("reports a rollback that fails instead of swallowing it", () => {
+  it("reports a rollback that fails instead of swallowing it", async () => {
     const rollbackClone = vi.fn(() => { throw new Error("EBUSY"); });
     const { runner, made } = runnerWith({ rollbackClone });
     const job = runner.enqueue(spec);
     runner.cancel(job.id);
-    made[0].exit(null);
+    await made[0].exit(null);
     expect(runner.list()[0].status).toBe("cancelled");
     expect(runner.list()[0].error).toContain("EBUSY");
   });
 
-  it("runs the next job after a cancellation", () => {
+  it("runs the next job after a cancellation", async () => {
     const { runner, made } = runnerWith();
     const first = runner.enqueue(spec);
     runner.enqueue({ ...spec, plugin: "second" });
     runner.cancel(first.id);
-    made[0].exit(null);
+    await made[0].exit(null);
     expect(runner.list().map((j) => j.status)).toEqual(["cancelled", "running"]);
   });
 

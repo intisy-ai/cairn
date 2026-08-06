@@ -1,4 +1,4 @@
-import { fork } from "node:child_process";
+import { fork, execFile } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,19 +17,20 @@ export interface JobMessage extends JobSpec {
 
 export interface WorkerHandle {
   onMessage(fn: (message: unknown) => void): void;
-  onExit(fn: (code: number | null) => void): void;
+  onExit(fn: (code: number | null) => void | Promise<void>): void;
   kill(): void;
 }
 
 export interface RunnerDeps {
   spawnWorker?: (job: Job, message: JobMessage) => WorkerHandle;
+  wait?: (ms: number) => Promise<void>;
   now?: () => number;
   newId?: () => string;
   onChange?: (job: Job) => void;
   resolveHome?: (homeId: string) => { dir: string };
   isPluginManager?: (plugin: string) => boolean;
   autoUpdate?: () => boolean;
-  rollbackClone?: (homeDir: string, plugin: string) => void;
+  rollbackClone?: (homeDir: string, plugin: string) => void | Promise<void>;
 }
 
 export interface Runner {
@@ -39,13 +40,31 @@ export interface Runner {
   clearFinished(): void;
 }
 
-// The worker is a sibling bundle of this one, so it sits beside the sidecar's own entry.
+// The worker is emitted as a SIBLING of the sidecar bundle this code is inlined into
+// (out/main/sidecar.js and out/main/installer.js), so it resolves against this module's own
+// directory. The override exists because running from source puts this file a few dirs deeper.
+export const INSTALLER_PATH_ENV = "CAIRN_INSTALLER_PATH";
+
 function workerPath(): string {
-  return join(fileURLToPath(new URL(".", import.meta.url)), "..", "installer.js");
+  const override = process.env[INSTALLER_PATH_ENV];
+  return override && override.trim() ? override : join(fileURLToPath(new URL(".", import.meta.url)), "installer.js");
 }
 
-// Electron's process.execPath is Electron, not node, and a forked child inherits the
-// parent's execArgv. Both have to be stated or the worker never boots in the packaged app.
+// Killing the worker alone leaves the git and npm processes it spawned running, and on
+// Windows those keep a handle on the clone that the rollback then cannot delete.
+function killTree(pid: number | undefined): void {
+  if (!pid) return;
+  if (process.platform === "win32") {
+    execFile("taskkill", ["/pid", String(pid), "/T", "/F"], () => { /* already gone is fine */ });
+    return;
+  }
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch { /* already gone */ }
+}
+
+// Electron's process.execPath is Electron, not node, and a forked child inherits the parent's
+// execArgv. Both have to be stated or the worker never boots in the packaged app.
 function realSpawn(_job: Job, message: JobMessage): WorkerHandle {
   const child = fork(workerPath(), {
     execArgv: [],
@@ -59,20 +78,39 @@ function realSpawn(_job: Job, message: JobMessage): WorkerHandle {
   return {
     onMessage: (fn) => child.on("message", fn),
     onExit: (fn) => child.on("exit", (code) => fn(code)),
-    kill: () => child.kill(),
+    kill: () => killTree(child.pid),
   };
+}
+
+// A killed worker's git or npm child can outlive it by a moment and keep the clone locked,
+// so a delete that fails on a lock is retried rather than reported as a dirty home.
+const ROLLBACK_ATTEMPTS = 12;
+const ROLLBACK_WAIT_MS = 250;
+
+const sleep = (ms: number): Promise<void> => new Promise((done) => setTimeout(done, ms));
+
+async function removeWithRetry(path: string, wait: (ms: number) => Promise<void>): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      if (existsSync(path)) rmSync(path, { recursive: true, force: true });
+      return;
+    } catch (error: unknown) {
+      if (attempt >= ROLLBACK_ATTEMPTS) throw error;
+      await wait(ROLLBACK_WAIT_MS);
+    }
+  }
 }
 
 // A fresh install can be cancelled before it was ever registered, so removing the entry is
 // conditional: plugin-updater's uninstall throws when there is nothing registered, and it is
 // what prunes the clone and the deployed bundle when there is.
-async function realRollbackClone(homeDir: string, plugin: string): Promise<void> {
+async function realRollbackClone(homeDir: string, plugin: string, wait: (ms: number) => Promise<void>): Promise<void> {
   if ((await safeGetPlugins(homeDir)).some((p) => p.name === plugin)) {
     const mod = await loadPluginUpdaterIndex();
-    if (mod) { mod.uninstallPlugin(homeDir, plugin); return; }
+    if (mod) mod.uninstallPlugin(homeDir, plugin);
   }
   for (const path of [join(homeDir, "repos", plugin), join(homeDir, "plugin", `${plugin}.js`), join(homeDir, "plugin", `${plugin}.sha`)]) {
-    if (existsSync(path)) rmSync(path, { recursive: true, force: true });
+    await removeWithRetry(path, wait);
   }
 }
 
@@ -83,7 +121,8 @@ export function createRunner(deps: RunnerDeps = {}): Runner {
   const resolveHome = deps.resolveHome ?? ((homeId: string) => ({ dir: homeId }));
   const isPluginManager = deps.isPluginManager ?? (() => false);
   const autoUpdate = deps.autoUpdate ?? (() => true);
-  const rollbackClone = deps.rollbackClone ?? ((dir: string, plugin: string) => { void realRollbackClone(dir, plugin); });
+  const wait = deps.wait ?? sleep;
+  const rollbackClone = deps.rollbackClone ?? ((dir: string, plugin: string) => realRollbackClone(dir, plugin, wait));
 
   let counter = 0;
   const newId = deps.newId ?? (() => `job-${++counter}-${now().toString(36)}`);
@@ -143,19 +182,17 @@ export function createRunner(deps: RunnerDeps = {}): Runner {
     worker.onExit((code) => {
       const job = get(started.id);
       if (!job || isEnded(job)) return;
-      if (job.status === "cancelling") {
-        let error: string | undefined;
-        if (active?.rollback === "remove-clone") {
-          try {
-            rollbackClone(message.homeDir, started.plugin);
-          } catch (e: unknown) {
-            error = `rollback failed: ${e instanceof Error ? e.message : String(e)}`;
-          }
-        }
-        end(started.id, "cancelled", error);
+      if (job.status !== "cancelling") {
+        end(started.id, "failed", `the installer exited with code ${code}`);
         return;
       }
-      end(started.id, "failed", `the installer exited with code ${code}`);
+      const needsRollback = active?.rollback === "remove-clone";
+      return Promise.resolve()
+        .then(() => (needsRollback ? rollbackClone(message.homeDir, started.plugin) : undefined))
+        .then(
+          () => end(started.id, "cancelled"),
+          (e: unknown) => end(started.id, "cancelled", `rollback failed: ${e instanceof Error ? e.message : String(e)}`),
+        );
     });
   }
 
