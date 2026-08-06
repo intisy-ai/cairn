@@ -45,10 +45,14 @@ describe("DownloadManager", () => {
     expect(queryByRole("button", { name: "Toggle download manager" })).toBeNull();
   });
 
-  it("shows the button when at least one task exists", () => {
+  it("shows the button only while work is in flight", () => {
+    seed([task({ status: "installing" })], false);
+    expect(render(DownloadManager).getByRole("button", { name: "Toggle download manager" })).toBeTruthy();
+  });
+
+  it("hides the button once everything has finished", () => {
     seed([task({ status: "done" })], false);
-    const { getByRole } = render(DownloadManager);
-    expect(getByRole("button", { name: "Toggle download manager" })).toBeTruthy();
+    expect(render(DownloadManager).queryByRole("button", { name: "Toggle download manager" })).toBeNull();
   });
 
   it("badges the count of in-flight (pending + installing) tasks", () => {
@@ -65,6 +69,22 @@ describe("DownloadManager", () => {
     seed([task({ status: "done" })], false);
     const { container } = render(DownloadManager);
     expect(container.querySelector(".badge")).toBeNull();
+  });
+
+  // Finished work belongs on the Downloads screen; the glance is for what is happening now.
+  it("lists only live work, never finished work", () => {
+    seed([task({ id: 1, label: "plugin-done", status: "done" }), task({ id: 2, label: "plugin-live", status: "installing" })], true);
+    const { getByText, queryByText } = render(DownloadManager);
+    expect(getByText("plugin-live")).toBeTruthy();
+    expect(queryByText("plugin-done")).toBeNull();
+  });
+
+  it("carries no chart, only the figures", () => {
+    seedJobsForTest([job({ status: "running", percent: 40, bytesPerSecond: 1024 * 1024, samples: [{ ts: 1, bytesPerSecond: 1024 }, { ts: 2, bytesPerSecond: 2048 }] })]);
+    openPanelForTest();
+    const { container, getByTestId } = render(DownloadManager);
+    expect(container.querySelector("svg path.trace")).toBeNull();
+    expect(getByTestId("glance-rate")).toHaveTextContent("1.0 MB/s");
   });
 
   it("toggles the panel open and lists label, home, and progress line", async () => {
@@ -131,26 +151,11 @@ describe("DownloadManager", () => {
     expect(cancelled).toEqual(["j9"]);
   });
 
-  it("shows the error text for a failed task", () => {
-    seed([task({ status: "failed", error: "network error" })], true);
-    const { getByText } = render(DownloadManager);
-    expect(getByText("network error")).toBeTruthy();
-  });
-
   // Clearing and the full history moved to the Downloads screen; the popover is a glance
   // at live work with a way to get there.
-  it("shows only live work when something is in flight, and links to the screen", () => {
-    seed([task({ id: 1, label: "plugin-a", status: "done" }), task({ id: 2, label: "plugin-b", status: "installing" })], true);
-    const { getByRole, getByText, queryByText } = render(DownloadManager);
-    expect(getByText("plugin-b")).toBeTruthy();
-    expect(queryByText("plugin-a")).toBeNull();
-    expect(getByRole("button", { name: "View all" })).toBeTruthy();
-  });
-
-  it("falls back to finished work when nothing is live, so the glance is never empty", () => {
-    seed([task({ label: "plugin-final", status: "done" })], true);
-    const { getByText } = render(DownloadManager);
-    expect(getByText("plugin-final")).toBeTruthy();
+  it("links to the screen for everything else", () => {
+    seed([task({ status: "installing" })], true);
+    expect(render(DownloadManager).getByRole("button", { name: "View all" })).toBeTruthy();
   });
 
   it("navigates to the Downloads screen and closes the popover", async () => {

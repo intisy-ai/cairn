@@ -2,7 +2,6 @@
   import { downloads, toggleDownloads, closeDownloads, cancelRow, type DownloadRow } from "../downloads.js";
   import { navigate } from "../router.js";
   import { formatRate } from "@cairn/shared";
-  import SpeedGraph from "../charts/SpeedGraph.svelte";
 
   const LIVE = ["pending", "installing", "cancelling"];
   const inFlight = $derived($downloads.tasks.filter((t) => LIVE.includes(t.status)).length);
@@ -28,7 +27,7 @@
   // not-yet-reported task counts as 0 so the ring only fills as work completes.
   const active = $derived($downloads.tasks.filter((t) => LIVE.includes(t.status)));
   const MAX_GLANCE = 4;
-  const glance = $derived((active.length > 0 ? active : $downloads.tasks).slice(0, MAX_GLANCE));
+  const glance = $derived(active.slice(0, MAX_GLANCE));
 
   function openDownloads(): void {
     closeDownloads();
@@ -41,7 +40,7 @@
 <svelte:window onclick={onWindowClick} onkeydown={onKey} />
 
 <div class="downloadmgr" bind:this={root}>
-  {#if $downloads.tasks.length > 0}
+  {#if inFlight > 0}
     <button class="iconbtn" title="Downloads" aria-label="Toggle download manager" onclick={toggleDownloads}>
       {#if inFlight > 0}
         <svg class="ring" viewBox="0 0 28 28" aria-hidden="true">
@@ -64,7 +63,7 @@
       {#if inFlight > 0}<span class="badge">{inFlight}</span>{/if}
     </button>
   {/if}
-  {#if $downloads.open && $downloads.tasks.length > 0}
+  {#if $downloads.open && glance.length > 0}
     <!-- a glance at what is live, with the screen one click away -->
     <div class="panel">
       <div class="panelhead">
@@ -94,9 +93,6 @@
               <div class="bar"><span class="fill det" style={`width:${Math.max(4, task.percent)}%`}></span></div>
             {:else}
               <div class="bar"><span class="fill"></span></div>
-            {/if}
-            {#if task.samples.length > 1}
-              <SpeedGraph samples={task.samples} height={26} label={task.label} />
             {/if}
           {/if}
           <div class="progress">{progressLine(task)}</div>

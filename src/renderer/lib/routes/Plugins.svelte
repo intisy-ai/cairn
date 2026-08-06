@@ -344,8 +344,22 @@
   // Install/update home-by-home (each its own queued task) and reload after each,
   // so a plugin's pills and button reflect every home as soon as it finishes
   // rather than waiting for the whole multi-home batch to complete.
+  // Every home is queued up front so each row shows "queued" straight away; awaiting one
+  // home before queueing the next left the later rows looking untouched.
   async function handleInstallAll(p: UnifiedPlugin): Promise<void> {
-    for (const homeId of notInstalledApplicable(p)) await addHome(p, homeId);
+    const homeIds = notInstalledApplicable(p);
+    if (!(await installPrerequisites(p.name, homeIds))) {
+      await reload();
+      return;
+    }
+    const ids: string[] = [];
+    for (const homeId of homeIds) {
+      const queued = await enqueueJob("install", p.name, p.url ?? "", homeId);
+      if (queued.ok) ids.push(queued.data.id);
+    }
+    await reload();
+    await Promise.all(ids.map((id) => jobSettled(id)));
+    await reload();
   }
 
   let checking = $state(false);
@@ -382,7 +396,14 @@
   }
 
   async function handleUpdate(p: UnifiedPlugin): Promise<void> {
-    for (const homeId of installedApplicable(p)) await updateHome(p, homeId);
+    const ids: string[] = [];
+    for (const homeId of installedApplicable(p)) {
+      const queued = await enqueueJob("update", p.name, p.url ?? "", homeId);
+      if (queued.ok) ids.push(queued.data.id);
+    }
+    await reload();
+    await Promise.all(ids.map((id) => jobSettled(id)));
+    await reload();
   }
   async function handleRemoveEverywhere(p: UnifiedPlugin): Promise<void> {
     const homeIds = installedApplicable(p);

@@ -146,4 +146,20 @@ describe("PluginDetail settings loading", () => {
     // Unknown is not "behind", so it must not offer an update it cannot justify.
     expect(within(row("Claude Code")).queryByRole("button", { name: "Update" })).toBeNull();
   });
+
+  // Installing everywhere queues every home at once, so a row that is waiting must say so
+  // rather than still offering Install.
+  it("shows a queued home as queued, not as installable", async () => {
+    seedJobsForTest([
+      { id: "j1", kind: "install", plugin: "wakatime-sync", url: "u", home: "claude", status: "running", phase: "downloading", percent: 10, phases: [], samples: [], queuedAt: 0 },
+      { id: "j2", kind: "install", plugin: "wakatime-sync", url: "u", home: "opencode", status: "queued", phase: "", percent: -1, phases: [], samples: [], queuedAt: 1 },
+    ]);
+    stubCairn({ pluginVersions: async () => ({ ok: true, data: {} }) });
+    await openAvailability([{ id: "claude", label: "Claude Code", hasUpdater: true }, { id: "opencode", label: "OpenCode", hasUpdater: true }]);
+
+    await waitFor(() => expect(within(row("Claude Code")).getByTestId("job-claude")).toHaveTextContent("installing"));
+    expect(within(row("OpenCode")).getByTestId("job-opencode")).toHaveTextContent("queued");
+    expect(within(row("OpenCode")).queryByRole("button", { name: "Install" })).toBeNull();
+    resetDownloadsForTest();
+  });
 });

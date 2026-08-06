@@ -22,12 +22,21 @@
   let hiddenBefore = $state(0);
   let now = $state(Date.now());
 
+  let installed = $state<Set<string>>(new Set());
+
+  async function loadInstalled(): Promise<void> {
+    const result = await cairn.pluginsList();
+    if (!result.ok) return;
+    installed = new Set(result.data.flatMap((section) => section.rows.map((row) => row.name)));
+  }
+
   async function loadHistory(): Promise<void> {
-    const result = await cairn.activityRead({ topics: ["plugin.installed"], limit: 60 });
+    const result = await cairn.activityRead({ topics: ["plugin.installed"], limit: 200 });
     if (result.ok) history = result.data.records;
   }
 
   onMount(() => {
+    void loadInstalled();
     void loadHistory();
     const tick = setInterval(() => (now = Date.now()), 250);
     return () => clearInterval(tick);
@@ -37,7 +46,10 @@
   let lastLiveCount = $state(-1);
   $effect(() => {
     const live = active.length + queued.length;
-    if (lastLiveCount > 0 && live === 0) void loadHistory();
+    if (lastLiveCount > 0 && live === 0) {
+      void loadInstalled();
+      void loadHistory();
+    }
     lastLiveCount = live;
   });
 
@@ -64,7 +76,20 @@
     return record.outcome === "failed" ? "failed" : "ok";
   }
 
-  const visibleHistory = $derived(history.filter((r) => r.ts > hiddenBefore && !!r.subject?.id));
+  const visibleHistory = $derived.by(() => {
+    const seen = new Set<string>();
+    const out: ActivityRecord[] = [];
+    for (const record of [...history].sort((a, b) => b.ts - a.ts)) {
+      const plugin = record.subject?.id;
+      if (!plugin || record.ts <= hiddenBefore) continue;
+      if (!installed.has(plugin)) continue;
+      const key = `${plugin}:${record.origin?.app ?? ""}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(record);
+    }
+    return out;
+  });
   const hasAnything = $derived(active.length + queued.length + recentRows.length + visibleHistory.length > 0);
   const totalRate = $derived(active.reduce((sum, r) => sum + (r.bytesPerSecond ?? 0), 0));
 
@@ -126,7 +151,9 @@
             {/if}
           </dl>
 
-          <SpeedGraph samples={row.samples} label={row.label} />
+          {#if row.samples.length > 1}
+            <SpeedGraph samples={row.samples} height={34} label={row.label} />
+          {/if}
 
           {#if row.phases.length > 0}
             <ol class="trail">
@@ -163,8 +190,16 @@
 
   {#if recentRows.length > 0 || visibleHistory.length > 0}
     <Card>
-      <h3 class="section">Recent</h3>
       <table class="log">
+        <thead>
+          <tr>
+            <th>Result</th>
+            <th>Work</th>
+            <th>Home</th>
+            <th class="num">Took</th>
+            <th class="num">Version</th>
+          </tr>
+        </thead>
         <tbody>
           {#each recentRows as row (row.id)}
             <tr data-testid="recent-row">
@@ -405,10 +440,25 @@
   .log tr:first-child {
     border-top: none;
   }
+  .log th {
+    text-align: left;
+    padding: 0 12px 8px 0;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--faint);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .log th.num {
+    text-align: right;
+  }
   .log td {
-    padding: 6px 8px 6px 0;
+    padding: 5px 12px 5px 0;
     font-size: 12.5px;
     vertical-align: baseline;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .out {
     width: 58px;
@@ -428,11 +478,13 @@
   }
   .lname {
     font-weight: 500;
+    max-width: 0;
   }
   .lhome {
     color: var(--muted);
     font-size: 11.5px;
-    width: 22%;
+    width: 26%;
+    max-width: 0;
   }
   .ltime {
     width: 76px;

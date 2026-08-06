@@ -103,24 +103,4 @@
     flex-direction: column;
     gap: 2px;
   }
-  .mrow {
-    text-align: left;
-    background: none;
-    border: none;
-    border-radius: 7px;
-    padding: 7px 10px;
-    font-size: 12.5px;
-    color: var(--text);
-    cursor: pointer;
-  }
-  .mrow:hover:not(:disabled) {
-    background: var(--surface-2);
-  }
-  .mrow.danger {
-    color: var(--crit);
-  }
-  .mrow:disabled {
-    color: var(--faint);
-    cursor: default;
-  }
 </style>

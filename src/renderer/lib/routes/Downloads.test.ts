@@ -6,6 +6,8 @@ import { resetDownloadsForTest, seedJobsForTest } from "../downloads.js";
 
 const cancelled: string[] = [];
 let historyRecords: ActivityRecord[] = [];
+// History only lists plugins that are still installed, so a test has to say what is.
+let installedNames: string[] = ["config-ledger"];
 
 vi.mock("../ipc.js", () => ({
   cairn: {
@@ -13,6 +15,10 @@ vi.mock("../ipc.js", () => ({
     jobsClearFinished: async () => ({ ok: true, data: undefined }),
     jobsList: async () => ({ ok: true, data: [] }),
     activityRead: async () => ({ ok: true, data: { records: historyRecords } }),
+    pluginsList: async () => ({
+      ok: true,
+      data: [{ home: { id: "claude", label: "Claude", dir: "/c", present: true, hasUpdater: true }, rows: installedNames.map((name) => ({ name, kind: "git", enabled: true, updateAvailable: false, description: "" })) }],
+    }),
   },
 }));
 
@@ -42,6 +48,7 @@ describe("Downloads screen", () => {
     resetDownloadsForTest();
     cancelled.length = 0;
     historyRecords = [];
+    installedNames = ["config-ledger"];
   });
 
   it("says so plainly when nothing has been downloaded", async () => {
@@ -132,5 +139,34 @@ describe("Downloads screen", () => {
     expect(container.querySelector(".fill.indeterminate")).toBeTruthy();
     expect(getByText("--")).toBeTruthy();
     expect(container.querySelector("svg path.trace")).toBeNull();
+  });
+
+  it("lists one entry per plugin and home, keeping the newest", async () => {
+    historyRecords = [
+      record({ id: "old", ts: 1000, durationMs: 1000 }),
+      record({ id: "new", ts: 2000, durationMs: 2000 }),
+    ];
+    const { container } = render(Downloads);
+    await screen.findByText("config-ledger");
+    expect(container.querySelectorAll("[data-testid='history-row']")).toHaveLength(1);
+    expect(container.querySelector("[data-testid='history-row']")).toHaveTextContent("2.0s");
+  });
+
+  it("keeps a plugin's entries apart per home", async () => {
+    historyRecords = [
+      record({ id: "a", origin: { app: "claude", home: "/c" } } as Partial<ActivityRecord>),
+      record({ id: "b", origin: { app: "opencode", home: "/o" } } as Partial<ActivityRecord>),
+    ];
+    const { container } = render(Downloads);
+    await screen.findAllByText("config-ledger");
+    expect(container.querySelectorAll("[data-testid='history-row']")).toHaveLength(2);
+  });
+
+  it("leaves out history for a plugin that is no longer installed", async () => {
+    installedNames = [];
+    historyRecords = [record()];
+    const { container } = render(Downloads);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(container.querySelectorAll("[data-testid='history-row']")).toHaveLength(0);
   });
 });

@@ -58,7 +58,7 @@ function workerPath(): string {
 function killTree(pid: number | undefined): void {
   if (!pid) return;
   if (process.platform === "win32") {
-    execFile("taskkill", ["/pid", String(pid), "/T", "/F"], () => { /* already gone is fine */ });
+    execFile("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true }, () => { /* already gone is fine */ });
     return;
   }
   try {
