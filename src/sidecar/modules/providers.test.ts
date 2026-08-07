@@ -3,10 +3,12 @@ import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { materializeLibraries } from "@plugin-updater/shared-libs.js";
 import { getConfigValue } from "@core/index.js";
 import type { AppDescriptor } from "@core/index.js";
 
 const stubHandlerPath = fileURLToPath(new URL("../../../../../providers/stub-auth/dist/handler.js", import.meta.url));
+const stubCloneDir = fileURLToPath(new URL("../../../../../providers/stub-auth", import.meta.url));
 
 // exposureFor()/defaultExposure() (see lib/exposure.ts) key the exposure map by
 // getApps() ids, which now come solely from the apps.json registry, so the
@@ -48,6 +50,9 @@ function seedStubProvider(): void {
     }),
   );
   copyFileSync(stubHandlerPath, join(repoDir, "dist", "handler.js"));
+  // The bundle imports its libraries by name, so a home without the shared store cannot
+  // load it. Installing materialises the store; seeding by hand has to do the same.
+  materializeLibraries(stubCloneDir, process.env.HUB_CONFIG_DIR as string);
 }
 
 // Writes a minimal synthetic provider plugin whose def declares its own

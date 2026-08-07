@@ -3,12 +3,15 @@ import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { materializeLibraries } from "@plugin-updater/shared-libs.js";
 
 const stubHandlerPath = fileURLToPath(new URL("../../../../../providers/stub-auth/dist/handler.js", import.meta.url));
 
 beforeEach(() => {
   process.env.HUB_CONFIG_DIR = mkdtempSync(join(tmpdir(), "dash-accounts-"));
 });
+
+const stubCloneDir = fileURLToPath(new URL("../../../../../providers/stub-auth", import.meta.url));
 
 function seedStubProvider(): void {
   const configDir = process.env.HUB_CONFIG_DIR as string;
@@ -22,6 +25,10 @@ function seedStubProvider(): void {
     }),
   );
   copyFileSync(stubHandlerPath, join(repoDir, "dist", "handler.js"));
+  // A provider's bundle imports its libraries by name rather than inlining them, so a
+  // home without the shared store cannot load one. Installing materialises the store;
+  // seeding a home by hand has to do the same or this tests a state that never exists.
+  materializeLibraries(stubCloneDir, configDir);
 }
 
 // Simulates a provider bundled with its own copy of core-auth: the thrown error
