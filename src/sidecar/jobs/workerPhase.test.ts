@@ -22,6 +22,26 @@ describe("parseWorkerPhase", () => {
     expect(percents).toEqual([...percents].sort((a, b) => a - b));
   });
 
+  // The table matches log lines the manager writes, so a stage whose line is never
+  // written is dead: the bar holds the PREVIOUS stage's label for however long that
+  // step takes. That is what left an install reading "dependencies installed" for the
+  // whole build, which is the longest step there is.
+  it("recognises every line the manager actually logs around the build", () => {
+    const logged = [
+      "Running npm install for x",
+      "Finished npm install for x",
+      "Running npm run build for x",
+      "Finished npm run build for x",
+      "Copying build output dist/ for x",
+      "Installing runtime dependencies for x",
+      "Running copy for x",
+      "Finished copy for x",
+    ];
+    for (const line of logged) {
+      expect(parseWorkerPhase(`[INFO] ${line}`), `no stage for: ${line}`).toBeDefined();
+    }
+  });
+
   it("says nothing about a line that is not a stage", () => {
     expect(parseWorkerPhase("[INFO] Skipping install/build for x (no changes and deployed file exists)")).toBeUndefined();
     expect(parseWorkerPhase("")).toBeUndefined();
