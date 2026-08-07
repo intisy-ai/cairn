@@ -203,12 +203,10 @@ export function pluginsList(deps: PluginsDeps = {}): Promise<Result<HomePlugins[
     const homes = await resolveHomes(deps);
     const listGit = deps.getPlugins ?? safeGetPlugins;
     const missingArtifacts = deps.missingArtifacts ?? safeMissingArtifacts;
-    const sections: HomePlugins[] = [];
-    for (const home of homes) {
-      if (!home.present) {
-        sections.push({ home, rows: [] });
-        continue;
-      }
+    // Homes are independent, so they are read concurrently rather than one after
+    // another: the list is what the user waits on before any plugin screen paints.
+    return Promise.all(homes.map(async (home): Promise<HomePlugins> => {
+      if (!home.present) return { home, rows: [] };
       const cache = await realReadUpdateCache(home.dir);
       const gitRows = await Promise.all((await listGit(home.dir)).map(async (p) => ({
         ...rowFor(p.name, "git", p.enabled !== false, p.url, cache, home.dir),
@@ -216,9 +214,8 @@ export function pluginsList(deps: PluginsDeps = {}): Promise<Result<HomePlugins[
         missingArtifacts: await missingArtifacts(home.dir, p.name),
       })));
       const npmRows = (await getNpmPlugins(home.dir)).map((p) => rowFor(p.name, "npm", true, undefined, cache, home.dir));
-      sections.push({ home, rows: [...gitRows, ...npmRows] });
-    }
-    return sections;
+      return { home, rows: [...gitRows, ...npmRows] };
+    }));
   });
 }
 

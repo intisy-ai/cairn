@@ -68,10 +68,12 @@ export function resetOptionalEngineCacheForTests(): void {
 // call site reimplementing the same fallback.
 // Reports which of a plugin's declared build outputs are missing. Without the engine there is
 // nothing that could repair it either, so "unknown" reads as healthy rather than alarming.
+// Deliberately not the full health check: that spawns git for a head this never reads, which
+// cost a subprocess per plugin on every listing.
 export async function safeMissingArtifacts(dir: string, name: string): Promise<string[]> {
   try {
     const index = await loadPluginUpdaterIndex();
-    return index ? index.checkPluginHealth(dir, name).missing : [];
+    return index ? index.missingPluginArtifacts(dir, name) : [];
   } catch {
     return [];
   }
