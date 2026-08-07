@@ -53,7 +53,7 @@
       return;
     }
     if (!result.data.added) {
-      completeError = "Could not complete sign-in. Check the code and try again.";
+      completeError = "Could not complete sign-in. Check what you pasted and try again.";
       return;
     }
     toast.success(result.data.label ? `Added account: ${result.data.label}` : "Account added");
@@ -104,17 +104,22 @@
     <p class="error">{beginError}</p>
     <div class="actions"><Button onclick={cancelAndClose}>Close</Button></div>
   {:else if begin}
-    {#if begin.instructions}<p class="hint">{begin.instructions}</p>{/if}
+    <p class="hint">{begin.instructions || "Approve the sign-in in the browser we just opened."}</p>
+    {#if begin.loopback}
+      <p class="waiting"><span class="pulse"></span>Waiting for the browser to come back</p>
+    {/if}
     <button class="url" title={begin.url} onclick={copyUrl}>
       <span class="urltext">{begin.url}</span>
       <span class="copy">{copied ? "copied" : "copy"}</span>
     </button>
-    <a class="ext" href={begin.url} target="_blank" rel="noreferrer">Open sign-in page</a>
-    <label>Code
+    <a class="ext" href={begin.url} target="_blank" rel="noreferrer">Open the sign-in page again</a>
+    <label>{begin.loopback ? "Or paste the callback URL or code" : "Callback URL or code"}
       <input
-        type="password"
-        aria-label="Sign-in code"
-        placeholder="Paste the code from the sign-in page"
+        type="text"
+        spellcheck="false"
+        autocomplete="off"
+        aria-label="Callback URL or code"
+        placeholder="Paste the full URL from your browser, or just the code"
         bind:value={code}
       />
     </label>
@@ -170,6 +175,29 @@
     gap: 4px;
     font-size: 11.5px;
     color: var(--muted);
+  }
+  .waiting {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0;
+    font-size: 12px;
+    color: var(--accent);
+  }
+  .pulse {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    flex: none;
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: .25; }
+    50% { opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pulse { animation: none; opacity: .7; }
   }
   input {
     font-family: var(--ui);

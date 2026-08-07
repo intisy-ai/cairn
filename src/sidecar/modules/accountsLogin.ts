@@ -1,6 +1,6 @@
 import { pathToFileURL } from "node:url";
 import { readDeployedProviders } from "@core-loader/loader-runtime.js";
-import { reposDir } from "@core-auth/index.js";
+import { reposDir, openBrowser } from "@core-auth/index.js";
 import type { LoginBegin, LoginComplete, Result } from "../../../packages/shared/src/domain.js";
 import { ok, err } from "../result.js";
 
@@ -19,6 +19,7 @@ type LoginFlow = {
 
 export interface AccountsLoginDeps {
   resolveLoginFlow?: (provider: string) => Promise<LoginFlow | null>;
+  openUrl?: (url: string) => void;
 }
 
 const pending = new Map<string, LoginFlow>();
@@ -55,6 +56,10 @@ export async function accountsLoginBegin(provider: string, deps: AccountsLoginDe
       () => { if (pending.get(provider) === flow) pending.delete(provider); },
       () => { /* a closed or timed-out listener is not a failure of this call */ },
     );
+    // The browser is the primary path, so it opens here rather than behind a button, the same
+    // way core-auth's loader input does. It is a silent no-op where no browser exists, which is
+    // what leaves the paste fallback as the only way in on a headless host.
+    (deps.openUrl ?? openBrowser)(flow.url);
     return ok({ url: flow.url, instructions: flow.instructions ?? "", loopback: !!flow.loopback });
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e));

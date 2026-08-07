@@ -57,6 +57,20 @@ describe("accountsLogin", () => {
     expect(flow.complete).not.toHaveBeenCalled();
   });
 
+  // The browser is the primary path: leaving it behind a button meant every sign-in started
+  // with a click that had no reason to exist.
+  it("opens the sign-in page itself", async () => {
+    const openUrl = vi.fn();
+    await accountsLoginBegin("stub", { resolveLoginFlow: async () => fakeFlow(), openUrl });
+    expect(openUrl).toHaveBeenCalledWith("https://auth.example/go");
+  });
+
+  it("opens nothing when the provider has no login flow", async () => {
+    const openUrl = vi.fn();
+    await accountsLoginBegin("keyonly", { resolveLoginFlow: async () => null, openUrl });
+    expect(openUrl).not.toHaveBeenCalled();
+  });
+
   it("cancel invokes the flow cancel and clears it", async () => {
     const flow = fakeFlow();
     await accountsLoginBegin("stub", { resolveLoginFlow: async () => flow });
