@@ -69,6 +69,7 @@ function defaultCairn(): CairnAPI {
     repoMeta: async () => ({ ok: true, data: { owner: "", repo: "", htmlUrl: "", stars: null, description: "", topics: [], readme: null } }),
     repoMetaCached: async () => ({ ok: true, data: null }),
     pluginsList: async () => ({ ok: true, data: [] }),
+    librariesList: async () => ({ ok: true, data: [] }),
     pluginVersions: async () => ({ ok: true, data: {} }),
     pluginVersionsAll: async () => ({ ok: true, data: {} }),
     pluginVersionsCached: async () => ({ ok: true, data: {} }),

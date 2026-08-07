@@ -207,6 +207,11 @@ export type PluginHome = {
   loaderInstalled?: boolean;
 };
 export type HomePlugins = { home: PluginHome; rows: PluginRow[] };
+// A package resolvable from a home. `usedBy` names the plugins that declare a shared
+// library, and is empty for a plugin's own dependency, which has exactly one user.
+export type InstalledLibrary = { specifier: string; version: string; usedBy: string[] };
+export type PluginDependencies = { plugin: string; dependencies: InstalledLibrary[] };
+export type HomeLibraries = { home: PluginHome; shared: InstalledLibrary[]; plugins: PluginDependencies[] };
 // "unknown" is distinct from "current": a home whose clone could not be read has no answer,
 // and rendering that as up to date is what made stale badges look authoritative.
 export type UpdateState = "current" | "behind" | "unknown";

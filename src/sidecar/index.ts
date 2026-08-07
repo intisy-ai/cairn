@@ -24,6 +24,7 @@ import { activityRead, activityStatsRead } from "./modules/activity.js";
 import { globalSettingsRead } from "./modules/globalSettings.js";
 import { updatesCheck, updatesOne, updatesAll } from "./modules/updates.js";
 import { requirePluginUpdater, withHome } from "./modules/plugins.js";
+import { librariesList } from "./modules/libraries.js";
 import { loadPluginUpdaterIndex } from "./lib/optionalEngines.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
 import type { ActivityQuery } from "@core/index.js";
@@ -143,6 +144,7 @@ registerHandler("apps:installLoader", (app) => appsInstallLoader(app as string))
 registerHandler("repo:meta", (url) => repoMeta(url as string));
 registerHandler("repo:metaCached", (url) => repoMetaCached(url as string));
 registerHandler("plugins:list", () => pluginsList());
+registerHandler("libraries:list", () => librariesList());
 registerHandler("plugins:versions", (name) => pluginVersions(name as string));
 registerHandler("plugins:versionsAll", () => pluginVersionsAll());
 registerHandler("plugins:versionsCached", () => pluginVersionsCached());
