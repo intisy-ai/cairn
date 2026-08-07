@@ -33,7 +33,7 @@
       cairn.getConfig("cairn", "proxyAutostart"),
     ]);
     themeSetting = theme.ok && (theme.data === "light" || theme.data === "dark" || theme.data === "system") ? theme.data : "system";
-    showDeprecated = !(deprecated.ok && deprecated.data === false);
+    showDeprecated = deprecated.ok && deprecated.data === true;
     autoUpdateDefault = !(autoUpdate.ok && autoUpdate.data === false);
     proxyAutostart = autostart.ok && autostart.data === true;
     applyThemeSetting(themeSetting);
@@ -183,7 +183,7 @@
     <div class="row">
       <div class="info">
         <b>Show deprecated plugins</b>
-        <span class="desc">Keep deprecated marketplace entries visible in a bottom group.</span>
+        <span class="desc">List archived repos in the marketplace so they can be installed again.</span>
       </div>
       <ToggleSwitch checked={showDeprecated} label="Show deprecated plugins" onchange={handleShowDeprecatedChange} />
     </div>

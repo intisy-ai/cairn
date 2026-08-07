@@ -77,11 +77,15 @@
   let externalOnly = $state(false);
   let favoritesOnly = $state(false);
   let updatableOnly = $state(false);
+  // Archived repos stay installable, they are just not what you are usually shopping for.
+  // Off by default, and remembered, so asking for them once is enough.
+  let showDeprecated = $state(false);
 
   // A plugin can be external and a kind at once, so the badge prefixes its kind
   // (the .chip style upper-cases it), e.g. "external provider" -> "EXTERNAL PROVIDER".
   function badgeLabel(p: UnifiedPlugin): string {
     const kind = p.kind === "provider" || p.kind === "proxy" || p.kind === "loader" ? p.kind : "";
+    if (p.deprecated) return kind ? `deprecated ${kind}` : "deprecated";
     if (p.external) return kind ? `external ${kind}` : "external";
     return kind;
   }
@@ -110,6 +114,7 @@
     external: unified.filter((p) => p.external).length,
     favorite: unified.filter((p) => p.favorite).length,
     updatable: unified.filter((p) => behindHomesFor(p).length > 0).length,
+    deprecated: unified.filter((p) => p.deprecated).length,
   });
   const filtered = $derived(
     unified.filter((p) => {
@@ -118,6 +123,9 @@
       } else if (kindFilter !== "all" && p.kind !== kindFilter) {
         return false;
       }
+      // An installed one stays listed whatever the filter says, otherwise asking to hide
+      // deprecated entries would hide something already on disk and leave no way to remove it.
+      if (p.deprecated && !showDeprecated && !isInstalled(p)) return false;
       if (installedOnly && !isInstalled(p)) return false;
       if (externalOnly && !p.external) return false;
       if (favoritesOnly && !p.favorite) return false;
@@ -456,9 +464,17 @@
     return installManyTracked(repo.repo, repo.url, homeIds);
   }
 
+  async function toggleDeprecated(): Promise<void> {
+    showDeprecated = !showDeprecated;
+    await cairn.setConfig("cairn", "showDeprecated", showDeprecated);
+  }
+
   onMount(() => {
     reload();
     loadViewMode("plugins").then((mode) => (view = mode));
+    cairn.getConfig("cairn", "showDeprecated").then((r) => {
+      showDeprecated = r.ok && r.data === true;
+    });
   });
 
   // Refresh the catalog whenever the titlebar's GitHub menu changes the active
@@ -511,6 +527,9 @@
     <Chip label={`Updates ${counts.updatable}`} on={updatableOnly} onclick={() => (updatableOnly = !updatableOnly)} />
     <Chip label={`External ${counts.external}`} on={externalOnly} onclick={() => (externalOnly = !externalOnly)} />
     <Chip label={`Favorites ${counts.favorite}`} on={favoritesOnly} onclick={() => (favoritesOnly = !favoritesOnly)} />
+    {#if counts.deprecated > 0}
+      <Chip label={`Deprecated ${counts.deprecated}`} on={showDeprecated} onclick={toggleDeprecated} />
+    {/if}
   </div>
 
   {#if showRateLimitBanner}

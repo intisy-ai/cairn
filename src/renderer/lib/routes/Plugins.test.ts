@@ -663,6 +663,57 @@ describe("Plugins screen", () => {
     expect(queryByText("demo")).toBeNull();
   });
 
+  // An archived repo is still installable, which is the whole point of listing it, but it is
+  // not what you are normally shopping for. It stays hidden until asked for, and the answer is
+  // remembered so it need only be asked once.
+  it("keeps archived repos out of the list until the Deprecated filter is turned on", async () => {
+    const setConfig = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: [] }),
+      catalogList: async () => ({ ok: true, data: { entries: [
+        { name: "demo", url: "u", kind: "plugin" as const, description: "a plugin", deprecated: false, topics: [] },
+        { name: "metric-dashboard", url: "u", kind: "plugin" as const, description: "an archived one", deprecated: true, topics: [] },
+      ], source: "gh" as const } }),
+      setConfig,
+    });
+    const { getByText, queryByText, container } = render(Plugins);
+    await waitFor(() => expect(getByText("demo")).toBeTruthy());
+    expect(queryByText("metric-dashboard")).toBeNull();
+
+    const filters = within(container.querySelector(".filters")!);
+    await fireEvent.click(filters.getByRole("button", { name: /Deprecated 1/ }));
+
+    await waitFor(() => expect(getByText("metric-dashboard")).toBeTruthy());
+    expect(getByText("deprecated")).toBeTruthy();
+    await waitFor(() => expect(setConfig).toHaveBeenCalledWith("cairn", "showDeprecated", true));
+  });
+
+  it("starts with archived repos listed when that was the stored answer", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: [] }),
+      catalogList: async () => ({ ok: true, data: { entries: [
+        { name: "metric-dashboard", url: "u", kind: "plugin" as const, description: "an archived one", deprecated: true, topics: [] },
+      ], source: "gh" as const } }),
+      getConfig: async () => ({ ok: true, data: true }) as const,
+    });
+    render(Plugins);
+    expect(await screen.findByText("metric-dashboard")).toBeInTheDocument();
+  });
+
+  // Hiding one that is already on disk would leave no way to remove it.
+  it("lists an archived repo that is installed even with the filter off", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: [
+        { home: CLAUDE, rows: [{ name: "metric-dashboard", kind: "git" as const, enabled: true, updateAvailable: false, description: "on disk" }] },
+      ] }),
+      catalogList: async () => ({ ok: true, data: { entries: [
+        { name: "metric-dashboard", url: "u", kind: "plugin" as const, description: "an archived one", deprecated: true, topics: [] },
+      ], source: "gh" as const } }),
+    });
+    render(Plugins);
+    expect(await screen.findByText("metric-dashboard")).toBeInTheDocument();
+  });
+
   // A row on the Downloads screen links here with the plugin named, so it must open.
   it("opens the named plugin when arrived at with a plugin param", async () => {
     stubCairn({

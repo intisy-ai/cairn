@@ -238,6 +238,9 @@ export type UnifiedPlugin = {
   // as suiting any app rather than none.
   apps?: string[];
   favorite: boolean;
+  // The repo is archived upstream. Still installable, just kept out of the list unless
+  // asked for, or unless it is already installed somewhere and needs managing.
+  deprecated: boolean;
 };
 export type InstallOutcome = { home: string; ok: boolean; error?: string };
 export type InstallManyResult = { outcomes: InstallOutcome[] };

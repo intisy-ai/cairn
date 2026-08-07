@@ -94,6 +94,7 @@ export function buildUnifiedPlugins(
       external,
       apps: catEntry?.apps,
       favorite: favorites.includes(name),
+      deprecated: catEntry?.deprecated ?? false,
     });
   }
   out.sort((a, b) => Number(b.favorite) - Number(a.favorite) || a.name.localeCompare(b.name));
