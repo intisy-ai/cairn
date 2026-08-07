@@ -94,15 +94,13 @@
     {#if totalRate > 0}
       <span class="headrate" data-testid="total-rate">{formatRate(totalRate)}</span>
     {/if}
-    {#if failures.length > 0 || visibleHistory.length > 0}
-      <Button variant="ghost" onclick={clearAll}>Clear history</Button>
-    {/if}
   {/snippet}
 </PageHeader>
 
 {#if !hasAnything}
   <EmptyState message="Nothing has been downloaded yet. Installing a plugin queues it here." />
 {:else}
+  <div class="stack">
   {#if failures.length > 0}
     <Card>
       <div class="pad">
@@ -209,7 +207,12 @@
   {:else if visibleHistory.length > 0}
     <Card>
       <div class="pad">
-      <h3 class="section">Recent</h3>
+      <div class="sectionhead">
+        <h3 class="section">Recent</h3>
+        {#if failures.length > 0 || visibleHistory.length > 0}
+          <Button variant="ghost" onclick={clearAll}>Clear history</Button>
+        {/if}
+      </div>
       <ul class="log">
         {#each visibleHistory as entry (entry.key)}
           <li data-testid="history-row" class:bad={entry.failed}>
@@ -238,11 +241,31 @@
       </div>
     </Card>
   {/if}
+  </div>
 {/if}
 
 <style>
   .pad {
     padding: 14px 18px;
+  }
+  /* The sections are separate cards, so they need air between them or they read as
+     one run-on panel. :global because Card owns the element this lands on. */
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  /* The section's own actions sit on its title row, not the page header: they act on
+     this section, and the page header is shared with every other download state. */
+  .sectionhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .sectionhead .section {
+    margin-bottom: 0;
   }
   .headrate {
     font-family: var(--mono);
@@ -455,7 +478,9 @@
   }
   .log li > .row {
     display: grid;
-    grid-template-columns: 7px auto minmax(0, 13rem) 7.5rem minmax(0, 1fr) 5.5rem;
+    /* The version cell sizes to its content but may shrink: a from/to pair of full
+       SHAs is far wider than a tag, and a fixed track let it run under the next column. */
+    grid-template-columns: 7px auto minmax(0, 13rem) minmax(0, auto) minmax(0, 1fr) 5.5rem;
     align-items: center;
     gap: 12px;
     width: 100%;
@@ -511,6 +536,11 @@
     font-size: 11px;
     color: var(--faint);
     white-space: nowrap;
+  }
+  .ver {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .when {
     text-align: right;

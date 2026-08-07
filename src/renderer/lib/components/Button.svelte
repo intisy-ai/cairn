@@ -9,7 +9,7 @@
     onclick,
     children,
   }: {
-    variant?: "default" | "primary" | "danger";
+    variant?: "default" | "primary" | "danger" | "ghost";
     type?: "button" | "submit";
     disabled?: boolean;
     title?: string;
@@ -23,6 +23,7 @@
   class="btn"
   class:primary={variant === "primary"}
   class:danger={variant === "danger"}
+  class:ghost={variant === "ghost"}
   {disabled}
   {title}
   {onclick}
@@ -65,6 +66,18 @@
   .btn.danger:hover {
     background: var(--crit);
     color: #fff;
+  }
+  /* Low emphasis: sits beside a heading or inside a row without competing with it. */
+  .btn.ghost {
+    background: none;
+    border-color: transparent;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .btn.ghost:hover {
+    background: var(--surface-2);
+    border-color: var(--border);
+    color: var(--text);
   }
   .btn:focus-visible {
     outline: 2px solid var(--accent);
