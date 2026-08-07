@@ -601,14 +601,16 @@
       {@render favoriteButton(p)}
       <button class="card-open" title={`View ${p.displayName}`} onclick={() => (selectedName = p.name)}>
         <PluginIcon icon={p.icon} name={p.displayName} kind={p.kind} size={LOGO_SIZE.list} />
-        <div class="card-title">
-          <b>{p.displayName}</b>
-          {#if versionLabelFor(p)}<span class="ver">{versionLabelFor(p)}</span>{/if}
-          {#if badgeLabel(p)}
-            <span class="chip" title={p.external ? "Installed from a repo outside the marketplace org" : undefined}>{badgeLabel(p)}</span>
-          {/if}
-        </div>
-        {#if p.description}<span class="card-desc">{p.description}</span>{/if}
+        <span class="card-text">
+          <span class="card-title">
+            <b>{p.displayName}</b>
+            {#if versionLabelFor(p)}<span class="ver">{versionLabelFor(p)}</span>{/if}
+            {#if badgeLabel(p)}
+              <span class="chip" title={p.external ? "Installed from a repo outside the marketplace org" : undefined}>{badgeLabel(p)}</span>
+            {/if}
+          </span>
+          <span class="card-desc">{p.description ?? ""}</span>
+        </span>
       </button>
       <div class="card-footer">
         {@render installActions(p)}
@@ -741,17 +743,19 @@
     background: var(--surface-2);
     color: var(--text);
   }
+  /* The point of this view is seeing many plugins at once, so the tracks are narrow
+     and the gap tight; the row view is the one that trades density for detail. */
   .plugins-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+    gap: 10px;
   }
   .plugin-card {
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 14px 16px;
+    gap: 9px;
+    padding: 12px 13px;
     background: var(--surface-2);
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -765,10 +769,12 @@
     padding-right: 26px;
   }
   .card-open {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+    /* Icon beside the text, not stacked above it: stacking cost a whole row of
+       height per card and left the mark floating on a line of its own. */
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
     background: none;
     border: 0;
     padding: 0;
@@ -789,9 +795,16 @@
     font-weight: 600;
     letter-spacing: -.01em;
   }
+  .card-text {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
   .card-desc {
     color: var(--muted);
     font-size: 12px;
+    line-height: 1.45;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     line-clamp: 2;
@@ -801,6 +814,9 @@
   .card-footer {
     display: flex;
     justify-content: flex-end;
+    /* Cards in a row stretch to the tallest, so without this the action sits at a
+       different height in every card and the grid reads as ragged. */
+    margin-top: auto;
   }
   .row {
     display: flex;
