@@ -12,10 +12,10 @@
     // An alias exists only for a sibling repo Cairn imports CODE from. custom-auth has none
     // on purpose: Cairn reads that plugin's config, located by capability, never its code.
     "paths": {
-      "@core/*": ["../../libs/core/dist/*"],
-      "@core-auth/*": ["../../libs/core-auth/dist/*"],
-      "@core-loader/*": ["../../libs/core-loader/dist/*"],
-      "@core-proxy/*": ["../../libs/core-proxy/dist/*"],
+      "@core/*": ["./core/dist/*"],
+      "@core-auth/*": ["./core-auth/dist/*"],
+      "@core-loader/*": ["./core-loader/dist/*"],
+      "@core-proxy/*": ["./core-proxy/dist/*"],
       "@plugin-updater/*": ["../../tools/plugin-updater/dist/*"],
       "@config-ledger/*": ["../../plugins/config-ledger/dist/*"]
     }

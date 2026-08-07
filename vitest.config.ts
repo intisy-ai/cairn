@@ -8,10 +8,10 @@ export default defineConfig({
   resolve: {
     conditions: process.env.VITEST ? ["browser"] : [],
     alias: {
-      "@core": fileURLToPath(new URL("../../libs/core/dist", import.meta.url)),
-      "@core-auth": fileURLToPath(new URL("../../libs/core-auth/dist", import.meta.url)),
-      "@core-loader": fileURLToPath(new URL("../../libs/core-loader/dist", import.meta.url)),
-      "@core-proxy": fileURLToPath(new URL("../../libs/core-proxy/dist", import.meta.url)),
+      "@core": fileURLToPath(new URL("./core/dist", import.meta.url)),
+      "@core-auth": fileURLToPath(new URL("./core-auth/dist", import.meta.url)),
+      "@core-loader": fileURLToPath(new URL("./core-loader/dist", import.meta.url)),
+      "@core-proxy": fileURLToPath(new URL("./core-proxy/dist", import.meta.url)),
       "@plugin-updater": fileURLToPath(new URL("../../tools/plugin-updater/dist", import.meta.url)),
       "@config-ledger": fileURLToPath(new URL("../../plugins/config-ledger/dist", import.meta.url)),
     },

@@ -12,12 +12,13 @@
   ],
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
+    "build": "npm run build:deps && electron-vite build",
     "typecheck": "tsc -b",
     "check:svelte": "svelte-check --tsconfig ./src/renderer/tsconfig.json",
     "check": "tsc -b && npm run check:svelte",
     "test": "vitest run",
-    "test:live": "vitest run --config vitest.live.config.ts"
+    "test:live": "vitest run --config vitest.live.config.ts",
+    "build:deps": "npm --prefix core install && npm --prefix core run build && npm --prefix core-auth install && npm --prefix core-auth run build && npm --prefix core-loader install && npm --prefix core-loader run build && npm --prefix core-proxy install && npm --prefix core-proxy run build"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^4.0.0",
