@@ -144,6 +144,29 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 10px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    box-shadow: var(--shadow);
+  }
+  /* Menu content comes from the caller's snippet, so scoped rules cannot reach it. Owning
+     the row appearance here is what keeps every dropdown in the app looking the same. */
+  .menu :global(button) {
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 7px;
+    padding: 7px 10px;
+    font-size: 12.5px;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .menu :global(button:hover:not(:disabled)) {
+    background: var(--surface-2);
+  }
+  .menu :global(button.danger) {
+    color: var(--crit);
+  }
+  .menu :global(button:disabled) {
+    color: var(--faint);
+    cursor: default;
   }
 </style>

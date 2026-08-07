@@ -1,8 +1,10 @@
 <script lang="ts">
-  import { downloads, toggleDownloads, closeDownloads, clearFinished, type DownloadTask } from "../downloads.js";
+  import { downloads, toggleDownloads, closeDownloads, cancelRow, type DownloadRow } from "../downloads.js";
+  import { navigate } from "../router.js";
+  import { formatRate } from "@cairn/shared";
 
-  const inFlight = $derived($downloads.tasks.filter((t) => t.status === "pending" || t.status === "installing").length);
-  const hasFinished = $derived($downloads.tasks.some((t) => t.status === "done" || t.status === "failed"));
+  const LIVE = ["pending", "installing", "cancelling"];
+  const inFlight = $derived($downloads.tasks.filter((t) => LIVE.includes(t.status)).length);
 
   let root = $state<HTMLElement | null>(null);
   function onWindowClick(e: MouseEvent): void {
@@ -12,22 +14,25 @@
     if (e.key === "Escape") closeDownloads();
   }
 
-  function sourceLabel(task: DownloadTask): string {
-    return task.source === "cairn" ? "Cairn direct" : task.source === "plugin-updater" ? "plugin-updater" : "";
-  }
-  function progressLine(task: DownloadTask): string {
+  function progressLine(task: DownloadRow): string {
     if (task.status === "pending") return "Queued";
-    if (task.status === "installing") {
-      const step = task.step || "Installing…";
-      return task.percent >= 0 ? `${step} · ${task.percent}%` : step;
-    }
+    if (task.status === "cancelling") return "Cancelling…";
+    if (task.status === "installing") return task.step || "Working…";
     if (task.status === "done") return "Done";
+    if (task.status === "cancelled") return "Cancelled";
     return task.error || "Failed";
   }
 
   // Aggregate progress of everything in flight drives the ring; a pending or
   // not-yet-reported task counts as 0 so the ring only fills as work completes.
-  const active = $derived($downloads.tasks.filter((t) => t.status === "pending" || t.status === "installing"));
+  const active = $derived($downloads.tasks.filter((t) => LIVE.includes(t.status)));
+  const MAX_GLANCE = 4;
+  const glance = $derived(active.slice(0, MAX_GLANCE));
+
+  function openDownloads(): void {
+    closeDownloads();
+    navigate("downloads");
+  }
   const aggregate = $derived(active.length ? active.reduce((sum, t) => sum + Math.max(t.percent, 0), 0) / active.length : 0);
   const RING = 2 * Math.PI * 12;
 </script>
@@ -35,7 +40,7 @@
 <svelte:window onclick={onWindowClick} onkeydown={onKey} />
 
 <div class="downloadmgr" bind:this={root}>
-  {#if $downloads.tasks.length > 0}
+  {#if inFlight > 0}
     <button class="iconbtn" title="Downloads" aria-label="Toggle download manager" onclick={toggleDownloads}>
       {#if inFlight > 0}
         <svg class="ring" viewBox="0 0 28 28" aria-hidden="true">
@@ -58,25 +63,30 @@
       {#if inFlight > 0}<span class="badge">{inFlight}</span>{/if}
     </button>
   {/if}
-  {#if $downloads.open && $downloads.tasks.length > 0}
+  {#if $downloads.open && glance.length > 0}
+    <!-- a glance at what is live, with the screen one click away -->
     <div class="panel">
       <div class="panelhead">
         <span class="title">Downloads</span>
-        {#if hasFinished}
-          <button class="clearbtn" onclick={clearFinished}>Clear</button>
-        {/if}
+        <button class="clearbtn" onclick={openDownloads}>View all</button>
       </div>
-      {#each $downloads.tasks as task (task.id)}
+      {#each glance as task (task.id)}
         <div class="task status-{task.status}">
           <div class="row">
-            <span class="label">{task.label}</span>
-            <span class="statedot" aria-hidden="true"></span>
+            <span class="label" title={task.label}>{task.label}</span>
+            {#if task.cancellable}
+              <button class="cancelbtn" onclick={() => cancelRow(task)}>Cancel</button>
+            {:else}
+              <span class="statedot" aria-hidden="true"></span>
+            {/if}
           </div>
           <div class="meta">
             <span class="home">{task.home}</span>
-            {#if sourceLabel(task)}
-              <span class="src src-{task.source}">{sourceLabel(task)}</span>
+            <span class="metagrow"></span>
+            {#if task.bytesPerSecond !== undefined}
+              <span class="rate" data-testid="glance-rate">{formatRate(task.bytesPerSecond)}</span>
             {/if}
+            {#if task.percent >= 0}<span class="pct">{task.percent}%</span>{/if}
           </div>
           {#if task.status === "installing"}
             {#if task.percent >= 0}
@@ -216,6 +226,10 @@
     gap: 8px;
   }
   .label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: 12.5px;
     font-weight: 600;
     overflow: hidden;
@@ -243,9 +257,39 @@
   }
   .meta {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     gap: 6px;
-    margin-top: 2px;
+    margin-top: 3px;
+  }
+  .metagrow {
+    flex: 1;
+  }
+  .rate,
+  .pct {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 10.5px;
+  }
+  .rate {
+    color: var(--accent);
+  }
+  .pct {
+    color: var(--muted);
+  }
+  /* Was an unstyled button crowding the row; now a quiet affordance that only darkens on hover. */
+  .cancelbtn {
+    flex: none;
+    padding: 1px 7px;
+    font-size: 10.5px;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .cancelbtn:hover {
+    color: var(--crit);
+    border-color: var(--crit);
   }
   .home {
     font-size: 11px;
@@ -288,7 +332,8 @@
   }
   .fill.det {
     animation: none;
-    transition: width 0.25s ease;
+    /* Matches the Downloads screen: real steps, eased into movement. */
+    transition: width 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
   }
   @keyframes slide {
     0% { transform: translateX(-100%); }

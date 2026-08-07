@@ -18,6 +18,7 @@
     localApi: () => import("./lib/routes/LocalApi.svelte"),
     apps: () => import("./lib/routes/Apps.svelte"),
     plugins: () => import("./lib/routes/Plugins.svelte"),
+    downloads: () => import("./lib/routes/Downloads.svelte"),
     config: () => import("./lib/routes/Config.svelte"),
     settings: () => import("./lib/routes/Settings.svelte"),
   };
@@ -28,6 +29,7 @@
   import { cairn } from "./lib/ipc.js";
   import { fadeMotion } from "./lib/util/motion.js";
   import { watchDownloadProgress } from "./lib/downloadProgress.js";
+  import { watchJobs } from "./lib/downloads.js";
   import { watchActivityErrors } from "./lib/stores/activity.js";
   import ToastHost from "./lib/components/ToastHost.svelte";
 
@@ -44,14 +46,17 @@
   let brandTag = $state("AI control plane");
 
   let stopProgress: (() => void) | undefined;
+  let stopJobs: (() => void) | undefined;
   let stopActivityWatch: (() => void) | undefined;
   onDestroy(() => {
     stopProgress?.();
+    stopJobs?.();
     stopActivityWatch?.();
   });
 
   onMount(async () => {
     stopProgress = watchDownloadProgress();
+    stopJobs = watchJobs();
     stopActivityWatch = watchActivityErrors();
     const result = await cairn.routingApps();
     hasRouting = result.ok && result.data.length > 0;

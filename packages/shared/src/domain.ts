@@ -1,5 +1,6 @@
 export type { AccountView, AccountQuota, AccountStatus } from "@core-auth/index.js";
-export type { Impact, ActivityRecord, ActivityQuery, ActivityStats, ActivityHomeStats, FieldSpec } from "@core/index.js";
+export type { Impact, ActivityRecord, ActivityQuery, ActivityStats, ActivityHomeStats, FieldType, FieldSpec, ActionSpec, MenuSpec } from "@core/index.js";
+import type { FieldSpec, ActionSpec, MenuSpec } from "@core/index.js";
 
 // What an update run did, as the dashboard reports it back to the renderer.
 export interface UpdateSummary {
@@ -12,7 +13,7 @@ export type { Chain, ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-p
 import type { ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/index.js";
 import type { AppDescriptor } from "@core/index.js";
 export type CatalogKind = "provider" | "proxy" | "plugin" | "loader";
-export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string; deprecated: boolean; topics: string[]; displayName?: string; icon?: string; app?: AppDescriptor };
+export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string; deprecated: boolean; topics: string[]; displayName?: string; icon?: string; app?: AppDescriptor; apps?: string[] };
 export type RepoMeta = { owner: string; repo: string; htmlUrl: string; stars: number | null; description: string; topics: string[]; readme: string | null };
 export type CatalogTokenSource = "env" | "config" | "anonymous";
 export type CatalogResult = { entries: CatalogEntry[]; source: CatalogTokenSource; org: string; rateLimited: boolean };
@@ -91,6 +92,14 @@ export type PluginRow = {
   description: string;
   displayName?: string;
   icon?: string;
+  // Files the clone declares that its build did not produce; a non-empty list means the
+  // plugin is installed but only partly built, and a repair is what fixes it.
+  missingArtifacts?: string[];
+  // Whether the plugin is actually present in this home. A home's config DECLARES what should
+  // be installed, and the manager clones anything named there that is missing, so an entry
+  // with no clone behind it is an install that has not happened yet (or failed), not an
+  // install. Either way it is not there now.
+  present: boolean;
 };
 export type UsageAccount = {
   provider: string;
@@ -152,6 +161,36 @@ export type RoutingApp = { app: string; label: string };
 export type SyncCategories = { accounts: boolean; plugins: boolean; settings: boolean; pluginConfigs: boolean };
 export type SyncStatus = { enabled: boolean; categories: SyncCategories; exclude: string[]; homes: string[]; pluginConfigs: string[] };
 
+// A unit of plugin work the sidecar runs one at a time in its own process. The renderer
+// mirrors this list rather than keeping a queue of its own, so cancel and per-home status
+// survive a reload.
+export type JobKind = "install" | "update" | "remove" | "repair";
+export type JobStatus = "queued" | "running" | "cancelling" | "done" | "failed" | "cancelled";
+export type JobPhase = { name: string; ms: number };
+// One throughput reading, kept so a screen can chart the transfer rate over time.
+export type JobSample = { ts: number; bytesPerSecond: number };
+export type JobSpec = { kind: JobKind; plugin: string; url: string; home: string };
+export type Job = JobSpec & {
+  id: string;
+  status: JobStatus;
+  phase: string;
+  // Coarse phase-based progress 0..100; -1 means no phase has been reported yet.
+  percent: number;
+  phases: JobPhase[];
+  // Real transfer figures, read from git's own progress output; absent when nothing is
+  // transferring (a build reports no bytes).
+  bytes?: number;
+  bytesPerSecond?: number;
+  samples: JobSample[];
+  queuedAt: number;
+  startedAt?: number;
+  endedAt?: number;
+  phaseStartedAt?: number;
+  fromVersion?: string;
+  toVersion?: string;
+  error?: string;
+};
+
 export type PluginHomeId = string;
 export type PluginHome = {
   id: PluginHomeId;
@@ -160,9 +199,25 @@ export type PluginHome = {
   dir: string;
   present: boolean;
   hasUpdater: boolean;
+  // The loader plugin that connects this app, straight from the app registry. A loader only
+  // ever serves the one app that names it, so this is how a home claims its own loader.
+  loaderId?: string;
+  // Whether that loader is actually installed here. Without it the app loads nothing the
+  // ecosystem installs, so offering it as a target promises something that cannot work.
+  loaderInstalled?: boolean;
 };
 export type HomePlugins = { home: PluginHome; rows: PluginRow[] };
-export type PluginVersion = { kind: "git" | "npm"; label: string | null; updateAvailable: boolean; autoUpdate: boolean };
+// "unknown" is distinct from "current": a home whose clone could not be read has no answer,
+// and rendering that as up to date is what made stale badges look authoritative.
+export type UpdateState = "current" | "behind" | "unknown";
+export type PluginVersion = {
+  kind: "git" | "npm";
+  label: string | null;
+  updateState: UpdateState;
+  autoUpdate: boolean;
+  // When this home's update cache was last written, so a day-old answer can read as day-old.
+  checkedAt?: string | null;
+};
 export type EngineHomeState = { installed: boolean; enabled: boolean };
 export type EngineView = { id: string; capability: string; url: string; homes: Record<string, EngineHomeState> };
 export type UnifiedHomeState = { installed: boolean; version?: string | null };
@@ -179,6 +234,9 @@ export type UnifiedPlugin = {
   // True when the plugin's repo owner is not the configured marketplace org, i.e.
   // it was installed from an outside source rather than the trusted catalog.
   external: boolean;
+  // The apps this plugin declares it suits. Empty means it declares nothing, which is read
+  // as suiting any app rather than none.
+  apps?: string[];
   favorite: boolean;
 };
 export type InstallOutcome = { home: string; ok: boolean; error?: string };
@@ -187,23 +245,6 @@ export type InstallManyResult = { outcomes: InstallOutcome[] };
 // step; id correlates to the caller's download-task id. percent is coarse
 // phase-based progress 0..100 (-1 when indeterminate).
 export type DownloadProgress = { id: number; step: string; percent: number };
-export type FieldType = "boolean" | "number" | "string" | "secret" | "select" | "multiline" | "list";
-export type FieldSpec = {
-  key: string;
-  type: FieldType;
-  label?: string;
-  description?: string;
-  group?: string;
-  options?: { value: string; label: string }[];
-  min?: number;
-  max?: number;
-  step?: number;
-  itemType?: "string" | "number";
-  placeholder?: string;
-};
-export type ActionSpec = { id: string; label: string; description?: string; confirm?: string; danger?: boolean };
-// What a plugin asks for when it wants a place of its own in the dashboard's navigation.
-export type MenuSpec = { label: string; glyph?: string; order?: number };
 export type PluginConfigSchema = {
   plugin: string;
   defaults: Record<string, unknown>;
@@ -226,8 +267,6 @@ export type AppSummary = {
   pluginCount: number;
   routingSlots: number | null;
 };
-export const SUPPORTED_ENDPOINT_FORMATS = ["openai"] as const;
-export type EndpointFormat = (typeof SUPPORTED_ENDPOINT_FORMATS)[number];
 export type CustomEndpoint = { id: string; label: string; baseUrl: string; format: string; models: string[] };
 export type CustomEndpointView = CustomEndpoint & { hasKey: boolean };
 

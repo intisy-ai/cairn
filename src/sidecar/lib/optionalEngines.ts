@@ -19,6 +19,7 @@ type PluginUpdaterSyncbridge = typeof import("@plugin-updater/syncbridge.js");
 type PluginUpdaterEnv = typeof import("@plugin-updater/env.js");
 type PluginUpdaterNpm = typeof import("@plugin-updater/npm.js");
 type PluginUpdaterIndex = typeof import("@plugin-updater/index.js");
+type PluginUpdaterInit = typeof import("@plugin-updater/init.js");
 type ConfigLedgerLib = typeof import("@config-ledger/lib.js");
 
 const cache = new Map<string, Promise<unknown>>();
@@ -55,6 +56,7 @@ export const loadPluginUpdaterSyncbridge = loadOnce<PluginUpdaterSyncbridge>("@p
 export const loadPluginUpdaterEnv = loadOnce<PluginUpdaterEnv>("@plugin-updater/env.js", () => import("@plugin-updater/env.js"));
 export const loadPluginUpdaterNpm = loadOnce<PluginUpdaterNpm>("@plugin-updater/npm.js", () => import("@plugin-updater/npm.js"));
 export const loadPluginUpdaterIndex = loadOnce<PluginUpdaterIndex>("@plugin-updater/index.js", () => import("@plugin-updater/index.js"));
+export const loadPluginUpdaterInit = loadOnce<PluginUpdaterInit>("@plugin-updater/init.js", () => import("@plugin-updater/init.js"));
 export const loadConfigLedger = loadOnce<ConfigLedgerLib>("@config-ledger/lib.js", () => import("@config-ledger/lib.js"));
 
 export function resetOptionalEngineCacheForTests(): void {
@@ -64,6 +66,17 @@ export function resetOptionalEngineCacheForTests(): void {
 // getPlugins (a home's plugins.json contents) is read by nearly every sidecar module; centralized
 // here so an absent plugin-updater degrades once, consistently, to "no plugins" instead of each
 // call site reimplementing the same fallback.
+// Reports which of a plugin's declared build outputs are missing. Without the engine there is
+// nothing that could repair it either, so "unknown" reads as healthy rather than alarming.
+export async function safeMissingArtifacts(dir: string, name: string): Promise<string[]> {
+  try {
+    const index = await loadPluginUpdaterIndex();
+    return index ? index.checkPluginHealth(dir, name).missing : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function safeGetPlugins(dir: string): Promise<Plugin[]> {
   const mod = await loadPluginUpdaterConfig();
   return mod ? mod.getPlugins(dir) : [];

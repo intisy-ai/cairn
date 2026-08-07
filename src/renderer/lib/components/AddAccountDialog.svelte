@@ -60,11 +60,31 @@
     onAdded();
   }
 
-  onMount(async () => {
-    const result = await cairn.accountsLoginBegin(provider.id);
-    if (result.ok) begin = result.data;
-    else beginError = result.error;
-    panel?.focus();
+  // When the provider catches the browser redirect itself, it saves the account and says so
+  // on the event bus. Watching for that is what lets the dialog finish on its own, instead of
+  // waiting for a paste that is no longer needed.
+  function watchForAutoLogin(): () => void {
+    return cairn.onActivityEvent((record) => {
+      if (record.action !== "account_added") return;
+      if (record.details?.provider !== provider.id) return;
+      toast.success(record.subject?.label ? `Added account: ${record.subject.label}` : "Account added");
+      onAdded();
+    });
+  }
+
+  onMount(() => {
+    let stop: (() => void) | undefined;
+    void (async () => {
+      const result = await cairn.accountsLoginBegin(provider.id);
+      if (result.ok) {
+        begin = result.data;
+        if (result.data.loopback) stop = watchForAutoLogin();
+      } else {
+        beginError = result.error;
+      }
+      panel?.focus();
+    })();
+    return () => stop?.();
   });
 </script>
 
@@ -85,8 +105,9 @@
     <div class="actions"><Button onclick={cancelAndClose}>Close</Button></div>
   {:else if begin}
     {#if begin.instructions}<p class="hint">{begin.instructions}</p>{/if}
-    <button class="url" title="Copy sign-in link" onclick={copyUrl}>
-      {begin.url}<span class="copy">{copied ? "copied" : "copy"}</span>
+    <button class="url" title={begin.url} onclick={copyUrl}>
+      <span class="urltext">{begin.url}</span>
+      <span class="copy">{copied ? "copied" : "copy"}</span>
     </button>
     <a class="ext" href={begin.url} target="_blank" rel="noreferrer">Open sign-in page</a>
     <label>Code
@@ -164,11 +185,14 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-weak);
   }
+  /* A sign-in URL runs to hundreds of characters, so it is shown on one line and kept
+     whole through the copy button, the tooltip and the link below. */
   .url {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 8px;
-    align-self: flex-start;
+    width: 100%;
+    min-width: 0;
     background: none;
     border: none;
     padding: 0;
@@ -176,6 +200,14 @@
     font-family: var(--mono);
     font-size: 11.5px;
     color: var(--faint);
+    text-align: left;
+  }
+  .urltext {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .url:hover {
     color: var(--muted);

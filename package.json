@@ -16,7 +16,8 @@
     "typecheck": "tsc -b",
     "check:svelte": "svelte-check --tsconfig ./src/renderer/tsconfig.json",
     "check": "tsc -b && npm run check:svelte",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:live": "vitest run --config vitest.live.config.ts"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^4.0.0",

@@ -4,11 +4,16 @@ import { reposDir } from "@core-auth/index.js";
 import type { LoginBegin, LoginComplete, Result } from "../../../packages/shared/src/domain.js";
 import { ok, err } from "../result.js";
 
+type LoginAccount = { id?: string; label?: string };
+
 type LoginFlow = {
   url: string;
   instructions?: string;
-  loopback?: boolean;
-  complete: (input: string) => Promise<{ id?: string; label?: string } | null>;
+  // A provider that can catch the browser redirect itself hands back a promise that
+  // resolves once the callback lands, NOT a flag. It holds a live listener, so it can
+  // never be forwarded to the renderer.
+  loopback?: Promise<LoginAccount | null>;
+  complete: (input: string) => Promise<LoginAccount | null>;
   cancel?: () => void | Promise<void>;
 };
 
@@ -43,7 +48,14 @@ export async function accountsLoginBegin(provider: string, deps: AccountsLoginDe
     const flow = await resolve(provider);
     if (!flow) return err("this provider does not support in-app login");
     pending.set(provider, flow);
-    return ok({ url: flow.url, instructions: flow.instructions ?? "", loopback: flow.loopback });
+    // The provider's own listener saves the account when the callback lands, and says so on
+    // the event bus. All this has to do is retire the flow so a later paste cannot run it
+    // twice, and never leave the promise unhandled.
+    void flow.loopback?.then(
+      () => { if (pending.get(provider) === flow) pending.delete(provider); },
+      () => { /* a closed or timed-out listener is not a failure of this call */ },
+    );
+    return ok({ url: flow.url, instructions: flow.instructions ?? "", loopback: !!flow.loopback });
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e));
   }

@@ -4,10 +4,11 @@
   import { classifyRepoName } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { consumeParams } from "../router.js";
-  import { enqueue, activeByKey, type DownloadSource } from "../downloads.js";
+  import { enqueue, enqueueJob, jobSettled, activeByPlugin } from "../downloads.js";
   import { toast } from "../toast.js";
   import { debounce } from "../util/debounce.js";
   import { buildUnifiedPlugins, applicableHomeIds } from "../util/unifiedPlugins.js";
+  import { prerequisiteInstalls } from "../util/installQueue.js";
   import Button from "../components/Button.svelte";
   import IconButton from "../components/IconButton.svelte";
   import Card from "../components/Card.svelte";
@@ -62,7 +63,9 @@
 
   const startParams = consumeParams();
   let addOpen = $state(!!startParams?.add);
-  let selectedName = $state<string | null>(null);
+  // Arriving with ?plugin= opens that plugin straight away, so a link from another screen
+  // lands on the plugin itself rather than just the list.
+  let selectedName = $state<string | null>(startParams?.plugin ?? null);
   let pendingConfirm = $state<{ title: string; message: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
 
   type KindFilter = "all" | "provider" | "proxy" | "plugin" | "loader" | "engine";
@@ -73,6 +76,7 @@
   let installedOnly = $state(false);
   let externalOnly = $state(false);
   let favoritesOnly = $state(false);
+  let updatableOnly = $state(false);
 
   // A plugin can be external and a kind at once, so the badge prefixes its kind
   // (the .chip style upper-cases it), e.g. "external provider" -> "EXTERNAL PROVIDER".
@@ -105,6 +109,7 @@
     installed: unified.filter(isInstalled).length,
     external: unified.filter((p) => p.external).length,
     favorite: unified.filter((p) => p.favorite).length,
+    updatable: unified.filter((p) => behindHomesFor(p).length > 0).length,
   });
   const filtered = $derived(
     unified.filter((p) => {
@@ -116,6 +121,7 @@
       if (installedOnly && !isInstalled(p)) return false;
       if (externalOnly && !p.external) return false;
       if (favoritesOnly && !p.favorite) return false;
+      if (updatableOnly && behindHomesFor(p).length === 0) return false;
       const needle = search.trim().toLowerCase();
       return !needle
         || p.name.toLowerCase().includes(needle)
@@ -127,7 +133,7 @@
   function setKind(kind: KindFilter): void {
     kindFilter = kind;
   }
-  const isFiltering = $derived(search.trim() !== "" || kindFilter !== "all" || installedOnly || externalOnly || favoritesOnly);
+  const isFiltering = $derived(search.trim() !== "" || kindFilter !== "all" || installedOnly || externalOnly || favoritesOnly || updatableOnly);
   function clearFilters(): void {
     searchRaw = "";
     search = "";
@@ -135,6 +141,7 @@
     installedOnly = false;
     externalOnly = false;
     favoritesOnly = false;
+    updatableOnly = false;
   }
   const addPluginHome = $derived(homes[0]?.id ?? "cairn");
   // Only counts what an updater could actually pull, so the button never promises a
@@ -215,6 +222,7 @@
 
   async function reload(): Promise<void> {
     await Promise.all([loadPlugins(), loadCatalog(), loadEngines(), loadFavorites(), loadGithubStatus()]);
+    queuedManagerHomes = new Set();
     loaded = true;
     void loadVersions();
   }
@@ -270,70 +278,113 @@
     return failed.map((o) => `${o.home}: ${o.error ?? "failed"}`).join("; ");
   }
 
-  // Cairn only downloads directly to bootstrap an engine into an app home that has
-  // no plugin-updater yet; every other install is handled by plugin-updater.
-  function sourceFor(name: string, homeIds: string[]): DownloadSource {
-    const by = homesById();
-    const allBootstrap = homeIds.length > 0
-      && homeIds.every((id) => engineIds.has(name) && !by[id]?.hasUpdater);
-    return allBootstrap ? "cairn" : "plugin-updater";
+  // Homes where this plugin is installed but only partly built, so it loads with pieces of
+  // itself missing. A rebuild from the clone already on disk is what fixes that.
+  function brokenHomesFor(p: UnifiedPlugin): string[] {
+    return sections
+      .filter((s) => s.rows.some((r) => r.name === p.name && (r.missingArtifacts?.length ?? 0) > 0))
+      .map((s) => s.home.id);
   }
+
   // Which homes report this plugin as behind, from each home's own row.
   function behindHomesFor(p: UnifiedPlugin): string[] {
     return sections
       .filter((s) => s.home.hasUpdater && s.rows.some((r) => r.name === p.name && r.updateAvailable))
       .map((s) => s.home.id);
   }
+
   function homesLabel(homeIds: string[]): string {
     const by = homesById();
     return homeIds.map((id) => by[id]?.label ?? id).join(", ") || "none";
   }
 
-  async function installManyTracked(label: string, name: string, url: string, homeIds: string[]): Promise<Result<InstallManyResult>> {
-    const result = await enqueue({
-      label,
-      home: homesLabel(homeIds),
-      source: sourceFor(name, homeIds),
-      key: name,
-      run: (id) => cairn.pluginsInstallMany(name, url, homeIds, id),
-      summarizeFailure: (data) => outcomesError(data.outcomes),
-    });
-    if (!result.ok) return result;
-    const error = outcomesError(result.data.outcomes);
-    return error ? { ok: false, error } : result;
+  // A home whose manager install is already queued must not get a second row when the
+  // user starts another install before the list reloads.
+  let queuedManagerHomes = new Set<string>();
+
+  async function installPrerequisites(name: string, homeIds: string[]): Promise<boolean> {
+    for (const prereq of prerequisiteInstalls(name, homeIds, homes, engines)) {
+      if (queuedManagerHomes.has(prereq.homeId)) continue;
+      queuedManagerHomes.add(prereq.homeId);
+      const queued = await enqueueJob("install", prereq.id, prereq.url, prereq.homeId);
+      if (!queued.ok) {
+        queuedManagerHomes.delete(prereq.homeId);
+        return false;
+      }
+      // The manager has to be there before the plugin's own job runs, so this one is awaited.
+      const settled = await jobSettled(queued.data.id);
+      if (settled?.status !== "done") {
+        queuedManagerHomes.delete(prereq.homeId);
+        return false;
+      }
+    }
+    return true;
+  }
+
+  async function installManyTracked(name: string, url: string, homeIds: string[]): Promise<Result<InstallManyResult>> {
+    if (!(await installPrerequisites(name, homeIds))) {
+      return { ok: false, error: "could not install the plugin manager" };
+    }
+    // One job per home, so each home shows its own progress and can be cancelled alone.
+    const outcomes: InstallOutcome[] = [];
+    for (const homeId of homeIds) {
+      const queued = await enqueueJob("install", name, url, homeId);
+      outcomes.push(queued.ok ? { home: homeId, ok: true } : { home: homeId, ok: false, error: queued.error });
+    }
+    const error = outcomesError(outcomes);
+    return error ? { ok: false, error } : { ok: true, data: { outcomes } };
   }
 
   async function addHome(p: UnifiedPlugin, homeId: string): Promise<void> {
-    await enqueue({
-      label: `Install ${p.displayName}`,
-      home: homesLabel([homeId]),
-      source: sourceFor(p.name, [homeId]),
-      key: p.name,
-      run: (id) => cairn.pluginsInstall(homeId, p.name, p.url ?? "", id),
-    });
+    if (!(await installPrerequisites(p.name, [homeId]))) {
+      await reload();
+      return;
+    }
+    const queued = await enqueueJob("install", p.name, p.url ?? "", homeId);
+    if (queued.ok) await jobSettled(queued.data.id);
     await reload();
   }
   // A per-home update is a re-clone/pull through the same install path, routed
   // through the download queue so it shows progress like every other download.
   async function updateHome(p: UnifiedPlugin, homeId: string): Promise<void> {
-    await enqueue({
-      label: `Update ${p.displayName}`,
-      home: homesLabel([homeId]),
-      source: sourceFor(p.name, [homeId]),
-      key: p.name,
-      run: (id) => cairn.pluginsInstall(homeId, p.name, p.url ?? "", id),
-    });
+    const queued = await enqueueJob("update", p.name, p.url ?? "", homeId);
+    if (queued.ok) await jobSettled(queued.data.id);
     await reload();
   }
+  // A repair rebuilds from the clone that is already there, so it goes through the same
+  // queue as an install and shows the same progress.
+  async function repairHome(p: UnifiedPlugin, homeId: string): Promise<void> {
+    const queued = await enqueueJob("repair", p.name, p.url ?? "", homeId);
+    if (queued.ok) await jobSettled(queued.data.id);
+    await reload();
+  }
+  // Through the same queue as an install, so a removal shows its progress, can be cancelled,
+  // and lands in the download history instead of happening invisibly.
   async function removeHome(p: UnifiedPlugin, homeId: string): Promise<void> {
-    await cairn.pluginsUninstall(homeId, p.name);
+    const queued = await enqueueJob("remove", p.name, p.url ?? "", homeId);
+    if (queued.ok) await jobSettled(queued.data.id);
+    else await cairn.pluginsUninstall(homeId, p.name);
     await reload();
   }
   // Install/update home-by-home (each its own queued task) and reload after each,
   // so a plugin's pills and button reflect every home as soon as it finishes
   // rather than waiting for the whole multi-home batch to complete.
+  // Every home is queued up front so each row shows "queued" straight away; awaiting one
+  // home before queueing the next left the later rows looking untouched.
   async function handleInstallAll(p: UnifiedPlugin): Promise<void> {
-    for (const homeId of notInstalledApplicable(p)) await addHome(p, homeId);
+    const homeIds = notInstalledApplicable(p);
+    if (!(await installPrerequisites(p.name, homeIds))) {
+      await reload();
+      return;
+    }
+    const ids: string[] = [];
+    for (const homeId of homeIds) {
+      const queued = await enqueueJob("install", p.name, p.url ?? "", homeId);
+      if (queued.ok) ids.push(queued.data.id);
+    }
+    await reload();
+    await Promise.all(ids.map((id) => jobSettled(id)));
+    await reload();
   }
 
   let checking = $state(false);
@@ -370,15 +421,20 @@
   }
 
   async function handleUpdate(p: UnifiedPlugin): Promise<void> {
-    for (const homeId of installedApplicable(p)) await updateHome(p, homeId);
+    const ids: string[] = [];
+    for (const homeId of installedApplicable(p)) {
+      const queued = await enqueueJob("update", p.name, p.url ?? "", homeId);
+      if (queued.ok) ids.push(queued.data.id);
+    }
+    await reload();
+    await Promise.all(ids.map((id) => jobSettled(id)));
+    await reload();
   }
   async function handleRemoveEverywhere(p: UnifiedPlugin): Promise<void> {
     const homeIds = installedApplicable(p);
     const result = await enqueue({
       label: `Remove ${p.displayName} everywhere`,
       home: homesLabel(homeIds) || "all homes",
-      source: sourceFor(p.name, homeIds),
-      key: p.name,
       run: () => cairn.pluginsRemoveEverywhere(p.name),
       summarizeFailure: (data) => outcomesError(data.outcomes),
     });
@@ -396,8 +452,8 @@
   }
   async function installFromUrl(repo: RepoRef): Promise<Result<unknown>> {
     const kind = classifyRepoName(repo.repo) ?? "plugin";
-    const homeIds = applicableHomeIds(kind, homes);
-    return installManyTracked(`Install ${repo.repo}`, repo.repo, repo.url, homeIds);
+    const homeIds = applicableHomeIds(kind, homes, repo.repo);
+    return installManyTracked(repo.repo, repo.url, homeIds);
   }
 
   onMount(() => {
@@ -452,6 +508,7 @@
     <Chip label={`Engines ${counts.engine}`} on={kindFilter === "engine"} onclick={() => setKind("engine")} />
     <span class="sep"></span>
     <Chip label={`Installed ${counts.installed}`} on={installedOnly} onclick={() => (installedOnly = !installedOnly)} />
+    <Chip label={`Updates ${counts.updatable}`} on={updatableOnly} onclick={() => (updatableOnly = !updatableOnly)} />
     <Chip label={`External ${counts.external}`} on={externalOnly} onclick={() => (externalOnly = !externalOnly)} />
     <Chip label={`Favorites ${counts.favorite}`} on={favoritesOnly} onclick={() => (favoritesOnly = !favoritesOnly)} />
   </div>
@@ -488,11 +545,13 @@
           block
           plugin={p}
           homes={applicableHomesFor(p)}
-          activity={$activeByKey[p.name] ?? null}
+          activity={$activeByPlugin[p.name] ?? null}
           updateAvailable={p.updateAvailable}
           {updatesEnabled}
           behindHomes={behindHomesFor(p)}
+          brokenHomes={brokenHomesFor(p)}
           onUpdate={() => handleUpdate(p)}
+          onRepairHome={(homeId) => repairHome(p, homeId)}
           onUpdateHome={(homeId) => updateHome(p, homeId)}
           onInstallAll={() => handleInstallAll(p)}
           onRemoveEverywhere={() => confirmRemoveEverywhere(p)}
@@ -526,11 +585,13 @@
         </div>
       </button>
       {@render favoriteButton(p)}
-      <AppPills
-        apps={applicableHomesFor(p)}
-        values={installedMap(p)}
-        onToggle={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
-      />
+      {#if applicableHomesFor(p).length > 1}
+        <AppPills
+          apps={applicableHomesFor(p)}
+          values={installedMap(p)}
+          onToggle={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
+        />
+      {/if}
       {@render installActions(p)}
     </div>
   {/snippet}
@@ -595,11 +656,13 @@
     <PluginDetail
       plugin={selectedPlugin}
       homes={applicableHomesFor(selectedPlugin)}
-      activity={$activeByKey[selectedPlugin.name] ?? null}
+      brokenHomes={brokenHomesFor(selectedPlugin)}
+      activity={$activeByPlugin[selectedPlugin.name] ?? null}
       onClose={() => (selectedName = null)}
       onInstallAll={() => handleInstallAll(selectedPlugin)}
       onRemoveEverywhere={() => confirmRemoveEverywhere(selectedPlugin)}
       onUpdate={() => handleUpdate(selectedPlugin)}
+      onRepairHome={(homeId) => repairHome(selectedPlugin, homeId)}
       onUpdateHome={(homeId) => updateHome(selectedPlugin, homeId)}
       onToggleHome={(homeId, on) => (on ? addHome(selectedPlugin, homeId) : removeHome(selectedPlugin, homeId))}
       onToggleFavorite={() => toggleFavorite(selectedPlugin)}

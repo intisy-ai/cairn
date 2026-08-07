@@ -6,7 +6,7 @@ import type { AppDescriptor } from "@core/index.js";
 import type { Plugin } from "@plugin-updater/types.js";
 import { resolveModelMap } from "@core-proxy/model-map.js";
 import { normalizeQuotas } from "../../../vendor/usage/snapshot.js";
-import { appRealHome } from "../lib/pluginHomes.js";
+import { appRealHome, loaderInstalled } from "../lib/pluginHomes.js";
 import { svgIconDataUri } from "../lib/pluginIcon.js";
 import { scanOrg } from "../lib/orgScan.js";
 import { discoverApps } from "../lib/appDiscovery.js";
@@ -92,12 +92,6 @@ export function appsInstallCli(app: string, spawn: SpawnFn = realSpawn): Promise
   return wrap(() => spawn("npm", ["install", "-g", desc.detect.pkg]));
 }
 
-export function appsInit(app: string, spawn: SpawnFn = realSpawn): Promise<Result<CliResult>> {
-  const desc = getAppDescriptor(app);
-  if (!desc) return Promise.resolve(err(`unknown app: ${app}`));
-  return wrap(() => spawn("npx", ["plugin-updater", "init", "--app", desc.id]));
-}
-
 export interface AppsConnectionDeps {
   detect?: () => Promise<Result<AppPresence>>;
   listPlugins?: (dir: string) => Plugin[] | Promise<Plugin[]>;
@@ -116,8 +110,8 @@ export function appsConnection(app: string, deps: AppsConnectionDeps = {}): Prom
     const presence = await detect();
     const cliPresent = presence.ok ? !!presence.data[app] : false;
     const loader = desc.loader ?? null;
-    const loaderInstalled = loader ? (await listPlugins(appHome(app))).some((p) => p.name === loader.id) : false;
-    return { app, cliPresent, loaderId: loader?.id ?? null, loaderUrl: loader?.url ?? null, loaderInstalled };
+    const installed = await loaderInstalled(appHome(app), loader?.id, listPlugins);
+    return { app, cliPresent, loaderId: loader?.id ?? null, loaderUrl: loader?.url ?? null, loaderInstalled: installed };
   });
 }
 

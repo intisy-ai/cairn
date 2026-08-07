@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { ProviderRow as ProviderRowData, HostApp } from "@cairn/shared";
+  import { renderCairnMark } from "@cairn/shared";
   import StatusPill, { type StatusVariant } from "../components/StatusPill.svelte";
   import { cairn } from "../ipc.js";
   import { toast } from "../toast.js";
@@ -111,10 +112,6 @@
     loaded = true;
   }
 
-  function initials(label: string): string {
-    return label.slice(0, 2);
-  }
-
   function statusFor(row: ProviderRowData): { variant: StatusVariant; label: string } {
     return isConnected(row) ? { variant: "good", label: "Connected" } : { variant: "off", label: "Not connected" };
   }
@@ -139,6 +136,14 @@
     const result = await cairn.appsList();
     if (result.ok) apps = result.data;
   }
+
+  // Providers are installed into Cairn's own home too, so it belongs beside the host apps
+  // here. Its mark is the one logo Cairn owns, from the canonical module, passed as markup so
+  // it follows the theme.
+  const availabilityApps = $derived<HostApp[]>([
+    { id: "cairn", label: "Cairn", icon: renderCairnMark() },
+    ...apps,
+  ]);
 
   async function handleImport(): Promise<void> {
     importError = "";
@@ -278,7 +283,7 @@
 {#if selectedProvider}
   <ProviderDetail
     provider={selectedProvider}
-    {apps}
+    apps={availabilityApps}
     onClose={() => (selectedProvider = null)}
     onChanged={load}
   />
@@ -286,12 +291,11 @@
 
 {#snippet providerRow(row: ProviderRowData)}
   <ProviderRow
-    avatar={initials(row.label)}
     name={row.label}
     subtitle={row.authKind === "oauth" ? "OAuth" : "API key"}
     translator={row.translator}
     status={statusFor(row)}
-    {apps}
+    apps={availabilityApps}
     exposure={row.exposure}
     accountLabel={accountLabel(row)}
     enabled={row.enabled}

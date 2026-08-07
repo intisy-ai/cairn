@@ -1,72 +1,93 @@
 import { describe, it, expect, vi } from "vitest";
-import { mkdtempSync, mkdirSync, readFileSync, existsSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { engineByCapability } from "./engines.js";
-import { customEndpointsList, customEndpointsUpsert, customEndpointsRemove, customEndpointsSaveKey } from "./customEndpoints.js";
+import { customEndpointsList, customEndpointsUpsert, customEndpointsRemove, customEndpointsSaveKey, customEndpointsFormats } from "./customEndpoints.js";
+import type { EndpointsApi } from "./customEndpoints.js";
 
-const meta = engineByCapability("custom-endpoints")!.meta!;
+// The provider plugin owns what an endpoint is and where it goes; this module only reaches it
+// and passes calls through. So what is worth asserting is that it reaches the right plugin,
+// forwards faithfully, and says something useful when the plugin is not installed.
 
-function home(): string {
-  const d = mkdtempSync(join(tmpdir(), "custom-ep-"));
-  mkdirSync(join(d, "config"), { recursive: true });
-  return d;
-}
-function readEndpoints(dir: string): unknown[] {
-  const f = join(dir, "config", meta.configName + ".json");
-  return existsSync(f) ? JSON.parse(readFileSync(f, "utf8")).endpoints : [];
-}
 const EP = { id: "local", label: "Local", baseUrl: "https://ep.test/v1", format: "openai", models: ["gpt-4o"] };
 
+function fakePlugin(overrides: Partial<EndpointsApi> = {}): { api: EndpointsApi; calls: string[] } {
+  const calls: string[] = [];
+  const api: EndpointsApi = {
+    SUPPORTED_FORMATS: ["openai", "anthropic"],
+    validateEndpoint: () => null,
+    upsertEndpoint: (endpoint, repoDir) => { calls.push(`upsert:${endpoint.id}:${repoDir ?? ""}`); },
+    removeEndpoint: (id, repoDir) => { calls.push(`remove:${id}:${repoDir ?? ""}`); },
+    endpointViews: () => [{ ...EP, hasKey: true }],
+    saveKey: (id, key) => { calls.push(`key:${id}:${key}`); },
+    writeDynamicManifest: () => { calls.push("manifest"); },
+    ...overrides,
+  };
+  return { api, calls };
+}
+
+const withPlugin = (api: EndpointsApi) => ({ dir: "/home", loadPlugin: async () => api });
+const withoutPlugin = { dir: "/home", loadPlugin: async () => null };
+
 describe("customEndpoints module", () => {
-  it("upserts an endpoint into the config file named by the registry", async () => {
-    const dir = home();
-    const r = await customEndpointsUpsert(EP, { dir });
-    expect(r.ok).toBe(true);
-    expect(readEndpoints(dir)).toEqual([EP]);
-    // upsert by id replaces, not duplicates
-    await customEndpointsUpsert({ ...EP, label: "Local 2" }, { dir });
-    expect(readEndpoints(dir)).toEqual([{ ...EP, label: "Local 2" }]);
+  it("lists what the plugin reports, including whether a key is set", async () => {
+    const { api } = fakePlugin();
+    const result = await customEndpointsList(withPlugin(api));
+    expect(result).toEqual({ ok: true, data: [{ ...EP, hasKey: true }] });
   });
 
-  it("rejects invalid endpoints", async () => {
-    const dir = home();
-    expect((await customEndpointsUpsert({ ...EP, id: "bad/id" }, { dir })).ok).toBe(false);
-    expect((await customEndpointsUpsert({ ...EP, baseUrl: "not-a-url" }, { dir })).ok).toBe(false);
-    expect((await customEndpointsUpsert({ ...EP, format: "anthropic" }, { dir })).ok).toBe(false);
-    expect((await customEndpointsUpsert({ ...EP, models: [] }, { dir })).ok).toBe(false);
+  // The formats come from the plugin that translates them, so the dashboard cannot offer one
+  // the plugin could not serve.
+  it("reports the formats the plugin says it supports", async () => {
+    const { api } = fakePlugin();
+    expect(await customEndpointsFormats(withPlugin(api))).toEqual({ ok: true, data: ["openai", "anthropic"] });
   });
 
-  it("saveKey stores via core-auth (key never in config) and list reports hasKey", async () => {
-    const dir = home();
-    await customEndpointsUpsert(EP, { dir });
-    const added: Array<{ p: string; a: { refresh: string; meta?: { endpointId?: string } } }> = [];
-    const accounts: Array<{ enabled?: boolean; meta?: { endpointId?: string } }> = [];
-    const addAccount = (p: string, a: { refresh: string; meta?: { endpointId?: string } }) => { added.push({ p, a }); accounts.push({ enabled: true, meta: a.meta }); };
-    const listAccounts = () => accounts;
-
-    const r = await customEndpointsSaveKey("local", "sk-secret", { dir, addAccount });
-    expect(r.ok).toBe(true);
-    expect(added[0]).toMatchObject({ p: meta.providerId, a: { refresh: "sk-secret", meta: { endpointId: "local" } } });
-    const cfgText = readFileSync(join(dir, "config", meta.configName + ".json"), "utf8");
-    expect(cfgText).not.toContain("sk-secret");
-
-    const list = await customEndpointsList({ dir, listAccounts });
-    expect(list.ok && list.data[0]).toMatchObject({ id: "local", hasKey: true });
+  it("hands an upsert to the plugin along with the clone it should re-materialise", async () => {
+    const { api, calls } = fakePlugin();
+    expect((await customEndpointsUpsert(EP, withPlugin(api))).ok).toBe(true);
+    expect(calls).toEqual([expect.stringMatching(/^upsert:local:.*custom-auth$/)]);
   });
 
-  it("saveKey rejects an unknown endpoint", async () => {
-    const dir = home();
-    expect((await customEndpointsSaveKey("nope", "sk", { dir, addAccount: () => {} })).ok).toBe(false);
+  it("hands a removal to the plugin", async () => {
+    const { api, calls } = fakePlugin();
+    expect((await customEndpointsRemove("local", withPlugin(api))).ok).toBe(true);
+    expect(calls).toEqual([expect.stringMatching(/^remove:local:.*custom-auth$/)]);
   });
 
-  it("remove deletes the endpoint and its key account", async () => {
-    const dir = home();
-    await customEndpointsUpsert(EP, { dir });
-    const removed: Array<{ p: string; id: string }> = [];
-    const r = await customEndpointsRemove("local", { dir, removeAccount: (p, id) => removed.push({ p, id }) });
-    expect(r.ok).toBe(true);
-    expect(readEndpoints(dir)).toEqual([]);
-    expect(removed[0]).toEqual({ p: meta.providerId, id: "local" });
+  it("hands a key to the plugin", async () => {
+    const { api, calls } = fakePlugin();
+    expect((await customEndpointsSaveKey("local", "sk-secret", withPlugin(api))).ok).toBe(true);
+    expect(calls).toEqual(["key:local:sk-secret"]);
+  });
+
+  it("refuses an empty endpoint id or key rather than passing them on", async () => {
+    const { api, calls } = fakePlugin();
+    expect(await customEndpointsSaveKey("", "sk", withPlugin(api))).toMatchObject({ ok: false });
+    expect(await customEndpointsSaveKey("local", "", withPlugin(api))).toMatchObject({ ok: false });
+    expect(calls).toEqual([]);
+  });
+
+  // A refusal from the plugin is the answer, not something to translate or soften here.
+  it("reports the plugin's own refusal", async () => {
+    const { api } = fakePlugin({
+      upsertEndpoint: () => { throw new Error("at least one model id is required"); },
+    });
+    expect(await customEndpointsUpsert(EP, withPlugin(api))).toEqual({ ok: false, error: "at least one model id is required" });
+  });
+
+  it("says the plugin is needed rather than pretending to manage endpoints without it", async () => {
+    for (const call of [
+      () => customEndpointsList(withoutPlugin),
+      () => customEndpointsFormats(withoutPlugin),
+      () => customEndpointsUpsert(EP, withoutPlugin),
+      () => customEndpointsRemove("local", withoutPlugin),
+      () => customEndpointsSaveKey("local", "sk", withoutPlugin),
+    ]) {
+      expect(await call()).toMatchObject({ ok: false, error: expect.stringContaining("plugin installed") });
+    }
+  });
+
+  it("loads the plugin from the home it was told to work in", async () => {
+    const loadPlugin = vi.fn(async () => fakePlugin().api);
+    await customEndpointsList({ dir: "/somewhere/else", loadPlugin });
+    expect(loadPlugin).toHaveBeenCalledOnce();
   });
 });

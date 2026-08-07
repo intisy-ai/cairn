@@ -13,6 +13,7 @@
     onClose,
     tabs = [],
     tabContent,
+    onTab,
     actions,
     defaultTab,
     versionLabel,
@@ -21,6 +22,8 @@
     onClose: () => void;
     tabs?: { id: string; label: string }[];
     tabContent?: Snippet<[string]>;
+    // Lets a parent load a tab's data only once that tab is actually being shown.
+    onTab?: (id: string) => void;
     actions?: Snippet;
     defaultTab?: string;
     versionLabel?: string;
@@ -28,6 +31,10 @@
 
   const allTabs = $derived([{ id: "readme", label: "Readme" }, ...tabs]);
   let active = $state(untrack(() => defaultTab) ?? "readme");
+
+  $effect(() => {
+    onTab?.(active);
+  });
 
   let meta = $state<RepoMeta | null>(null);
   let metaLoaded = $state(false);

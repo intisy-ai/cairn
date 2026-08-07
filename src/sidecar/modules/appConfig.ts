@@ -1,10 +1,12 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
-import { setConfigValue, isEngine } from "@core/index.js";
+import { setConfigValue, isBootstrapPlugin } from "@core/index.js";
 import type { PluginConfigSchema, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir, homeById } from "../lib/pluginHomes.js";
 import { safeGetPlugins, loadPluginUpdaterConfig, loadPluginUpdaterIndex } from "../lib/optionalEngines.js";
+import { probeDeclarations, readCurrentValues } from "../lib/schemaProbe.js";
+import type { Bundle, Declaration } from "../lib/schemaProbe.js";
 import { wrap } from "../result.js";
 
 type ProbeFn = (bundlePath: string) => Promise<PluginConfigSchema | null>;
@@ -45,21 +47,31 @@ async function realEngineSchemas(home: PluginHome): Promise<PluginConfigSchema[]
 
 export interface ConfigSchemasDeps {
   homes?: PluginHome[];
-  probe?: ProbeFn;
+  declarations?: (bundles: Bundle[]) => Promise<Map<string, Declaration>>;
+  values?: (dir: string, plugin: string) => Record<string, unknown>;
   engineSchemas?: (home: PluginHome) => Promise<PluginConfigSchema[]>;
 }
 
+// Declarations come from the cache whenever a plugin's bundle is unchanged, so opening a
+// settings screen normally spawns nothing; values are always read from disk, so a write is
+// reflected on the next read with nothing to invalidate.
 export function configSchemas(homeId: string, deps: ConfigSchemasDeps = {}): Promise<Result<PluginConfigSchema[]>> {
   return wrap(async () => {
     const homes = deps.homes ?? (await pluginHomes());
     const home = homeById(homeId as PluginHomeId, homes);
-    const probe = deps.probe ?? realProbe;
+    const declare = deps.declarations ?? probeDeclarations;
+    const values = deps.values ?? readCurrentValues;
+
+    const bundles: Bundle[] = (await safeGetPlugins(home.dir))
+      .map((plugin) => ({ plugin: plugin.name, path: join(home.dir, "plugin", `${plugin.name}.js`) }))
+      .filter((bundle) => existsSync(bundle.path));
+    const declared = await declare(bundles);
+
     const schemas: PluginConfigSchema[] = [];
-    for (const plugin of await safeGetPlugins(home.dir)) {
-      const bundlePath = join(home.dir, "plugin", `${plugin.name}.js`);
-      if (!existsSync(bundlePath)) continue;
-      const schema = await probe(bundlePath);
-      if (schema) schemas.push(schema);
+    for (const bundle of bundles) {
+      const declaration = declared.get(bundle.plugin);
+      if (!declaration) continue;
+      schemas.push({ plugin: bundle.plugin, ...declaration, current: values(home.dir, bundle.plugin) });
     }
     const probed = new Set(schemas.map((s) => s.plugin));
     const engineSchemas = deps.engineSchemas ?? realEngineSchemas;
@@ -123,7 +135,7 @@ export function configWrite(homeId: string, plugin: string, key: string, value: 
     if (!(await loadPluginUpdaterConfig())) throw new Error("plugin-updater is not available in this build");
     // An engine settles into a home without a plugins.json entry of its own, so its own
     // settings would otherwise be readable and never writable.
-    if (!(await safeGetPlugins(dir)).some((p) => p.name === plugin) && !isEngine(plugin)) {
+    if (!(await safeGetPlugins(dir)).some((p) => p.name === plugin) && !isBootstrapPlugin(plugin)) {
       throw new Error(`plugin not found: ${plugin}`);
     }
     if (key === "__proto__" || key === "constructor" || key === "prototype") {

@@ -30,7 +30,6 @@ export const INVOKE_CHANNELS = {
   appsDetect: "apps:detect",
   appsList: "apps:list",
   appsInstallCli: "apps:installCli",
-  appsInit: "apps:init",
   appsUninstallCli: "apps:uninstallCli",
   appsSummary: "apps:summary",
   appsConnection: "apps:connection",
@@ -43,8 +42,11 @@ export const INVOKE_CHANNELS = {
   pluginsList: "plugins:list",
   enginesList: "engines:list",
   enginesEnsure: "engines:ensure",
+  jobsList: "jobs:list",
+  jobsEnqueue: "jobs:enqueue",
+  jobsCancel: "jobs:cancel",
+  jobsClearFinished: "jobs:clearFinished",
   pluginsInstall: "plugins:install",
-  pluginsInstallMany: "plugins:installMany",
   pluginsRemoveEverywhere: "plugins:removeEverywhere",
   pluginsSetEnabled: "plugins:setEnabled",
   pluginsSetAutoUpdate: "plugins:setAutoUpdate",
@@ -87,6 +89,7 @@ export const INVOKE_CHANNELS = {
   favoritesList: "favorites:list",
   favoritesToggle: "favorites:toggle",
   customEndpointsList: "customEndpoints:list",
+  customEndpointsFormats: "customEndpoints:formats",
   customEndpointsUpsert: "customEndpoints:upsert",
   customEndpointsRemove: "customEndpoints:remove",
   customEndpointsSaveKey: "customEndpoints:saveKey",
@@ -98,12 +101,12 @@ export type InvokeChannel = (typeof INVOKE_CHANNELS)[InvokeMethod];
 export const IPC_CHANNELS = {
   invoke: Object.values(INVOKE_CHANNELS) as readonly InvokeChannel[],
   send: ["window:minimize", "window:maximize", "window:close"] as const,
-  receive: ["server:status", "downloads:progress", "activity:event"] as const,
+  receive: ["server:status", "downloads:progress", "activity:event", "jobs:event"] as const,
 };
 
 // The methods on CairnAPI that are NOT request/response invocations (window
 // controls, the push subscriptions, and the static flags).
-type NonInvokeMethod = "minimize" | "maximize" | "close" | "onServerStatus" | "onDownloadProgress" | "onActivityEvent" | "isElectron" | "platform";
+type NonInvokeMethod = "minimize" | "maximize" | "close" | "onServerStatus" | "onDownloadProgress" | "onActivityEvent" | "onJobEvent" | "isElectron" | "platform";
 type ApiInvokeMethod = Exclude<keyof CairnAPI, NonInvokeMethod>;
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 
@@ -116,8 +119,8 @@ void _invokeChannelsMatchApi;
 // timer, so attributing them to a user action would make routine polling look like
 // something a person did. Anything not listed here is treated as a change.
 const READ_ONLY_ACTIONS: readonly string[] = [
-  "apps", "check", "connection", "detect", "diffRefs", "drain", "device-poll", "get", "homes",
-  "list", "meta", "metaCached", "preview", "read", "schemas", "snapshot", "stats",
+  "apps", "check", "connection", "detect", "diffRefs", "drain", "device-poll", "formats", "get",
+  "homes", "list", "meta", "metaCached", "preview", "read", "schemas", "snapshot", "stats",
   "status", "summary", "versions", "versionsAll", "versionsCached",
 ];
 

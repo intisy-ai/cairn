@@ -14,7 +14,7 @@ describe("enginesList", () => {
     if (!res.ok) return;
     const byId = Object.fromEntries(res.data.map((e) => [e.id, e]));
     // plugin-updater targets host apps only (not cairn); presence = hasUpdater
-    expect(Object.keys(byId["plugin-updater"].homes).sort()).toEqual(["claude", "opencode"]);
+    expect(Object.keys(byId["plugin-updater"].homes).sort()).toEqual(["cairn", "claude", "opencode"]);
     expect(byId["plugin-updater"].homes.claude.installed).toBe(false);
     // custom-auth targets cairn; installed because getPlugins on /cairn lists it
     expect(Object.keys(byId["custom-auth"].homes)).toEqual(["cairn"]);
@@ -45,13 +45,13 @@ describe("ensureEngine", () => {
 
 describe("ensureEngineIn", () => {
   it("installs into the home it is told about, not the capability's first target", async () => {
-    const seen: string[] = [];
+    const calls: unknown[][] = [];
     const res = await ensureEngineIn("plugin-management", "opencode", {
       homes, getPlugins: () => [],
-      appsInit: async (app: string) => { seen.push(app); return { ok: true, data: { stdout: "", stderr: "" } }; },
+      pluginsInstall: async (...args: unknown[]) => { calls.push(args); return { ok: true, data: undefined }; },
     } as any);
     expect(res.ok).toBe(true);
-    expect(seen).toEqual(["opencode"]);
+    expect(calls).toEqual([["opencode", "plugin-updater", expect.stringContaining("plugin-updater"), { homes }]]);
   });
 
   // Cairn's own home has no app CLI to run an init through, so the bundled engine
@@ -61,7 +61,6 @@ describe("ensureEngineIn", () => {
     const res = await ensureEngineIn("plugin-management", "cairn", {
       homes: homes.map((h) => (h.id === "cairn" ? { ...h, hasUpdater: false } : h)),
       getPlugins: () => [],
-      appsInit: async () => { throw new Error("must not run"); },
       pluginsInstall: async (homeId: string, name: string) => { installs.push(`${homeId}/${name}`); return { ok: true, data: undefined }; },
     } as any);
     expect(res.ok).toBe(true);
@@ -86,10 +85,10 @@ describe("ensureEngineIn", () => {
   });
 
   it("is a no-op when that home already has the engine", async () => {
-    const appsInit = vi.fn(async () => ({ ok: true, data: { stdout: "", stderr: "" } }));
-    const res = await ensureEngineIn("plugin-management", "cairn", { homes, getPlugins: () => [], appsInit } as any);
+    const pluginsInstall = vi.fn(async () => ({ ok: true, data: undefined }));
+    const res = await ensureEngineIn("plugin-management", "cairn", { homes, getPlugins: () => [], pluginsInstall } as any);
     expect(res.ok).toBe(true);
-    expect(appsInit).not.toHaveBeenCalled();
+    expect(pluginsInstall).not.toHaveBeenCalled();
   });
 
   it("errors on a home it does not know", async () => {

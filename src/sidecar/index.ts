@@ -8,8 +8,8 @@ import { accountsList, accountsEnable, accountsRemove, accountsRefreshQuota } fr
 import { accountsLoginBegin, accountsLoginComplete, accountsLoginCancel } from "./modules/accountsLogin.js";
 import { providersList, providersSetEnabled, providersSetExposure } from "./modules/providers.js";
 import { routingApps, routingGet, routingSetChain } from "./modules/routing.js";
-import { appsDetect, appsList, appsInstallCli, appsInit, appsUninstallCli, appsSummary, appsConnection, appsInstallLoader } from "./modules/apps.js";
-import { pluginsList, pluginVersions, pluginVersionsAll, pluginVersionsCached, pluginsInstall, pluginsInstallMany, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsSetAutoUpdate, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
+import { appsDetect, appsList, appsInstallCli, appsUninstallCli, appsSummary, appsConnection, appsInstallLoader } from "./modules/apps.js";
+import { pluginsList, pluginVersions, pluginVersionsAll, pluginVersionsCached, pluginsInstall, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsSetAutoUpdate, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
 import { enginesList, ensureEngine } from "./modules/engines.js";
 import { proxiesList, proxiesSetEnabled } from "./modules/proxies.js";
 import { repoMeta, repoMetaCached } from "./modules/repo.js";
@@ -18,6 +18,8 @@ import { menusList } from "./modules/menus.js";
 import { syncStatus, syncRun, syncSetConfig } from "./modules/sync.js";
 import { ledgerHomes, ledgerCommit, ledgerRestore, ledgerDiffRefs, ledgerProfileCreate, ledgerProfileSwitch } from "./modules/ledger.js";
 import { busDrain } from "./modules/bus.js";
+import { jobsList, jobsEnqueue, jobsCancel, jobsClearFinished, setJobListener } from "./modules/jobs.js";
+import type { JobKind } from "./jobs/model.js";
 import { activityRead, activityStatsRead } from "./modules/activity.js";
 import { globalSettingsRead } from "./modules/globalSettings.js";
 import { updatesCheck, updatesOne, updatesAll } from "./modules/updates.js";
@@ -33,7 +35,7 @@ import { importApps, importPreview, importRun } from "./modules/import.js";
 import type { ImportSelection } from "../../packages/shared/src/domain.js";
 import { catalogList } from "./modules/catalog.js";
 import { githubStatus, githubAddAccount, githubSwitchAccount, githubRemoveAccount, githubConnectGhCli, githubSetStar, githubStarCairn, githubDeviceStart, githubDevicePoll } from "./modules/github.js";
-import { customEndpointsList, customEndpointsUpsert, customEndpointsRemove, customEndpointsSaveKey } from "./modules/customEndpoints.js";
+import { customEndpointsList, customEndpointsUpsert, customEndpointsRemove, customEndpointsSaveKey, customEndpointsFormats } from "./modules/customEndpoints.js";
 import type { CustomEndpoint } from "../../packages/shared/src/domain.js";
 import { favoritesList, favoritesToggle } from "./modules/favorites.js";
 
@@ -74,6 +76,28 @@ export function startBackgroundUpdates(deps: BackgroundUpdateDeps = {}): void {
 
 // A download-task id (passed as the trailing install arg) turns into a reporter
 // that streams phase steps back to the renderer as out-of-band progress messages.
+// Every job transition is pushed, so the renderer mirrors the queue instead of owning one.
+setJobListener((job) => {
+  try {
+    process.parentPort.postMessage({ job });
+  } catch { /* a dropped update must never fail the job it describes */ }
+});
+
+// A value the message channel cannot clone (a promise, a function, a live handle) throws
+// on postMessage, and an unhandled throw here takes the whole sidecar down with every
+// pending request. Answering with the clone error instead keeps one bad payload local to
+// the call that produced it.
+function reply(response: SidecarResponse): void {
+  try {
+    process.parentPort.postMessage(response);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    try {
+      process.parentPort.postMessage({ id: response.id, result: err(`result could not be sent: ${message}`) });
+    } catch { /* nothing left to try; the supervisor's timeout answers the caller */ }
+  }
+}
+
 function reportFor(progressId: unknown): ((step: string, percent: number) => void) | undefined {
   if (typeof progressId !== "number" || !process.parentPort) return undefined;
   return (step, percent) => process.parentPort.postMessage({ progress: { id: progressId, step, percent } });
@@ -112,7 +136,6 @@ registerHandler("routing:setChain", (app, slot, chain) => routingSetChain(app as
 registerHandler("apps:detect", () => appsDetect());
 registerHandler("apps:list", () => appsList());
 registerHandler("apps:installCli", (app) => appsInstallCli(app as string));
-registerHandler("apps:init", (app) => appsInit(app as string));
 registerHandler("apps:uninstallCli", (app, wipeData) => appsUninstallCli(app as string, wipeData as boolean));
 registerHandler("apps:summary", (app) => appsSummary(app as string));
 registerHandler("apps:connection", (app) => appsConnection(app as string));
@@ -125,8 +148,11 @@ registerHandler("plugins:versionsAll", () => pluginVersionsAll());
 registerHandler("plugins:versionsCached", () => pluginVersionsCached());
 registerHandler("engines:list", () => enginesList());
 registerHandler("engines:ensure", (capability) => ensureEngine(capability as string));
+registerHandler("jobs:list", () => jobsList());
+registerHandler("jobs:enqueue", (kind, plugin, url, home) => jobsEnqueue(kind as JobKind, plugin as string, url as string, home as string));
+registerHandler("jobs:cancel", (id) => jobsCancel(id as string));
+registerHandler("jobs:clearFinished", () => jobsClearFinished());
 registerHandler("plugins:install", (home, name, url, progressId) => pluginsInstall(home as PluginHomeId, name as string, url as string, { report: reportFor(progressId) }));
-registerHandler("plugins:installMany", (name, url, homeIds, progressId) => pluginsInstallMany(name as string, url as string, homeIds as string[], { report: reportFor(progressId) }));
 registerHandler("plugins:removeEverywhere", (name) => pluginsRemoveEverywhere(name as string));
 registerHandler("plugins:setEnabled", (home, name, on) => pluginsSetEnabled(home as PluginHomeId, name as string, on as boolean));
 registerHandler("plugins:setAutoUpdate", (home, name, on) => pluginsSetAutoUpdate(home as PluginHomeId, name as string, on as boolean));
@@ -135,7 +161,7 @@ registerHandler("plugins:uninstall", (home, name) => pluginsUninstall(home as st
 registerHandler("proxies:list", () => proxiesList());
 registerHandler("proxies:setEnabled", (name, on) => proxiesSetEnabled(name as string, on as boolean));
 registerHandler("config:schemas", (home) => configSchemas(home as string));
-registerHandler("menus:list", () => menusList());
+registerHandler("menus:list", (opts) => menusList((opts ?? {}) as { wait?: boolean }));
 registerHandler("config:write", (home, plugin, key, value) => configWrite(home as string, plugin as string, key as string, value));
 registerHandler("config:action", (home, plugin, actionId) => configAction(home as string, plugin as string, actionId as string));
 registerHandler("sync:status", () => syncStatus());
@@ -171,6 +197,7 @@ registerHandler("github:device-poll", (star) => githubDevicePoll(star as boolean
 registerHandler("favorites:list", () => favoritesList());
 registerHandler("favorites:toggle", (name) => favoritesToggle(name as string));
 registerHandler("customEndpoints:list", () => customEndpointsList());
+registerHandler("customEndpoints:formats", () => customEndpointsFormats());
 registerHandler("customEndpoints:upsert", (endpoint) => customEndpointsUpsert(endpoint as CustomEndpoint));
 registerHandler("customEndpoints:remove", (id) => customEndpointsRemove(id as string));
 registerHandler("customEndpoints:saveKey", (endpointId, key) => customEndpointsSaveKey(endpointId as string, key as string));
@@ -183,8 +210,9 @@ if (process.parentPort) {
   process.parentPort.on("message", (messageEvent) => {
     const { id, channel, args } = messageEvent.data as SidecarRequest;
     dispatch(channel, args).then((result) => {
-      const response: SidecarResponse = { id, result };
-      process.parentPort.postMessage(response);
+      reply({ id, result });
+    }, (thrown: unknown) => {
+      reply({ id, result: err(thrown instanceof Error ? thrown.message : String(thrown)) });
     });
   });
   // Prewarm the transcript cache so the first Usage view doesn't sit on a

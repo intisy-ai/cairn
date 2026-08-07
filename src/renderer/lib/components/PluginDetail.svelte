@@ -4,17 +4,22 @@
   import PluginControls from "./PluginControls.svelte";
   import RepoDetail from "./RepoDetail.svelte";
   import ToggleSwitch from "./ToggleSwitch.svelte";
+  import SplitButton from "./SplitButton.svelte";
+  import PluginIcon, { LOGO_SIZE } from "./PluginIcon.svelte";
   import PluginInstallControl from "./PluginInstallControl.svelte";
   import { cairn } from "../ipc.js";
+  import { activeByPluginHome, jobKey, cancelRow, type DownloadRow } from "../downloads.js";
 
   let {
     plugin,
     homes,
+    brokenHomes = [],
     activity = null,
     onClose,
     onInstallAll,
     onRemoveEverywhere,
     onUpdate,
+    onRepairHome,
     onUpdateHome,
     onToggleHome,
     onToggleFavorite,
@@ -22,11 +27,14 @@
   }: {
     plugin: UnifiedPlugin;
     homes: { id: string; label: string; icon?: string; hasUpdater?: boolean }[];
-    activity?: import("../downloads.js").DownloadTask | null;
+    // Homes where the plugin is installed but only partly built.
+    brokenHomes?: string[];
+    activity?: import("../downloads.js").DownloadRow | null;
     onClose: () => void;
     onInstallAll: () => void;
     onRemoveEverywhere: () => void;
     onUpdate: () => void;
+    onRepairHome?: (homeId: string) => void;
     onUpdateHome: (homeId: string) => Promise<void>;
     onToggleHome: (homeId: string, on: boolean) => void;
     onToggleFavorite?: () => void;
@@ -54,10 +62,26 @@
     installedHomes.map((h) => versions[h.id]?.label).find((v): v is string => !!v) ?? "",
   );
   const behindHomes = $derived(
-    installedHomes.filter((h) => h.hasUpdater && versions[h.id]?.updateAvailable).map((h) => h.id),
+    installedHomes.filter((h) => h.hasUpdater && versions[h.id]?.updateState === "behind").map((h) => h.id),
   );
 
-  let busyHome = $state<Record<string, boolean>>({});
+  // A home's own live job, so a row can say "queued here, installing there" instead of
+  // sharing one busy flag across every home.
+  function jobFor(homeId: string): DownloadRow | undefined {
+    return $activeByPluginHome[jobKey(plugin.name, homeId)];
+  }
+
+  function jobLabel(row: DownloadRow | undefined): string {
+    if (!row) return "";
+    if (row.status === "pending") return "queued";
+    if (row.status === "cancelling") return "cancelling";
+    return row.label.startsWith("Update") ? "updating" : "installing";
+  }
+
+  function checkedLabel(checkedAt: string | null | undefined): string {
+    if (!checkedAt) return "never checked for updates";
+    return `last checked ${new Date(checkedAt).toLocaleString()}`;
+  }
 
   async function loadVersions(): Promise<void> {
     const result = await cairn.pluginVersions(plugin.name);
@@ -65,14 +89,8 @@
   }
 
   async function updateHome(homeId: string): Promise<void> {
-    if (busyHome[homeId]) return;
-    busyHome = { ...busyHome, [homeId]: true };
-    try {
-      await onUpdateHome(homeId);
-      await loadVersions();
-    } finally {
-      busyHome = { ...busyHome, [homeId]: false };
-    }
+    await onUpdateHome(homeId);
+    await loadVersions();
   }
 
   async function setAutoUpdate(homeId: string, on: boolean): Promise<void> {
@@ -89,6 +107,7 @@
     ...(installedHomes.length > 0 ? [{ id: "configure", label: "Configure" }] : []),
   ]);
 
+  let activeTab = $state("readme");
   let controlsHome = $state<string>("");
   let controlsSchema = $state<PluginConfigSchema | null>(null);
   let controlsLoading = $state(false);
@@ -99,10 +118,12 @@
     }
   });
 
-  // Fetch the selected home's schema for this plugin on demand.
+  // Resolving a plugin's settings runs its bundle, so the fetch waits until Configure is
+  // the tab actually being shown.
   $effect(() => {
     const home = controlsHome;
     const name = plugin.name;
+    if (activeTab !== "configure") return;
     if (!home) { controlsSchema = null; return; }
     controlsLoading = true;
     cairn.configSchemas(home).then((result) => {
@@ -112,9 +133,6 @@
     });
   });
 
-  function letters(label: string): string {
-    return label.replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase();
-  }
 </script>
 
 {#snippet topActions()}
@@ -137,6 +155,8 @@
     updateAvailable={plugin.updateAvailable}
     {updatesEnabled}
     {behindHomes}
+    {brokenHomes}
+    {onRepairHome}
     {onUpdate}
     onUpdateHome={(homeId) => updateHome(homeId)}
     {onInstallAll}
@@ -152,10 +172,9 @@
       <ul class="apps">
         {#each homes as h (h.id)}
           {@const on = !!plugin.homes[h.id]?.installed}
-          {@const icon = h.icon}
           <li>
             <span class="appmark" class:na={!on}>
-              {#if icon}<span class="glyph">{@html icon}</span>{:else}<span class="lm">{letters(h.label)}</span>{/if}
+              <PluginIcon icon={h.icon} name={h.label} size={LOGO_SIZE.compact} />
             </span>
             <span class="appname">{h.label}</span>
             {#if on && versions[h.id]}
@@ -172,14 +191,40 @@
             {:else}
               <span class="state">{on ? "Installed" : "Not installed"}</span>
             {/if}
-            <!-- An update is the action worth offering while one is pending; removing this
-                 home stays available from the install control's menu above. -->
             {#if on && behindHomes.includes(h.id)}
-              <button class="toggle update" disabled={busyHome[h.id]} onclick={() => updateHome(h.id)}>Update</button>
+              <span class="behind" data-testid={`behind-${h.id}`}>update available</span>
+            {/if}
+            {#if on && versions[h.id]?.updateState === "unknown"}
+              <span class="unknown" title={checkedLabel(versions[h.id]?.checkedAt)}>update state unknown</span>
+            {/if}
+            <!-- One control per home. What it offers depends on that home's real state: the
+                 work it is doing, an update it is behind on, or nothing but removal. -->
+            {#if jobFor(h.id)}
+              {@const running = jobFor(h.id)}
+              <span class="jobstate" data-testid={`job-${h.id}`}>{jobLabel(running)}</span>
+              <SplitButton
+                label={jobLabel(running)}
+                progress={running && running.percent >= 0 ? running.percent : -1}
+                title={running?.step}
+              >
+                {#snippet menu()}
+                  <button onclick={() => running && cancelRow(running)} disabled={!running?.cancellable}>Cancel</button>
+                {/snippet}
+              </SplitButton>
+            {:else if on && behindHomes.includes(h.id)}
+              <SplitButton label="Update" title="An update is available for this home" onPrimary={() => updateHome(h.id)}>
+                {#snippet menu()}
+                  <button onclick={() => onToggleHome(h.id, false)}>Remove</button>
+                {/snippet}
+              </SplitButton>
             {:else if on}
-              <button class="toggle on" onclick={() => onToggleHome(h.id, false)}>Remove</button>
+              <SplitButton label="Remove" danger onPrimary={() => onToggleHome(h.id, false)}>
+                {#snippet menu()}
+                  <button onclick={() => updateHome(h.id)}>Reinstall</button>
+                {/snippet}
+              </SplitButton>
             {:else}
-              <button class="toggle" onclick={() => onToggleHome(h.id, true)}>Install</button>
+              <SplitButton label="Install" onPrimary={() => onToggleHome(h.id, true)} />
             {/if}
           </li>
         {/each}
@@ -205,9 +250,29 @@
   {/if}
 {/snippet}
 
-<RepoDetail {repo} {onClose} {tabs} tabContent={content} actions={topActions} versionLabel={representativeVersion} />
+<RepoDetail {repo} {onClose} {tabs} tabContent={content} actions={topActions} versionLabel={representativeVersion} onTab={(id) => (activeTab = id)} />
 
 <style>
+  .jobstate {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+  }
+  .unknown {
+    font-size: 11px;
+    color: var(--warn);
+  }
+  .behind {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--accent);
+    padding: 1px 6px;
+    border: 1px solid var(--accent-border);
+    border-radius: 999px;
+    background: var(--accent-weak);
+  }
   .favorite {
     display: inline-flex;
     align-items: center;
@@ -261,8 +326,6 @@
     background: var(--surface-2);
   }
   .appmark {
-    width: 24px;
-    height: 24px;
     border-radius: 6px;
     overflow: hidden;
     flex: none;
@@ -271,23 +334,6 @@
   .appmark.na {
     filter: grayscale(0.85);
     opacity: 0.45;
-  }
-  .appmark .glyph :global(svg) {
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
-  .lm {
-    width: 100%;
-    height: 100%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-family: var(--mono);
-    font-size: 9px;
-    font-weight: 700;
-    color: #fff;
-    background: var(--faint);
   }
   .appname {
     font-size: 13px;
@@ -323,35 +369,9 @@
     font-style: italic;
     color: var(--faint);
   }
-  .toggle.update {
-    color: var(--accent);
-    border-color: var(--accent-border);
-    background: var(--accent-weak);
-  }
   .auto {
     display: inline-flex;
     align-items: center;
-  }
-  .toggle {
-    font-size: 11.5px;
-    font-weight: 600;
-    border: 1px solid var(--border-strong);
-    background: var(--surface);
-    color: var(--text);
-    border-radius: 7px;
-    padding: 4px 12px;
-    cursor: pointer;
-  }
-  .toggle:hover {
-    background: var(--surface-2);
-  }
-  .toggle.on {
-    color: var(--crit);
-    border-color: var(--crit);
-  }
-  .toggle:disabled {
-    opacity: .5;
-    cursor: default;
   }
   .controls {
     display: flex;

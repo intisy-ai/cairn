@@ -1,7 +1,7 @@
 import { writable } from "svelte/store";
 import type { PluginMenu } from "@cairn/shared";
 
-export type CairnScreenId = "overview" | "providers" | "accounts" | "routing" | "usage" | "activity" | "localApi" | "apps" | "plugins" | "config" | "settings";
+export type CairnScreenId = "overview" | "providers" | "accounts" | "routing" | "usage" | "activity" | "localApi" | "apps" | "plugins" | "downloads" | "config" | "settings";
 // A plugin that declared a menu gets a screen of its own, addressed by its name. Cairn's
 // own screens stay a closed set; anything a plugin contributes lives behind this prefix.
 export type PluginScreenId = `plugin:${string}`;
@@ -38,6 +38,7 @@ export const SCREENS: readonly ScreenDef[] = [
   { id: "localApi", label: "Local API", glyph: "⇢", section: "network" },
   { id: "apps", label: "Apps", glyph: "▤", section: "network" },
   { id: "plugins", label: "Plugins", glyph: "⊞", section: "network" },
+  { id: "downloads", label: "Downloads", glyph: "⤓", section: "network" },
   { id: "config", label: "Config", glyph: "❋", section: "network" },
   { id: "settings", label: "Settings", glyph: "⚙", section: "network" },
 ];

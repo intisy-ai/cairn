@@ -9,13 +9,13 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+    // An alias exists only for a sibling repo Cairn imports CODE from. custom-auth has none
+    // on purpose: Cairn reads that plugin's config, located by capability, never its code.
     "paths": {
       "@core/*": ["../../libs/core/dist/*"],
       "@core-auth/*": ["../../libs/core-auth/dist/*"],
       "@core-loader/*": ["../../libs/core-loader/dist/*"],
       "@core-proxy/*": ["../../libs/core-proxy/dist/*"],
-      "@claude-code-proxy/*": ["../../proxies/claude-code-proxy/dist/*"],
-      "@opencode-proxy/*": ["../../proxies/opencode-proxy/dist/*"],
       "@plugin-updater/*": ["../../tools/plugin-updater/dist/*"],
       "@config-ledger/*": ["../../plugins/config-ledger/dist/*"]
     }

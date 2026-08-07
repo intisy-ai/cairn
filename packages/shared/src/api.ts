@@ -1,4 +1,4 @@
-import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, PluginMenu, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec, UpdateSummary } from "./domain.js";
+import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, PluginMenu, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec, UpdateSummary, Job, JobKind } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -23,8 +23,11 @@ export interface CairnAPI {
   proxiesSetEnabled(name: string, on: boolean): Promise<Result<void>>;
   appsDetect(): Promise<Result<AppPresence>>;
   appsList(): Promise<Result<HostApp[]>>;
+  jobsList(): Promise<Result<Job[]>>;
+  jobsEnqueue(kind: JobKind, plugin: string, url: string, home: string): Promise<Result<Job>>;
+  jobsCancel(id: string): Promise<Result<boolean>>;
+  jobsClearFinished(): Promise<Result<void>>;
   appsInstallCli(app: string): Promise<Result<CliResult>>;
-  appsInit(app: string): Promise<Result<CliResult>>;
   appsUninstallCli(app: string, wipeData: boolean): Promise<Result<CliResult>>;
   appsSummary(app: string): Promise<Result<AppSummary>>;
   appsConnection(app: string): Promise<Result<AppConnection>>;
@@ -38,14 +41,13 @@ export interface CairnAPI {
   enginesList(): Promise<Result<EngineView[]>>;
   enginesEnsure(capability: string): Promise<Result<void>>;
   pluginsInstall(home: string, name: string, url: string, progressId?: number): Promise<Result<void>>;
-  pluginsInstallMany(name: string, url: string, homeIds: string[], progressId?: number): Promise<Result<InstallManyResult>>;
   pluginsRemoveEverywhere(name: string): Promise<Result<InstallManyResult>>;
   pluginsSetEnabled(home: string, name: string, on: boolean): Promise<Result<void>>;
   pluginsSetAutoUpdate(home: string, name: string, on: boolean): Promise<Result<void>>;
   pluginsDowngrade(home: string, name: string, hash: string): Promise<Result<void>>;
   pluginsUninstall(home: string, name: string): Promise<Result<void>>;
   configSchemas(home: string): Promise<Result<PluginConfigSchema[]>>;
-  menusList(): Promise<Result<PluginMenu[]>>;
+  menusList(opts?: { wait?: boolean }): Promise<Result<PluginMenu[]>>;
   configWrite(home: string, plugin: string, key: string, value: unknown): Promise<Result<void>>;
   configAction(home: string, plugin: string, actionId: string): Promise<Result<{ stdout: string; stderr: string }>>;
   syncStatus(): Promise<Result<SyncStatus>>;
@@ -81,6 +83,8 @@ export interface CairnAPI {
   favoritesList(): Promise<Result<string[]>>;
   favoritesToggle(name: string): Promise<Result<string[]>>;
   customEndpointsList(): Promise<Result<CustomEndpointView[]>>;
+  // The wire formats the provider plugin can translate, asked of it rather than restated here.
+  customEndpointsFormats(): Promise<Result<string[]>>;
   customEndpointsUpsert(endpoint: CustomEndpoint): Promise<Result<void>>;
   customEndpointsRemove(id: string): Promise<Result<void>>;
   customEndpointsSaveKey(endpointId: string, key: string): Promise<Result<void>>;
@@ -90,6 +94,7 @@ export interface CairnAPI {
   onServerStatus(listener: (status: ProxyStatus) => void): () => void;
   onDownloadProgress(listener: (progress: DownloadProgress) => void): () => void;
   onActivityEvent(listener: (record: ActivityRecord) => void): () => void;
+  onJobEvent(listener: (job: Job) => void): () => void;
   isElectron: true;
   platform: NodeJS.Platform;
 }

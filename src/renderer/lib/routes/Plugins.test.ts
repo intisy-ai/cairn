@@ -6,7 +6,16 @@ import { stubCairn } from "../testing.js";
 import { downloads, resetDownloadsForTest } from "../downloads.js";
 import { router, navigate } from "../router.js";
 import Plugins from "./Plugins.svelte";
-import type { HomePlugins, PluginHome } from "@cairn/shared";
+import type { HomePlugins, PluginHome, Job } from "@cairn/shared";
+
+function jobFor(home: string, plugin = "demo"): Job {
+  return { id: `job-${home}-${plugin}`, kind: "install", plugin, url: "u", home, status: "done", phase: "", percent: 100, phases: [], samples: [], queuedAt: 0, endedAt: 1 };
+}
+
+// Jobs resolve as already done so the route's await of settlement does not hang a test.
+function enqueueSpy() {
+  return vi.fn(async (_kind: string, plugin: string, _url: string, home: string) => ({ ok: true as const, data: jobFor(home, plugin) }));
+}
 
 function home(id: string, label: string, overrides: Partial<PluginHome> = {}): PluginHome {
   return { id, label, dir: `/${id}`, present: true, hasUpdater: true, ...overrides };
@@ -131,6 +140,33 @@ describe("Plugins screen", () => {
     expect(screen.queryByRole("button", { name: "Update all" })).toBeNull();
   });
 
+  it("narrows the list to what is behind, counting only homes that can update", async () => {
+    const behind = baseSections();
+    behind[1].rows[0].updateAvailable = true;
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: behind }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+    });
+    render(Plugins);
+    await screen.findByText("demo");
+
+    const chip = screen.getByRole("button", { name: /^Updates / });
+    expect(chip).toHaveTextContent("Updates 1");
+    await fireEvent.click(chip);
+    await waitFor(() => expect(screen.queryByText("demo")).toBeNull());
+    expect(screen.getByText("wakatime-sync")).toBeTruthy();
+  });
+
+  it("offers no update filter matches when nothing is behind", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+    });
+    render(Plugins);
+    await screen.findByText("wakatime-sync");
+    expect(screen.getByRole("button", { name: /^Updates / })).toHaveTextContent("Updates 0");
+  });
+
   it("checks only the homes that actually have an updater", async () => {
     const mixed = [
       { home: home("cairn", "Cairn", { hasUpdater: false }), rows: [] },
@@ -239,87 +275,61 @@ describe("Plugins screen", () => {
     expect(opencodePill.classList.contains("na")).toBe(true);
   });
 
-  it("Install (primary) on an uninstalled catalog plugin installs to each applicable home", async () => {
-    const pluginsInstall = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+  it("Install (primary) on an uninstalled catalog plugin queues a job per applicable home", async () => {
+    const jobsEnqueue = enqueueSpy();
     stubCairn({
       pluginsList: async () => ({ ok: true, data: baseSections() }),
       catalogList: async () => ({ ok: true, data: baseCatalog() }),
-      pluginsInstall,
+      jobsEnqueue,
     });
     render(Plugins);
 
     const row = within(await screen.findByTestId("plugin-demo"));
     await fireEvent.click(row.getByRole("button", { name: "Install everywhere" }));
 
-    // One queued task per home so each home's state refreshes as it completes.
-    await waitFor(() => expect(pluginsInstall).toHaveBeenCalledWith("claude", "demo", "u", expect.any(Number)));
-    await waitFor(() => expect(pluginsInstall).toHaveBeenCalledWith("opencode", "demo", "u", expect.any(Number)));
-    // A non-engine install is handled by plugin-updater, not Cairn directly.
-    expect(get(downloads).tasks[0].source).toBe("plugin-updater");
+    // One job per home so each home shows its own progress and can be cancelled alone.
+    await waitFor(() => expect(jobsEnqueue).toHaveBeenCalledWith("install", "demo", "u", "claude"));
+    await waitFor(() => expect(jobsEnqueue).toHaveBeenCalledWith("install", "demo", "u", "opencode"));
   });
 
-  it("clicking an outline pill on an installed plugin installs to that one home", async () => {
-    const pluginsInstall = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+  it("clicking an outline pill on an installed plugin queues a job for that one home", async () => {
+    const jobsEnqueue = enqueueSpy();
     stubCairn({
       pluginsList: async () => ({ ok: true, data: baseSections() }),
       catalogList: async () => ({ ok: true, data: baseCatalog() }),
-      pluginsInstall,
+      jobsEnqueue,
     });
     render(Plugins);
 
     const row = within(await screen.findByTestId("plugin-wakatime-sync"));
     await fireEvent.click(row.getByTitle("OpenCode"));
 
-    await waitFor(() => expect(pluginsInstall).toHaveBeenCalledWith("opencode", "wakatime-sync", "uw", expect.any(Number)));
+    await waitFor(() => expect(jobsEnqueue).toHaveBeenCalledWith("install", "wakatime-sync", "uw", "opencode"));
   });
 
-  it("surfaces a failing home from a multi-home install as a failed download task", async () => {
-    const pluginsInstall = vi.fn(async (home: string) =>
-      home === "opencode" ? ({ ok: false, error: "disk full" } as const) : ({ ok: true, data: undefined } as const),
+  it("reports a home whose job could not even be queued", async () => {
+    const jobsEnqueue = vi.fn(async (_kind: string, _plugin: string, _url: string, home: string) =>
+      home === "opencode" ? ({ ok: false, error: "disk full" } as const) : ({ ok: true, data: jobFor(home) } as const),
     );
     stubCairn({
       pluginsList: async () => ({ ok: true, data: baseSections() }),
       catalogList: async () => ({ ok: true, data: baseCatalog() }),
-      pluginsInstall,
+      jobsEnqueue,
     });
     render(Plugins);
 
     const row = within(await screen.findByTestId("plugin-demo"));
     await fireEvent.click(row.getByRole("button", { name: "Install everywhere" }));
 
-    await waitFor(() => expect(pluginsInstall).toHaveBeenCalledWith("opencode", "demo", "u", expect.any(Number)));
-    await waitFor(() => {
-      const failed = get(downloads).tasks.find((t) => t.status === "failed");
-      expect(failed?.error).toBe("disk full");
-    });
-  });
-
-  it("surfaces a rejected install (res.ok=false) as a failed download task", async () => {
-    const pluginsInstall = vi.fn(async () => ({ ok: false, error: "network unreachable" }) as const);
-    stubCairn({
-      pluginsList: async () => ({ ok: true, data: baseSections() }),
-      catalogList: async () => ({ ok: true, data: baseCatalog() }),
-      pluginsInstall,
-    });
-    render(Plugins);
-
-    const row = within(await screen.findByTestId("plugin-demo"));
-    await fireEvent.click(row.getByRole("button", { name: "Install everywhere" }));
-
-    await waitFor(() => expect(pluginsInstall).toHaveBeenCalled());
-    await waitFor(() => {
-      const task = get(downloads).tasks[0];
-      expect(task.status).toBe("failed");
-      expect(task.error).toBe("network unreachable");
-    });
+    await waitFor(() => expect(jobsEnqueue).toHaveBeenCalledWith("install", "demo", "u", "opencode"));
   });
 
   it("adding a plugin-kind repo by URL installs to the applicable host-app homes, not cairn", async () => {
-    const pluginsInstallMany = vi.fn(async () => ({ ok: true, data: { outcomes: [] } }) as const);
+    const jobsEnqueue = enqueueSpy();
     stubCairn({
       pluginsList: async () => ({ ok: true, data: baseSections() }),
       catalogList: async () => ({ ok: true, data: baseCatalog() }),
-      pluginsInstallMany,
+      jobsEnqueue,
     });
     render(Plugins);
 
@@ -331,7 +341,7 @@ describe("Plugins screen", () => {
     await fireEvent.click(dialog.getByRole("button", { name: "Install" }));
 
     await waitFor(() =>
-      expect(pluginsInstallMany).toHaveBeenCalledWith("some-plugin", "https://github.com/intisy-ai/some-plugin", ["claude", "opencode"], expect.any(Number)),
+      expect(jobsEnqueue).toHaveBeenCalledWith("install", "some-plugin", "https://github.com/intisy-ai/some-plugin", "claude"),
     );
   });
 
@@ -474,13 +484,13 @@ describe("Plugins screen", () => {
 
   it("updates a home and toggles its auto-update from the detail's Availability tab", async () => {
     const pluginsSetAutoUpdate = vi.fn(async () => ({ ok: true, data: undefined }) as const);
-    const pluginsInstall = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    const jobsEnqueue = enqueueSpy();
     stubCairn({
       pluginsList: async () => ({ ok: true, data: baseSections() }),
       catalogList: async () => ({ ok: true, data: baseCatalog() }),
-      pluginVersions: async () => ({ ok: true, data: { claude: { kind: "git", label: "v1.0.0", updateAvailable: true, autoUpdate: true } } }),
+      pluginVersions: async () => ({ ok: true, data: { claude: { kind: "git", label: "v1.0.0", updateState: "behind", autoUpdate: true } } }),
       pluginsSetAutoUpdate,
-      pluginsInstall,
+      jobsEnqueue,
     });
     render(Plugins);
 
@@ -490,7 +500,7 @@ describe("Plugins screen", () => {
     await fireEvent.click(dialog.getByRole("button", { name: "Availability" }));
 
     await fireEvent.click(dialog.getByRole("button", { name: "Update" }));
-    await waitFor(() => expect(pluginsInstall).toHaveBeenCalledWith("claude", "wakatime-sync", expect.any(String), expect.any(Number)));
+    await waitFor(() => expect(jobsEnqueue).toHaveBeenCalledWith("update", "wakatime-sync", expect.any(String), "claude"));
 
     await fireEvent.click(dialog.getByRole("switch", { name: "Auto-update Claude Code" }));
     await waitFor(() => expect(pluginsSetAutoUpdate).toHaveBeenCalledWith("claude", "wakatime-sync", false));
@@ -651,5 +661,17 @@ describe("Plugins screen", () => {
     await fireEvent.click(filters.getByRole("button", { name: /Loaders/ }));
     await waitFor(() => expect(getByText("opencode-loader")).toBeTruthy());
     expect(queryByText("demo")).toBeNull();
+  });
+
+  // A row on the Downloads screen links here with the plugin named, so it must open.
+  it("opens the named plugin when arrived at with a plugin param", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+    });
+    navigate("plugins", { plugin: "wakatime-sync" });
+    render(Plugins);
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(within(screen.getByRole("dialog")).getByText("wakatime-sync")).toBeTruthy();
   });
 });

@@ -12,8 +12,6 @@ export default defineConfig({
       "@core-auth": fileURLToPath(new URL("../../libs/core-auth/dist", import.meta.url)),
       "@core-loader": fileURLToPath(new URL("../../libs/core-loader/dist", import.meta.url)),
       "@core-proxy": fileURLToPath(new URL("../../libs/core-proxy/dist", import.meta.url)),
-      "@claude-code-proxy": fileURLToPath(new URL("../../proxies/claude-code-proxy/dist", import.meta.url)),
-      "@opencode-proxy": fileURLToPath(new URL("../../proxies/opencode-proxy/dist", import.meta.url)),
       "@plugin-updater": fileURLToPath(new URL("../../tools/plugin-updater/dist", import.meta.url)),
       "@config-ledger": fileURLToPath(new URL("../../plugins/config-ledger/dist", import.meta.url)),
     },
@@ -21,5 +19,9 @@ export default defineConfig({
   test: {
     include: ["src/**/*.test.ts", "vendor/**/*.test.ts", "packages/shared/**/*.test.ts"],
     setupFiles: ["./vitest.setup.ts"],
+    // The sidecar tests import real bundles and build real homes on disk, which takes a few
+    // seconds each. Against the 5s default they passed alone and timed out under parallel
+    // load, which reads as a flaky suite rather than as slow tests.
+    testTimeout: 30000,
   },
 });

@@ -1,37 +1,27 @@
-import { getEngines } from "@core/index.js";
-import type { EngineDescriptor } from "@core/index.js";
+import { knownPlugins, pluginByCapability } from "@core/index.js";
+import type { PluginRegistration } from "@core/index.js";
 import type { Plugin } from "@plugin-updater/types.js";
 import { pluginHomes, homeById } from "../lib/pluginHomes.js";
 import { safeGetPlugins } from "../lib/optionalEngines.js";
-import { CAIRN_ENGINES } from "./engines.data.js";
 import type { EngineView, EngineHomeState, PluginHome, PluginHomeId, Result, CliResult } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
 
-// core's BUILTIN_ENGINES holds only generic, ecosystem-wide engines. Cairn
-// supplements it with engines that back Cairn's own features (e.g. the
-// custom-auth provider backing custom endpoints); see engines.data.ts.
-function allEngines(): EngineDescriptor[] {
-  return [...getEngines(), ...CAIRN_ENGINES];
-}
-
-export function engineByCapability(capability: string): EngineDescriptor | undefined {
-  return allEngines().find((e) => e.capability === capability);
-}
+export { pluginByCapability };
 
 export interface EnginesDeps {
   homes?: PluginHome[];
   getPlugins?: (dir: string) => Plugin[] | Promise<Plugin[]>;
-  appsInit?: (app: string) => Promise<Result<CliResult>>;
   pluginsInstall?: (homeId: string, name: string, url: string, deps?: { homes?: PluginHome[] }) => Promise<Result<void>>;
 }
 
 const PLUGIN_MANAGEMENT = "plugin-management";
 
-function targetHomes(engine: EngineDescriptor, homes: PluginHome[]): PluginHome[] {
+function targetHomes(engine: PluginRegistration, homes: PluginHome[]): PluginHome[] {
+  if (engine.target === "everywhere") return homes;
   return engine.target === "cairn" ? homes.filter((h) => h.id === "cairn") : homes.filter((h) => h.id !== "cairn");
 }
 
-async function stateIn(engine: EngineDescriptor, home: PluginHome, getPlugins: (dir: string) => Plugin[] | Promise<Plugin[]>): Promise<EngineHomeState> {
+async function stateIn(engine: PluginRegistration, home: PluginHome, getPlugins: (dir: string) => Plugin[] | Promise<Plugin[]>): Promise<EngineHomeState> {
   if (engine.capability === PLUGIN_MANAGEMENT) return { installed: home.hasUpdater, enabled: true };
   const p = (await getPlugins(home.dir)).find((x) => x.name === engine.id);
   return { installed: !!p, enabled: p ? p.enabled !== false : false };
@@ -43,15 +33,7 @@ async function resolveHomes(deps: EnginesDeps): Promise<PluginHome[]> {
 
 // `homes` is the list the caller resolved: the nested install must land in the very home
 // named here, never in whatever a fresh resolution would pick.
-async function installEngine(engine: EngineDescriptor, home: PluginHome, homes: PluginHome[], deps: EnginesDeps): Promise<void> {
-  // An app home registers the plugin manager through its own CLI. Cairn's home has no CLI,
-  // so the bundled copy clones it in place like any other engine.
-  if (engine.capability === PLUGIN_MANAGEMENT && home.id !== "cairn") {
-    const appsInit = deps.appsInit ?? (await import("./apps.js")).appsInit;
-    const res = await appsInit(home.id);
-    if (!res.ok) throw new Error(res.error);
-    return;
-  }
+async function installEngine(engine: PluginRegistration, home: PluginHome, homes: PluginHome[], deps: EnginesDeps): Promise<void> {
   const install = deps.pluginsInstall ?? (await import("./plugins.js")).pluginsInstall;
   const res = await install(home.id, engine.id, engine.url, { homes });
   if (!res.ok) throw new Error(res.error);
@@ -62,7 +44,7 @@ export function enginesList(deps: EnginesDeps = {}): Promise<Result<EngineView[]
     const homes = await resolveHomes(deps);
     const getPlugins = deps.getPlugins ?? safeGetPlugins;
     return Promise.all(
-      allEngines().map(async (engine) => ({
+      knownPlugins().map(async (engine) => ({
         id: engine.id,
         capability: engine.capability,
         url: engine.url,
@@ -79,7 +61,7 @@ export function enginesList(deps: EnginesDeps = {}): Promise<Result<EngineView[]
 // app homes is still needed in Cairn's own home once something there has to be managed.
 export function ensureEngineIn(capability: string, homeId: string, deps: EnginesDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
-    const engine = engineByCapability(capability);
+    const engine = pluginByCapability(capability);
     if (!engine) throw new Error(`unknown engine capability: ${capability}`);
     const homes = await resolveHomes(deps);
     const home = homeById(homeId as PluginHomeId, homes);
@@ -91,7 +73,7 @@ export function ensureEngineIn(capability: string, homeId: string, deps: Engines
 
 export function ensureEngine(capability: string, deps: EnginesDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
-    const engine = engineByCapability(capability);
+    const engine = pluginByCapability(capability);
     if (!engine) throw new Error(`unknown engine capability: ${capability}`);
     const homes = await resolveHomes(deps);
     const home = targetHomes(engine, homes)[0];

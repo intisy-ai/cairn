@@ -45,6 +45,72 @@ describe("PluginInstallControl", () => {
     expect(screen.getByRole("button", { name: "Remove everywhere" })).toBeInTheDocument();
   });
 
+  // "everywhere" is one app for a loader, which only ever serves the app that names it.
+  it("names the single app instead of saying everywhere when only one applies", () => {
+    render(PluginInstallControl, {
+      props: {
+        ...props(),
+        homes: [{ id: "claude", label: "Claude Code" }],
+        plugin: { ...plugin(["claude"]), homes: { claude: { installed: true } } },
+      },
+    });
+    expect(screen.getByRole("button", { name: "Remove from Claude Code" })).toBeInTheDocument();
+  });
+
+  // A half-built copy is broken now, so repairing it comes before updating or removing.
+  it("offers Repair ahead of everything else when a copy is only partly built", async () => {
+    const onRepairHome = vi.fn();
+    render(PluginInstallControl, {
+      props: props({ updateAvailable: true, updatesEnabled: true, onUpdate: vi.fn(), onRepairHome, brokenHomes: ["claude"] }),
+    });
+    await fireEvent.click(screen.getByRole("button", { name: "Repair in Claude Code" }));
+    expect(onRepairHome).toHaveBeenCalledWith("claude");
+    expect(screen.queryByRole("button", { name: "Update" })).not.toBeInTheDocument();
+  });
+
+  it("keeps updating and removing in the menu while the primary offers a repair", async () => {
+    render(PluginInstallControl, {
+      props: props({ updateAvailable: true, updatesEnabled: true, onUpdate: vi.fn(), onUpdateHome: vi.fn(), onRepairHome: vi.fn(), behindHomes: ["claude"], brokenHomes: ["claude"] }),
+    });
+    await openMenu();
+    expect(screen.getByRole("button", { name: "Update in Claude Code" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove everywhere" })).toBeInTheDocument();
+  });
+
+  it("ignores a broken home the plugin is not installed in", () => {
+    render(PluginInstallControl, {
+      props: props({ plugin: plugin(["claude"]), onRepairHome: vi.fn(), brokenHomes: ["opencode"] }),
+    });
+    expect(screen.getByRole("button", { name: "Install in OpenCode" })).toBeInTheDocument();
+  });
+
+  // A copy that is behind is the broken thing here; installing into a home that simply has
+  // not got it yet can wait for the menu.
+  it("offers Update ahead of installing into the homes still missing it", async () => {
+    const onUpdate = vi.fn();
+    render(PluginInstallControl, {
+      props: props({ plugin: plugin(["claude"]), updateAvailable: true, updatesEnabled: true, onUpdate }),
+    });
+    expect(screen.getByRole("button", { name: "Update" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Install in/ })).not.toBeInTheDocument();
+    await openMenu();
+    expect(screen.getByRole("button", { name: "Install in OpenCode" })).toBeInTheDocument();
+  });
+
+  it("still offers Install as the primary action when nothing installed is behind", () => {
+    render(PluginInstallControl, {
+      props: props({ plugin: plugin(["claude"]), updateAvailable: false, updatesEnabled: true, onUpdate: vi.fn() }),
+    });
+    expect(screen.getByRole("button", { name: "Install in OpenCode" })).toBeInTheDocument();
+  });
+
+  it("offers Install as the primary action when the plugin is nowhere yet, update or not", () => {
+    render(PluginInstallControl, {
+      props: props({ plugin: plugin([]), updateAvailable: true, updatesEnabled: true, onUpdate: vi.fn() }),
+    });
+    expect(screen.getByRole("button", { name: "Install everywhere" })).toBeInTheDocument();
+  });
+
   it("offers Update in place of Remove everywhere once an update is detected", () => {
     const onUpdate = vi.fn();
     render(PluginInstallControl, { props: props({ updateAvailable: true, updatesEnabled: true, onUpdate }) });
@@ -101,10 +167,15 @@ describe("PluginInstallControl", () => {
     expect(screen.queryByRole("button", { name: /^Update in/ })).toBeNull();
   });
 
-  it("still installs where it is missing while an update is pending elsewhere", () => {
+  it("gathers the remaining homes into one menu entry when several are missing it", async () => {
     render(PluginInstallControl, {
-      props: props({ plugin: plugin(["claude"]), updateAvailable: true, updatesEnabled: true, onUpdate: vi.fn() }),
+      props: {
+        ...props({ plugin: plugin([]), updateAvailable: true, updatesEnabled: true, onUpdate: vi.fn() }),
+        homes: [...HOMES, { id: "cairn", label: "Cairn" }],
+        plugin: { ...plugin(["claude"]), homes: { claude: { installed: true }, opencode: { installed: false }, cairn: { installed: false } } },
+      },
     });
-    expect(screen.getByRole("button", { name: "Install in OpenCode" })).toBeInTheDocument();
+    await openMenu();
+    expect(screen.getByRole("button", { name: "Install in 2 more" })).toBeInTheDocument();
   });
 });

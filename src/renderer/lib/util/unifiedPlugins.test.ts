@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildUnifiedPlugins } from "./unifiedPlugins.js";
+import { buildUnifiedPlugins, applicableHomeIds } from "./unifiedPlugins.js";
 import type { HomePlugins, CatalogEntry, PluginHome } from "@cairn/shared";
 
 const homes: PluginHome[] = [
@@ -104,5 +104,119 @@ describe("buildUnifiedPlugins", () => {
   it("defaults every plugin to not favorite when no favorites list is given", () => {
     const out = buildUnifiedPlugins([{ home: homes[1], rows: [row("x")] }], [], homes);
     expect(out.find((p) => p.name === "x")!.favorite).toBe(false);
+  });
+});
+
+// A loader is the one plugin that is not portable: it connects a single app, the one whose
+// registry entry names it. Offering it to the other app promised an install that could not work.
+// A home's config DECLARES what should be installed, and the manager clones whatever is named
+// there and missing. So an entry with no clone is an install that has not happened yet, and
+// calling it installed offered a remove for something that is not there.
+describe("a declared but absent plugin", () => {
+  const withLeftover: HomePlugins[] = [
+    { home: homes[1], rows: [{ name: "opencode-loader", kind: "git", enabled: true, updateAvailable: false, description: "", present: false }] },
+    { home: homes[2], rows: [{ name: "opencode-loader", kind: "git", enabled: true, updateAvailable: false, description: "", present: true }] },
+  ];
+
+  it("does not count as installed in the home that only declares it", () => {
+    const out = buildUnifiedPlugins(withLeftover, [], homes);
+    const plugin = out.find((p) => p.name === "opencode-loader")!;
+    expect(plugin.homes.claude?.installed).toBe(false);
+    expect(plugin.homes.opencode?.installed).toBe(true);
+  });
+
+  // Rows predating this field carry no answer, and treating that as "not installed" would
+  // empty the list for anyone whose sidecar has not caught up.
+  it("treats a row that says nothing as installed", () => {
+    const out = buildUnifiedPlugins(
+      [{ home: homes[1], rows: [{ name: "wakatime-sync", kind: "git", enabled: true, updateAvailable: false, description: "" }] }],
+      [], homes,
+    );
+    expect(out.find((p) => p.name === "wakatime-sync")!.homes.claude?.installed).toBe(true);
+  });
+});
+
+// One app's plugins ending up installed in another is what this declaration prevents.
+describe("a plugin that declares which apps it suits", () => {
+  const withLoaders: PluginHome[] = [
+    { id: "cairn", label: "Cairn", dir: "/k", present: true, hasUpdater: true },
+    { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true, loaderId: "claude-code-loader" },
+    { id: "opencode", label: "OpenCode", dir: "/o", present: true, hasUpdater: true, loaderId: "opencode-loader" },
+  ];
+
+  it("is offered only to the apps it names", () => {
+    expect(applicableHomeIds("plugin", withLoaders, "some-plugin", ["opencode"])).toEqual(["opencode"]);
+  });
+
+  it("declaring nothing still means any app, which is what most plugins want", () => {
+    expect(applicableHomeIds("plugin", withLoaders, "some-plugin")).toEqual(["claude", "opencode"]);
+    expect(applicableHomeIds("plugin", withLoaders, "some-plugin", [])).toEqual(["claude", "opencode"]);
+  });
+
+  // The declaration narrows; it cannot widen into a home the kind rules exclude.
+  it("cannot claim a home its kind is not allowed in", () => {
+    expect(applicableHomeIds("plugin", withLoaders, "some-plugin", ["cairn", "claude"])).toEqual(["claude"]);
+  });
+
+  it("gives a plugin naming an app that is not here no home at all", () => {
+    expect(applicableHomeIds("plugin", withLoaders, "some-plugin", ["some-future-app"])).toEqual([]);
+  });
+});
+
+// An app is reached through its loader, so an app without one cannot run what is installed there.
+describe("an app whose loader is not installed", () => {
+  const homes: PluginHome[] = [
+    { id: "cairn", label: "Cairn", dir: "/k", present: true, hasUpdater: true },
+    { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true, loaderId: "claude-code-loader", loaderInstalled: true },
+    { id: "opencode", label: "OpenCode", dir: "/o", present: true, hasUpdater: true, loaderId: "opencode-loader", loaderInstalled: false },
+  ];
+
+  it("is not offered as a target for other plugins", () => {
+    expect(applicableHomeIds("plugin", homes, "some-plugin")).toEqual(["claude"]);
+    expect(applicableHomeIds("provider", homes, "some-provider")).toEqual(["cairn", "claude"]);
+  });
+
+  // Otherwise the loader could never be installed: the one home that needs it would be hidden.
+  it("is still offered its own loader", () => {
+    expect(applicableHomeIds("loader", homes, "opencode-loader")).toEqual(["opencode"]);
+  });
+
+  it("cannot be reached by a plugin that names it either", () => {
+    expect(applicableHomeIds("plugin", homes, "some-plugin", ["opencode"])).toEqual([]);
+  });
+
+  // Cairn's own home has no loader to require, and the whole list must not vanish for it.
+  it("does not affect a home that has no loader at all", () => {
+    expect(applicableHomeIds("provider", homes, "some-provider")).toContain("cairn");
+  });
+
+  // A sidecar predating this field sends no answer, and reading that as "absent" would
+  // empty the list for anyone who has not caught up.
+  it("treats a home that says nothing as reachable", () => {
+    const older: PluginHome[] = [{ id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true, loaderId: "claude-code-loader" }];
+    expect(applicableHomeIds("plugin", older, "some-plugin")).toEqual(["claude"]);
+  });
+});
+
+describe("a loader's applicable homes", () => {
+  const withLoaders: PluginHome[] = [
+    { id: "cairn", label: "Cairn", dir: "/k", present: true, hasUpdater: true },
+    { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true, loaderId: "claude-code-loader" },
+    { id: "opencode", label: "OpenCode", dir: "/o", present: true, hasUpdater: true, loaderId: "opencode-loader" },
+  ];
+
+  it("offers a loader only to the app that names it", () => {
+    expect(applicableHomeIds("loader", withLoaders, "claude-code-loader")).toEqual(["claude"]);
+    expect(applicableHomeIds("loader", withLoaders, "opencode-loader")).toEqual(["opencode"]);
+  });
+
+  it("leaves every other kind on the generic rule", () => {
+    expect(applicableHomeIds("plugin", withLoaders, "wakatime-sync")).toEqual(["claude", "opencode"]);
+    expect(applicableHomeIds("provider", withLoaders, "stub-auth")).toEqual(["cairn", "claude", "opencode"]);
+    expect(applicableHomeIds("proxy", withLoaders, "claude-code-proxy")).toEqual(["cairn"]);
+  });
+
+  it("falls back to the generic rule for a loader whose app is not registered here", () => {
+    expect(applicableHomeIds("loader", withLoaders, "some-other-loader")).toEqual(["claude", "opencode"]);
   });
 });

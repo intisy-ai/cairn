@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { appsDetect, appsInstallCli, appsInit, appsUninstallCli, appsSummary, appsConnection, appsInstallLoader } from "./apps.js";
+import { appsDetect, appsInstallCli, appsUninstallCli, appsSummary, appsConnection, appsInstallLoader } from "./apps.js";
 import type { AppDescriptor } from "@core/index.js";
 
 function descWithLoader(loaderId: string): AppDescriptor {
@@ -119,29 +119,6 @@ describe("apps sidecar module", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("runs plugin-updater init for the given app as an arg-array spawn", async () => {
-    const calls: Array<{ file: string; args: string[] }> = [];
-    const fakeSpawn = async (file: string, args: string[]) => {
-      calls.push({ file, args });
-      return { stdout: "", stderr: "" };
-    };
-    const result = await appsInit("beta", fakeSpawn);
-    expect(result.ok).toBe(true);
-    expect(calls).toHaveLength(1);
-    expect(calls[0].file).toBe("npx");
-    expect(calls[0].args).toEqual(["plugin-updater", "init", "--app", "beta"]);
-  });
-
-  it("returns an error for an unknown app on init instead of spawning", async () => {
-    const calls: Array<{ file: string; args: string[] }> = [];
-    const fakeSpawn = async (file: string, args: string[]) => {
-      calls.push({ file, args });
-      return { stdout: "", stderr: "" };
-    };
-    const result = await appsInit("bogus" as never, fakeSpawn);
-    expect(result.ok).toBe(false);
-    expect(calls).toHaveLength(0);
-  });
 });
 
 describe("appsUninstallCli", () => {

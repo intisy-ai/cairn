@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { HostApp } from "@cairn/shared";
+  import PluginIcon from "./PluginIcon.svelte";
 
   let { apps, values, onToggle, size = 22 }: {
     apps: HostApp[];
@@ -7,16 +8,11 @@
     onToggle?: (appId: string, on: boolean) => void;
     size?: number;
   } = $props();
-
-  function letters(label: string): string {
-    return label.replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase();
-  }
 </script>
 
 <div class="apps">
   {#each apps as app (app.id)}
     {@const on = !!values[app.id]}
-    {@const icon = app.icon}
     {@const interactive = !!onToggle}
     <svelte:element
       this={interactive ? "button" : "span"}
@@ -29,11 +25,7 @@
       style="width:{size}px;height:{size}px"
       onclick={interactive ? () => onToggle?.(app.id, !on) : undefined}
     >
-      {#if icon}
-        <span class="glyph">{@html icon}</span>
-      {:else}
-        <span class="lettermark">{letters(app.label)}</span>
-      {/if}
+      <PluginIcon icon={app.icon} name={app.label} {size} />
     </svelte:element>
   {/each}
 </div>
@@ -60,28 +52,6 @@
   }
   button.app:hover {
     transform: translateY(-1px);
-  }
-  .app .glyph :global(svg),
-  .app .lettermark {
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
-  .glyph {
-    display: block;
-    width: 100%;
-    height: 100%;
-  }
-  .lettermark {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-family: var(--mono);
-    font-size: 9px;
-    font-weight: 700;
-    color: #fff;
-    background: var(--faint);
-    border-radius: 6px;
   }
   /* Not installed on this app: desaturated + dimmed, but still recognizable. */
   .app.na {

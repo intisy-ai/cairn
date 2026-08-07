@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import type { UtilityProcess } from "electron";
-import type { Result, DownloadProgress } from "@cairn/shared";
+import type { Result, DownloadProgress, Job } from "@cairn/shared";
 import { err } from "../../sidecar/result.js";
 
 // Loaded lazily inside createSupervisor: requiring "electron" at module top
@@ -21,7 +21,7 @@ export function shouldGiveUp(attempt: number, cap = 5): boolean {
 }
 
 type SidecarResponse = { id: number; result: Result<unknown> };
-type SidecarMessage = { id?: number; result?: Result<unknown>; progress?: DownloadProgress };
+type SidecarMessage = { id?: number; result?: Result<unknown>; progress?: DownloadProgress; job?: Job };
 
 export interface SupervisorOptions {
   sidecarPath: string;
@@ -29,6 +29,7 @@ export interface SupervisorOptions {
   rpcTimeoutMs?: number;
   restartCap?: number;
   onProgress?: (progress: DownloadProgress) => void;
+  onJob?: (job: Job) => void;
 }
 
 export interface Supervisor {
@@ -63,6 +64,10 @@ export function createSupervisor(opts: SupervisorOptions): Supervisor {
 
   function handleMessage(message: unknown): void {
     const msg = message as SidecarMessage;
+    if (msg.job) {
+      opts.onJob?.(msg.job);
+      return;
+    }
     if (msg.progress) {
       opts.onProgress?.(msg.progress);
       return;

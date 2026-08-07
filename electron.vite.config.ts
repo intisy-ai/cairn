@@ -19,8 +19,6 @@ export default defineConfig({
         "@core-auth": fileURLToPath(new URL("../../libs/core-auth/dist", import.meta.url)),
         "@core-loader": fileURLToPath(new URL("../../libs/core-loader/dist", import.meta.url)),
         "@core-proxy": fileURLToPath(new URL("../../libs/core-proxy/dist", import.meta.url)),
-        "@claude-code-proxy": fileURLToPath(new URL("../../proxies/claude-code-proxy/dist", import.meta.url)),
-        "@opencode-proxy": fileURLToPath(new URL("../../proxies/opencode-proxy/dist", import.meta.url)),
         "@plugin-updater": fileURLToPath(new URL("../../tools/plugin-updater/dist", import.meta.url)),
         "@config-ledger": fileURLToPath(new URL("../../plugins/config-ledger/dist", import.meta.url)),
       },
@@ -36,6 +34,7 @@ export default defineConfig({
         input: {
           index: "src/main/index.ts",
           sidecar: "src/sidecar/index.ts",
+          installer: "src/installer/index.ts",
         },
         // core-loader's loadUpdater() dynamically imports plugin-updater, a package the
         // dashboard never installs (readDeployedProviders, the only export it uses, does
