@@ -25,6 +25,7 @@ import { globalSettingsRead } from "./modules/globalSettings.js";
 import { updatesCheck, updatesOne, updatesAll } from "./modules/updates.js";
 import { requirePluginUpdater, withHome } from "./modules/plugins.js";
 import { librariesList } from "./modules/libraries.js";
+import { appStorageGet, appStorageSet } from "./modules/appPaths.js";
 import { loadPluginUpdaterIndex } from "./lib/optionalEngines.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
 import type { ActivityQuery } from "@core/index.js";
@@ -141,6 +142,8 @@ registerHandler("apps:uninstallCli", (app, wipeData) => appsUninstallCli(app as 
 registerHandler("apps:summary", (app) => appsSummary(app as string));
 registerHandler("apps:connection", (app) => appsConnection(app as string));
 registerHandler("apps:installLoader", (app) => appsInstallLoader(app as string));
+registerHandler("apps:storageGet", (app) => appStorageGet(app as string));
+registerHandler("apps:storageSet", (app, names) => appStorageSet(app as string, names as never));
 registerHandler("repo:meta", (url) => repoMeta(url as string));
 registerHandler("repo:metaCached", (url) => repoMetaCached(url as string));
 registerHandler("plugins:list", () => pluginsList());

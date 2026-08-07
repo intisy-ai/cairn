@@ -1,4 +1,4 @@
-import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, HomeLibraries, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, PluginMenu, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec, UpdateSummary, Job, JobKind } from "./domain.js";
+import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, HomeLibraries, AppStorage, AppStorageResult, AppPathNames, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, PluginMenu, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec, UpdateSummary, Job, JobKind } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -32,6 +32,8 @@ export interface CairnAPI {
   appsSummary(app: string): Promise<Result<AppSummary>>;
   appsConnection(app: string): Promise<Result<AppConnection>>;
   appsInstallLoader(app: string): Promise<Result<void>>;
+  appStorageGet(app: string): Promise<Result<AppStorage>>;
+  appStorageSet(app: string, names: AppPathNames): Promise<Result<AppStorageResult>>;
   repoMeta(url: string): Promise<Result<RepoMeta>>;
   repoMetaCached(url: string): Promise<Result<RepoMeta | null>>;
   pluginsList(): Promise<Result<HomePlugins[]>>;

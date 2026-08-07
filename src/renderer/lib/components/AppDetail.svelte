@@ -5,6 +5,7 @@
   import Spinner from "./Spinner.svelte";
   import StatusPill from "./StatusPill.svelte";
   import RepoDetail from "./RepoDetail.svelte";
+  import AppStorageSection from "./AppStorageSection.svelte";
   import { navigate } from "../router.js";
 
   const PROVIDER_BREAKDOWN_CAP = 6;
@@ -133,10 +134,7 @@
           {/if}
         </section>
 
-        <section>
-          <p class="label">Config directory</p>
-          <p class="path">{summary.configDir}</p>
-        </section>
+        <AppStorageSection app={app.id} />
       {:else}
         <p class="muted">Loading summary…</p>
       {/if}
@@ -269,13 +267,6 @@
     font-size: 11.5px;
     color: var(--faint);
     padding: 4px 10px;
-  }
-  .path {
-    margin: 0;
-    font-family: var(--mono);
-    font-size: 11.5px;
-    color: var(--faint);
-    overflow-wrap: anywhere;
   }
   .muted {
     margin: 0;

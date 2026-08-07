@@ -207,6 +207,11 @@ export type PluginHome = {
   loaderInstalled?: boolean;
 };
 export type HomePlugins = { home: PluginHome; rows: PluginRow[] };
+// The four storage subdirectory names an app home carries, and where they land.
+export type AppPathNames = { repos: string; plugin: string; cache: string; config: string };
+export type AppStorage = { app: string; home: string; names: AppPathNames; defaults: AppPathNames; resolved: AppPathNames };
+export type PathMove = { kind: keyof AppPathNames; from: string; to: string; status: "moved" | "nothing-to-move" | "target-exists" | "failed"; detail?: string };
+export type AppStorageResult = { names: AppPathNames; moves: PathMove[] };
 // A package resolvable from a home. `usedBy` names the plugins that declare a shared
 // library, and is empty for a plugin's own dependency, which has exactly one user.
 export type InstalledLibrary = { specifier: string; version: string; usedBy: string[] };

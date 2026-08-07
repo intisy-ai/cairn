@@ -19,6 +19,8 @@ const READ_TTL: Record<string, number> = {
   appsDetect: 30000,
   appsList: 60000,
   appsSummary: 30000,
+  appStorageGet: 15000,
+  appStorageSet: 30000,
   pluginsList: 30000,
   pluginsListCached: 10000,
   librariesList: 30000,

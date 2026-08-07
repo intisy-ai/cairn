@@ -66,6 +66,8 @@ function defaultCairn(): CairnAPI {
     }),
     appsConnection: async () => ({ ok: true, data: { app: "", cliPresent: false, loaderId: null, loaderUrl: null, loaderInstalled: false } }),
     appsInstallLoader: async () => ({ ok: true, data: undefined }),
+    appStorageGet: async (app: string) => ({ ok: true, data: { app, home: "/home/app", names: { repos: "repos", plugin: "plugin", cache: "cache", config: "config" }, defaults: { repos: "repos", plugin: "plugin", cache: "cache", config: "config" }, resolved: { repos: "/home/app/repos", plugin: "/home/app/plugin", cache: "/home/app/cache", config: "/home/app/config" } } }),
+    appStorageSet: async (_app: string, names: never) => ({ ok: true, data: { names, moves: [] } }),
     repoMeta: async () => ({ ok: true, data: { owner: "", repo: "", htmlUrl: "", stars: null, description: "", topics: [], readme: null } }),
     repoMetaCached: async () => ({ ok: true, data: null }),
     pluginsList: async () => ({ ok: true, data: [] }),
