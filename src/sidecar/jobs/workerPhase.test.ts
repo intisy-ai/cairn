@@ -27,4 +27,32 @@ describe("parseWorkerPhase", () => {
     expect(parseWorkerPhase("")).toBeUndefined();
     expect(parseWorkerPhase("Receiving objects:  45% (450/1000), 1.20 MiB | 3.40 MiB/s")).toBeUndefined();
   });
+
+  // Deleting a clone's node_modules is the slow part of an uninstall, and it used to sit at
+  // one percentage for the whole of it.
+  describe("a removal", () => {
+    it("reads its own stages", () => {
+      expect(parseWorkerPhase("[INFO] Uninstalled plugin wakatime-sync", "remove")).toMatchObject({ phase: "deregistered" });
+      expect(parseWorkerPhase("[INFO] Removing repos/wakatime-sync", "remove")).toMatchObject({ phase: "removing files" });
+      expect(parseWorkerPhase("[INFO] Pruned orphaned repos/wakatime-sync", "remove")).toMatchObject({ phase: "files removed" });
+      expect(parseWorkerPhase("[INFO] Pruned orphaned plugin/wakatime-sync.js", "remove")).toMatchObject({ phase: "artifact removed" });
+    });
+
+    it("moves forward so the bar never goes backwards", () => {
+      const order = ["Uninstalled plugin x", "Removing repos/x", "Pruned orphaned repos/x", "Pruned orphaned plugin/x.js"];
+      const percents = order.map((line) => parseWorkerPhase(`[INFO] ${line}`, "remove")!.percent);
+      expect(percents).toEqual([...percents].sort((a, b) => a - b));
+    });
+
+    // The manager prunes during an install too. Reading those lines there would jump an
+    // install's bar to nearly done because something unrelated was tidied up.
+    it("keeps its stages out of an install", () => {
+      expect(parseWorkerPhase("[INFO] Pruned orphaned repos/something-else", "install")).toBeUndefined();
+      expect(parseWorkerPhase("[INFO] Removing repos/something-else")).toBeUndefined();
+    });
+
+    it("ignores the install stages, which a removal never runs", () => {
+      expect(parseWorkerPhase("[INFO] Running npm install for x", "remove")).toBeUndefined();
+    });
+  });
 });

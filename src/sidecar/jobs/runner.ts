@@ -201,7 +201,7 @@ export function createRunner(deps: RunnerDeps = {}): Runner {
         return;
       }
       // No transfer in this chunk, but the manager may have said which stage it reached.
-      const stage = parseWorkerPhase(chunk);
+      const stage = parseWorkerPhase(chunk, job.kind);
       if (stage) replace(applyEvent(job, { phase: stage.phase, percent: stage.percent }, now()));
     });
 
