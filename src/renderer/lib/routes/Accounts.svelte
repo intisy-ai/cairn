@@ -24,11 +24,16 @@
   let loaded = $state(false);
   let accountsByProvider = $state<Record<string, AccountView[]>>({});
   let accountErrors = $state<Record<string, string>>({});
+  let loadingAccounts = $state<Record<string, boolean>>({});
   let searchRaw = $state("");
   let search = $state("");
   let pendingConfirm = $state<{ title: string; message: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
   let addFor = $state<{ id: string; label: string } | null>(null);
   let pickerOpen = $state(false);
+  let pickerFilter = $state("");
+  let pickerEl = $state<HTMLDivElement | undefined>(undefined);
+
+  const requested = new Set<string>();
 
   const applySearch = debounce((value: string) => {
     search = value;
@@ -38,33 +43,62 @@
     applySearch(searchRaw);
   });
 
-  function matchesSearch(provider: ProviderRowData, account: AccountView, term: string): boolean {
-    if (!term) return true;
-    if (provider.label.toLowerCase().includes(term)) return true;
-    return accountLabel(account).toLowerCase().includes(term);
-  }
+  const term = $derived(search.trim().toLowerCase());
+  const searching = $derived(term.length > 0);
 
-  const searching = $derived(search.trim().length > 0);
+  // A provider's account count comes with the provider row, so the screen knows which ones
+  // are worth a section without listing anybody's accounts first. Only the providers you
+  // actually signed into get one; the rest are reached through Add account or by searching.
+  const connected = $derived(providers.filter((provider) => provider.accountCount > 0));
 
-  const filteredAccountsByProvider = $derived.by(() => {
-    const term = search.trim().toLowerCase();
-    const result: Record<string, AccountView[]> = {};
-    for (const provider of providers) {
-      const accounts = accountsByProvider[provider.id] ?? [];
-      result[provider.id] = accounts.filter((account) => matchesSearch(provider, account, term));
-    }
-    return result;
+  const visibleProviders = $derived.by(() => {
+    if (!term) return connected;
+    return providers.filter((provider) =>
+      provider.label.toLowerCase().includes(term)
+      || (accountsByProvider[provider.id] ?? []).some((account) => accountLabel(account).toLowerCase().includes(term)));
   });
 
-  async function loadAccounts(providerId: string): Promise<void> {
-    const result = await cairn.accountsList(providerId);
-    if (result.ok) {
-      accountsByProvider[providerId] = result.data;
-      accountErrors[providerId] = "";
-    } else {
-      accountErrors[providerId] = result.error;
-    }
+  const totalAccounts = $derived(providers.reduce((sum, provider) => sum + provider.accountCount, 0));
+
+  const pickerProviders = $derived.by(() => {
+    const filter = pickerFilter.trim().toLowerCase();
+    return filter ? providers.filter((provider) => provider.label.toLowerCase().includes(filter)) : providers;
+  });
+
+  // Matching a provider by name means every one of its accounts matched too, otherwise
+  // searching for a provider would show its section with nothing in it.
+  function accountsFor(provider: ProviderRowData): AccountView[] {
+    const accounts = accountsByProvider[provider.id] ?? [];
+    if (!term || provider.label.toLowerCase().includes(term)) return accounts;
+    return accounts.filter((account) => accountLabel(account).toLowerCase().includes(term));
   }
+
+  async function loadAccounts(providerId: string): Promise<void> {
+    loadingAccounts[providerId] = true;
+    const result = await cairn.accountsList(providerId);
+    loadingAccounts[providerId] = false;
+    if (!result.ok) {
+      accountErrors[providerId] = result.error;
+      return;
+    }
+    accountsByProvider[providerId] = result.data;
+    accountErrors[providerId] = "";
+    // Keeps the count that decides whether this provider has a section at all in step with
+    // what was just listed, so removing the last account retires the section without a
+    // second round trip for every other provider.
+    const provider = providers.find((row) => row.id === providerId);
+    if (provider) provider.accountCount = result.data.length;
+  }
+
+  function ensureAccounts(providerId: string): void {
+    if (requested.has(providerId)) return;
+    requested.add(providerId);
+    void loadAccounts(providerId);
+  }
+
+  $effect(() => {
+    for (const provider of visibleProviders) ensureAccounts(provider.id);
+  });
 
   async function load(): Promise<void> {
     const result = await cairn.providersList();
@@ -75,7 +109,6 @@
     }
     providersError = "";
     providers = result.data;
-    await Promise.all(providers.map((provider) => loadAccounts(provider.id)));
   }
 
   async function handleToggle(providerId: string, id: string, on: boolean): Promise<void> {
@@ -103,9 +136,20 @@
     };
   }
 
+  function openPicker(): void {
+    pickerFilter = "";
+    pickerOpen = !pickerOpen;
+  }
+
   function pickProvider(provider: ProviderRowData): void {
     pickerOpen = false;
     addFor = { id: provider.id, label: provider.label };
+  }
+
+  function closePickerOnOutsideClick(event: MouseEvent): void {
+    if (!pickerOpen) return;
+    if (pickerEl && event.target instanceof Node && pickerEl.contains(event.target)) return;
+    pickerOpen = false;
   }
 
   onMount(() => {
@@ -113,19 +157,41 @@
   });
 </script>
 
+<svelte:window onclick={closePickerOnOutsideClick} />
+
 <div class="head">
   <div>
     <h1>Accounts</h1>
-    <p>Signed-in accounts across every provider, with quota and status at a glance.</p>
+    {#if loaded && !providersError && providers.length > 0}
+      <p>
+        {totalAccounts} {totalAccounts === 1 ? "account" : "accounts"}
+        across {connected.length} of {providers.length} {providers.length === 1 ? "provider" : "providers"}.
+      </p>
+    {:else}
+      <p>Signed-in accounts across every provider, with quota and status at a glance.</p>
+    {/if}
   </div>
   {#if loaded && !providersError && providers.length > 0}
-    <div class="picker">
-      <Button variant="primary" onclick={() => (pickerOpen = !pickerOpen)}>Add account</Button>
+    <div class="picker" bind:this={pickerEl}>
+      <Button variant="primary" onclick={openPicker}>Add account</Button>
       {#if pickerOpen}
         <div class="menu" role="menu">
-          {#each providers as provider (provider.id)}
-            <button role="menuitem" onclick={() => pickProvider(provider)}>{provider.label}</button>
-          {/each}
+          <input
+            class="filter"
+            aria-label="Filter providers"
+            placeholder="Filter providers"
+            bind:value={pickerFilter}
+          />
+          <div class="menuscroll">
+            {#each pickerProviders as provider (provider.id)}
+              <button role="menuitem" onclick={() => pickProvider(provider)}>
+                <span class="mlabel">{provider.label}</span>
+                {#if provider.accountCount > 0}<span class="mcount">{provider.accountCount}</span>{/if}
+              </button>
+            {:else}
+              <p class="mempty">No provider matches.</p>
+            {/each}
+          </div>
         </div>
       {/if}
     </div>
@@ -145,17 +211,25 @@
     <SearchField bind:value={searchRaw} placeholder="Search accounts" />
   </div>
 
-  {#each providers as provider (provider.id)}
-    {@const providerAccounts = filteredAccountsByProvider[provider.id] ?? []}
+  {#each visibleProviders as provider (provider.id)}
+    {@const providerAccounts = accountsFor(provider)}
     <CollapsibleGroup label={provider.label} count={providerAccounts.length}>
       {#snippet body()}
         {#if accountErrors[provider.id]}
           <p class="error">Could not load accounts for {provider.label}: {accountErrors[provider.id]}</p>
         {:else}
           <div class="grouptools">
-            <Button onclick={() => (addFor = { id: provider.id, label: provider.label })}>Add account</Button>
+            <Button onclick={() => (addFor = { id: provider.id, label: provider.label })}>
+              {provider.accountCount > 0 ? "Add another" : "Add account"}
+            </Button>
           </div>
-          {#if providerAccounts.length === 0}
+          {#if loadingAccounts[provider.id] && providerAccounts.length === 0}
+            <div class="skeletons">
+              {#each Array(Math.min(provider.accountCount || 1, 3)) as _}
+                <Skeleton height="64px" radius="10px" />
+              {/each}
+            </div>
+          {:else if providerAccounts.length === 0}
             <p class="empty">{searching ? "No accounts match your search." : "No accounts yet."}</p>
           {:else}
             <Card>
@@ -175,6 +249,12 @@
         {/if}
       {/snippet}
     </CollapsibleGroup>
+  {:else}
+    <p class="empty">
+      {searching
+        ? "No account or provider matches your search."
+        : "No accounts yet. Use Add account to sign in to a provider."}
+    </p>
   {/each}
 {/if}
 
@@ -205,7 +285,7 @@
   <AddAccountDialog
     provider={addFor}
     onClose={() => (addFor = null)}
-    onAdded={() => { addFor = null; load(); }}
+    onAdded={() => { const id = addFor?.id; addFor = null; if (id) { void loadAccounts(id); } void load(); }}
   />
 {/if}
 
@@ -254,9 +334,35 @@
     flex-direction: column;
     gap: 2px;
   }
+  /* The list is every installed provider, so it filters and scrolls rather than growing
+     the menu past the window. */
+  .menuscroll {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  .filter {
+    font-family: var(--ui);
+    font-size: 12px;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin-bottom: 6px;
+  }
+  .filter:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
   .menu button {
     all: unset;
     box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 8px;
     width: 100%;
     padding: 7px 10px;
     border-radius: 6px;
@@ -267,10 +373,36 @@
   .menu button:hover {
     background: var(--surface-2);
   }
+  .mlabel {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mcount {
+    flex: none;
+    font-size: 10.5px;
+    color: var(--muted);
+    background: var(--surface-2);
+    border-radius: 999px;
+    padding: 1px 6px;
+  }
+  .mempty {
+    margin: 0;
+    padding: 7px 10px;
+    font-size: 12px;
+    color: var(--muted);
+  }
   .grouptools {
     display: flex;
     justify-content: flex-end;
     margin-bottom: 8px;
+  }
+  .skeletons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
   .empty {
     margin: 0;

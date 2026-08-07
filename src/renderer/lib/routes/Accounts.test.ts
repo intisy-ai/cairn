@@ -213,41 +213,49 @@ describe("Accounts screen", () => {
       accountsLoginBegin,
     });
 
-    const { getByText, getAllByRole, findByRole } = render(Accounts);
+    const { getByText, getByRole, findByRole } = render(Accounts);
     await waitFor(() => expect(getByText("a@stub.test")).toBeTruthy());
 
-    const addButtons = getAllByRole("button", { name: "Add account" });
-    expect(addButtons.length).toBeGreaterThanOrEqual(2);
-    await fireEvent.click(addButtons[0]);
+    await fireEvent.click(getByRole("button", { name: "Add account" }));
 
-    const menuItem = await findByRole("menuitem", { name: "Stub" });
+    const menuItem = await findByRole("menuitem", { name: /^Stub/ });
     await fireEvent.click(menuItem);
 
     await findByRole("dialog", { name: /add stub account/i });
     await waitFor(() => expect(accountsLoginBegin).toHaveBeenCalledWith("stub"));
   });
 
-  it("shows an Add account affordance for every provider group, including an empty one, and opens its dialog", async () => {
+  // A provider you have not signed into is not worth a section of its own. At the ~50
+  // installed providers this screen has to hold, giving every one a group turned it into a
+  // page of empty boxes, and listing accounts for all of them just to find that out cost a
+  // round trip each. The count on the provider row answers that without any of them, and the
+  // provider stays reachable by name.
+  it("keeps a provider with no accounts out of the list until it is searched for, then offers to add one", async () => {
     const providersWithEmpty = [
       { id: "stub", label: "Stub", accountPool: "stub", sharedWith: [], pluginName: "stub", authKind: "oauth" as const, accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
       { id: "ghost", label: "Ghost", accountPool: "ghost", sharedWith: [], pluginName: "ghost", authKind: "oauth" as const, accountCount: 0, enabled: true, exposure: { claude: true, opencode: false } },
     ];
     const accountsLoginBegin = vi.fn(async () => ({ ok: true, data: { url: "https://x/login", instructions: "" } }) as const);
+    const accountsList = vi.fn(async (provider: string) => (provider === "stub" ? { ok: true, data: ACCOUNTS } : { ok: true, data: [] }) as const);
     stubCairn({
       providersList: async () => ({ ok: true, data: providersWithEmpty }),
-      accountsList: async (provider) => (provider === "stub" ? { ok: true, data: ACCOUNTS } : { ok: true, data: [] }),
+      accountsList,
       accountsLoginBegin,
     });
 
-    const { getByText, container, findByRole } = render(Accounts);
+    const { getByText, getByLabelText, container, findByRole } = render(Accounts);
     await waitFor(() => expect(getByText("a@stub.test")).toBeTruthy());
-    await waitFor(() => expect(getByText(/no accounts yet/i)).toBeTruthy());
 
-    const groups = Array.from(container.querySelectorAll("section.grp"));
-    const ghostGroup = groups.find((g) => g.querySelector(".lbl")?.textContent === "Ghost");
-    expect(ghostGroup).toBeTruthy();
-    const addButton = within(ghostGroup as HTMLElement).getByRole("button", { name: "Add account" });
-    await fireEvent.click(addButton);
+    const groupLabels = () => Array.from(container.querySelectorAll("section.grp .lbl")).map((node) => node.textContent);
+    expect(groupLabels()).toEqual(["Stub"]);
+    expect(accountsList).not.toHaveBeenCalledWith("ghost");
+
+    await fireEvent.input(getByLabelText("Search accounts"), { target: { value: "ghost" } });
+    await waitFor(() => expect(groupLabels()).toEqual(["Ghost"]));
+
+    const ghostGroup = Array.from(container.querySelectorAll("section.grp"))
+      .find((group) => group.querySelector(".lbl")?.textContent === "Ghost");
+    await fireEvent.click(within(ghostGroup as HTMLElement).getByRole("button", { name: "Add account" }));
 
     await findByRole("dialog", { name: /add ghost account/i });
     await waitFor(() => expect(accountsLoginBegin).toHaveBeenCalledWith("ghost"));
