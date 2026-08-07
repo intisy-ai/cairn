@@ -3,8 +3,11 @@
   import type { HostApp, AppConnection, AppSummary, ImportableApp } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { track } from "../downloads.js";
+  import { debounce } from "../util/debounce.js";
   import StatusPill from "../components/StatusPill.svelte";
   import Button from "../components/Button.svelte";
+  import SearchField from "../components/SearchField.svelte";
+  import EmptyState from "../components/EmptyState.svelte";
   import Skeleton from "../components/Skeleton.svelte";
   import Spinner from "../components/Spinner.svelte";
   import ImportDialog from "../components/ImportDialog.svelte";
@@ -34,9 +37,28 @@
   let importAppLabel = $state("");
 
   let view = $state<ViewMode>("list");
+  let searchRaw = $state("");
+  let search = $state("");
 
-  const visibleApps = $derived(apps.filter((app) => app.id !== "cairn"));
-  const selectedApp = $derived(visibleApps.find((a) => a.id === selected) ?? null);
+  const applySearch = debounce((value: string) => {
+    search = value;
+  }, 120);
+
+  $effect(() => {
+    applySearch(searchRaw);
+  });
+
+  const hostApps = $derived(apps.filter((app) => app.id !== "cairn"));
+  const visibleApps = $derived.by(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return hostApps;
+    return hostApps.filter((app) =>
+      app.label.toLowerCase().includes(term)
+      || app.id.toLowerCase().includes(term)
+      || (conns[app.id]?.loaderId ?? "").toLowerCase().includes(term));
+  });
+  const selectedApp = $derived(hostApps.find((a) => a.id === selected) ?? null);
+  const connectedCount = $derived(hostApps.filter((app) => isConnected(conns[app.id])).length);
 
   function setView(mode: ViewMode): void {
     view = mode;
@@ -155,7 +177,12 @@
   });
 </script>
 
-<PageHeader title="Apps" subtitle="Connect the host CLIs Cairn routes through the local API." />
+<PageHeader
+  title="Apps"
+  subtitle={loaded && hostApps.length > 0
+    ? `${connectedCount} of ${hostApps.length} connected and routing through the local API.`
+    : "Connect the host CLIs Cairn routes through the local API."}
+/>
 
 {#if connError}
   <p class="error">Could not load app status: {connError}</p>
@@ -191,6 +218,43 @@
   </div>
 {/snippet}
 
+{#snippet appCard(app: HostApp)}
+  {@const c = conns[app.id]}
+  {@const connected = isConnected(c)}
+  <div class="app-card" class:connected>
+    <button class="card-open" title={`Open ${app.label}`} onclick={() => open(app)}>
+      <PluginIcon name={app.label} icon={app.icon} size={LOGO_SIZE.list} />
+      <span class="card-text">
+        <span class="card-title"><b>{app.label}</b></span>
+        <span class="card-sub">{c?.loaderId ?? "No loader"}</span>
+      </span>
+    </button>
+    <span class="rchips">
+      <span class="rchip" class:on={c?.cliPresent}>CLI</span>
+      {#if c?.loaderId}<span class="rchip" class:on={c?.loaderInstalled}>Loader</span>{/if}
+    </span>
+    <div class="card-footer">
+      <StatusPill variant={connected ? "good" : "off"} label={statusLabel(c)} />
+      {#if !connected}
+        <Button variant="primary" disabled={busy[app.id]} onclick={() => handlePrimary(app)}>
+          {#if busy[app.id]}<Spinner />{/if}
+          {ctaLabel(c)}
+        </Button>
+      {:else}
+        <Button variant="danger" onclick={() => (uninstalling = app)}>Uninstall</Button>
+      {/if}
+    </div>
+  </div>
+{/snippet}
+
+{#snippet appsEmptyState()}
+  {#if hostApps.length === 0}
+    <EmptyState message="No apps registered yet." />
+  {:else if visibleApps.length === 0}
+    <EmptyState message="No app matches your search." actionLabel="Clear search" onAction={() => (searchRaw = "")} />
+  {/if}
+{/snippet}
+
 {#if !loaded}
   <div class="skeletons">
     <Skeleton height="60px" radius="12px" />
@@ -198,6 +262,7 @@
   </div>
 {:else}
   <div class="toolbar">
+    <SearchField bind:value={searchRaw} placeholder="Search apps" />
     <ViewToggle value={view} onChange={setView} />
   </div>
 
@@ -205,7 +270,7 @@
     <div class="apps-grid" data-testid="apps-grid">
       {#each visibleApps as app (app.id)}
         <div data-testid={"app-" + app.id} in:flyMotion={{ y: 6 }}>
-          {@render appEntry(app)}
+          {@render appCard(app)}
         </div>
       {/each}
     </div>
@@ -218,6 +283,7 @@
       {/each}
     </ul>
   {/if}
+  {@render appsEmptyState()}
 {/if}
 
 {#if selectedApp}
@@ -266,8 +332,10 @@
 <style>
   .toolbar {
     display: flex;
-    justify-content: flex-end;
-    margin-bottom: 12px;
+    align-items: center;
+    gap: 10px;
+    margin: 0 2px 12px;
+    flex-wrap: wrap;
   }
   .list {
     list-style: none;
@@ -279,7 +347,7 @@
   }
   .apps-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
     gap: 10px;
   }
   .approw {
@@ -297,9 +365,63 @@
   .approw.connected {
     border-color: var(--border-strong);
   }
-  .apps-grid .approw {
+  .app-card {
+    display: flex;
     flex-direction: column;
-    align-items: stretch;
+    gap: 9px;
+    height: 100%;
+    padding: 12px 13px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .app-card:hover,
+  .app-card.connected {
+    border-color: var(--border-strong);
+  }
+  .card-open {
+    /* Icon beside the text rather than above it, so a card costs one row of height
+       instead of two. */
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    background: none;
+    border: 0;
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+  }
+  .card-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .card-title b {
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+  }
+  .card-sub {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    /* Cards in a row stretch to the tallest, so without this the action sits at a
+       different height in every card and the grid reads as ragged. */
+    margin-top: auto;
   }
   .rowmain {
     display: flex;
@@ -363,19 +485,9 @@
     font-size: 17px;
     flex: none;
   }
-  .apps-grid .chev {
-    display: none;
-  }
   .rowact {
     flex: none;
     display: flex;
-  }
-  .apps-grid .rowact {
-    margin-top: 10px;
-  }
-  .apps-grid .rowact :global(button) {
-    width: 100%;
-    justify-content: center;
   }
   .skeletons {
     display: flex;

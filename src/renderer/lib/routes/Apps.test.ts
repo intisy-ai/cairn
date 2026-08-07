@@ -247,4 +247,37 @@ describe("Apps screen", () => {
     expect(screen.queryByTestId("apps-grid")).toBeNull();
     await waitFor(() => expect(setConfig).toHaveBeenCalledWith("cairn", "viewMode.apps", "list"));
   });
+
+  it("filters the list by name and by loader", async () => {
+    stubCairn({ ...TWO_APPS, appsConnection: CONNECTED });
+    render(Apps);
+    await screen.findByTestId("app-claude");
+
+    const field = screen.getByLabelText("Search apps");
+    await fireEvent.input(field, { target: { value: "opencode" } });
+    await waitFor(() => expect(screen.queryByTestId("app-claude")).toBeNull());
+    expect(screen.getByTestId("app-opencode")).toBeInTheDocument();
+
+    await fireEvent.input(field, { target: { value: "claude-code-loader" } });
+    await waitFor(() => expect(screen.getByTestId("app-claude")).toBeInTheDocument());
+    expect(screen.queryByTestId("app-opencode")).toBeNull();
+  });
+
+  it("offers a way back when the search matches nothing", async () => {
+    stubCairn({ ...TWO_APPS, appsConnection: CONNECTED });
+    render(Apps);
+    await screen.findByTestId("app-claude");
+
+    await fireEvent.input(screen.getByLabelText("Search apps"), { target: { value: "nothing-here" } });
+    const clear = await screen.findByRole("button", { name: "Clear search" });
+
+    await fireEvent.click(clear);
+    await waitFor(() => expect(screen.getByTestId("app-claude")).toBeInTheDocument());
+  });
+
+  it("reports how many apps are connected", async () => {
+    stubCairn({ ...TWO_APPS, appsConnection: CONNECTED });
+    render(Apps);
+    expect(await screen.findByText(/1 of 2 connected/i)).toBeInTheDocument();
+  });
 });
