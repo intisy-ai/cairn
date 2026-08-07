@@ -26,6 +26,7 @@ import {
 } from "../lib/optionalEngines.js";
 import { pluginByCapability } from "./engines.js";
 import { wrap } from "../result.js";
+import { reposDir } from "../lib/storagePaths.js";
 
 const VERSIONS_NS = "versions";
 const PLUGIN_MANAGEMENT = "plugin-management";
@@ -130,7 +131,7 @@ export function withHome<T>(dir: string, fn: () => Promise<T>, appId?: string): 
 
 function readDescription(homeDirPath: string, name: string): string {
   try {
-    const pkg = JSON.parse(readFileSync(join(homeDirPath, "repos", name, "package.json"), "utf-8"));
+    const pkg = JSON.parse(readFileSync(join(reposDir(homeDirPath), name, "package.json"), "utf-8"));
     return typeof pkg.description === "string" ? pkg.description : "";
   } catch {
     return "";
@@ -141,7 +142,7 @@ function readDescription(homeDirPath: string, name: string): string {
 // the referenced icon SVG base64-encoded into a data URI (safe for an <img>).
 function readManifest(homeDirPath: string, name: string): { displayName?: string; icon?: string } {
   try {
-    const repoDir = join(homeDirPath, "repos", name);
+    const repoDir = join(reposDir(homeDirPath), name);
     const manifest = JSON.parse(readFileSync(join(repoDir, "cairn.json"), "utf-8"));
     const out: { displayName?: string; icon?: string } = {};
     if (typeof manifest.displayName === "string" && manifest.displayName) out.displayName = manifest.displayName;
@@ -164,7 +165,7 @@ function rowFor(name: string, kind: "git" | "npm", enabled: boolean, url: string
     kind,
     // An npm plugin is present by virtue of being listed; a git one needs its clone. A config
     // entry with nothing behind it is an install the manager has not carried out yet.
-    present: kind === "npm" || existsSync(join(homeDirPath, "repos", name)),
+    present: kind === "npm" || existsSync(join(reposDir(homeDirPath), name)),
     enabled,
     url,
     installedVersion: entry?.installedVersion ?? null,
@@ -301,7 +302,7 @@ export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Pro
       const entry = cache.plugins[name];
       const gitEntry = (await listGit(home.dir)).find((p) => p.name === name);
       const autoUpdate = gitEntry ? gitEntry.autoUpdate !== false : true;
-      const repoDir = join(home.dir, "repos", name);
+      const repoDir = join(reposDir(home.dir), name);
       if (exists(repoDir)) {
         out[home.id] = await gitVersionFor(repoDir, entry, describe, autoUpdate, cache.checkedAt ?? null);
       } else if (entry?.kind === "npm") {
@@ -335,7 +336,7 @@ export function pluginVersionsAll(deps: PluginVersionsDeps = {}): Promise<Result
       const gitEntries = await listGit(home.dir);
       const described = await Promise.all(
         gitEntries.map(async (p) => {
-          const repoDir = join(home.dir, "repos", p.name);
+          const repoDir = join(reposDir(home.dir), p.name);
           if (!exists(repoDir)) return { p, version: null };
           return { p, version: await gitVersionFor(repoDir, cache.plugins[p.name], describe, p.autoUpdate !== false, cache.checkedAt ?? null) };
         }),

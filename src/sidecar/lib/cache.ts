@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
+import { cacheDir } from "./storagePaths.js";
 
 // A generic, persistent, namespaced key/value cache for anything Cairn wants to
 // show instantly on load and refresh in the background: plugin versions, repo
@@ -15,7 +16,7 @@ type CacheFile = Record<string, Record<string, CacheEntry<unknown>>>;
 const memory = new Map<string, CacheFile>();
 
 function cachePath(configDir: string): string {
-  return join(configDir, "cache", "cairn-cache.json");
+  return join(cacheDir(configDir), "cairn-cache.json");
 }
 
 function load(configDir: string): CacheFile {

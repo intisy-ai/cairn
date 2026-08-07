@@ -5,6 +5,7 @@ import { getConfigDir } from "@core-auth/index.js";
 import { getAppDescriptor } from "@core/index.js";
 import type { RoutingProfile } from "@core-proxy/index.js";
 import { safeGetPlugins } from "./optionalEngines.js";
+import { reposDir } from "./storagePaths.js";
 
 export type LoadedProxyDef = { app: string; label: string; profile: () => RoutingProfile; setup?: string };
 
@@ -26,7 +27,7 @@ export interface ProxyPluginsDeps {
 export type InstalledProxy = { name: string; enabled: boolean; def: LoadedProxyDef | null };
 
 async function loadProxyDef(storeDir: string, name: string, importFn: (url: string) => Promise<unknown>): Promise<LoadedProxyDef | null> {
-  const distPath = join(storeDir, "repos", name, "dist", "index.js");
+  const distPath = join(reposDir(storeDir), name, "dist", "index.js");
   let mtimeMs: number;
   try {
     mtimeMs = statSync(distPath).mtimeMs;

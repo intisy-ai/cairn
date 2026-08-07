@@ -5,6 +5,7 @@ import { getConfigDir } from "@core-auth/index.js";
 import { pluginByCapability } from "./engines.js";
 import type { CustomEndpoint, CustomEndpointView, Result } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
+import { reposDir } from "../lib/storagePaths.js";
 
 // Custom endpoints are the provider plugin's own data: what makes one valid, where it is
 // stored, and what has to happen for it to become routable are all decided there. This module
@@ -33,7 +34,7 @@ export interface EndpointsApi {
 function repoDir(dir: string): string {
   const plugin = pluginByCapability("custom-endpoints");
   if (!plugin) throw new Error("no plugin provides custom endpoints");
-  return join(dir, "repos", plugin.id);
+  return join(reposDir(dir), plugin.id);
 }
 
 async function realLoadPlugin(dir: string): Promise<EndpointsApi | null> {

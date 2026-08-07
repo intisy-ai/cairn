@@ -8,6 +8,7 @@ import type { Job, JobSpec, Rollback } from "./model.js";
 import { parseGitProgress } from "./gitProgress.js";
 import { parseWorkerPhase } from "./workerPhase.js";
 import { safeGetPlugins, loadPluginUpdaterIndex } from "../lib/optionalEngines.js";
+import { reposDir, pluginDir } from "../lib/storagePaths.js";
 
 // What the worker is told to do. Mirrors src/installer/index.ts's JobMessage.
 export interface JobMessage extends JobSpec {
@@ -122,7 +123,7 @@ async function realRollbackClone(homeDir: string, plugin: string, wait: (ms: num
     const mod = await loadPluginUpdaterIndex();
     if (mod) mod.uninstallPlugin(homeDir, plugin);
   }
-  for (const path of [join(homeDir, "repos", plugin), join(homeDir, "plugin", `${plugin}.js`), join(homeDir, "plugin", `${plugin}.sha`)]) {
+  for (const path of [join(reposDir(homeDir), plugin), join(pluginDir(homeDir), `${plugin}.js`), join(pluginDir(homeDir), `${plugin}.sha`)]) {
     await removeWithRetry(path, wait);
   }
 }

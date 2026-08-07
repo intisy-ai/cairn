@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { INSTALLER_PATH_ENV } from "../jobs/runner.js";
 import type { PluginHome } from "../../../packages/shared/src/domain.js";
+import { reposDir, pluginDir } from "../lib/storagePaths.js";
 
 const MANAGER_URL = "https://github.com/intisy-ai/plugin-updater";
 
@@ -71,8 +72,8 @@ describe("a running job and the sidecar", () => {
     expect(phases.size).toBeGreaterThan(1);
 
     const home = homes[1].dir;
-    expect(existsSync(join(home, "repos", "plugin-updater")), "clone landed").toBe(true);
-    expect(existsSync(join(home, "plugin", "plugin-updater.js")), "bundle deployed").toBe(true);
+    expect(existsSync(join(reposDir(home), "plugin-updater")), "clone landed").toBe(true);
+    expect(existsSync(join(pluginDir(home), "plugin-updater.js")), "bundle deployed").toBe(true);
     expect(existsSync(join(home, "settings.json")), "registered with the app").toBe(true);
   }, 600_000);
 
@@ -99,7 +100,7 @@ describe("a running job and the sidecar", () => {
       await new Promise((r) => setTimeout(r, 200));
     }
 
-    expect(existsSync(join(target.dir, "repos", "plugin-updater")), "clone rolled back").toBe(false);
+    expect(existsSync(join(reposDir(target.dir), "plugin-updater")), "clone rolled back").toBe(false);
   }, 600_000);
 
   it("reports real byte throughput read from git during a clone", async () => {

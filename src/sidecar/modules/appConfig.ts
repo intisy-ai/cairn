@@ -8,6 +8,7 @@ import { safeGetPlugins, loadPluginUpdaterConfig, loadPluginUpdaterIndex } from 
 import { probeDeclarations, readCurrentValues } from "../lib/schemaProbe.js";
 import type { Bundle, Declaration } from "../lib/schemaProbe.js";
 import { wrap } from "../result.js";
+import { pluginDir } from "../lib/storagePaths.js";
 
 type ProbeFn = (bundlePath: string) => Promise<PluginConfigSchema | null>;
 
@@ -63,7 +64,7 @@ export function configSchemas(homeId: string, deps: ConfigSchemasDeps = {}): Pro
     const values = deps.values ?? readCurrentValues;
 
     const bundles: Bundle[] = (await safeGetPlugins(home.dir))
-      .map((plugin) => ({ plugin: plugin.name, path: join(home.dir, "plugin", `${plugin.name}.js`) }))
+      .map((plugin) => ({ plugin: plugin.name, path: join(pluginDir(home.dir), `${plugin.name}.js`) }))
       .filter((bundle) => existsSync(bundle.path));
     const declared = await declare(bundles);
 
@@ -111,7 +112,7 @@ export function configAction(homeId: string, plugin: string, actionId: string, d
     if (!(await safeGetPlugins(dir)).some((p) => p.name === plugin)) {
       throw new Error(`plugin not found: ${plugin}`);
     }
-    const bundlePath = join(dir, "plugin", `${plugin}.js`);
+    const bundlePath = join(pluginDir(dir), `${plugin}.js`);
     if (!existsSync(bundlePath)) throw new Error(`plugin bundle not found: ${plugin}`);
     const probe = deps.probe ?? realProbe;
     const schema = await probe(bundlePath);

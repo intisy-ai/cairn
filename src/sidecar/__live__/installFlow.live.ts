@@ -10,6 +10,7 @@ import { mkdtempSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginHome } from "../../../packages/shared/src/domain.js";
+import { reposDir, pluginDir } from "../lib/storagePaths.js";
 
 const CLONE_TIMEOUT_MS = 300_000;
 
@@ -53,8 +54,8 @@ describe.each(["claude", "opencode"])("installing the plugin manager into the %s
     const result = await installManager(homeId);
     expect(result.ok, result.ok ? "" : String(result.error)).toBe(true);
 
-    expect(existsSync(join(home.dir, "repos", manager.id)), "clone exists").toBe(true);
-    expect(existsSync(join(home.dir, "plugin", `${manager.id}.js`)), "bundle deployed").toBe(true);
+    expect(existsSync(join(reposDir(home.dir), manager.id)), "clone exists").toBe(true);
+    expect(existsSync(join(pluginDir(home.dir), `${manager.id}.js`)), "bundle deployed").toBe(true);
 
     const registered = JSON.parse(readFileSync(join(home.dir, "config", "plugins.json"), "utf8")) as Array<{ name: string }>;
     expect(registered.some((p) => p.name === manager.id), "registered in plugins.json").toBe(true);

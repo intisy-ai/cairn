@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { getApps, registerApp, resolveHome } from "@core/index.js";
+import { getApps, registerApp, resolveHome, DEFAULT_PATH_NAMES, appPaths } from "@core/index.js";
 import type { AppDescriptor } from "@core/index.js";
 import { scanOrg } from "./orgScan.js";
 import type { OrgScanDeps } from "./orgScan.js";
@@ -24,6 +24,7 @@ function normalizeDescriptor(desc: AppDescriptor): AppDescriptor {
     detect: { binary: desc.detect?.binary ?? desc.id, pkg: desc.detect?.pkg ?? "" },
     loader: desc.loader,
     commandsSubdir: desc.commandsSubdir ?? "commands",
+    paths: { ...DEFAULT_PATH_NAMES, ...desc.paths },
     proxyPort: desc.proxyPort ?? 0,
     integration: desc.integration ?? "env-baseurl",
     // Not core's actual wireFormat default (an arbitrary wire-format id, never
@@ -122,7 +123,7 @@ export async function discoverApps(deps: AppDiscoveryDeps = {}): Promise<void> {
   for (const desc of [...current, ...candidates.values()]) if (desc.loader) withLoader.set(desc.id, desc);
   for (const desc of withLoader.values()) {
     try {
-      const dir = join(resolveHome(desc), "repos", desc.loader!.id);
+      const dir = join(appPaths(resolveHome(desc), desc).repos, desc.loader!.id);
       const block = readInstalledAppBlock(dir, exists, readFile);
       const icon = readInstalledIcon(dir, exists, readFile);
       const merged: AppDescriptor = { ...(candidates.get(desc.id) ?? desc), ...(block ?? {}) };
