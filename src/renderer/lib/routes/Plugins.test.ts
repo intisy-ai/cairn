@@ -714,6 +714,40 @@ describe("Plugins screen", () => {
     expect(await screen.findByText("metric-dashboard")).toBeInTheDocument();
   });
 
+  // Reading every home takes long enough that the screen used to sit on a skeleton for
+  // seconds. The last list is drawn first so there is something real on screen immediately.
+  it("paints the cached list while the real one is still being read", async () => {
+    let releaseLive: (value: { ok: true; data: HomePlugins[] }) => void = () => {};
+    const live = new Promise<{ ok: true; data: HomePlugins[] }>((resolve) => { releaseLive = resolve; });
+    stubCairn({
+      pluginsListCached: async () => ({ ok: true, data: [
+        { home: CLAUDE, rows: [{ name: "from-cache", kind: "git" as const, enabled: true, updateAvailable: false, description: "cached" }] },
+      ] }),
+      pluginsList: () => live,
+      catalogList: async () => ({ ok: true, data: { entries: [], source: "gh" as const } }),
+    });
+    render(Plugins);
+
+    expect(await screen.findByText("from-cache")).toBeInTheDocument();
+
+    releaseLive({ ok: true, data: [
+      { home: CLAUDE, rows: [{ name: "from-disk", kind: "git", enabled: true, updateAvailable: false, description: "live" }] },
+    ] });
+
+    expect(await screen.findByText("from-disk")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("from-cache")).toBeNull());
+  });
+
+  it("leaves the skeleton up when nothing is cached yet", async () => {
+    stubCairn({
+      pluginsListCached: async () => ({ ok: true, data: [] }),
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+    });
+    render(Plugins);
+    expect(await screen.findByText("wakatime-sync")).toBeInTheDocument();
+  });
+
   // A row on the Downloads screen links here with the plugin named, so it must open.
   it("opens the named plugin when arrived at with a plugin param", async () => {
     stubCairn({

@@ -29,6 +29,7 @@ import { wrap } from "../result.js";
 import { reposDir } from "../lib/storagePaths.js";
 
 const VERSIONS_NS = "versions";
+const PLUGINS_NS = "plugins";
 const PLUGIN_MANAGEMENT = "plugin-management";
 
 // The plugin manager is identified by capability, never by name, so Cairn keeps no
@@ -178,6 +179,7 @@ function rowFor(name: string, kind: "git" | "npm", enabled: boolean, url: string
 
 export interface PluginsDeps {
   homes?: PluginHome[];
+  cacheDir?: string;
   missingArtifacts?: (dir: string, name: string) => Promise<string[]>;
   updatePluginPublic?: UpdatePluginPublicFn;
   syncPluginsAcrossApps?: SyncPluginsAcrossAppsFn;
@@ -205,7 +207,7 @@ export function pluginsList(deps: PluginsDeps = {}): Promise<Result<HomePlugins[
     const missingArtifacts = deps.missingArtifacts ?? safeMissingArtifacts;
     // Homes are independent, so they are read concurrently rather than one after
     // another: the list is what the user waits on before any plugin screen paints.
-    return Promise.all(homes.map(async (home): Promise<HomePlugins> => {
+    const sections = await Promise.all(homes.map(async (home): Promise<HomePlugins> => {
       if (!home.present) return { home, rows: [] };
       const cache = await realReadUpdateCache(home.dir);
       const gitRows = await Promise.all((await listGit(home.dir)).map(async (p) => ({
@@ -216,6 +218,18 @@ export function pluginsList(deps: PluginsDeps = {}): Promise<Result<HomePlugins[
       const npmRows = (await getNpmPlugins(home.dir)).map((p) => rowFor(p.name, "npm", true, undefined, cache, home.dir));
       return { home, rows: [...gitRows, ...npmRows] };
     }));
+    writeCacheMany(PLUGINS_NS, Object.fromEntries(sections.map((s) => [s.home.id, s])), deps.cacheDir ?? getConfigDir());
+    return sections;
+  });
+}
+
+// The last list this home produced, returned without touching disk beyond the cache file.
+// The screen paints from this first so it is never blank while the real read runs, which is
+// what the wait before any plugin screen appeared actually was.
+export function pluginsListCached(deps: PluginsDeps = {}): Promise<Result<HomePlugins[]>> {
+  return wrap(async () => {
+    const ns = readNamespace<HomePlugins>(PLUGINS_NS, deps.cacheDir ?? getConfigDir());
+    return Object.values(ns).map((entry) => entry.value);
   });
 }
 

@@ -35,6 +35,7 @@ export interface CairnAPI {
   repoMeta(url: string): Promise<Result<RepoMeta>>;
   repoMetaCached(url: string): Promise<Result<RepoMeta | null>>;
   pluginsList(): Promise<Result<HomePlugins[]>>;
+  pluginsListCached(): Promise<Result<HomePlugins[]>>;
   librariesList(): Promise<Result<HomeLibraries[]>>;
   pluginVersions(name: string): Promise<Result<Record<string, PluginVersion>>>;
   pluginVersionsAll(): Promise<Result<Record<string, Record<string, PluginVersion>>>>;

@@ -9,7 +9,7 @@ import { accountsLoginBegin, accountsLoginComplete, accountsLoginCancel } from "
 import { providersList, providersSetEnabled, providersSetExposure } from "./modules/providers.js";
 import { routingApps, routingGet, routingSetChain } from "./modules/routing.js";
 import { appsDetect, appsList, appsInstallCli, appsUninstallCli, appsSummary, appsConnection, appsInstallLoader } from "./modules/apps.js";
-import { pluginsList, pluginVersions, pluginVersionsAll, pluginVersionsCached, pluginsInstall, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsSetAutoUpdate, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
+import { pluginsList, pluginsListCached, pluginVersions, pluginVersionsAll, pluginVersionsCached, pluginsInstall, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsSetAutoUpdate, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
 import { enginesList, ensureEngine } from "./modules/engines.js";
 import { proxiesList, proxiesSetEnabled } from "./modules/proxies.js";
 import { repoMeta, repoMetaCached } from "./modules/repo.js";
@@ -144,6 +144,7 @@ registerHandler("apps:installLoader", (app) => appsInstallLoader(app as string))
 registerHandler("repo:meta", (url) => repoMeta(url as string));
 registerHandler("repo:metaCached", (url) => repoMetaCached(url as string));
 registerHandler("plugins:list", () => pluginsList());
+registerHandler("plugins:listCached", () => pluginsListCached());
 registerHandler("libraries:list", () => librariesList());
 registerHandler("plugins:versions", (name) => pluginVersions(name as string));
 registerHandler("plugins:versionsAll", () => pluginVersionsAll());

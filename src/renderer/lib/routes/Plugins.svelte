@@ -228,7 +228,20 @@
     await fresh;
   }
 
+  // The cached list is whatever the last real read produced, so the screen has rows to draw
+  // before anything is read again. It is only a head start: the live read replaces it, and a
+  // cache miss just leaves the skeleton up as before.
+  async function paintFromCache(): Promise<void> {
+    if (sections.length > 0) return;
+    const result = await cairn.pluginsListCached();
+    if (result.ok && result.data.length > 0 && sections.length === 0) {
+      sections = result.data;
+      loaded = true;
+    }
+  }
+
   async function reload(): Promise<void> {
+    void paintFromCache();
     await Promise.all([loadPlugins(), loadCatalog(), loadEngines(), loadFavorites(), loadGithubStatus()]);
     queuedManagerHomes = new Set();
     loaded = true;

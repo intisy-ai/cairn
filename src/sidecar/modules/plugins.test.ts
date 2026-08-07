@@ -555,6 +555,40 @@ describe("plugin versions", () => {
     expect(result.data.opencode).toEqual({ kind: "git", label: null, updateState: "unknown", autoUpdate: true });
   });
 
+  // Listing the homes is what the plugin screen waits on before it can paint anything at all,
+  // so the last answer is kept and handed back on the next launch while the real read runs.
+  it("persists the listed rows so a later cached read returns them instantly", async () => {
+    const { resetCacheForTests } = await import("../lib/cache.js");
+    resetCacheForTests();
+    const { pluginsList, pluginsListCached } = await import("./plugins.js");
+    const deps = {
+      homes: fakeHomes,
+      getPlugins: (dir: string) => (dir === claudeDir ? [{ name: "plugin-a", url: "u", enabled: true }] : []),
+      npmPlugins: async () => [],
+      missingArtifacts: async () => [],
+      cacheDir: cairnDir,
+    } as never;
+
+    const live = await pluginsList(deps);
+    expect(live.ok).toBe(true);
+    resetCacheForTests();
+
+    const cached = await pluginsListCached({ cacheDir: cairnDir });
+    expect(cached.ok).toBe(true);
+    if (!cached.ok) throw new Error("unreachable");
+    expect(cached.data.map((s) => s.home.id)).toEqual(["cairn", "claude", "opencode"]);
+    expect(cached.data.find((s) => s.home.id === "claude")?.rows.map((r) => r.name)).toEqual(["plugin-a"]);
+  });
+
+  it("returns nothing cached before anything has been listed", async () => {
+    const { resetCacheForTests } = await import("../lib/cache.js");
+    resetCacheForTests();
+    const { pluginsListCached } = await import("./plugins.js");
+    const cached = await pluginsListCached({ cacheDir: cairnDir });
+    expect(cached.ok).toBe(true);
+    if (cached.ok) expect(cached.data).toEqual([]);
+  });
+
   it("persists computed versions so a later cached read returns them instantly", async () => {
     const { resetCacheForTests } = await import("../lib/cache.js");
     resetCacheForTests();
