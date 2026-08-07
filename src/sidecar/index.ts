@@ -28,7 +28,7 @@ import { loadPluginUpdaterIndex } from "./lib/optionalEngines.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
 import type { ActivityQuery } from "@core/index.js";
 import { setActivityContext, withCause } from "@core/index.js";
-import { getConfigDir } from "@core-auth/index.js";
+import { cairnHome } from "./lib/pluginHomes.js";
 import { usageSnapshot } from "./modules/usage.js";
 import { discoverApps } from "./lib/appDiscovery.js";
 import { importApps, importPreview, importRun } from "./modules/import.js";
@@ -50,7 +50,7 @@ const handlers: Record<string, SidecarHandler> = {};
 // so this states the one value pluginHomes already calls this app's own dir. Deriving
 // it a second way is how they drift apart.
 try {
-  setActivityContext({ app: "cairn", entry: "sidecar", home: getConfigDir() });
+  setActivityContext({ app: "cairn", entry: "sidecar", home: cairnHome() });
 } catch { /* attribution is never worth failing to start over */ }
 
 export function registerHandler(channel: string, handler: SidecarHandler): void {
@@ -65,7 +65,7 @@ export interface BackgroundUpdateDeps {
 // Fire and forget on purpose: the dashboard must open whether or not an update run
 // works, and must not wait on ls-remote before answering its first request.
 export function startBackgroundUpdates(deps: BackgroundUpdateDeps = {}): void {
-  const home = deps.home ?? getConfigDir();
+  const home = deps.home ?? cairnHome();
   void (async () => {
     try {
       const run = deps.runUpdates ?? requirePluginUpdater(await loadPluginUpdaterIndex()).runUpdates;

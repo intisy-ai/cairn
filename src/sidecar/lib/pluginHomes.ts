@@ -1,7 +1,6 @@
 import { homedir } from "node:os";
-import { join } from "node:path";
-import { getConfigDir } from "@core-auth/index.js";
-import { getApps, getAppDescriptor, resolveHome } from "@core/index.js";
+import { dirname, join } from "node:path";
+import { getApps, getAppDescriptor, resolveHome, resolveAppsFile } from "@core/index.js";
 import { appsDetect } from "../modules/apps.js";
 import { renderCairnMark } from "../../../packages/shared/src/logo.js";
 import { svgIconDataUri } from "./pluginIcon.js";
@@ -12,6 +11,14 @@ import { safeGetPlugins, loadPluginUpdaterConfig } from "./optionalEngines.js";
 export function appRealHome(app: string, env: NodeJS.ProcessEnv = process.env, home: string = homedir()): string {
   const desc = getAppDescriptor(app, env, home);
   return desc ? resolveHome(desc, env, home) : "";
+}
+
+// Cairn's OWN home, which is the directory holding its app registry. core-auth's
+// getConfigDir resolves the active APP's home (claude or opencode) and can never
+// name Cairn, so anything about Cairn itself (its plugin home, the home its
+// activity is stamped with, the home its background updates run against) asks here.
+export function cairnHome(): string {
+  return dirname(resolveAppsFile());
 }
 
 // "Has the updater" means plugin-updater is actually installed in this home (a git
@@ -57,7 +64,7 @@ export async function pluginHomes(deps: PluginHomesDeps = {}): Promise<PluginHom
   const detect = deps.detect ?? appsDetect;
   const hasUpdater = deps.hasUpdater ?? updaterInstalled;
   const hasLoader = deps.hasLoader ?? loaderInstalled;
-  const cairnDir = deps.cairnDir ?? getConfigDir();
+  const cairnDir = deps.cairnDir ?? cairnHome();
   const appHomeForId = deps.appHome ?? appRealHome;
   const detected = await detect();
   const present: AppPresence = detected.ok ? detected.data : {};

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { appRealHome, pluginHomes, loaderInstalled } from "./pluginHomes.js";
 import type { AppDescriptor } from "@core/index.js";
 
@@ -69,6 +69,19 @@ describe("appRealHome", () => {
 });
 
 describe("pluginHomes", () => {
+  // Cairn's own home used to come from core-auth's getConfigDir, which resolves the
+  // active APP's home and can never name Cairn: the row pointed at another app's
+  // directory, so installing "into Cairn" wrote there and its plugins were listed twice.
+  it("defaults cairn's home to where its app registry lives, not an app's home", async () => {
+    const homes = await pluginHomes({
+      detect: async () => ({ ok: true, data: {} }),
+      appHome: () => "/home/app",
+      hasUpdater: () => false,
+    });
+    expect(homes[0].id).toBe("cairn");
+    expect(homes[0].dir).toBe(dirname(process.env.HUB_APPS_FILE!));
+  });
+
   it("always lists cairn first (present, hasUpdater), then only detected apps", async () => {
     const homes = await pluginHomes({
       detect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
