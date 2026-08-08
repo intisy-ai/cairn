@@ -128,6 +128,8 @@ export type UsageSessionModel = {
 export type UsageSession = {
   id: string;
   title: string;
+  // The project the session belongs to, shown beside the title rather than as it.
+  project?: string;
   tokens: UsageTokens;
   messageCount: number;
   source: UsageSessionSource;

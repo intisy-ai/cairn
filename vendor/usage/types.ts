@@ -36,6 +36,9 @@ export type SessionSource = string;
 export interface Session {
   id: string;
   title: string;
+  // The project or workspace the session belongs to, where the source records one. Kept
+  // beside the title rather than used as it, so sessions in one project stay distinct.
+  project?: string;
   created: number;
   updated: number;
   tokens: TokenUsage;

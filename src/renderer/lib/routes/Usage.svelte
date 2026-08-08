@@ -107,7 +107,7 @@
     return inRange.filter((session) => {
       if (modelFilter && !session.models.some((m) => m.id === modelFilter)) return false;
       if (!q) return true;
-      const haystack = [session.title, sourceLabel(session.source), ...session.models.map((m) => m.id)].join(" ").toLowerCase();
+      const haystack = [session.title, session.project ?? "", sourceLabel(session.source), ...session.models.map((m) => m.id)].join(" ").toLowerCase();
       return haystack.includes(q);
     });
   });
@@ -254,7 +254,10 @@
           <tbody>
             {#each pageRows as session (session.id)}
               <tr>
-                <td class="title" title={session.title}>{session.title}</td>
+                <td class="title" title={session.project ? session.title + " · " + session.project : session.title}>
+                  <span class="tname">{session.title}</span>
+                  {#if session.project}<span class="tproject">{session.project}</span>{/if}
+                </td>
                 <td>{sourceLabel(session.source)}</td>
                 <td class="models" title={modelList(session)}>{modelList(session)}</td>
                 <td class="num">{formatTokens(sessionTokens(session))}</td>
@@ -406,6 +409,20 @@
     text-align: right;
     font-family: var(--mono);
     color: var(--muted);
+  }
+  .tname {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tproject {
+    display: block;
+    font-size: 10.5px;
+    color: var(--faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   td.title {
     font-weight: 600;

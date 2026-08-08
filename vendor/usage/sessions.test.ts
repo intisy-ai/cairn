@@ -229,6 +229,47 @@ describe("buildSessionsWithCosts: Claude Code JSONL wire-to-neutral token mappin
     });
   });
 
+  // Every session in a project used to take the project's name, so a project with twenty
+  // sessions rendered as twenty identical rows. The session's own first prompt tells them apart.
+  it("titles a session from its own first prompt, keeping the project beside it", async () => {
+    const claudeHome = process.env.HUB_CLAUDE_DIR as string;
+    const projectDir = join(claudeHome, "projects", "C--Users-jane-myapp");
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(
+      join(projectDir, "session-prompted.jsonl"),
+      [
+        JSON.stringify({ type: "user", message: { content: "Caveat: injected preamble" } }),
+        JSON.stringify({ type: "user", message: { content: "<command-name>/init</command-name>" } }),
+        JSON.stringify({ type: "user", message: { content: [{ type: "text", text: "Fix   the login redirect" }] } }),
+        JSON.stringify({ type: "assistant", timestamp: "2026-01-01T00:00:00.000Z", message: { model: "claude-sonnet-5", usage: { input_tokens: 5, output_tokens: 1 } } }),
+      ].join(String.fromCharCode(10)),
+      "utf-8",
+    );
+
+    const sessions = await buildSessionsWithCosts();
+    expect(sessions[0].title).toBe("Fix the login redirect");
+    expect(sessions[0].project).toBe("Users jane myapp");
+  });
+
+  it("truncates a long first prompt rather than rendering a whole paragraph", async () => {
+    const claudeHome = process.env.HUB_CLAUDE_DIR as string;
+    const projectDir = join(claudeHome, "projects", "C--Users-jane-long");
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(
+      join(projectDir, "session-long.jsonl"),
+      [
+        JSON.stringify({ type: "user", message: { content: "word ".repeat(60) } }),
+        JSON.stringify({ type: "assistant", timestamp: "2026-01-01T00:00:00.000Z", message: { model: "claude-sonnet-5", usage: { input_tokens: 1, output_tokens: 1 } } }),
+      ].join(String.fromCharCode(10)),
+      "utf-8",
+    );
+
+    const sessions = await buildSessionsWithCosts();
+    const long = sessions.find((x) => x.project === "Users jane long");
+    expect(long!.title.length).toBeLessThanOrEqual(80);
+    expect(long!.title.endsWith("…")).toBe(true);
+  });
+
   it("derives a friendly title from the project directory name", async () => {
     const claudeHome = process.env.HUB_CLAUDE_DIR as string;
     const projectDir = join(claudeHome, "projects", "C--Users-jane-myapp");

@@ -254,7 +254,28 @@ interface ClaudeJsonlUsage {
 interface ClaudeJsonlEntry {
   type?: string;
   timestamp?: string;
-  message?: { model?: string; usage?: ClaudeJsonlUsage };
+  message?: { model?: string; usage?: ClaudeJsonlUsage; content?: unknown };
+}
+
+const TITLE_MAX = 80;
+
+// The text of a user turn, which arrives either as a plain string or as content blocks.
+function userText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) => (part && typeof part === "object" && (part as { type?: string }).type === "text" ? String((part as { text?: string }).text ?? "") : ""))
+    .join(" ");
+}
+
+// A session's own first real prompt. Tool output, command wrappers and the injected caveat
+// all arrive as user turns too, and every one of them starts with a tag or that fixed
+// prefix, so they are skipped rather than becoming the title.
+function promptTitle(content: unknown): string | null {
+  const text = userText(content).trim();
+  if (!text || text.startsWith("<") || text.startsWith("Caveat:")) return null;
+  const line = text.split(/\s+/).join(" ");
+  return line.length > TITLE_MAX ? line.slice(0, TITLE_MAX - 1).trimEnd() + "…" : line;
 }
 
 // Derives a friendly title from the transcript project directory name (e.g.
@@ -279,6 +300,7 @@ async function readTranscriptSession(path: string, sessionId: string, projectDir
   let messageCount = 0;
   let firstTimestamp = 0;
   let lastTimestamp = 0;
+  let title: string | null = null;
 
   const stream = createReadStream(path, { encoding: "utf-8" });
   const lines = createInterface({ input: stream, crlfDelay: Infinity });
@@ -291,6 +313,7 @@ async function readTranscriptSession(path: string, sessionId: string, projectDir
       } catch {
         continue;
       }
+      if (entry.type === "user" && title === null) title = promptTitle(entry.message?.content);
       if (entry.type !== "assistant" || !entry.message?.usage) continue;
 
       // Anthropic-wire usage names, mapped onto the neutral internal tokens
@@ -324,7 +347,10 @@ async function readTranscriptSession(path: string, sessionId: string, projectDir
   if (messageCount === 0) return null;
   return {
     id: sessionId,
-    title: projectTitle(projectDir),
+    // Every session in a project used to carry the project's name, so a project with
+    // twenty sessions rendered as twenty identical rows.
+    title: title ?? projectTitle(projectDir),
+    project: projectTitle(projectDir),
     created: firstTimestamp,
     updated: lastTimestamp,
     tokens,

@@ -48,6 +48,7 @@ function mapSession(session: Session): UsageSession {
   return {
     id: session.id,
     title: session.title,
+    project: session.project,
     tokens: session.tokens,
     messageCount: session.messageCount,
     source: session.source,
