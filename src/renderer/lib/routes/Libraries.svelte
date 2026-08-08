@@ -33,20 +33,29 @@
     return !term || library.specifier.toLowerCase().includes(term);
   }
 
-  // A home with nothing left after filtering is dropped rather than shown empty, so what
-  // remains is only where the thing being looked for actually is.
+  // Ecosystem libraries and third-party packages answer different questions ("is my own
+  // stack in place" vs "what did this pull in"), so they are never mixed into one list.
+  const OWN_SCOPE = "@intisy-ai/";
+  const isOwn = (library: InstalledLibrary): boolean => library.specifier.startsWith(OWN_SCOPE);
+
+  // Every home is listed, including one with nothing in it: an empty store is a fact worth
+  // seeing, and dropping the home made it look as though the home did not exist.
   const visibleHomes = $derived.by(() =>
-    homes
-      .map((entry) => ({
+    homes.map((entry) => {
+      const shared = entry.shared.filter(matches);
+      return {
         home: entry.home,
-        shared: entry.shared.filter(matches),
+        ours: shared.filter(isOwn),
+        external: shared.filter((library) => !isOwn(library)),
         plugins: sharedOnly
           ? []
           : entry.plugins
               .map((p) => ({ plugin: p.plugin, dependencies: p.dependencies.filter(matches) }))
               .filter((p) => p.dependencies.length > 0),
-      }))
-      .filter((entry) => entry.shared.length > 0 || entry.plugins.length > 0));
+      };
+    }));
+
+  const anyMatch = $derived(visibleHomes.some((e) => e.ours.length + e.external.length + e.plugins.length > 0));
 
   const totals = $derived({
     shared: homes.reduce((sum, entry) => sum + entry.shared.length, 0),
@@ -90,12 +99,12 @@
   </div>
 
   {#each visibleHomes as entry (entry.home.id)}
-    <CollapsibleGroup label={entry.home.label} count={entry.shared.length + entry.plugins.length}>
+    <CollapsibleGroup label={entry.home.label} count={entry.ours.length + entry.external.length + entry.plugins.length}>
       {#snippet body()}
-        {#if entry.shared.length > 0}
-          <p class="sectionlabel">Shared</p>
+        {#if entry.ours.length > 0}
+          <p class="sectionlabel">Ours</p>
           <Card>
-            {#each entry.shared as library (library.specifier)}
+            {#each entry.ours as library (library.specifier)}
               <div class="lib">
                 <span class="spec">{library.specifier}</span>
                 <span class="ver">{library.version || "not built"}</span>
@@ -103,6 +112,21 @@
               </div>
             {/each}
           </Card>
+        {/if}
+        {#if entry.external.length > 0}
+          <p class="sectionlabel">External</p>
+          <Card>
+            {#each entry.external as library (library.specifier)}
+              <div class="lib">
+                <span class="spec">{library.specifier}</span>
+                <span class="ver">{library.version || "not built"}</span>
+                <span class="users">{library.usedBy.length > 0 ? library.usedBy.join(", ") : ""}</span>
+              </div>
+            {/each}
+          </Card>
+        {/if}
+        {#if entry.ours.length + entry.external.length + entry.plugins.length === 0}
+          <p class="empty">Nothing installed in this home yet.</p>
         {/if}
         {#each entry.plugins as group (group.plugin)}
           <p class="sectionlabel">{group.plugin}</p>
@@ -118,13 +142,15 @@
         {/each}
       {/snippet}
     </CollapsibleGroup>
-  {:else}
+  {/each}
+
+  {#if !anyMatch}
     <EmptyState
       message={term || sharedOnly ? "No library matches your filters." : "No libraries installed yet."}
       actionLabel={term || sharedOnly ? "Clear filters" : undefined}
       onAction={term || sharedOnly ? () => { searchRaw = ""; search = ""; sharedOnly = false; } : undefined}
     />
-  {/each}
+  {/if}
 {/if}
 
 <style>

@@ -46,15 +46,36 @@ describe("Libraries screen", () => {
     expect(screen.getByText("unused")).toBeInTheDocument();
   });
 
-  it("drops a home once nothing in it matches the search", async () => {
+  // A home with nothing in it is a fact worth seeing: dropping it made an empty home look
+  // as though it did not exist at all, which is how Cairn's own home went missing.
+  it("keeps every home listed while narrowing what is shown inside", async () => {
     stubCairn({ librariesList: async () => ({ ok: true, data: data() }) });
     render(Libraries);
     await screen.findByText("@intisy-ai/core");
 
     await fireEvent.input(screen.getByLabelText("Search libraries"), { target: { value: "core-auth" } });
 
-    await waitFor(() => expect(screen.queryByText("Cairn")).toBeNull());
+    await waitFor(() => expect(screen.queryByText("@intisy-ai/core")).toBeNull());
+    expect(screen.getByText("Cairn")).toBeInTheDocument();
+    expect(screen.getByText("Claude Code")).toBeInTheDocument();
     expect(screen.getByText("@intisy-ai/core-auth")).toBeInTheDocument();
+  });
+
+  // Ecosystem libraries and third-party packages answer different questions, so they are
+  // never mixed into one list.
+  it("separates our libraries from external ones", async () => {
+    stubCairn({ librariesList: async () => ({ ok: true, data: [{
+      home: home("cairn", "Cairn"),
+      shared: [
+        { specifier: "@intisy-ai/core", version: "2.1.0", usedBy: [] },
+        { specifier: "undici", version: "6.19.2", usedBy: [] },
+      ],
+      plugins: [],
+    }] }) });
+    render(Libraries);
+
+    expect(await screen.findByText("Ours")).toBeInTheDocument();
+    expect(screen.getByText("External")).toBeInTheDocument();
   });
 
   it("hides plugin dependencies behind the shared-only filter", async () => {
