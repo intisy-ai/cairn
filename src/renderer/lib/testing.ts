@@ -1,5 +1,6 @@
 import type { CairnAPI } from "@cairn/shared";
 import { bustCacheForTests } from "./cache.js";
+import { resetViewModeForTests } from "./viewMode.js";
 
 function defaultCairn(): CairnAPI {
   return {
@@ -142,5 +143,6 @@ function defaultCairn(): CairnAPI {
 
 export function stubCairn(overrides: Partial<CairnAPI> = {}): void {
   bustCacheForTests();
+  resetViewModeForTests();
   (globalThis as { window: Window }).window.cairn = { ...defaultCairn(), ...overrides };
 }

@@ -18,7 +18,7 @@
   import ViewToggle from "../components/ViewToggle.svelte";
   import ItemBox from "../components/ItemBox.svelte";
   import ItemList from "../components/ItemList.svelte";
-  import { loadViewMode, saveViewMode, type ViewMode } from "../viewMode.js";
+  import { knownViewMode, loadViewMode, saveViewMode, type ViewMode } from "../viewMode.js";
 
   let apps = $state<HostApp[]>([]);
   let conns = $state<Record<string, AppConnection | null>>({});
@@ -37,7 +37,8 @@
   let importApp = $state<string | null>(null);
   let importAppLabel = $state("");
 
-  let view = $state<ViewMode>("list");
+  let view = $state<ViewMode>(knownViewMode("apps") ?? "list");
+  let viewLoaded = $state(knownViewMode("apps") !== null);
   let searchRaw = $state("");
   let search = $state("");
 
@@ -174,7 +175,7 @@
     Promise.all([loadApps(), loadImportable()])
       .then(() => Promise.all(apps.filter((a) => a.id !== "cairn").map((a) => loadConn(a.id))))
       .finally(() => (loaded = true));
-    loadViewMode("apps").then((mode) => (view = mode));
+    loadViewMode("apps").then((mode) => { view = mode; viewLoaded = true; });
   });
 </script>
 
@@ -231,7 +232,7 @@
   {/if}
 {/snippet}
 
-{#if !loaded}
+{#if !loaded || !viewLoaded}
   <div class="skeletons">
     <Skeleton height="60px" radius="12px" />
     <Skeleton height="60px" radius="12px" />

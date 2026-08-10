@@ -739,6 +739,28 @@ describe("Plugins screen", () => {
     await waitFor(() => expect(screen.queryByText("from-cache")).toBeNull());
   });
 
+  // Painting the default view and swapping to the stored one a frame later is a visible flash
+  // of the wrong screen, so the stored view is part of the first paint.
+  it("waits for the stored view before painting anything", async () => {
+    let releaseConfig: (value: { ok: true; data: string }) => void = () => {};
+    const config = new Promise<{ ok: true; data: string }>((resolve) => { releaseConfig = resolve; });
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      getConfig: () => config,
+    });
+    render(Plugins);
+
+    await waitFor(() => expect(screen.getAllByTestId("skeleton").length).toBeGreaterThan(0));
+    expect(screen.queryByTestId("plugins-list")).toBeNull();
+    expect(screen.queryByTestId("plugins-grid")).toBeNull();
+
+    releaseConfig({ ok: true, data: "grid" });
+
+    expect(await screen.findByTestId("plugins-grid")).toBeInTheDocument();
+    expect(screen.queryByTestId("plugins-list")).toBeNull();
+  });
+
   it("leaves the skeleton up when nothing is cached yet", async () => {
     stubCairn({
       pluginsListCached: async () => ({ ok: true, data: [] }),

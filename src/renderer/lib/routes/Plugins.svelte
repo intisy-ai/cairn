@@ -27,7 +27,7 @@
   import EmptyState from "../components/EmptyState.svelte";
   import ViewToggle from "../components/ViewToggle.svelte";
   import GitHubConnectDialog from "../components/GitHubConnectDialog.svelte";
-  import { loadViewMode, saveViewMode, type ViewMode } from "../viewMode.js";
+  import { knownViewMode, loadViewMode, saveViewMode, type ViewMode } from "../viewMode.js";
   import { githubChanged, bumpGithub } from "../githubStore.js";
 
   const ROW_HEIGHT = 96;
@@ -89,7 +89,10 @@
     return kind;
   }
 
-  let view = $state<ViewMode>("list");
+  // The stored view is part of the first paint, not a correction to it: starting in list and
+  // swapping to grid once the preference arrives is a visible flash of the wrong screen.
+  let view = $state<ViewMode>(knownViewMode("plugins") ?? "list");
+  let viewLoaded = $state(knownViewMode("plugins") !== null);
   function setView(mode: ViewMode): void {
     view = mode;
     void saveViewMode("plugins", mode);
@@ -496,7 +499,7 @@
 
   onMount(() => {
     reload();
-    loadViewMode("plugins").then((mode) => (view = mode));
+    loadViewMode("plugins").then((mode) => { view = mode; viewLoaded = true; });
     cairn.getConfig("cairn", "showDeprecated").then((r) => {
       showDeprecated = r.ok && r.data === true;
     });
@@ -521,7 +524,7 @@
 
 {#if pluginsError}
   <ErrorState message={`Could not load plugins: ${pluginsError}`} onRetry={reload} />
-{:else if !loaded}
+{:else if !loaded || !viewLoaded}
   <div class="skeletons">
     {#each Array(5) as _}
       <Skeleton height="46px" radius="10px" />

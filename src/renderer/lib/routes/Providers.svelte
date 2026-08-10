@@ -23,7 +23,7 @@
   import PluginIcon, { LOGO_SIZE } from "../components/PluginIcon.svelte";
   import ViewToggle from "../components/ViewToggle.svelte";
   import ProviderDetail from "../components/ProviderDetail.svelte";
-  import { loadViewMode, saveViewMode, type ViewMode } from "../viewMode.js";
+  import { knownViewMode, loadViewMode, saveViewMode, type ViewMode } from "../viewMode.js";
 
   type Filter = "all" | "connected" | "oauth" | "apikey";
 
@@ -51,7 +51,8 @@
   let connectedOpen = $state(true);
   let availableOpen = $state(true);
   let customEndpointsOpen = $state(false);
-  let view = $state<ViewMode>("list");
+  let view = $state<ViewMode>(knownViewMode("providers") ?? "list");
+  let viewLoaded = $state(knownViewMode("providers") !== null);
   let selectedProvider = $state<ProviderRowData | null>(null);
 
   function setView(mode: ViewMode): void {
@@ -173,7 +174,7 @@
   onMount(load);
   onMount(loadApps);
   onMount(() => {
-    loadViewMode("providers").then((mode) => (view = mode));
+    loadViewMode("providers").then((mode) => { view = mode; viewLoaded = true; });
   });
 </script>
 
@@ -198,7 +199,7 @@
 
 {#if loadError}
   <ErrorState message={`Could not load providers: ${loadError}`} onRetry={load} />
-{:else if !loaded}
+{:else if !loaded || !viewLoaded}
   <div class="skeletons">
     <Skeleton height="64px" radius="10px" />
     {#each Array(5) as _}
