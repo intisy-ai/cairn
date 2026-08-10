@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
-import { getApps, getAppDescriptor, resolveHome, resolveAppsFile } from "@core/index.js";
+import { getApps, getAppDescriptor, resolveHome } from "@core/index.js";
+import { resolveStoreDir } from "../../main/lib/storeDir.js";
 import { appsDetect } from "../modules/apps.js";
 import { renderCairnMark } from "../../../packages/shared/src/logo.js";
 import { svgIconDataUri } from "./pluginIcon.js";
@@ -13,12 +13,21 @@ export function appRealHome(app: string, env: NodeJS.ProcessEnv = process.env, h
   return desc ? resolveHome(desc, env, home) : "";
 }
 
-// Cairn's OWN home, which is the directory holding its app registry. core-auth's
-// getConfigDir resolves the active APP's home (claude or opencode) and can never
-// name Cairn, so anything about Cairn itself (its plugin home, the home its
-// activity is stamped with, the home its background updates run against) asks here.
+// Cairn's OWN home: the store directory main launches the sidecar against, holding its
+// config, repos, accounts and logs. Anything about Cairn itself (its plugin home, where
+// an install lands, the home its activity is stamped with and its background updates run
+// against) asks here, and gets the same directory `HUB_CONFIG_DIR` already points every
+// other sidecar path at.
+//
+// @implNote Neither of the two directories this used to name will do. core-auth's
+// getConfigDir falls back to the ACTIVE APP's home when HUB_CONFIG_DIR is unset, which
+// once made "install into Cairn" write into Claude's home. The app registry's directory
+// is a fixed global path so loaders and providers inside Claude or OpenCode can find it
+// without HUB_CONFIG_DIR, and naming it here pointed the plugin list, installs and
+// background updates at a directory nothing else ever wrote to.
 export function cairnHome(): string {
-  return dirname(resolveAppsFile());
+  const forced = process.env.HUB_CONFIG_DIR?.trim();
+  return forced || resolveStoreDir(process.env, process.platform, homedir());
 }
 
 // "Has the updater" means plugin-updater is actually installed in this home (a git

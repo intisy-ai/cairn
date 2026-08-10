@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { appRealHome, pluginHomes, loaderInstalled } from "./pluginHomes.js";
+import { resolveStoreDir } from "../../main/lib/storeDir.js";
 import type { AppDescriptor } from "@core/index.js";
 
 // getApps()/getAppDescriptor() now read solely from the apps.json registry (see
@@ -32,10 +33,12 @@ const opencodeApp: AppDescriptor = {
 
 let appsRegistryDir: string;
 let savedHubAppsFile: string | undefined;
+let savedHubConfigDir: string | undefined;
 
 beforeEach(() => {
   appsRegistryDir = mkdtempSync(join(tmpdir(), "plugin-homes-registry-"));
   savedHubAppsFile = process.env.HUB_APPS_FILE;
+  savedHubConfigDir = process.env.HUB_CONFIG_DIR;
   process.env.HUB_APPS_FILE = join(appsRegistryDir, "apps.json");
   writeFileSync(process.env.HUB_APPS_FILE, JSON.stringify({ claude: claudeApp, opencode: opencodeApp }));
 });
@@ -44,6 +47,8 @@ afterEach(() => {
   rmSync(appsRegistryDir, { recursive: true, force: true });
   if (savedHubAppsFile === undefined) delete process.env.HUB_APPS_FILE;
   else process.env.HUB_APPS_FILE = savedHubAppsFile;
+  if (savedHubConfigDir === undefined) delete process.env.HUB_CONFIG_DIR;
+  else process.env.HUB_CONFIG_DIR = savedHubConfigDir;
 });
 
 describe("appRealHome", () => {
@@ -69,17 +74,35 @@ describe("appRealHome", () => {
 });
 
 describe("pluginHomes", () => {
-  // Cairn's own home used to come from core-auth's getConfigDir, which resolves the
-  // active APP's home and can never name Cairn: the row pointed at another app's
-  // directory, so installing "into Cairn" wrote there and its plugins were listed twice.
-  it("defaults cairn's home to where its app registry lives, not an app's home", async () => {
+  // Cairn's own home is the store dir it was launched against, which is where its
+  // config, repos and accounts are. Naming an APP's home instead made "install into
+  // Cairn" write into Claude's home and listed its plugins twice; naming the app
+  // registry's directory instead pointed the plugin list at a directory nothing wrote to,
+  // so an installed plugin read as absent.
+  it("takes cairn's home from the store dir it was launched against", async () => {
+    process.env.HUB_CONFIG_DIR = join(tmpdir(), "cairn-store");
     const homes = await pluginHomes({
       detect: async () => ({ ok: true, data: {} }),
       appHome: () => "/home/app",
       hasUpdater: () => false,
     });
     expect(homes[0].id).toBe("cairn");
-    expect(homes[0].dir).toBe(dirname(process.env.HUB_APPS_FILE!));
+    expect(homes[0].dir).toBe(join(tmpdir(), "cairn-store"));
+  });
+
+  // Without the launcher's env the fallback still has to be Cairn's own store dir: the
+  // app registry sits at a fixed global path shared with the loaders, so it cannot stand
+  // in for it, and an app's home is another app's territory.
+  it("falls back to the platform store dir rather than an app home or the registry's dir", async () => {
+    delete process.env.HUB_CONFIG_DIR;
+    const homes = await pluginHomes({
+      detect: async () => ({ ok: true, data: {} }),
+      appHome: () => "/home/app",
+      hasUpdater: () => false,
+    });
+    expect(homes[0].dir).toBe(resolveStoreDir(process.env, process.platform, homedir()));
+    expect(homes[0].dir).not.toBe("/home/app");
+    expect(homes[0].dir).not.toBe(dirname(process.env.HUB_APPS_FILE!));
   });
 
   it("always lists cairn first (present, hasUpdater), then only detected apps", async () => {
