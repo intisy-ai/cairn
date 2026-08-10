@@ -16,7 +16,8 @@
   import PluginIcon, { LOGO_SIZE } from "../components/PluginIcon.svelte";
   import AppDetail from "../components/AppDetail.svelte";
   import ViewToggle from "../components/ViewToggle.svelte";
-  import { flyMotion } from "../util/motion.js";
+  import ItemBox from "../components/ItemBox.svelte";
+  import ItemList from "../components/ItemList.svelte";
   import { loadViewMode, saveViewMode, type ViewMode } from "../viewMode.js";
 
   let apps = $state<HostApp[]>([]);
@@ -188,52 +189,27 @@
   <p class="error">Could not load app status: {connError}</p>
 {/if}
 
-{#snippet appEntry(app: HostApp)}
+{#snippet appBox(app: HostApp, view: ViewMode)}
   {@const c = conns[app.id]}
   {@const connected = isConnected(c)}
-  <div class="approw" class:connected>
-    <button class="rowmain" onclick={() => open(app)} title={`Open ${app.label}`}>
-      <PluginIcon name={app.label} icon={app.icon} size={LOGO_SIZE.compact} />
-      <span class="rtext">
-        <span class="rname">{app.label}</span>
-        <span class="rsub">{c?.loaderId ?? "No loader"}</span>
-      </span>
-      <span class="rchips">
-        <span class="rchip" class:on={c?.cliPresent}>CLI</span>
-        {#if c?.loaderId}<span class="rchip" class:on={c?.loaderInstalled}>Loader</span>{/if}
-      </span>
-      <StatusPill variant={connected ? "good" : "off"} label={statusLabel(c)} />
-      <span class="chev" aria-hidden="true">›</span>
-    </button>
-    <div class="rowact">
-      {#if !connected}
-        <Button variant="primary" disabled={busy[app.id]} onclick={() => handlePrimary(app)}>
-          {#if busy[app.id]}<Spinner />{/if}
-          {ctaLabel(c)}
-        </Button>
-      {:else}
-        <Button variant="danger" onclick={() => (uninstalling = app)}>Uninstall</Button>
-      {/if}
-    </div>
-  </div>
-{/snippet}
-
-{#snippet appCard(app: HostApp)}
-  {@const c = conns[app.id]}
-  {@const connected = isConnected(c)}
-  <div class="app-card" class:connected>
-    <button class="card-open" title={`Open ${app.label}`} onclick={() => open(app)}>
-      <PluginIcon name={app.label} icon={app.icon} size={LOGO_SIZE.list} />
-      <span class="card-text">
-        <span class="card-title"><b>{app.label}</b></span>
-        <span class="card-sub">{c?.loaderId ?? "No loader"}</span>
-      </span>
-    </button>
-    <span class="rchips">
+  <ItemBox
+    {view}
+    testid={"app-" + app.id}
+    title={app.label}
+    subtitle={c?.loaderId ?? "No loader"}
+    monoSubtitle
+    selected={connected}
+    openLabel={`Open ${app.label}`}
+    onOpen={() => open(app)}
+  >
+    {#snippet icon()}
+      <PluginIcon name={app.label} icon={app.icon} size={view === "grid" ? LOGO_SIZE.list : LOGO_SIZE.compact} />
+    {/snippet}
+    {#snippet badges()}
       <span class="rchip" class:on={c?.cliPresent}>CLI</span>
       {#if c?.loaderId}<span class="rchip" class:on={c?.loaderInstalled}>Loader</span>{/if}
-    </span>
-    <div class="card-footer">
+    {/snippet}
+    {#snippet actions()}
       <StatusPill variant={connected ? "good" : "off"} label={statusLabel(c)} />
       {#if !connected}
         <Button variant="primary" disabled={busy[app.id]} onclick={() => handlePrimary(app)}>
@@ -243,8 +219,8 @@
       {:else}
         <Button variant="danger" onclick={() => (uninstalling = app)}>Uninstall</Button>
       {/if}
-    </div>
-  </div>
+    {/snippet}
+  </ItemBox>
 {/snippet}
 
 {#snippet appsEmptyState()}
@@ -266,24 +242,15 @@
     <ViewToggle value={view} onChange={setView} />
   </div>
 
-  {#if view === "grid"}
-    <div class="apps-grid" data-testid="apps-grid">
-      {#each visibleApps as app (app.id)}
-        <div data-testid={"app-" + app.id} in:flyMotion={{ y: 6 }}>
-          {@render appCard(app)}
-        </div>
-      {/each}
-    </div>
-  {:else}
-    <ul class="list">
-      {#each visibleApps as app (app.id)}
-        <li data-testid={"app-" + app.id} in:flyMotion={{ y: 6 }}>
-          {@render appEntry(app)}
-        </li>
-      {/each}
-    </ul>
-  {/if}
-  {@render appsEmptyState()}
+  <ItemList
+    items={visibleApps}
+    key={(app) => app.id}
+    {view}
+    testid={view === "grid" ? "apps-grid" : "apps-list"}
+  >
+    {#snippet item(app)}{@render appBox(app, view)}{/snippet}
+    {#snippet empty()}{@render appsEmptyState()}{/snippet}
+  </ItemList>
 {/if}
 
 {#if selectedApp}
@@ -337,134 +304,6 @@
     margin: 0 2px 12px;
     flex-wrap: wrap;
   }
-  .list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .apps-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-    gap: 10px;
-  }
-  .approw {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 12px 8px 10px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 11px;
-  }
-  .approw:hover {
-    border-color: var(--border-strong);
-  }
-  .approw.connected {
-    border-color: var(--border-strong);
-  }
-  .app-card {
-    display: flex;
-    flex-direction: column;
-    gap: 9px;
-    height: 100%;
-    padding: 12px 13px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-  }
-  .app-card:hover,
-  .app-card.connected {
-    border-color: var(--border-strong);
-  }
-  .card-open {
-    /* Icon beside the text rather than above it, so a card costs one row of height
-       instead of two. */
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    background: none;
-    border: 0;
-    padding: 0;
-    text-align: left;
-    cursor: pointer;
-    color: inherit;
-    font: inherit;
-  }
-  .card-text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-  .card-title b {
-    font-size: 13.5px;
-    font-weight: 600;
-    letter-spacing: -.01em;
-  }
-  .card-sub {
-    font-family: var(--mono);
-    font-size: 10.5px;
-    color: var(--faint);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .card-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    /* Cards in a row stretch to the tallest, so without this the action sits at a
-       different height in every card and the grid reads as ragged. */
-    margin-top: auto;
-  }
-  .rowmain {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    flex: 1;
-    min-width: 0;
-    background: none;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-    text-align: left;
-    font-family: var(--ui);
-    color: var(--text);
-  }
-  .rtext {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    flex: 1;
-    min-width: 0;
-  }
-  .rname {
-    font-size: 13.5px;
-    font-weight: 600;
-    letter-spacing: -.01em;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .rsub {
-    font-family: var(--mono);
-    font-size: 10.5px;
-    color: var(--faint);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .rchips {
-    display: flex;
-    gap: 5px;
-    flex: none;
-  }
   .rchip {
     font-size: 9.5px;
     font-weight: 600;
@@ -479,15 +318,6 @@
   .rchip.on {
     color: var(--good);
     border-color: color-mix(in srgb, var(--good) 40%, var(--border));
-  }
-  .chev {
-    color: var(--faint);
-    font-size: 17px;
-    flex: none;
-  }
-  .rowact {
-    flex: none;
-    display: flex;
   }
   .skeletons {
     display: flex;

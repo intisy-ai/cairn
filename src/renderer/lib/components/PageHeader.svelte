@@ -16,24 +16,24 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 16px;
-    margin-bottom: var(--space-4, 22px);
+    gap: var(--space-2xl);
+    margin-bottom: var(--space-3xl);
   }
   .ph-text h1 {
     margin: 0;
-    font-size: var(--fs-h1, 20px);
+    font-size: var(--fs-xl);
     letter-spacing: -.02em;
     font-weight: 650;
   }
   .ph-text p {
-    margin: 3px 0 0;
+    margin: var(--space-3xs) 0 0;
     color: var(--muted);
-    font-size: var(--fs-body, 12.5px);
+    font-size: var(--fs-sm);
   }
   .ph-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-sm);
     flex-shrink: 0;
   }
 </style>

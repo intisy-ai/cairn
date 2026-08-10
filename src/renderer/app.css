@@ -17,17 +17,50 @@
   --warn-weak: #f4eede;
   --crit: #c0503f;
   --crit-weak: #f6e8e5;
-  --shadow: 0 1px 2px rgba(15, 16, 20, .06), 0 12px 40px rgba(15, 16, 20, .10);
-  --radius: 10px;
+  --elev-1: 0 6px 20px rgba(15, 16, 20, .10);
+  --elev-2: 0 1px 2px rgba(15, 16, 20, .06), 0 12px 40px rgba(15, 16, 20, .10);
+}
+
+/* The scale. Every size in a component style block comes from here: picking a step is a
+   decision the reader can check, picking a literal is not. */
+:root {
   --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
   --ui: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --fs-h1: 20px;
-  --fs-h2: 15px;
-  --fs-body: 12.5px;
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 14px;
-  --space-4: 22px;
+
+  --fs-micro: 10.5px;
+  --fs-xs: 11.5px;
+  --fs-sm: 12.5px;
+  --fs-md: 13.5px;
+  --fs-lg: 15px;
+  --fs-xl: 20px;
+  --fs-display: 22px;
+  --lh-tight: 1.25;
+  --lh-body: 1.45;
+
+  --space-3xs: 2px;
+  --space-2xs: 4px;
+  --space-xs: 6px;
+  --space-sm: 8px;
+  --space-md: 10px;
+  --space-lg: 12px;
+  --space-xl: 14px;
+  --space-2xl: 18px;
+  --space-3xl: 22px;
+  --space-4xl: 28px;
+
+  --radius-xs: 5px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+  --radius: var(--radius-md);
+
+  --track-card: 240px;
+  --track-stat: 170px;
+
+  --hairline: 1px;
+  --ring: 0 0 0 3px var(--accent-weak);
+  --shadow: var(--elev-2);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -50,7 +83,8 @@
     --warn-weak: #241f13;
     --crit: #e0705e;
     --crit-weak: #271614;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 18px 50px rgba(0, 0, 0, .6);
+    --elev-1: 0 8px 24px rgba(0, 0, 0, .45);
+    --elev-2: 0 1px 2px rgba(0, 0, 0, .5), 0 18px 50px rgba(0, 0, 0, .6);
   }
 }
 
@@ -73,7 +107,8 @@
   --warn-weak: #f4eede;
   --crit: #c0503f;
   --crit-weak: #f6e8e5;
-  --shadow: 0 1px 2px rgba(15, 16, 20, .06), 0 12px 40px rgba(15, 16, 20, .10);
+  --elev-1: 0 6px 20px rgba(15, 16, 20, .10);
+  --elev-2: 0 1px 2px rgba(15, 16, 20, .06), 0 12px 40px rgba(15, 16, 20, .10);
 }
 
 :root[data-theme="dark"] {
@@ -95,7 +130,8 @@
   --warn-weak: #241f13;
   --crit: #e0705e;
   --crit-weak: #271614;
-  --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 18px 50px rgba(0, 0, 0, .6);
+  --elev-1: 0 8px 24px rgba(0, 0, 0, .45);
+  --elev-2: 0 1px 2px rgba(0, 0, 0, .5), 0 18px 50px rgba(0, 0, 0, .6);
 }
 
 /* Cairn logo tokens: edit here to recolor the mark everywhere (geometry lives in packages/shared/src/logo.ts) */
@@ -117,14 +153,14 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--ui);
-  font-size: 13.5px;
-  line-height: 1.45;
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
   -webkit-font-smoothing: antialiased;
   transition: background .25s ease, color .25s ease;
 }
 
 .label {
-  font-size: 10.5px;
+  font-size: var(--fs-micro);
   letter-spacing: .08em;
   text-transform: uppercase;
   color: var(--faint);
@@ -140,7 +176,7 @@ body {
 .skeletons {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 
 * {

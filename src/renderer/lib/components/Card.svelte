@@ -1,10 +1,10 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
 
-  let { children }: { children?: Snippet } = $props();
+  let { testid = "", children }: { testid?: string; children?: Snippet } = $props();
 </script>
 
-<div class="card">
+<div class="card" data-testid={testid || undefined}>
   {#if children}{@render children()}{/if}
 </div>
 

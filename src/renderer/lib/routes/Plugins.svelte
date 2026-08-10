@@ -11,9 +11,9 @@
   import { prerequisiteInstalls } from "../util/installQueue.js";
   import Button from "../components/Button.svelte";
   import IconButton from "../components/IconButton.svelte";
-  import Card from "../components/Card.svelte";
   import SearchField from "../components/SearchField.svelte";
-  import VirtualList from "../components/VirtualList.svelte";
+  import ItemBox from "../components/ItemBox.svelte";
+  import ItemList from "../components/ItemList.svelte";
   import AppPills from "../components/AppPills.svelte";
   import PluginInstallControl from "../components/PluginInstallControl.svelte";
   import AddPluginDialog from "../components/AddPluginDialog.svelte";
@@ -30,7 +30,6 @@
   import { loadViewMode, saveViewMode, type ViewMode } from "../viewMode.js";
   import { githubChanged, bumpGithub } from "../githubStore.js";
 
-  const VIRTUALIZE_THRESHOLD = 20;
   const ROW_HEIGHT = 96;
 
   let sections = $state<HomePlugins[]>([]);
@@ -571,83 +570,68 @@
   {/snippet}
 
   {#snippet installActions(p: UnifiedPlugin)}
-    <div class="actions">
-      <div class="ctlw">
-        <PluginInstallControl
-          block
-          plugin={p}
-          homes={applicableHomesFor(p)}
-          activity={$activeByPlugin[p.name] ?? null}
-          updateAvailable={p.updateAvailable}
-          {updatesEnabled}
-          behindHomes={behindHomesFor(p)}
-          brokenHomes={brokenHomesFor(p)}
-          onUpdate={() => handleUpdate(p)}
-          onRepairHome={(homeId) => repairHome(p, homeId)}
-          onUpdateHome={(homeId) => updateHome(p, homeId)}
-          onInstallAll={() => handleInstallAll(p)}
-          onRemoveEverywhere={() => confirmRemoveEverywhere(p)}
-          onToggleHome={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
-        />
-      </div>
+    <div class="ctlw">
+      <PluginInstallControl
+        block
+        plugin={p}
+        homes={applicableHomesFor(p)}
+        activity={$activeByPlugin[p.name] ?? null}
+        updateAvailable={p.updateAvailable}
+        {updatesEnabled}
+        behindHomes={behindHomesFor(p)}
+        brokenHomes={brokenHomesFor(p)}
+        onUpdate={() => handleUpdate(p)}
+        onRepairHome={(homeId) => repairHome(p, homeId)}
+        onUpdateHome={(homeId) => updateHome(p, homeId)}
+        onInstallAll={() => handleInstallAll(p)}
+        onRemoveEverywhere={() => confirmRemoveEverywhere(p)}
+        onToggleHome={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
+      />
     </div>
   {/snippet}
 
-  {#snippet unifiedRow(p: UnifiedPlugin)}
-    <div class="row" data-testid={"plugin-" + p.name}>
-      <button class="open" title={`View ${p.displayName}`} onclick={() => (selectedName = p.name)}>
-        <PluginIcon icon={p.icon} name={p.displayName} kind={p.kind} />
-        <div class="info">
-          <div class="name-with-chip">
-            <b>{p.displayName}</b>
-            {#if p.displayName !== p.name}<span class="repo">{p.name}</span>{/if}
-            {#if versionLabelFor(p)}<span class="ver">{versionLabelFor(p)}</span>{/if}
-            {#if badgeLabel(p)}
-              <span class="chip" title={p.external ? "Installed from a repo outside the marketplace org" : undefined}>{badgeLabel(p)}</span>
-            {/if}
-          </div>
-          {#if p.description}<span class="desc">{p.description}</span>{/if}
-          {#if p.topics.length > 0}
-            <div class="topics">
-              {#each p.topics.slice(0, 4) as topic (topic)}
-                <span class="topic" data-testid="topic">{topic}</span>
-              {/each}
-            </div>
-          {/if}
-        </div>
-      </button>
-      {@render favoriteButton(p)}
-      {#if applicableHomesFor(p).length > 1}
-        <AppPills
-          apps={applicableHomesFor(p)}
-          values={installedMap(p)}
-          onToggle={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
-        />
-      {/if}
-      {@render installActions(p)}
-    </div>
-  {/snippet}
-
-  {#snippet pluginCard(p: UnifiedPlugin)}
-    <div class="plugin-card" data-testid={"plugin-" + p.name}>
-      {@render favoriteButton(p)}
-      <button class="card-open" title={`View ${p.displayName}`} onclick={() => (selectedName = p.name)}>
+  {#snippet pluginBox(p: UnifiedPlugin, mode: ViewMode)}
+    <ItemBox
+      view={mode}
+      testid={"plugin-" + p.name}
+      title={p.displayName}
+      subtitle={p.description}
+      openLabel={`View ${p.displayName}`}
+      onOpen={() => (selectedName = p.name)}
+    >
+      {#snippet icon()}
         <PluginIcon icon={p.icon} name={p.displayName} kind={p.kind} size={LOGO_SIZE.list} />
-        <span class="card-text">
-          <span class="card-title">
-            <b>{p.displayName}</b>
-            {#if versionLabelFor(p)}<span class="ver">{versionLabelFor(p)}</span>{/if}
-            {#if badgeLabel(p)}
-              <span class="chip" title={p.external ? "Installed from a repo outside the marketplace org" : undefined}>{badgeLabel(p)}</span>
-            {/if}
+      {/snippet}
+      {#snippet badges()}
+        {#if mode === "list" && p.displayName !== p.name}<span class="repo">{p.name}</span>{/if}
+        {#if versionLabelFor(p)}<span class="ver">{versionLabelFor(p)}</span>{/if}
+        {#if badgeLabel(p)}
+          <span class="chip" title={p.external ? "Installed from a repo outside the marketplace org" : undefined}>{badgeLabel(p)}</span>
+        {/if}
+      {/snippet}
+      {#snippet meta()}
+        {#if mode === "list" && p.topics.length > 0}
+          <span class="topics">
+            {#each p.topics.slice(0, 4) as topic (topic)}
+              <span class="topic" data-testid="topic">{topic}</span>
+            {/each}
           </span>
-          <span class="card-desc">{p.description ?? ""}</span>
-        </span>
-      </button>
-      <div class="card-footer">
+        {/if}
+      {/snippet}
+      {#snippet corner()}
+        {@render favoriteButton(p)}
+      {/snippet}
+      {#snippet actions()}
+        {#if mode === "list" && applicableHomesFor(p).length > 1}
+          <AppPills
+            apps={applicableHomesFor(p)}
+            values={installedMap(p)}
+            onToggle={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
+          />
+        {/if}
         {@render installActions(p)}
-      </div>
-    </div>
+      {/snippet}
+    </ItemBox>
   {/snippet}
 
   {#snippet emptyState()}
@@ -658,29 +642,16 @@
     {/if}
   {/snippet}
 
-  {#if view === "grid"}
-    <div class="plugins-grid" data-testid="plugins-grid">
-      {#each filtered as plugin (plugin.name)}
-        {@render pluginCard(plugin)}
-      {/each}
-    </div>
-    {@render emptyState()}
-  {:else}
-    <Card>
-      {#if filtered.length > VIRTUALIZE_THRESHOLD}
-        <VirtualList items={filtered} rowHeight={ROW_HEIGHT}>
-          {#snippet row(plugin)}
-            {@render unifiedRow(plugin)}
-          {/snippet}
-        </VirtualList>
-      {:else}
-        {#each filtered as plugin (plugin.name)}
-          {@render unifiedRow(plugin)}
-        {/each}
-      {/if}
-      {@render emptyState()}
-    </Card>
-  {/if}
+  <ItemList
+    items={filtered}
+    key={(plugin) => plugin.name}
+    {view}
+    rowHeight={ROW_HEIGHT}
+    testid={view === "grid" ? "plugins-grid" : "plugins-list"}
+  >
+    {#snippet item(plugin)}{@render pluginBox(plugin, view)}{/snippet}
+    {#snippet empty()}{@render emptyState()}{/snippet}
+  </ItemList>
 
   {#if addOpen}
     <AddPluginDialog home={addPluginHome} install={installFromUrl} onClose={() => (addOpen = false)} onInstalled={reload} />
@@ -775,127 +746,6 @@
     background: var(--surface-2);
     color: var(--text);
   }
-  /* The point of this view is seeing many plugins at once, so the tracks are narrow
-     and the gap tight; the row view is the one that trades density for detail. */
-  .plugins-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
-    gap: 10px;
-  }
-  .plugin-card {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 9px;
-    padding: 12px 13px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-  }
-  .plugin-card .favorite {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-  }
-  .plugin-card .card-open {
-    padding-right: 26px;
-  }
-  .card-open {
-    /* Icon beside the text, not stacked above it: stacking cost a whole row of
-       height per card and left the mark floating on a line of its own. */
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    align-items: start;
-    gap: 10px;
-    background: none;
-    border: 0;
-    padding: 0;
-    text-align: left;
-    cursor: pointer;
-    color: inherit;
-    font: inherit;
-    width: 100%;
-  }
-  .card-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .card-title b {
-    font-size: 13.5px;
-    font-weight: 600;
-    letter-spacing: -.01em;
-  }
-  .card-text {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 0;
-  }
-  .card-desc {
-    color: var(--muted);
-    font-size: 12px;
-    line-height: 1.45;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  .card-footer {
-    display: flex;
-    justify-content: flex-end;
-    /* Cards in a row stretch to the tallest, so without this the action sits at a
-       different height in every card and the grid reads as ragged. */
-    margin-top: auto;
-  }
-  .row {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 14px 18px;
-    border-top: 1px solid var(--border);
-  }
-  .row:first-child {
-    border-top: 0;
-  }
-  .open {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    flex: 1;
-    min-width: 0;
-    background: none;
-    border: 0;
-    padding: 6px;
-    margin: -6px;
-    border-radius: 10px;
-    text-align: left;
-    cursor: pointer;
-    color: inherit;
-    font: inherit;
-  }
-  .open:hover {
-    background: var(--surface-2);
-  }
-  .info {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    min-width: 0;
-    flex: 1;
-  }
-  .name-with-chip {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .name-with-chip b {
-    font-size: 13.5px;
-    font-weight: 600;
-    letter-spacing: -.01em;
-  }
   .repo {
     font-family: var(--mono);
     font-size: 11px;
@@ -909,14 +759,6 @@
     border-radius: 5px;
     padding: 1px 6px;
     flex: none;
-  }
-  .desc {
-    color: var(--muted);
-    font-size: 12px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
   }
   .chip {
     font-size: 10.5px;
@@ -939,11 +781,6 @@
     background: var(--surface-2);
     padding: 1px 7px;
     border-radius: 20px;
-  }
-  .actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
   }
   .favorite {
     flex: none;

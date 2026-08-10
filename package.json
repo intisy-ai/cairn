@@ -15,7 +15,11 @@
     "build": "npm run build:deps && electron-vite build",
     "typecheck": "tsc -b",
     "check:svelte": "svelte-check --tsconfig ./src/renderer/tsconfig.json",
-    "check": "tsc -b && npm run check:svelte",
+    "check": "tsc -b && npm run check:svelte && npm run check:css",
+    "check:css": "node scripts/css-scale.mjs",
+    "gallery": "vite --config vite.gallery.config.ts",
+    "gallery:build": "vite build --config vite.gallery.config.ts",
+    "gallery:shots": "npm run gallery:build && electron scripts/gallery-shots.cjs --disable-gpu --force-device-scale-factor=1",
     "test": "vitest run",
     "test:live": "vitest run --config vitest.live.config.ts",
     "build:deps": "npm --prefix core install && npm --prefix core run build && npm --prefix core-auth install && npm --prefix core-auth run build && npm --prefix core-loader install && npm --prefix core-loader run build && npm --prefix core-proxy install && npm --prefix core-proxy run build"

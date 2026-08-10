@@ -577,7 +577,7 @@ describe("Plugins screen", () => {
 
     await fireEvent.click(screen.getByRole("button", { name: "List view" }));
 
-    await waitFor(() => expect(document.querySelector(".row")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("plugins-list")).toBeInTheDocument());
     expect(screen.queryByTestId("plugins-grid")).toBeNull();
     await waitFor(() => expect(setConfig).toHaveBeenCalledWith("cairn", "viewMode.plugins", "list"));
   });

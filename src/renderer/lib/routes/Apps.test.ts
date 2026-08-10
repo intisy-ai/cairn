@@ -243,7 +243,7 @@ describe("Apps screen", () => {
 
     await fireEvent.click(screen.getByRole("button", { name: "List view" }));
 
-    await waitFor(() => expect(document.querySelector("ul.list")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("apps-list")).toBeInTheDocument());
     expect(screen.queryByTestId("apps-grid")).toBeNull();
     await waitFor(() => expect(setConfig).toHaveBeenCalledWith("cairn", "viewMode.apps", "list"));
   });
