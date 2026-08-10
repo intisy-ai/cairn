@@ -1,4 +1,4 @@
-import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, HomeLibraries, AppStorage, AppStorageResult, AppPathNames, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, PluginMenu, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec, UpdateSummary, Job, JobKind } from "./domain.js";
+﻿import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, HomeLibraries, AppStorage, AppStorageResult, AppPathNames, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, PluginMenu, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec, UpdateSummary, Job, JobKind } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -75,6 +75,7 @@ export interface CairnAPI {
   importPreview(app: string): Promise<Result<ImportPreview>>;
   importRun(app: string, selection?: ImportSelection): Promise<Result<ImportSummary>>;
   catalogList(): Promise<Result<CatalogResult>>;
+  catalogListCached(): Promise<Result<CatalogResult | null>>;
   githubStatus(): Promise<Result<GithubStatus>>;
   githubAddAccount(token: string, star: boolean): Promise<Result<{ login: string }>>;
   githubSwitchAccount(login: string): Promise<Result<void>>;
@@ -102,3 +103,4 @@ export interface CairnAPI {
   isElectron: true;
   platform: NodeJS.Platform;
 }
+

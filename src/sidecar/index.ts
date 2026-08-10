@@ -1,4 +1,4 @@
-import type { Result } from "../../packages/shared/src/domain.js";
+﻿import type { Result } from "../../packages/shared/src/domain.js";
 import { isReadOnlyChannel } from "../../packages/shared/src/ipc.js";
 import { initCoreProxy } from "@core-proxy/index.js";
 import { err } from "./result.js";
@@ -35,7 +35,7 @@ import { usageSnapshot } from "./modules/usage.js";
 import { discoverApps } from "./lib/appDiscovery.js";
 import { importApps, importPreview, importRun } from "./modules/import.js";
 import type { ImportSelection } from "../../packages/shared/src/domain.js";
-import { catalogList } from "./modules/catalog.js";
+import { catalogList, catalogListCached } from "./modules/catalog.js";
 import { githubStatus, githubAddAccount, githubSwitchAccount, githubRemoveAccount, githubConnectGhCli, githubSetStar, githubStarCairn, githubDeviceStart, githubDevicePoll } from "./modules/github.js";
 import { customEndpointsList, customEndpointsUpsert, customEndpointsRemove, customEndpointsSaveKey, customEndpointsFormats } from "./modules/customEndpoints.js";
 import type { CustomEndpoint } from "../../packages/shared/src/domain.js";
@@ -191,6 +191,7 @@ registerHandler("import:apps", () => importApps());
 registerHandler("import:preview", (app) => importPreview(app as string));
 registerHandler("import:run", (app, selection) => importRun(app as string, selection as ImportSelection | undefined));
 registerHandler("catalog:list", () => catalogList());
+registerHandler("catalog:listCached", () => catalogListCached());
 registerHandler("github:status", () => githubStatus());
 registerHandler("github:add-account", (token, star) => githubAddAccount(token as string, star as boolean));
 registerHandler("github:switch-account", (login) => githubSwitchAccount(login as string));
@@ -230,3 +231,5 @@ if (process.parentPort) {
   // decides whether anything happens, so there is no separate dashboard switch.
   startBackgroundUpdates();
 }
+
+

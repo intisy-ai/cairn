@@ -723,6 +723,7 @@ describe("Plugins screen", () => {
       pluginsListCached: async () => ({ ok: true, data: [
         { home: CLAUDE, rows: [{ name: "from-cache", kind: "git" as const, enabled: true, updateAvailable: false, description: "cached" }] },
       ] }),
+      catalogListCached: async () => ({ ok: true, data: { entries: [], source: "gh" as const, org: "intisy-ai", rateLimited: false } }),
       pluginsList: () => live,
       catalogList: async () => ({ ok: true, data: { entries: [], source: "gh" as const } }),
     });
@@ -745,6 +746,27 @@ describe("Plugins screen", () => {
       catalogList: async () => ({ ok: true, data: baseCatalog() }),
     });
     render(Plugins);
+    expect(await screen.findByText("wakatime-sync")).toBeInTheDocument();
+  });
+
+  // A head start built from the plugin list alone drew a list that then grew and reordered as
+  // the catalog landed, which is exactly the half-loaded state the cache is meant to avoid.
+  it("waits for the full row set when only the plugin list is cached", async () => {
+    let releaseCatalog: (value: { ok: true; data: { entries: []; source: "gh" } }) => void = () => {};
+    const catalogPending = new Promise<{ ok: true; data: { entries: []; source: "gh" } }>((resolve) => { releaseCatalog = resolve; });
+    stubCairn({
+      pluginsListCached: async () => ({ ok: true, data: baseSections() }),
+      catalogListCached: async () => ({ ok: true, data: null }),
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: () => catalogPending,
+    });
+    render(Plugins);
+
+    await waitFor(() => expect(screen.getAllByTestId("skeleton").length).toBeGreaterThan(0));
+    expect(screen.queryByText("wakatime-sync")).toBeNull();
+
+    releaseCatalog({ ok: true, data: { entries: [], source: "gh" } });
+
     expect(await screen.findByText("wakatime-sync")).toBeInTheDocument();
   });
 

@@ -1,4 +1,4 @@
-import type { CairnAPI } from "./api.js";
+﻿import type { CairnAPI } from "./api.js";
 
 // Method name (on CairnAPI) to IPC channel string. This is the single source for
 // the request/response surface: the preload builds its bridge from this map, and
@@ -81,6 +81,7 @@ export const INVOKE_CHANNELS = {
   importPreview: "import:preview",
   importRun: "import:run",
   catalogList: "catalog:list",
+  catalogListCached: "catalog:listCached",
   githubStatus: "github:status",
   githubAddAccount: "github:add-account",
   githubSwitchAccount: "github:switch-account",
@@ -132,3 +133,4 @@ export function isReadOnlyChannel(channel: string): boolean {
   const at = String(channel).indexOf(":");
   return at >= 0 && READ_ONLY_ACTIONS.includes(channel.slice(at + 1));
 }
+

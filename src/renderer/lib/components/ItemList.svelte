@@ -50,9 +50,12 @@
 {/if}
 
 <style>
+  /* Cards size to their own content: a stretched row makes every card as tall as the
+     wordiest one, which is the dead space that stops a card grid reading as compact. */
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(var(--track-card), 1fr));
+    align-items: start;
     gap: var(--space-md);
   }
 </style>

@@ -1,4 +1,4 @@
-<script lang="ts">
+﻿<script lang="ts">
   import { onMount } from "svelte";
   import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin, PluginVersion, Result, InstallManyResult, InstallOutcome, RepoRef, EngineView, GithubStatus } from "@cairn/shared";
   import { classifyRepoName } from "@cairn/shared";
@@ -158,8 +158,7 @@
   const selectedPlugin = $derived(selectedName ? unified.find((p) => p.name === selectedName) ?? null : null);
   const showRateLimitBanner = $derived(catalogRateLimited && !!ghStatus && !ghStatus.connected && !rateLimitBannerDismissed);
 
-  async function loadPlugins(): Promise<void> {
-    const result = await cairn.pluginsList();
+  function applyPlugins(result: Awaited<ReturnType<typeof cairn.pluginsList>>): void {
     if (result.ok) {
       sections = result.data;
       pluginsError = "";
@@ -168,8 +167,7 @@
     }
   }
 
-  async function loadCatalog(): Promise<void> {
-    const result = await cairn.catalogList();
+  function applyCatalog(result: Awaited<ReturnType<typeof cairn.catalogList>>): void {
     if (result.ok) {
       catalog = result.data.entries;
       catalogOrg = result.data.org;
@@ -177,14 +175,13 @@
     }
   }
 
+  async function loadCatalog(): Promise<void> {
+    applyCatalog(await cairn.catalogList());
+  }
+
   async function loadGithubStatus(): Promise<void> {
     const result = await cairn.githubStatus();
     if (result.ok) ghStatus = result.data;
-  }
-
-  async function loadEngines(): Promise<void> {
-    const result = await cairn.enginesList();
-    if (result.ok) engines = result.data;
   }
 
   async function loadFavorites(): Promise<void> {
@@ -227,21 +224,37 @@
     await fresh;
   }
 
-  // The cached list is whatever the last real read produced, so the screen has rows to draw
-  // before anything is read again. It is only a head start: the live read replaces it, and a
-  // cache miss just leaves the skeleton up as before.
+  // The head start is the whole row set or nothing: painting the installed rows alone left a
+  // visibly half-built list that grew and reordered as the catalog and the versions landed.
   async function paintFromCache(): Promise<void> {
     if (sections.length > 0) return;
-    const result = await cairn.pluginsListCached();
-    if (result.ok && result.data.length > 0 && sections.length === 0) {
-      sections = result.data;
-      loaded = true;
-    }
+    const [rows, cached, cachedVersions] = await Promise.all([
+      cairn.pluginsListCached(),
+      cairn.catalogListCached(),
+      cairn.pluginVersionsCached(),
+    ]);
+    if (sections.length > 0 || !rows.ok || rows.data.length === 0 || !cached.ok || !cached.data) return;
+    sections = rows.data;
+    applyCatalog({ ok: true, data: cached.data });
+    if (cachedVersions.ok) versions = cachedVersions.data;
+    loaded = true;
   }
 
+  // Every fresh read is applied in one go: a screen that is already painted must not reshuffle
+  // itself once per response.
   async function reload(): Promise<void> {
-    void paintFromCache();
-    await Promise.all([loadPlugins(), loadCatalog(), loadEngines(), loadFavorites(), loadGithubStatus()]);
+    const painting = paintFromCache();
+    const [plugins, catalogResult, enginesResult] = await Promise.all([
+      cairn.pluginsList(),
+      cairn.catalogList(),
+      cairn.enginesList(),
+      loadFavorites(),
+      loadGithubStatus(),
+    ]);
+    await painting;
+    applyPlugins(plugins);
+    applyCatalog(catalogResult);
+    if (enginesResult.ok) engines = enginesResult.data;
     queuedManagerHomes = new Set();
     loaded = true;
     void loadVersions();
@@ -423,7 +436,7 @@
     checking = true;
     try {
       for (const home of updatableHomes()) await cairn.updatesCheck(home.id);
-      await loadPlugins();
+      applyPlugins(await cairn.pluginsList());
     } finally {
       checking = false;
     }
@@ -434,7 +447,7 @@
     updatingAll = true;
     try {
       for (const home of updatableHomes()) await cairn.updatesAll(home.id);
-      await loadPlugins();
+      applyPlugins(await cairn.pluginsList());
     } finally {
       updatingAll = false;
     }
@@ -565,7 +578,7 @@
       aria-label={p.favorite ? "Unfavorite" : "Favorite"}
       onclick={(e) => { e.stopPropagation(); toggleFavorite(p); }}
     >
-      {p.favorite ? "★" : "☆"}
+      {p.favorite ? "â˜…" : "â˜†"}
     </button>
   {/snippet}
 
@@ -813,3 +826,4 @@
     flex: none;
   }
 </style>
+

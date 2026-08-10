@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import { flyMotion } from "../util/motion.js";
 
   let {
     view = "list",
@@ -46,7 +45,6 @@
   class:selected
   data-testid={testid || undefined}
   style={!isGrid && columns ? `grid-template-columns:${columns}` : undefined}
-  in:flyMotion={{ y: 6 }}
 >
   {#snippet openContent()}
     {#if icon}{@render icon()}{/if}
@@ -56,7 +54,7 @@
         {#if badges}{@render badges()}{/if}
       </span>
       {#if subtitle}<span class="subtitle" class:mono={monoSubtitle}>{subtitle}</span>{/if}
-      {#if meta}{@render meta()}{/if}
+      {#if meta}<span class="metaline">{@render meta()}</span>{/if}
     </span>
   {/snippet}
 
@@ -106,9 +104,8 @@
     flex-direction: column;
     align-items: stretch;
     gap: var(--space-md);
-    height: 100%;
     padding: var(--space-lg);
-    background: var(--surface-2);
+    background: var(--surface);
     border: var(--hairline) solid var(--border);
     border-radius: var(--radius-md);
   }
@@ -134,8 +131,24 @@
     color: inherit;
     font: inherit;
   }
-  .box.grid .open {
-    align-items: start;
+  /* A card puts the mark and the title on one line and gives the description the full width,
+     so a narrow track still reads as a sentence instead of a column of two-word lines. */
+  .box.grid .text {
+    display: contents;
+  }
+  .box.grid .subtitle,
+  .box.grid .metaline {
+    grid-column: 1 / -1;
+  }
+  .box.grid .subtitle {
+    margin-top: var(--space-xs);
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    color: var(--muted);
   }
   button.open {
     cursor: pointer;
