@@ -31,17 +31,21 @@ function reasonOf(error: unknown): string {
   return code ? `${code}: ${message}` : message;
 }
 
-// Imports a deployed provider's handler bundle, throwing a message that names what
-// actually went wrong. Every caller used to catch this failure and report its own
-// unrelated cause (a provider labelled with its raw id, a missing accounts controller,
-// a provider that "does not support in-app login"), which made one broken install look
-// like several unrelated bugs.
+// Imports a deployed plugin's handler bundle, throwing a message that names what actually
+// went wrong. Every caller used to catch this failure and report its own unrelated cause (a
+// provider labelled with its raw id, a missing accounts controller, a provider that "does
+// not support in-app login", an empty list of wire formats), which made one broken install
+// look like several unrelated bugs.
+export async function importHandlerModule(handlerPath: string, repo: string): Promise<Record<string, unknown>> {
+  try {
+    return await import(handlerUrl(handlerPath));
+  } catch (e) {
+    throw new Error(`${repo} failed to load: ${reasonOf(e)}`);
+  }
+}
+
 export async function importProviderHandler(provider: string): Promise<DeployedHandler> {
   const deployed = readDeployedProviders(reposDir()).find((p) => p.provider === provider);
   if (!deployed) throw new Error(`no provider deployed with id: ${provider}`);
-  try {
-    return { repo: deployed.repo, module: await import(handlerUrl(deployed.handlerPath)) };
-  } catch (e) {
-    throw new Error(`${deployed.repo} failed to load: ${reasonOf(e)}`);
-  }
+  return { repo: deployed.repo, module: await importHandlerModule(deployed.handlerPath, deployed.repo) };
 }

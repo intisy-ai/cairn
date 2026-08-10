@@ -1,10 +1,10 @@
-import { pathToFileURL } from "node:url";
-import { join } from "node:path";
+import { join, basename } from "node:path";
 import { existsSync } from "node:fs";
 import { getConfigDir } from "@core-auth/index.js";
 import { pluginByCapability } from "./engines.js";
 import type { CustomEndpoint, CustomEndpointView, Result } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
+import { importHandlerModule } from "../lib/providerHandler.js";
 import { reposDir } from "../lib/storagePaths.js";
 
 // Custom endpoints are the provider plugin's own data: what makes one valid, where it is
@@ -38,9 +38,10 @@ function repoDir(dir: string): string {
 }
 
 async function realLoadPlugin(dir: string): Promise<EndpointsApi | null> {
-  const handler = join(repoDir(dir), "dist", "handler.js");
+  const repo = repoDir(dir);
+  const handler = join(repo, "dist", "handler.js");
   if (!existsSync(handler)) return null;
-  const loaded = (await import(pathToFileURL(handler).href)) as Partial<EndpointsApi>;
+  const loaded = (await importHandlerModule(handler, basename(repo))) as Partial<EndpointsApi>;
   return typeof loaded.upsertEndpoint === "function" ? (loaded as EndpointsApi) : null;
 }
 
