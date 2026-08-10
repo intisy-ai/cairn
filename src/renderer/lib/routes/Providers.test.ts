@@ -296,7 +296,7 @@ describe("Providers screen", () => {
     stubCairn({ providersList: async () => ({ ok: true, data: [] }), customEndpointsList: async () => ({ ok: true, data: [] }) });
     const { findByRole } = render(Providers);
     await fireEvent.click(await findByRole("button", { name: /custom endpoints/i }));
-    expect(await findByRole("dialog", { name: /manage custom endpoints/i })).toBeInTheDocument();
+    expect(await findByRole("dialog", { name: /custom endpoints/i })).toBeInTheDocument();
   });
 
   it("collapsing the Available group hides its rows", async () => {

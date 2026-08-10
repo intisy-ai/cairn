@@ -5,20 +5,13 @@
   import StatusPill, { type StatusVariant } from "./StatusPill.svelte";
   import { humanizeId } from "../util/appLabel.js";
   import { relativeTime } from "../util/time.js";
-  import { fadeMotion, flyMotion } from "../util/motion.js";
+  import Dialog from "./Dialog.svelte";
 
   let { record, onClose }: { record: ActivityRecord; onClose: () => void } = $props();
 
-  let closeBtn = $state<HTMLButtonElement | undefined>(undefined);
   let rawOpen = $state(false);
 
-  function onKeydown(event: KeyboardEvent): void {
-    if (event.key === "Escape") onClose();
-  }
 
-  $effect(() => {
-    closeBtn?.focus();
-  });
 
   function impactVariant(): StatusVariant {
     if (record.impact === "error") return "warn";
@@ -82,16 +75,9 @@
   const detailEntries = $derived(Object.entries(record.details ?? {}));
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-<div class="backdrop" role="presentation" onclick={onClose} transition:fadeMotion></div>
-<div class="dialog" role="dialog" aria-modal="true" aria-label="Activity detail" data-testid="activity-detail" transition:flyMotion={{ y: 8 }}>
-  <header>
-    <div class="headline">
-      <StatusPill variant={impactVariant()} label={record.impact} />
-      <h3>{record.text}</h3>
-    </div>
-  </header>
-
+<Dialog title={record.text} width="md" testid="activity-detail" {onClose}>
+  {#snippet body()}
+    <div class="impact"><StatusPill variant={impactVariant()} label={record.impact} /></div>
   <dl class="facts">
     {#each facts as fact (fact.label)}
       <dt>{fact.label}</dt>
@@ -137,46 +123,16 @@
       {/if}
     </section>
   {/if}
+  {/snippet}
 
-  <div class="actions">
+  {#snippet actions()}
     <Button onclick={onClose}>Close</Button>
-  </div>
-</div>
+  {/snippet}
+</Dialog>
 
 <style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    background: var(--scrim);
-    z-index: 40;
-  }
-  .dialog {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 41;
-    width: min(94vw, 35rem);
-    max-height: 88vh;
-    overflow-y: auto;
-    background: var(--surface);
-    border: var(--hairline) solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: var(--space-2xl);
+  .impact {
     display: flex;
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-  .headline {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-  }
-  h3 {
-    margin: 0;
-    font-size: var(--fs-md);
-    font-weight: 650;
   }
   h4 {
     margin: 0 0 var(--space-xs);
@@ -239,9 +195,5 @@
     font-size: var(--fs-xs);
     color: var(--muted);
     overflow-x: auto;
-  }
-  .actions {
-    display: flex;
-    justify-content: flex-end;
   }
 </style>

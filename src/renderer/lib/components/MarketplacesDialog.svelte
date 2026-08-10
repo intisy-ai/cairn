@@ -3,7 +3,7 @@
   import { cairn } from "../ipc.js";
   import { toast } from "../toast.js";
   import Button from "./Button.svelte";
-  import { fadeMotion, flyMotion } from "../util/motion.js";
+  import Dialog from "./Dialog.svelte";
 
   let { onClose, onSaved }: { onClose: () => void; onSaved?: () => void } = $props();
 
@@ -81,20 +81,20 @@
     return TYPES.find((candidate) => candidate.id === type)?.label ?? type;
   }
 
-  function onKeydown(event: KeyboardEvent): void {
-    if (event.key === "Escape") onClose();
-  }
 
   $effect(() => {
     if (!loaded) void load();
   });
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-<div class="backdrop" role="presentation" onclick={onClose} transition:fadeMotion></div>
-<div class="dialog" role="dialog" aria-modal="true" aria-label="Manage marketplaces" data-testid="marketplaces-dialog" transition:flyMotion={{ y: 8 }}>
-  <h3>Marketplaces</h3>
-  <p class="hint">Browsed together by default. When two publish the same name, the one higher in this list wins.</p>
+<Dialog
+  title="Marketplaces"
+  subtitle="Browsed together by default. When two publish the same name, the one higher in this list wins."
+  width="lg"
+  testid="marketplaces-dialog"
+  {onClose}
+>
+  {#snippet body()}
 
   {#if error}<p class="error">{error}</p>{/if}
 
@@ -125,48 +125,15 @@
     <input aria-label="Marketplace location" placeholder={draftType.hint} bind:value={draft.location} />
     <Button onclick={add}>Add</Button>
   </div>
+  {/snippet}
 
-  <div class="actions">
+  {#snippet actions()}
     <Button onclick={onClose}>Cancel</Button>
     <Button variant="primary" disabled={busy} onclick={save}>{busy ? "Saving..." : "Save"}</Button>
-  </div>
-</div>
+  {/snippet}
+</Dialog>
 
 <style>
-  .backdrop {
-    position: fixed;
-    inset: 0;
-    background: var(--scrim);
-    z-index: 40;
-  }
-  .dialog {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 41;
-    width: min(94vw, 40rem);
-    max-height: 88vh;
-    overflow-y: auto;
-    background: var(--surface);
-    border: var(--hairline) solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: var(--space-2xl);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-lg);
-  }
-  h3 {
-    margin: 0;
-    font-size: var(--fs-md);
-    font-weight: 650;
-  }
-  .hint {
-    margin: 0;
-    color: var(--muted);
-    font-size: var(--fs-sm);
-  }
   .error {
     margin: 0;
     color: var(--crit);
@@ -245,10 +212,5 @@
   }
   .add input {
     cursor: text;
-  }
-  .actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-sm);
   }
 </style>

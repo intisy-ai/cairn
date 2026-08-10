@@ -122,6 +122,7 @@ export function screenFixtures(): Partial<CairnAPI> {
       ],
     }),
     marketplaceSourcesSave: async (sources) => ({ ok: true, data: sources }),
+    enginesList: async () => ({ ok: true, data: [] }),
     appsList: async () => ({ ok: true, data: HOST_APPS }),
     appsConnection: async (app: string) => ({
       ok: true,

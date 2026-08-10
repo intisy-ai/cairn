@@ -1,7 +1,7 @@
 ﻿<script lang="ts">
   import { onMount } from "svelte";
   import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin, PluginVersion, Result, InstallManyResult, InstallOutcome, RepoRef, EngineView, GithubStatus, MarketplaceSourceStatus, MarketplaceContribution } from "@cairn/shared";
-  import { classifyRepoName, matchesContribution } from "@cairn/shared";
+  import { classifyRepoName, matchesContribution, LIBRARY_KINDS } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { consumeParams } from "../router.js";
   import { enqueue, enqueueJob, jobSettled, activeByPlugin } from "../downloads.js";
@@ -117,7 +117,6 @@
     proxy: unified.filter((p) => p.kind === "proxy").length,
     plugin: unified.filter((p) => p.kind === "plugin").length,
     loader: unified.filter((p) => p.kind === "loader").length,
-    translator: unified.filter((p) => p.kind === "translator").length,
     engine: unified.filter((p) => engineIds.has(p.name)).length,
     installed: unified.filter(isInstalled).length,
     external: unified.filter((p) => p.external).length,
@@ -132,6 +131,9 @@
       } else if (kindFilter !== "all" && p.kind !== kindFilter) {
         return false;
       }
+      // A library kind is only ever surfaced by a plugin that consumes it: with nothing
+      // contributing a category that matches, it is not this home's business.
+      if (LIBRARY_KINDS.includes(p.kind) && !contributions.some((c) => matchesContribution(p, c))) return false;
       // A category a plugin contributed matches on the entry's own topics or kind, so it
       // keeps matching things published after the plugin that declared it.
       const contributed = contributions.find((c) => c.id === contributionFilter);
@@ -590,7 +592,6 @@
     <Chip label={`Proxies ${counts.proxy}`} on={kindFilter === "proxy"} onclick={() => setKind("proxy")} />
     <Chip label={`Plugins ${counts.plugin}`} on={kindFilter === "plugin"} onclick={() => setKind("plugin")} />
     <Chip label={`Loaders ${counts.loader}`} on={kindFilter === "loader"} onclick={() => setKind("loader")} />
-    <Chip label={`Translators ${counts.translator}`} on={kindFilter === "translator"} onclick={() => setKind("translator")} />
     <Chip label={`Engines ${counts.engine}`} on={kindFilter === "engine"} onclick={() => setKind("engine")} />
     <span class="sep"></span>
     <Chip label={`Installed ${counts.installed}`} on={installedOnly} onclick={() => (installedOnly = !installedOnly)} />

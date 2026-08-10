@@ -38,5 +38,6 @@ export const SECTIONS: Section[] = [
   screen("activity", "Activity"),
   overlay("activity", "Activity detail", "activity-detail"),
   overlay("marketplaces", "Marketplaces", "marketplaces"),
+  overlay("endpoints", "Custom endpoints", "custom-endpoints", 520),
   overlay("confirm", "Confirm", "confirm", 420),
 ];

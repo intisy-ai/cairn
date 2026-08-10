@@ -5,7 +5,7 @@
   import { navigate } from "../router.js";
   import { track } from "../downloads.js";
   import Button from "./Button.svelte";
-  import { fadeMotion, flyMotion } from "../util/motion.js";
+  import Dialog from "./Dialog.svelte";
 
   let { onClose }: { onClose: () => void } = $props();
 
@@ -27,11 +27,7 @@
   let formats = $state<string[]>([]);
   let form = $state({ id: "", label: "", baseUrl: "", format: "", models: "" });
   let keyDraft = $state<Record<string, string>>({});
-  let panel = $state<HTMLDivElement | undefined>(undefined);
 
-  function onKeydown(event: KeyboardEvent): void {
-    if (event.key === "Escape") onClose();
-  }
 
   async function refresh(): Promise<void> {
     const engines = await cairn.enginesList();
@@ -95,64 +91,65 @@
     else error = result.error;
   }
 
-  onMount(async () => {
-    await refresh();
-    panel?.focus();
-  });
+  onMount(refresh);
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-<div class="backdrop" role="presentation" onclick={onClose} transition:fadeMotion></div>
-<div class="dialog" role="dialog" aria-modal="true" aria-label="Manage custom endpoints" tabindex="-1" bind:this={panel} transition:flyMotion={{ y: 8 }}>
-  <h3>Custom endpoints</h3>
-  {#if !installed}
-    <p class="hint">The custom endpoints engine is not installed. It serves your configured endpoints.</p>
-    <div class="actions"><Button variant="primary" disabled={busy} onclick={install}>Install engine</Button></div>
-  {:else}
-    <div class="list">
-      {#each endpoints as ep (ep.id)}
-        <div class="ep">
-          <div class="ephead">
-            <span class="name">{ep.label}</span>
-            <span class="fmt">{ep.format}</span>
-            <span class="key" class:set={ep.hasKey}>{ep.hasKey ? "key set" : "no key"}</span>
-            <button class="rm" onclick={() => removeEndpoint(ep.id)} aria-label={"Remove " + ep.label}>Remove</button>
+<Dialog title="Custom endpoints" testid="custom-endpoints" width="md" {onClose}>
+  {#snippet body()}
+    {#if !installed}
+      <p class="hint">The custom endpoints engine is not installed. It serves your configured endpoints.</p>
+    {:else}
+      <div class="list">
+        {#each endpoints as ep (ep.id)}
+          <div class="ep">
+            <div class="ephead">
+              <span class="name">{ep.label}</span>
+              <span class="fmt">{ep.format}</span>
+              <span class="key" class:set={ep.hasKey}>{ep.hasKey ? "key set" : "no key"}</span>
+              <button class="rm" onclick={() => removeEndpoint(ep.id)} aria-label={"Remove " + ep.label}>Remove</button>
+            </div>
+            <div class="epmeta">{ep.id} · {ep.baseUrl} · {ep.models.join(", ")}</div>
+            <div class="keyrow">
+              <input type="password" placeholder="Set API key" aria-label={"API key for " + ep.label} bind:value={keyDraft[ep.id]} />
+              <Button disabled={!keyDraft[ep.id]} onclick={() => saveKey(ep.id)}>Save key</Button>
+            </div>
           </div>
-          <div class="epmeta">{ep.id} · {ep.baseUrl} · {ep.models.join(", ")}</div>
-          <div class="keyrow">
-            <input type="password" placeholder="Set API key" aria-label={"API key for " + ep.label} bind:value={keyDraft[ep.id]} />
-            <Button disabled={!keyDraft[ep.id]} onclick={() => saveKey(ep.id)}>Save key</Button>
-          </div>
-        </div>
-      {:else}
-        <p class="hint">No endpoints yet. Add one below.</p>
-      {/each}
-    </div>
+        {:else}
+          <p class="hint">No endpoints yet. Add one below.</p>
+        {/each}
+      </div>
 
-    <div class="form">
-      <p class="ptitle">Add endpoint</p>
-      <label>Endpoint id<input aria-label="Endpoint id" bind:value={form.id} placeholder="myendpoint" /></label>
-      <label>Label<input aria-label="Label" bind:value={form.label} placeholder="My endpoint" /></label>
-      <label>Base URL<input aria-label="Base URL" bind:value={form.baseUrl} placeholder="https://host/v1" /></label>
-      <label>Format
-        <select aria-label="Format" bind:value={form.format}>
-          {#each formats as f (f)}<option value={f}>{f}</option>{/each}
-        </select>
-      </label>
-      <p class="formats-note">
-        {formats.length === 0
-          ? "No wire formats available. A translator is what teaches this provider a vendor's format."
-          : "More formats come from installed translators."}
-        <button type="button" class="link" onclick={browseTranslators}>Browse translators</button>
-      </p>
-      <label>Models<input aria-label="Models (comma separated)" bind:value={form.models} placeholder="gpt-4o, gpt-4o-mini" /></label>
-      <Button variant="primary" disabled={busy} onclick={addEndpoint}>Add endpoint</Button>
-    </div>
-    {#if dirtyHint}<p class="hint">Restart the Local API to apply new endpoints and models to routing.</p>{/if}
-  {/if}
-  {#if error}<p class="error">{error}</p>{/if}
-  <div class="actions"><Button onclick={onClose}>Close</Button></div>
-</div>
+      <div class="form">
+        <p class="ptitle">Add endpoint</p>
+        <label>Endpoint id<input aria-label="Endpoint id" bind:value={form.id} placeholder="myendpoint" /></label>
+        <label>Label<input aria-label="Label" bind:value={form.label} placeholder="My endpoint" /></label>
+        <label>Base URL<input aria-label="Base URL" bind:value={form.baseUrl} placeholder="https://host/v1" /></label>
+        <label>Format
+          <select aria-label="Format" bind:value={form.format}>
+            {#each formats as f (f)}<option value={f}>{f}</option>{/each}
+          </select>
+        </label>
+        <p class="formats-note">
+          {formats.length === 0
+            ? "No wire formats available. A translator is what teaches this provider a vendor's format."
+            : "More formats come from installed translators."}
+          <button type="button" class="link" onclick={browseTranslators}>Browse translators</button>
+        </p>
+        <label>Models<input aria-label="Models (comma separated)" bind:value={form.models} placeholder="gpt-4o, gpt-4o-mini" /></label>
+        <Button variant="primary" disabled={busy} onclick={addEndpoint}>Add endpoint</Button>
+      </div>
+      {#if dirtyHint}<p class="hint">Restart the Local API to apply new endpoints and models to routing.</p>{/if}
+    {/if}
+    {#if error}<p class="error">{error}</p>{/if}
+  {/snippet}
+
+  {#snippet actions()}
+    {#if !installed}
+      <Button variant="primary" disabled={busy} onclick={install}>Install engine</Button>
+    {/if}
+    <Button onclick={onClose}>Close</Button>
+  {/snippet}
+</Dialog>
 
 <style>
   .formats-note {
@@ -170,10 +167,6 @@
     font-size: var(--fs-xs);
     cursor: pointer;
   }
-  .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 40; }
-  .dialog { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 41; width: min(94vw, 560px); max-height: 88vh; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-  .dialog:focus { outline: none; }
-  h3 { margin: 0; font-size: 15px; font-weight: 650; }
   .hint { margin: 0; font-size: 12px; color: var(--muted); }
   .ptitle { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); font-weight: 600; margin: 6px 0 2px; }
   .list { display: flex; flex-direction: column; gap: 10px; }
@@ -192,5 +185,4 @@
   input, select { font-family: var(--ui); font-size: 12.5px; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
   input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
   .error { margin: 0; color: var(--crit); font-size: 12.5px; }
-  .actions { display: flex; justify-content: flex-end; gap: 8px; }
 </style>
