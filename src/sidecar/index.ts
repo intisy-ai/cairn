@@ -38,6 +38,7 @@ import type { ImportSelection } from "../../packages/shared/src/domain.js";
 import { catalogList, catalogListCached } from "./modules/catalog.js";
 import { githubStatus, githubAddAccount, githubSwitchAccount, githubRemoveAccount, githubConnectGhCli, githubSetStar, githubStarCairn, githubDeviceStart, githubDevicePoll } from "./modules/github.js";
 import { customEndpointsList, customEndpointsUpsert, customEndpointsRemove, customEndpointsSaveKey, customEndpointsFormats } from "./modules/customEndpoints.js";
+import { marketplaceSourcesList, marketplaceSourcesSave } from "./modules/marketplaceSources.js";
 import type { CustomEndpoint } from "../../packages/shared/src/domain.js";
 import { favoritesList, favoritesToggle } from "./modules/favorites.js";
 
@@ -203,6 +204,8 @@ registerHandler("github:device-start", () => githubDeviceStart());
 registerHandler("github:device-poll", (star) => githubDevicePoll(star as boolean));
 registerHandler("favorites:list", () => favoritesList());
 registerHandler("favorites:toggle", (name) => favoritesToggle(name as string));
+registerHandler("marketplaceSources:list", () => marketplaceSourcesList());
+registerHandler("marketplaceSources:save", (sources) => marketplaceSourcesSave(sources));
 registerHandler("customEndpoints:list", () => customEndpointsList());
 registerHandler("customEndpoints:formats", () => customEndpointsFormats());
 registerHandler("customEndpoints:upsert", (endpoint) => customEndpointsUpsert(endpoint as CustomEndpoint));

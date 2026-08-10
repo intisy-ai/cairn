@@ -17,6 +17,7 @@
   import AppPills from "../components/AppPills.svelte";
   import PluginInstallControl from "../components/PluginInstallControl.svelte";
   import AddPluginDialog from "../components/AddPluginDialog.svelte";
+  import MarketplacesDialog from "../components/MarketplacesDialog.svelte";
   import ConfirmDialog from "../components/ConfirmDialog.svelte";
   import Skeleton from "../components/Skeleton.svelte";
   import PageHeader from "../components/PageHeader.svelte";
@@ -64,6 +65,7 @@
 
   const startParams = consumeParams();
   let addOpen = $state(!!startParams?.add);
+  let marketplacesOpen = $state(false);
   // Arriving with ?plugin= opens that plugin straight away, so a link from another screen
   // lands on the plugin itself rather than just the list.
   let selectedName = $state<string | null>(startParams?.plugin ?? null);
@@ -557,6 +559,7 @@
         <Button onclick={handleUpdateAll} disabled={updatingAll}>{updatingAll ? "Updating..." : "Update all"}</Button>
       {/if}
     {/if}
+    <Button onclick={() => (marketplacesOpen = true)}>Marketplaces</Button>
     <Button variant="primary" onclick={() => (addOpen = true)}>+ Add from URL</Button>
     <ViewToggle value={view} onChange={setView} />
   </div>
@@ -715,6 +718,10 @@
 
   {#if addOpen}
     <AddPluginDialog home={addPluginHome} install={installFromUrl} onClose={() => (addOpen = false)} onInstalled={reload} />
+  {/if}
+
+  {#if marketplacesOpen}
+    <MarketplacesDialog onClose={() => (marketplacesOpen = false)} onSaved={loadCatalog} />
   {/if}
 
   {#if selectedPlugin}

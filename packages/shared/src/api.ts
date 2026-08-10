@@ -1,4 +1,4 @@
-﻿import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, HomeLibraries, AppStorage, AppStorageResult, AppPathNames, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, AppSummary, PluginConfigSchema, PluginMenu, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec, UpdateSummary, Job, JobKind } from "./domain.js";
+﻿import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, HomeLibraries, AppStorage, AppStorageResult, AppPathNames, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, MarketplaceSource, AppSummary, PluginConfigSchema, PluginMenu, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec, UpdateSummary, Job, JobKind } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -87,6 +87,9 @@ export interface CairnAPI {
   githubDevicePoll(star: boolean): Promise<Result<{ status: string; login?: string; message?: string; intervalSeconds?: number }>>;
   favoritesList(): Promise<Result<string[]>>;
   favoritesToggle(name: string): Promise<Result<string[]>>;
+  marketplaceSourcesList(): Promise<Result<MarketplaceSource[]>>;
+  // Saved as one list because its ORDER is which marketplace wins a name both publish.
+  marketplaceSourcesSave(sources: MarketplaceSource[]): Promise<Result<MarketplaceSource[]>>;
   customEndpointsList(): Promise<Result<CustomEndpointView[]>>;
   // The wire formats the provider plugin can translate, asked of it rather than restated here.
   customEndpointsFormats(): Promise<Result<string[]>>;

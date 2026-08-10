@@ -103,6 +103,15 @@ const ACTIVITY: ActivityRecord[] = [
 export function screenFixtures(): Partial<CairnAPI> {
   return {
     activityRead: async () => ({ ok: true, data: { records: ACTIVITY, nextCursor: undefined } }),
+    marketplaceSourcesList: async () => ({
+      ok: true,
+      data: [
+        { id: "intisy-ai", label: "intisy-ai", type: "github-org" as const, org: "intisy-ai" },
+        { id: "demo", label: "Demo", type: "local" as const, path: "/home/me/marketplace-demo" },
+        { id: "acme", label: "Acme", type: "manifest" as const, url: "https://acme.example/marketplace.json", enabled: false },
+      ],
+    }),
+    marketplaceSourcesSave: async (sources) => ({ ok: true, data: sources }),
     appsList: async () => ({ ok: true, data: HOST_APPS }),
     appsConnection: async (app: string) => ({
       ok: true,

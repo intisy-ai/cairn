@@ -93,6 +93,8 @@ export const INVOKE_CHANNELS = {
   githubDevicePoll: "github:device-poll",
   favoritesList: "favorites:list",
   favoritesToggle: "favorites:toggle",
+  marketplaceSourcesList: "marketplaceSources:list",
+  marketplaceSourcesSave: "marketplaceSources:save",
   customEndpointsList: "customEndpoints:list",
   customEndpointsFormats: "customEndpoints:formats",
   customEndpointsUpsert: "customEndpoints:upsert",
