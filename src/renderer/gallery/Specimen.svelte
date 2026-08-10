@@ -27,9 +27,12 @@
     border: var(--hairline) solid var(--border);
     border-radius: var(--radius);
   }
+  /* nowrap matters: a wrapping column container stretches its lines, which inflated the height
+     of any grid a specimen contained. */
   .specimen.wide .stage {
     display: flex;
     flex-direction: column;
+    flex-wrap: nowrap;
     align-items: stretch;
   }
 </style>

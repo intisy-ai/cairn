@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { AccountQuota } from "@cairn/shared";
+  import ItemBox from "./ItemBox.svelte";
   import StatusPill from "./StatusPill.svelte";
   import type { StatusVariant } from "./StatusPill.svelte";
   import ToggleSwitch from "./ToggleSwitch.svelte";
@@ -7,6 +8,10 @@
 
   const QUOTA_CHIP_CAP = 3;
   const WARN_THRESHOLD = 0.8;
+
+  // No column may carry a minimum the panel cannot give it: fixed widths added up to more than
+  // the dialog is wide, which pushed the toggle and Remove past its edge.
+  const COLUMNS = "minmax(0, 1.6fr) auto minmax(0, 1fr) auto auto";
 
   let {
     label,
@@ -35,90 +40,56 @@
   const hiddenQuotaCount = $derived(Math.max(0, quota.length - QUOTA_CHIP_CAP));
 </script>
 
-<div class="row">
-  <div class="pname">
-    <b>{label}</b>
-    {#if detail}<span>{detail}</span>{/if}
-  </div>
-  <div><StatusPill variant={status.variant} label={status.label} /></div>
-  <div class="quotas">
-    {#each visibleQuota as q, i (q.label ?? `quota-${i}`)}
-      {@const pct = percentUsed(q.remainingFraction ?? 1)}
-      <span
-        class="qchip"
-        class:warn={pct / 100 >= WARN_THRESHOLD}
-        title={q.label ? `${q.label}: ${pct}% used` : `${pct}% used`}
-      >
-        {#if q.label}<span class="qlabel">{q.label}</span>{/if}
-        <span class="qpct">{pct}%</span>
-      </span>
+<ItemBox columns={COLUMNS} title={label} subtitle={detail}>
+  {#snippet actions()}
+    <div><StatusPill variant={status.variant} label={status.label} /></div>
+    <div class="quotas">
+      {#each visibleQuota as q, i (q.label ?? `quota-${i}`)}
+        {@const pct = percentUsed(q.remainingFraction ?? 1)}
+        <span
+          class="qchip"
+          class:warn={pct / 100 >= WARN_THRESHOLD}
+          title={q.label ? `${q.label}: ${pct}% used` : `${pct}% used`}
+        >
+          {#if q.label}<span class="qlabel">{q.label}</span>{/if}
+          <span class="qpct">{pct}%</span>
+        </span>
+      {:else}
+        <span class="none">No quota data</span>
+      {/each}
+      {#if hiddenQuotaCount > 0}
+        <span class="qmore">+{hiddenQuotaCount}</span>
+      {/if}
+    </div>
+    <ToggleSwitch checked={enabled} label={`${label} enabled`} onchange={onToggle} />
+    {#if onRemove}
+      <Button onclick={onRemove}>Remove</Button>
     {:else}
-      <span class="none">No quota data</span>
-    {/each}
-    {#if hiddenQuotaCount > 0}
-      <span class="qmore">+{hiddenQuotaCount}</span>
+      <span></span>
     {/if}
-  </div>
-  <ToggleSwitch checked={enabled} label={`${label} enabled`} onchange={onToggle} />
-  {#if onRemove}
-    <Button onclick={onRemove}>Remove</Button>
-  {/if}
-</div>
+  {/snippet}
+</ItemBox>
 
 <style>
-  /* No column may carry a minimum the panel cannot give it: fixed widths added up to more
-     than the dialog is wide, which pushed the toggle and Remove past its edge where they
-     could not be reached. The name and the quotas absorb whatever space there is. */
-  .row {
-    display: grid;
-    grid-template-columns: minmax(0, 1.6fr) auto minmax(0, 1fr) auto auto;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    border-top: 1px solid var(--border);
-  }
-  .row:first-child {
-    border-top: 0;
-  }
-  .row:hover {
-    background: var(--surface-2);
-  }
-  .pname {
-    min-width: 0;
-  }
-  .pname b {
-    font-size: 13.5px;
-    font-weight: 600;
-    letter-spacing: -.01em;
-  }
-  .pname span {
-    display: block;
-    color: var(--faint);
-    font-size: 11.5px;
-    margin-top: 1px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
   .quotas {
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-xs);
     min-width: 0;
     overflow: hidden;
   }
   .qchip {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--space-2xs);
     flex-shrink: 0;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--good);
     background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 2px 8px;
+    border: var(--hairline) solid var(--border);
+    border-radius: var(--radius-pill);
+    padding: var(--space-3xs) var(--space-sm);
     white-space: nowrap;
   }
   .qchip.warn {
@@ -132,11 +103,11 @@
   }
   .qmore {
     flex-shrink: 0;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--faint);
   }
   .none {
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
     color: var(--faint);
   }
 </style>

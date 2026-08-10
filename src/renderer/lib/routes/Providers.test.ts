@@ -242,7 +242,7 @@ describe("Providers screen", () => {
     const connectedButton = groupButtons.find((b) => b.querySelector(".lbl")?.textContent === "Connected");
     expect(connectedButton?.querySelector(".cnt")?.textContent).toBe("25");
 
-    const renderedRows = container.querySelectorAll(".row").length;
+    const renderedRows = container.querySelectorAll("[data-testid^='provider-']").length;
     expect(renderedRows).toBeGreaterThan(0);
     expect(renderedRows).toBeLessThan(25);
   });

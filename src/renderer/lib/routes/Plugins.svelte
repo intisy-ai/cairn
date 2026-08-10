@@ -578,7 +578,7 @@
       aria-label={p.favorite ? "Unfavorite" : "Favorite"}
       onclick={(e) => { e.stopPropagation(); toggleFavorite(p); }}
     >
-      {p.favorite ? "â˜…" : "â˜†"}
+      {p.favorite ? "★" : "☆"}
     </button>
   {/snippet}
 

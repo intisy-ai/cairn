@@ -35,7 +35,8 @@ async function shoot(win, section, theme, width) {
   const png = image.toPNG();
   const useJpeg = png.length > PNG_BUDGET;
   const file = join(OUT_DIR, `${section}-${theme}-${width}.${useJpeg ? "jpg" : "png"}`);
-  const bytes = useJpeg ? image.toJPEG(80) : png;
+  // Below ~90 the encoder washes out small bold text, which reads as a colour bug that is not there.
+  const bytes = useJpeg ? image.toJPEG(90) : png;
   writeFileSync(file, bytes);
   console.log(`${file} ${Math.round(bytes.length / 1024)}KB`);
 }

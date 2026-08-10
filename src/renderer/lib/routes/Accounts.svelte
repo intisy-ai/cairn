@@ -7,9 +7,9 @@
   import { accountLabel, accountStatusInfo } from "../util/accountStatus.js";
   import AccountRow from "../components/AccountRow.svelte";
   import Button from "../components/Button.svelte";
-  import Card from "../components/Card.svelte";
   import SearchField from "../components/SearchField.svelte";
   import CollapsibleGroup from "../components/CollapsibleGroup.svelte";
+  import ItemList from "../components/ItemList.svelte";
   import VirtualList from "../components/VirtualList.svelte";
   import Skeleton from "../components/Skeleton.svelte";
   import ConfirmDialog from "../components/ConfirmDialog.svelte";
@@ -18,6 +18,7 @@
 
   const VIRTUALIZE_THRESHOLD = 20;
   const ACCOUNT_ROW_HEIGHT = 64;
+  const SECTION_HEADER_HEIGHT = 46;
 
   let providers = $state<ProviderRowData[]>([]);
   let providersError = $state("");
@@ -25,6 +26,7 @@
   let accountsByProvider = $state<Record<string, AccountView[]>>({});
   let accountErrors = $state<Record<string, string>>({});
   let loadingAccounts = $state<Record<string, boolean>>({});
+  let openSections = $state<Record<string, boolean>>({});
   let searchRaw = $state("");
   let search = $state("");
   let pendingConfirm = $state<{ title: string; message: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
@@ -46,17 +48,30 @@
   const term = $derived(search.trim().toLowerCase());
   const searching = $derived(term.length > 0);
 
-  // A provider's account count comes with the provider row, so the screen knows which ones
-  // are worth a section without listing anybody's accounts first. Only the providers you
-  // actually signed into get one; the rest are reached through Add account or by searching.
   const connected = $derived(providers.filter((provider) => provider.accountCount > 0));
 
+  // Every provider gets a section, signed into or not. What keeps that affordable is that a
+  // section is closed until asked for: the count on the header is the one already on the
+  // provider row, and no provider's accounts are listed until its section opens.
   const visibleProviders = $derived.by(() => {
-    if (!term) return connected;
+    if (!term) return providers;
     return providers.filter((provider) =>
       provider.label.toLowerCase().includes(term)
       || (accountsByProvider[provider.id] ?? []).some((account) => accountLabel(account).toLowerCase().includes(term)));
   });
+
+  const anySectionOpen = $derived(Object.values(openSections).some(Boolean));
+
+  // A search that matched inside a section is useless with the section shut, so searching
+  // opens what it matched until the search is cleared.
+  function isOpen(providerId: string): boolean {
+    return openSections[providerId] ?? searching;
+  }
+
+  function setOpen(providerId: string, open: boolean): void {
+    openSections[providerId] = open;
+    if (open) ensureAccounts(providerId);
+  }
 
   const totalAccounts = $derived(providers.reduce((sum, provider) => sum + provider.accountCount, 0));
 
@@ -96,8 +111,11 @@
     void loadAccounts(providerId);
   }
 
+  // Searching has to look inside accounts nobody has opened yet, so a search (and only a
+  // search) is what makes the screen read them all.
   $effect(() => {
-    for (const provider of visibleProviders) ensureAccounts(provider.id);
+    if (!term) return;
+    for (const provider of providers) ensureAccounts(provider.id);
   });
 
   async function load(): Promise<void> {
@@ -211,52 +229,66 @@
     <SearchField bind:value={searchRaw} placeholder="Search accounts" />
   </div>
 
-  {#each visibleProviders as provider (provider.id)}
-    {@const providerAccounts = accountsFor(provider)}
-    <CollapsibleGroup label={provider.label} count={providerAccounts.length}>
-      {#snippet body()}
-        {#if accountErrors[provider.id]}
-          <p class="error">Could not load accounts for {provider.label}: {accountErrors[provider.id]}</p>
-        {:else}
-          <div class="grouptools">
-            <Button onclick={() => (addFor = { id: provider.id, label: provider.label })}>
-              {provider.accountCount > 0 ? "Add another" : "Add account"}
-            </Button>
-          </div>
-          {#if loadingAccounts[provider.id] && providerAccounts.length === 0}
-            <div class="skeletons">
-              {#each Array(Math.min(provider.accountCount || 1, 3)) as _}
-                <Skeleton height="64px" radius="10px" />
-              {/each}
-            </div>
-          {:else if providerAccounts.length === 0}
-            <p class="empty">{searching ? "No accounts match your search." : "No accounts yet."}</p>
-          {:else}
-            <Card>
-              {#if providerAccounts.length > VIRTUALIZE_THRESHOLD}
-                <VirtualList items={providerAccounts} rowHeight={ACCOUNT_ROW_HEIGHT}>
-                  {#snippet row(account)}
-                    {@render accountRow(provider.id, account)}
-                  {/snippet}
-                </VirtualList>
-              {:else}
-                {#each providerAccounts as account (account.id)}
-                  {@render accountRow(provider.id, account)}
-                {/each}
-              {/if}
-            </Card>
-          {/if}
-        {/if}
-      {/snippet}
-    </CollapsibleGroup>
-  {:else}
+  {#if visibleProviders.length === 0}
     <p class="empty">
       {searching
         ? "No account or provider matches your search."
-        : "No accounts yet. Use Add account to sign in to a provider."}
+        : "No providers installed yet. Install one from Plugins to sign in."}
     </p>
-  {/each}
+  {:else if visibleProviders.length > VIRTUALIZE_THRESHOLD && !anySectionOpen}
+    <!-- Closed sections are uniform headers, so the long list windows; opening one makes the
+         heights uneven and narrows the list to what you are looking at anyway. -->
+    <VirtualList items={visibleProviders} rowHeight={SECTION_HEADER_HEIGHT}>
+      {#snippet row(provider)}
+        {@render providerSection(provider)}
+      {/snippet}
+    </VirtualList>
+  {:else}
+    {#each visibleProviders as provider (provider.id)}
+      {@render providerSection(provider)}
+    {/each}
+  {/if}
 {/if}
+
+{#snippet providerSection(provider: ProviderRowData)}
+  {@const providerAccounts = accountsFor(provider)}
+  <CollapsibleGroup
+    label={provider.label}
+    count={isOpen(provider.id) ? providerAccounts.length : provider.accountCount}
+    open={isOpen(provider.id)}
+    onToggle={(open) => setOpen(provider.id, open)}
+  >
+    {#snippet body()}
+      {#if accountErrors[provider.id]}
+        <p class="error">Could not load accounts for {provider.label}: {accountErrors[provider.id]}</p>
+      {:else}
+        <div class="grouptools">
+          <Button onclick={() => (addFor = { id: provider.id, label: provider.label })}>
+            {provider.accountCount > 0 ? "Add another" : "Add account"}
+          </Button>
+        </div>
+        {#if loadingAccounts[provider.id] && providerAccounts.length === 0}
+          <div class="skeletons">
+            {#each Array(Math.min(provider.accountCount || 1, 3)) as _}
+              <Skeleton height="64px" radius="10px" />
+            {/each}
+          </div>
+        {:else if providerAccounts.length === 0}
+          <p class="empty">{searching ? "No accounts match your search." : "No accounts yet."}</p>
+        {:else}
+          <ItemList
+            items={providerAccounts}
+            key={(account) => account.id}
+            rowHeight={ACCOUNT_ROW_HEIGHT}
+            virtualizeAfter={VIRTUALIZE_THRESHOLD}
+          >
+            {#snippet item(account)}{@render accountRow(provider.id, account)}{/snippet}
+          </ItemList>
+        {/if}
+      {/if}
+    {/snippet}
+  </CollapsibleGroup>
+{/snippet}
 
 {#snippet accountRow(providerId: string, account: AccountView)}
   <AccountRow

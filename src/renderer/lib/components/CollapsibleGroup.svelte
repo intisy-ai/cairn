@@ -3,12 +3,18 @@
     label,
     count,
     open = $bindable(true),
+    onToggle,
     body,
-  }: { label: string; count?: number; open?: boolean; body: import("svelte").Snippet } = $props();
+  }: { label: string; count?: number; open?: boolean; onToggle?: (open: boolean) => void; body: import("svelte").Snippet } = $props();
+
+  function toggle(): void {
+    open = !open;
+    onToggle?.(open);
+  }
 </script>
 
 <section class="grp">
-  <button class="hd" aria-label={"Toggle " + label + " section"} aria-expanded={open} onclick={() => (open = !open)}>
+  <button class="hd" aria-label={"Toggle " + label + " section"} aria-expanded={open} onclick={toggle}>
     <span class="chev" class:o={open}>&rsaquo;</span>
     <span class="lbl">{label}</span>
     {#if count !== undefined}<span class="cnt">{count}</span>{/if}

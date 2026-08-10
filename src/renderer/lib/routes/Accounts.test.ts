@@ -28,6 +28,24 @@ const ACCOUNTS = [
   },
 ];
 
+function groupHeaders(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>("button.hd"));
+}
+
+function groupLabels(container: HTMLElement): (string | null | undefined)[] {
+  return groupHeaders(container).map((header) => header.querySelector(".lbl")?.textContent);
+}
+
+// Every section starts closed, so a test that wants the accounts has to open one first.
+async function openGroup(container: HTMLElement, label: string): Promise<void> {
+  const header = await waitFor(() => {
+    const found = groupHeaders(container).find((h) => h.querySelector(".lbl")?.textContent === label);
+    if (!found) throw new Error(`no ${label} section`);
+    return found;
+  });
+  await fireEvent.click(header);
+}
+
 describe("Accounts screen", () => {
   beforeEach(() => {
     get(toasts).slice().forEach((t) => toast.dismiss(t.id));
@@ -43,7 +61,8 @@ describe("Accounts screen", () => {
       accountsRemove,
     });
 
-    const { getByText, getByRole, getAllByRole } = render(Accounts);
+    const { getByText, getByRole, getAllByRole, container } = render(Accounts);
+    await openGroup(container, "Stub");
 
     await waitFor(() => expect(getByText("a@stub.test")).toBeTruthy());
     expect(getByText("b@stub.test")).toBeTruthy();
@@ -77,13 +96,14 @@ describe("Accounts screen", () => {
       accountsList: async (provider) => (provider === "stub" ? { ok: true, data: ACCOUNTS } : { ok: true, data: [] }),
     });
 
-    const { getByText, getByRole } = render(Accounts);
+    const { getByText, getByRole, container } = render(Accounts);
     await waitFor(() => expect(getByText(/boom/i)).toBeTruthy());
 
     const retryButton = getByRole("button", { name: /retry/i });
     await fireEvent.click(retryButton);
 
     expect(providersList).toHaveBeenCalledTimes(2);
+    await openGroup(container, "Stub");
     await waitFor(() => expect(getByText("a@stub.test")).toBeTruthy());
   });
 
@@ -92,7 +112,8 @@ describe("Accounts screen", () => {
       providersList: async () => ({ ok: true, data: PROVIDERS }),
       accountsList: async () => ({ ok: false, error: "no accounts" }),
     });
-    const { getByText } = render(Accounts);
+    const { getByText, container } = render(Accounts);
+    await openGroup(container, "Stub");
     await waitFor(() => expect(getByText(/no accounts/i)).toBeTruthy());
   });
 
@@ -106,15 +127,14 @@ describe("Accounts screen", () => {
     return { ok: true, data: [{ id: "b1", email: "bar@x.test", status: "active", enabled: true, quota: [] }] };
   }
 
-  it("empty search shows all provider groups", async () => {
+  it("empty search shows every provider as a section", async () => {
     stubCairn({
       providersList: async () => ({ ok: true, data: TWO_PROVIDERS }),
       accountsList: async (provider) => twoProviderAccounts(provider),
     });
 
-    const { getByText } = render(Accounts);
-    await waitFor(() => expect(getByText("foo@x.test")).toBeTruthy());
-    expect(getByText("bar@x.test")).toBeTruthy();
+    const { container } = render(Accounts);
+    await waitFor(() => expect(groupLabels(container)).toEqual(["Alpha Team", "Beta Team"]));
   });
 
   it("search narrows to matching accounts across providers", async () => {
@@ -123,14 +143,15 @@ describe("Accounts screen", () => {
       accountsList: async (provider) => twoProviderAccounts(provider),
     });
 
-    const { getByPlaceholderText, getByText, queryByText } = render(Accounts);
-    await waitFor(() => expect(getByText("foo@x.test")).toBeTruthy());
+    const { getByPlaceholderText, getByText, queryByText, container } = render(Accounts);
+    await waitFor(() => expect(groupLabels(container)).toEqual(["Alpha Team", "Beta Team"]));
 
     const input = getByPlaceholderText("Search accounts");
     await fireEvent.input(input, { target: { value: "foo" } });
 
-    await waitFor(() => expect(queryByText("bar@x.test")).toBeNull(), { timeout: 1000 });
-    expect(getByText("foo@x.test")).toBeTruthy();
+    // A search opens what it matched, so the matching account is visible without a click.
+    await waitFor(() => expect(getByText("foo@x.test")).toBeTruthy());
+    expect(queryByText("bar@x.test")).toBeNull();
   });
 
   it("virtualizes a provider group once its account count exceeds the threshold", async () => {
@@ -147,13 +168,13 @@ describe("Accounts screen", () => {
     });
 
     const { getByText, container } = render(Accounts);
+    await openGroup(container, "Stub");
     await waitFor(() => expect(getByText("person0@stub.test")).toBeTruthy());
 
-    const groupButtons = Array.from(container.querySelectorAll("button.hd"));
-    const stubButton = groupButtons.find((b) => b.querySelector(".lbl")?.textContent === "Stub");
-    expect(stubButton?.querySelector(".cnt")?.textContent).toBe("25");
+    const stubHeader = groupHeaders(container).find((h) => h.querySelector(".lbl")?.textContent === "Stub");
+    expect(stubHeader?.querySelector(".cnt")?.textContent).toBe("25");
 
-    const renderedRows = container.querySelectorAll(".row").length;
+    const renderedRows = container.querySelectorAll("[role='switch']").length;
     expect(renderedRows).toBeGreaterThan(0);
     expect(renderedRows).toBeLessThan(25);
   });
@@ -165,7 +186,8 @@ describe("Accounts screen", () => {
       accountsEnable: async () => ({ ok: false, error: "toggle boom" }),
     });
 
-    const { getByRole } = render(Accounts);
+    const { getByRole, container } = render(Accounts);
+    await openGroup(container, "Stub");
     const acc2Switch = await waitFor(() => getByRole("switch", { name: /b@stub.test enabled/i }));
     await fireEvent.click(acc2Switch);
 
@@ -180,7 +202,8 @@ describe("Accounts screen", () => {
       accountsRemove: async () => ({ ok: true, data: undefined }),
     });
 
-    const { getAllByRole } = render(Accounts);
+    const { getAllByRole, container } = render(Accounts);
+    await openGroup(container, "Stub");
     const removeButtons = await waitFor(() => getAllByRole("button", { name: "Remove" }));
     await fireEvent.click(removeButtons[0]);
     const dialog = within(await screen.findByRole("dialog"));
@@ -196,7 +219,8 @@ describe("Accounts screen", () => {
       accountsRemove: async () => ({ ok: false, error: "remove boom" }),
     });
 
-    const { getAllByRole } = render(Accounts);
+    const { getAllByRole, container } = render(Accounts);
+    await openGroup(container, "Stub");
     const removeButtons = await waitFor(() => getAllByRole("button", { name: "Remove" }));
     await fireEvent.click(removeButtons[0]);
     const dialog = within(await screen.findByRole("dialog"));
@@ -213,8 +237,8 @@ describe("Accounts screen", () => {
       accountsLoginBegin,
     });
 
-    const { getByText, getByRole, findByRole } = render(Accounts);
-    await waitFor(() => expect(getByText("a@stub.test")).toBeTruthy());
+    const { getByRole, findByRole, container } = render(Accounts);
+    await waitFor(() => expect(groupLabels(container)).toEqual(["Stub"]));
 
     await fireEvent.click(getByRole("button", { name: "Add account" }));
 
@@ -225,12 +249,10 @@ describe("Accounts screen", () => {
     await waitFor(() => expect(accountsLoginBegin).toHaveBeenCalledWith("stub"));
   });
 
-  // A provider you have not signed into is not worth a section of its own. At the ~50
-  // installed providers this screen has to hold, giving every one a group turned it into a
-  // page of empty boxes, and listing accounts for all of them just to find that out cost a
-  // round trip each. The count on the provider row answers that without any of them, and the
-  // provider stays reachable by name.
-  it("keeps a provider with no accounts out of the list until it is searched for, then offers to add one", async () => {
+  // Every provider is listed whether or not it has an account, which only scales because a
+  // closed section costs nothing: the header count comes from the provider row, and the
+  // accounts behind it are read on the click that opens them.
+  it("lists a provider with no accounts without reading any, then offers to add one", async () => {
     const providersWithEmpty = [
       { id: "stub", label: "Stub", accountPool: "stub", sharedWith: [], pluginName: "stub", authKind: "oauth" as const, accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
       { id: "ghost", label: "Ghost", accountPool: "ghost", sharedWith: [], pluginName: "ghost", authKind: "oauth" as const, accountCount: 0, enabled: true, exposure: { claude: true, opencode: false } },
@@ -243,15 +265,13 @@ describe("Accounts screen", () => {
       accountsLoginBegin,
     });
 
-    const { getByText, getByLabelText, container, findByRole } = render(Accounts);
-    await waitFor(() => expect(getByText("a@stub.test")).toBeTruthy());
+    const { container, findByRole } = render(Accounts);
+    await waitFor(() => expect(groupLabels(container)).toEqual(["Stub", "Ghost"]));
+    expect(accountsList).not.toHaveBeenCalled();
 
-    const groupLabels = () => Array.from(container.querySelectorAll("section.grp .lbl")).map((node) => node.textContent);
-    expect(groupLabels()).toEqual(["Stub"]);
-    expect(accountsList).not.toHaveBeenCalledWith("ghost");
-
-    await fireEvent.input(getByLabelText("Search accounts"), { target: { value: "ghost" } });
-    await waitFor(() => expect(groupLabels()).toEqual(["Ghost"]));
+    await openGroup(container, "Ghost");
+    await waitFor(() => expect(accountsList).toHaveBeenCalledWith("ghost"));
+    expect(accountsList).not.toHaveBeenCalledWith("stub");
 
     const ghostGroup = Array.from(container.querySelectorAll("section.grp"))
       .find((group) => group.querySelector(".lbl")?.textContent === "Ghost");

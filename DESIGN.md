@@ -24,8 +24,11 @@ Cairn is an operator console: many rows on screen beats generous whitespace.
 - "Compact" means the box shows an icon, a title line and one line of supporting text. Anything
   that needs a third line belongs in the detail drawer.
 - Lists stay navigable as plugins, providers and loaders grow without bound: every list gets
-  search, and `ItemList` windows itself past 40 rows. Never fetch per-item detail to paint a
-  list; use the count already on the row.
+  search, and `ItemList` windows itself past 40 rows (`virtualizeAfter` where a screen needs a
+  tighter bound). Never fetch per-item detail to paint a list; use the count already on the row.
+- A screen that groups its items keeps every group collapsed until asked. Accounts lists every
+  provider that way: the header count comes from the provider row, and a provider's accounts are
+  read on the click that opens its section.
 
 ## Light and dark
 
@@ -59,9 +62,12 @@ and colour reserved for state.
 
 - `ItemBox` owns one item's chrome (icon, title, badges, subtitle, meta, actions, corner) in both
   views. `ItemList` owns the list/grid switch, the card grid, virtualization and the empty state.
-  Plugins and Apps render through them; Providers and Accounts still use their own column rows
-  (`ItemBox` supports the `columns` template they need, but not yet a whole-row click target).
-  Libraries is a data table, not a list of item boxes, and stays one.
+  Plugins, Apps, Providers and Accounts all render through them. A tabular list passes `columns`
+  so its cells line up down the whole list, and `openTarget="row"` when clicking anywhere in the
+  row should open it. Libraries is a data table, not a list of item boxes, and stays one.
+- A screen paints once. Where a cached read exists it must cover the whole row set, and the fresh
+  reads that follow are applied in one batch: a list that grows and reorders as responses land
+  reads as broken however fast it is.
 - Sizes and colours in a component `<style>` block come from the scale. `npm run check:css`
   enforces this against a per-file baseline that may only shrink: new code is held to zero raw
   values, old drift is worked off file by file.

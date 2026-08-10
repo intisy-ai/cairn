@@ -12,11 +12,11 @@
   import Chip from "../components/Chip.svelte";
   import ProviderRow from "../components/ProviderRow.svelte";
   import Button from "../components/Button.svelte";
-  import Card from "../components/Card.svelte";
   import ImportDialog from "../components/ImportDialog.svelte";
   import CustomEndpointsDialog from "../components/CustomEndpointsDialog.svelte";
   import CollapsibleGroup from "../components/CollapsibleGroup.svelte";
-  import VirtualList from "../components/VirtualList.svelte";
+  import ItemBox from "../components/ItemBox.svelte";
+  import ItemList from "../components/ItemList.svelte";
   import Skeleton from "../components/Skeleton.svelte";
   import ErrorState from "../components/ErrorState.svelte";
   import ToggleSwitch from "../components/ToggleSwitch.svelte";
@@ -223,45 +223,23 @@
   </div>
 
   {#if view === "grid"}
-    <div class="providers-grid" data-testid="providers-grid">
-      {#each filtered as item (item.id)}
-        {@render providerCard(item)}
-      {/each}
-    </div>
+    <ItemList items={filtered} key={(item) => item.id} view="grid" testid="providers-grid">
+      {#snippet item(entry)}{@render providerCard(entry)}{/snippet}
+    </ItemList>
   {:else}
     <CollapsibleGroup label="Connected" count={connectedRows.length} bind:open={connectedOpen}>
       {#snippet body()}
-        <Card>
-          {#if connectedRows.length > VIRTUALIZE_THRESHOLD}
-            <VirtualList items={connectedRows} rowHeight={PROVIDER_ROW_HEIGHT}>
-              {#snippet row(item)}
-                {@render providerRow(item)}
-              {/snippet}
-            </VirtualList>
-          {:else}
-            {#each connectedRows as item (item.id)}
-              {@render providerRow(item)}
-            {/each}
-          {/if}
-        </Card>
+        <ItemList items={connectedRows} key={(item) => item.id} rowHeight={PROVIDER_ROW_HEIGHT} virtualizeAfter={VIRTUALIZE_THRESHOLD}>
+          {#snippet item(entry)}{@render providerRow(entry)}{/snippet}
+        </ItemList>
       {/snippet}
     </CollapsibleGroup>
 
     <CollapsibleGroup label="Available" count={availableRows.length} bind:open={availableOpen}>
       {#snippet body()}
-        <Card>
-          {#if availableRows.length > VIRTUALIZE_THRESHOLD}
-            <VirtualList items={availableRows} rowHeight={PROVIDER_ROW_HEIGHT}>
-              {#snippet row(item)}
-                {@render providerRow(item)}
-              {/snippet}
-            </VirtualList>
-          {:else}
-            {#each availableRows as item (item.id)}
-              {@render providerRow(item)}
-            {/each}
-          {/if}
-        </Card>
+        <ItemList items={availableRows} key={(item) => item.id} rowHeight={PROVIDER_ROW_HEIGHT} virtualizeAfter={VIRTUALIZE_THRESHOLD}>
+          {#snippet item(entry)}{@render providerRow(entry)}{/snippet}
+        </ItemList>
       {/snippet}
     </CollapsibleGroup>
   {/if}
@@ -291,6 +269,7 @@
 
 {#snippet providerRow(row: ProviderRowData)}
   <ProviderRow
+    testid={"provider-" + row.id}
     name={row.label}
     subtitle={row.authKind === "oauth" ? "OAuth" : "API key"}
     translator={row.translator}
@@ -306,24 +285,25 @@
 {/snippet}
 
 {#snippet providerCard(row: ProviderRowData)}
-  <div
-    class="provider-card"
-    data-testid={"provider-" + row.id}
-    role="button"
-    tabindex="0"
-    onclick={() => (selectedProvider = row)}
-    onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectedProvider = row; } }}
+  <ItemBox
+    view="grid"
+    testid={"provider-" + row.id}
+    title={row.label}
+    subtitle={accountLabel(row)}
+    selected={isConnected(row)}
+    openLabel={`View ${row.label}`}
+    onOpen={() => (selectedProvider = row)}
   >
-    <PluginIcon name={row.label} size={LOGO_SIZE.list} />
-    <div class="card-info">
-      <b>{row.label}</b>
+    {#snippet icon()}
+      <PluginIcon name={row.label} kind="provider" size={LOGO_SIZE.list} />
+    {/snippet}
+    {#snippet actions()}
       <StatusPill variant={statusFor(row).variant} label={statusFor(row).label} />
-      <span class="card-accounts">{accountLabel(row)}</span>
-    </div>
-    <div onclick={(e) => e.stopPropagation()} role="presentation">
-      <ToggleSwitch checked={row.enabled} label={`${row.label} enabled`} onchange={(on) => handleSetEnabled(row.id, on)} />
-    </div>
-  </div>
+      <div onclick={(e) => e.stopPropagation()} role="presentation">
+        <ToggleSwitch checked={row.enabled} label={`${row.label} enabled`} onchange={(on) => handleSetEnabled(row.id, on)} />
+      </div>
+    {/snippet}
+  </ItemBox>
 {/snippet}
 
 <style>
@@ -369,43 +349,5 @@
     padding: 0 0 0 18px;
     color: var(--muted);
     font-size: 12.5px;
-  }
-  .providers-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 12px;
-  }
-  .provider-card {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 14px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    cursor: pointer;
-  }
-  .provider-card:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
-  }
-  .card-info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    min-width: 0;
-    flex: 1;
-  }
-  .card-info b {
-    font-size: 13.5px;
-    font-weight: 600;
-    letter-spacing: -.01em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .card-accounts {
-    color: var(--muted);
-    font-size: 11.5px;
   }
 </style>

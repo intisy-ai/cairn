@@ -1,4 +1,4 @@
-﻿import type { AccountQuota, CairnAPI, HomePlugins, HostApp, PluginHome } from "@cairn/shared";
+﻿import type { AccountQuota, AccountView, CairnAPI, HomePlugins, HostApp, PluginHome, ProviderRow } from "@cairn/shared";
 
 export const HOST_APPS: HostApp[] = [
   { id: "alpha", label: "Alpha" },
@@ -44,6 +44,17 @@ const CATALOG = [
   { name: LONG_NAME, url: "https://example/long", kind: "plugin" as const, description: LOREM, deprecated: true, topics: ["plugin"] },
 ];
 
+const PROVIDERS: ProviderRow[] = [
+  { id: "antigravity", label: "Antigravity", accountPool: "antigravity", sharedWith: [], pluginName: "antigravity-auth", authKind: "oauth", accountCount: 3, enabled: true, exposure: { alpha: true, beta: false }, translator: "gemini" },
+  { id: "claude-code", label: "Claude Code", accountPool: "claude-code", sharedWith: [], pluginName: "claude-code-auth", authKind: "oauth", accountCount: 0, enabled: true, exposure: { alpha: false, beta: false } },
+  { id: "stub", label: "Stub", accountPool: "stub", sharedWith: [], pluginName: "stub-auth", authKind: "api-key", accountCount: 0, enabled: false, exposure: { alpha: false, beta: false } },
+];
+
+const ACCOUNTS: AccountView[] = [
+  { id: "acc1", email: "ben@birich.de", status: "active", enabled: true, detail: "oauth", quota: QUOTA },
+  { id: "acc2", email: "spare@example.com", status: "rate-limited", enabled: true, detail: "oauth", quota: QUOTA.slice(1, 2) },
+];
+
 // Enough of the API for the real screens to render populated in the gallery.
 export function screenFixtures(): Partial<CairnAPI> {
   return {
@@ -52,6 +63,8 @@ export function screenFixtures(): Partial<CairnAPI> {
       ok: true,
       data: { app, cliPresent: app === "alpha", loaderId: `${app}-loader`, loaderUrl: null, loaderInstalled: app === "alpha" },
     }),
+    providersList: async () => ({ ok: true, data: PROVIDERS }),
+    accountsList: async (id: string) => ({ ok: true, data: id === "antigravity" ? ACCOUNTS : [] }),
     pluginsList: async () => ({ ok: true, data: SECTIONS }),
     pluginsListCached: async () => ({ ok: true, data: SECTIONS }),
     catalogList: async () => ({ ok: true, data: { entries: CATALOG, source: "anonymous", org: "intisy-ai", rateLimited: false } }),

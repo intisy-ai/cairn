@@ -3,14 +3,13 @@
   import Card from "./Card.svelte";
   import VirtualList from "./VirtualList.svelte";
 
-  // Past this many rows the list windows itself: the screens behind it grow without bound.
-  const VIRTUALIZE_THRESHOLD = 40;
-
   let {
     items,
     key,
     view = "list",
     rowHeight = 64,
+    // Past this many rows the list windows itself: the screens behind it grow without bound.
+    virtualizeAfter = 40,
     testid = "",
     item,
     empty,
@@ -19,6 +18,7 @@
     key: (entry: T) => string;
     view?: "list" | "grid";
     rowHeight?: number;
+    virtualizeAfter?: number;
     testid?: string;
     item: Snippet<[T]>;
     empty?: Snippet;
@@ -34,7 +34,7 @@
   {#if items.length === 0 && empty}{@render empty()}{/if}
 {:else}
   <Card {testid}>
-    {#if items.length > VIRTUALIZE_THRESHOLD}
+    {#if items.length > virtualizeAfter}
       <VirtualList {items} {rowHeight}>
         {#snippet row(entry)}
           {@render item(entry)}

@@ -10,6 +10,7 @@
     monoSubtitle = false,
     selected = false,
     openLabel = "",
+    openTarget = "text",
     onOpen,
     icon,
     badges,
@@ -25,6 +26,7 @@
     monoSubtitle?: boolean;
     selected?: boolean;
     openLabel?: string;
+    openTarget?: "text" | "row";
     onOpen?: () => void;
     icon?: Snippet;
     badges?: Snippet;
@@ -36,15 +38,31 @@
   // badges and meta render inside the open control, so neither may contain anything focusable:
   // a nested button ends the outer one early and the row falls apart.
   const isGrid = $derived(view === "grid");
+  // A tabular row is opened by clicking anywhere in it, which a button around the text alone
+  // cannot express: the whole box takes the role instead, and the actions stop the bubble.
+  const wholeRowOpens = $derived(!!onOpen && openTarget === "row" && !isGrid);
+
+  function onRowKeydown(event: KeyboardEvent): void {
+    if (!wholeRowOpens || (event.key !== "Enter" && event.key !== " ")) return;
+    event.preventDefault();
+    onOpen?.();
+  }
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
   class="box"
   class:grid={isGrid}
   class:has-corner={!!corner}
   class:selected
+  class:row-opens={wholeRowOpens}
   data-testid={testid || undefined}
   style={!isGrid && columns ? `grid-template-columns:${columns}` : undefined}
+  role={wholeRowOpens ? "button" : undefined}
+  tabindex={wholeRowOpens ? 0 : undefined}
+  title={wholeRowOpens ? openLabel || undefined : undefined}
+  onclick={wholeRowOpens ? onOpen : undefined}
+  onkeydown={onRowKeydown}
 >
   {#snippet openContent()}
     {#if icon}{@render icon()}{/if}
@@ -58,7 +76,7 @@
     </span>
   {/snippet}
 
-  {#if onOpen}
+  {#if onOpen && !wholeRowOpens}
     <button type="button" class="open" title={openLabel || undefined} onclick={onOpen}>
       {@render openContent()}
     </button>
@@ -152,6 +170,13 @@
   }
   button.open {
     cursor: pointer;
+  }
+  .box.row-opens {
+    cursor: pointer;
+  }
+  .box.row-opens:focus-visible {
+    outline: var(--space-3xs) solid var(--accent);
+    outline-offset: calc(var(--space-3xs) * -1);
   }
   button.open:focus-visible {
     outline: var(--space-3xs) solid var(--accent);
