@@ -341,6 +341,24 @@ describe("Accounts screen", () => {
     expect(accountsList).not.toHaveBeenCalled();
   });
 
+  // The usual cause is a plugin that needs repairing, which happens outside this screen.
+  // Holding the failed read meant the error outlived the fix until Cairn restarted.
+  it("re-reads a pool whose accounts failed to load rather than holding the error", async () => {
+    let fail = true;
+    const accountsList = vi.fn(async () => (fail ? { ok: false, error: "stub-auth failed to load" } : { ok: true, data: ACCOUNTS }) as const);
+    stubCairn({ providersList: async () => ({ ok: true, data: PROVIDERS }), accountsList });
+
+    const { container, findByText, findByRole } = render(Accounts);
+    await openGroup(container, "Stub");
+    expect(await findByText(/stub-auth failed to load/)).toBeTruthy();
+
+    fail = false;
+    await fireEvent.click(await findByRole("button", { name: "Try again" }));
+
+    await waitFor(() => expect(accountsList).toHaveBeenCalledTimes(2));
+    expect(await findByText("a@stub.test")).toBeTruthy();
+  });
+
   it("says why a pool cannot be managed when every lane's bundle failed", async () => {
     stubCairn({
       providersList: async () => ({

@@ -157,6 +157,10 @@
     loadingAccounts[pool.id] = false;
     if (!result.ok) {
       accountErrors[pool.id] = result.error;
+      // A failed read must not count as read: the usual cause is a plugin that needs
+      // repairing, and holding the failure meant the error outlived the fix until Cairn
+      // restarted. Dropping the mark lets the next open try again.
+      requested.delete(pool.id);
       return;
     }
     accountsByPool[pool.id] = result.data;
@@ -174,6 +178,16 @@
     if (requested.has(pool.id)) return;
     requested.add(pool.id);
     void loadAccounts(pool);
+  }
+
+  // Repairing a plugin happens outside this screen, so both halves of what it reported have
+  // to be re-read: the provider rows carry the load failure, the pool carries the accounts.
+  async function retry(pool: AccountPool): Promise<void> {
+    accountErrors[pool.id] = "";
+    requested.delete(pool.id);
+    await load();
+    const refreshed = pools.find((candidate) => candidate.id === pool.id);
+    if (refreshed) ensureAccounts(refreshed);
   }
 
   // Searching has to look inside accounts nobody has opened yet, so a search (and only a
@@ -351,8 +365,10 @@
       <div class="body">
         {#if pool.error}
           <p class="error">{pool.providers[0].pluginName} failed to load, so these accounts cannot be managed: {pool.error}</p>
+          <div class="grouptools"><Button onclick={() => retry(pool)}>Try again</Button></div>
         {:else if accountErrors[pool.id]}
           <p class="error">Could not load accounts for {pool.label}: {accountErrors[pool.id]}</p>
+          <div class="grouptools"><Button onclick={() => retry(pool)}>Try again</Button></div>
         {:else if loadingAccounts[pool.id] && poolAccounts.length === 0}
           <div class="skeletons">
             {#each Array(Math.min(pool.accountCount || 1, 3)) as _}
@@ -428,6 +444,10 @@
   .acct {
     color: var(--muted);
     font-size: var(--fs-sm);
+  }
+  .grouptools {
+    display: flex;
+    justify-content: flex-end;
   }
   .chev {
     font-size: var(--fs-lg);

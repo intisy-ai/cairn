@@ -1,3 +1,4 @@
+import { statSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { readDeployedProviders } from "@core-loader/loader-runtime.js";
 import { reposDir } from "@core-auth/index.js";
@@ -5,6 +6,29 @@ import { reposDir } from "@core-auth/index.js";
 export interface DeployedHandler {
   repo: string;
   module: Record<string, unknown>;
+}
+
+// Node keys its ESM registry by URL and keeps the entry for the life of the process, a
+// failed load included. Repairing a provider therefore changed nothing until Cairn was
+// restarted: the next import replayed the cached failure. Stamping the bundle's mtime into
+// the URL makes a rebuilt bundle a different module while an untouched one still hits the
+// cache.
+function handlerUrl(handlerPath: string): string {
+  const url = pathToFileURL(handlerPath);
+  try {
+    url.searchParams.set("mtime", String(statSync(handlerPath).mtimeMs));
+  } catch { /* the import below reports a missing file better than this could */ }
+  return url.href;
+}
+
+// Node's own ERR_MODULE_NOT_FOUND formatting can throw while building its message, which
+// surfaces as an internals complaint about argument counts and buries the real cause. The
+// code alone is the reliable part, so it leads.
+function reasonOf(error: unknown): string {
+  const code = (error as { code?: string } | null)?.code;
+  const message = error instanceof Error ? error.message : String(error);
+  if (code === "ERR_MODULE_NOT_FOUND") return "a module it imports is missing (the plugin needs repairing)";
+  return code ? `${code}: ${message}` : message;
 }
 
 // Imports a deployed provider's handler bundle, throwing a message that names what
@@ -16,8 +40,8 @@ export async function importProviderHandler(provider: string): Promise<DeployedH
   const deployed = readDeployedProviders(reposDir()).find((p) => p.provider === provider);
   if (!deployed) throw new Error(`no provider deployed with id: ${provider}`);
   try {
-    return { repo: deployed.repo, module: await import(pathToFileURL(deployed.handlerPath).href) };
+    return { repo: deployed.repo, module: await import(handlerUrl(deployed.handlerPath)) };
   } catch (e) {
-    throw new Error(`${deployed.repo} failed to load: ${e instanceof Error ? e.message : String(e)}`);
+    throw new Error(`${deployed.repo} failed to load: ${reasonOf(e)}`);
   }
 }
