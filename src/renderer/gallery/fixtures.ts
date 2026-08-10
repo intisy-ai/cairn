@@ -1,4 +1,4 @@
-﻿import type { AccountQuota, AccountView, CairnAPI, HomePlugins, HostApp, PluginHome, ProviderRow } from "@cairn/shared";
+﻿import type { AccountQuota, AccountView, ActivityRecord, CairnAPI, HomePlugins, HostApp, PluginHome, ProviderRow } from "@cairn/shared";
 
 export const HOST_APPS: HostApp[] = [
   { id: "alpha", label: "Alpha" },
@@ -59,9 +59,41 @@ const ACCOUNTS: AccountView[] = [
   { id: "acc2", email: "spare@example.com", status: "rate-limited", enabled: true, detail: "oauth", quota: QUOTA.slice(1, 2) },
 ];
 
+const ACTIVITY: ActivityRecord[] = [
+  {
+    id: "act-1", ts: Date.parse("2026-08-10T11:59:00Z"), home: "/home/alpha", topic: "plugin.install",
+    action: "plugin_installed", actor: "user", impact: "notice", source: "plugin-updater",
+    subject: { kind: "plugin", id: "antigravity-auth", label: "antigravity-auth" },
+    details: { url: "https://example/antigravity-auth", message: "Installed antigravity-auth into Alpha" },
+    text: "Installed antigravity-auth into Alpha",
+    origin: { app: "alpha", home: "/home/alpha", entry: "cairn" },
+    cause: { kind: "user", surface: "plugins" }, trace: { id: "trace-1" }, outcome: "ok", durationMs: 8400,
+  },
+  {
+    id: "act-2", ts: Date.parse("2026-08-10T11:58:00Z"), home: "/home/alpha", topic: "provider.state",
+    action: "provider_enabled", actor: "user", impact: "info", source: "cairn",
+    subject: { kind: "provider", id: "antigravity", label: "Antigravity" },
+    details: { message: "Enabled antigravity everywhere" },
+    text: "Enabled antigravity everywhere",
+    origin: { app: "alpha", home: "/home/alpha", entry: "cairn" },
+    cause: { kind: "user", surface: "providers" }, trace: { id: "trace-2" },
+    changes: [{ key: "exposure.alpha", from: false, to: true }, { key: "apiKey", redacted: true }],
+  },
+  {
+    id: "act-3", ts: Date.parse("2026-08-10T11:40:00Z"), home: "/home/beta", topic: "plugin.build",
+    action: "plugin_repair_failed", actor: "system", impact: "error", source: "plugin-updater",
+    subject: { kind: "plugin", id: "custom-auth", label: "custom-auth" },
+    details: { missing: "core-auth/dist", message: "Repair left core-auth/dist missing" },
+    text: "Repair left core-auth/dist missing",
+    origin: { app: "beta", home: "/home/beta", entry: "updater" },
+    cause: { kind: "user", surface: "plugins" }, trace: { id: "trace-3" }, outcome: "failed", durationMs: 66000,
+  },
+];
+
 // Enough of the API for the real screens to render populated in the gallery.
 export function screenFixtures(): Partial<CairnAPI> {
   return {
+    activityRead: async () => ({ ok: true, data: { records: ACTIVITY, nextCursor: undefined } }),
     appsList: async () => ({ ok: true, data: HOST_APPS }),
     appsConnection: async (app: string) => ({
       ok: true,

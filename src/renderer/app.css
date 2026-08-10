@@ -61,6 +61,7 @@
   --hairline: 1px;
   --ring: 0 0 0 3px var(--accent-weak);
   --shadow: var(--elev-2);
+  --scrim: rgba(0, 0, 0, .35);
 }
 
 @media (prefers-color-scheme: dark) {

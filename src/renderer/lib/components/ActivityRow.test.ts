@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
-import { render } from "@testing-library/svelte";
+import { describe, it, expect, vi } from "vitest";
+import { render, fireEvent } from "@testing-library/svelte";
 import ActivityRow from "./ActivityRow.svelte";
 import type { ActivityRecord } from "@cairn/shared";
 
@@ -29,7 +29,7 @@ const noop = (): void => {};
 describe("ActivityRow", () => {
   it("names the app it ran in, and the app it affected when they differ", () => {
     const { getByText, getByTestId } = render(ActivityRow, {
-      props: { record: record({ target: { app: "otherapp", home: "/tmp/home-b" } }), expanded: false, ontoggle: noop },
+      props: { record: record({ target: { app: "otherapp", home: "/tmp/home-b" } }), onopen: noop },
     });
     // humanizeId is the tab's generic label helper, so an id renders capitalized
     expect(getByText("Someapp")).toBeInTheDocument();
@@ -37,22 +37,20 @@ describe("ActivityRow", () => {
   });
 
   it("shows no target badge when the action affected only its own app", () => {
-    const { queryByTestId } = render(ActivityRow, {
-      props: { record: record(), expanded: false, ontoggle: noop },
-    });
+    const { queryByTestId } = render(ActivityRow, { props: { record: record(), onopen: noop } });
     expect(queryByTestId("activity-target")).toBeNull();
   });
 
   it("falls back to the affected home when a target carries no app id", () => {
     const { getByTestId } = render(ActivityRow, {
-      props: { record: record({ target: { home: "/tmp/home-b" } }), expanded: false, ontoggle: noop },
+      props: { record: record({ target: { home: "/tmp/home-b" } }), onopen: noop },
     });
     expect(getByTestId("activity-target")).toHaveTextContent("home-b");
   });
 
   it("states the cause and, when present, the outcome and duration", () => {
     const { getByTestId } = render(ActivityRow, {
-      props: { record: record({ outcome: "failed", durationMs: 1500 }), expanded: true, ontoggle: noop },
+      props: { record: record({ outcome: "failed", durationMs: 1500 }), onopen: noop },
     });
     const line = getByTestId("activity-cause");
     expect(line).toHaveTextContent("user");
@@ -63,68 +61,44 @@ describe("ActivityRow", () => {
 
   it("shows sub-second durations in milliseconds", () => {
     const { getByTestId } = render(ActivityRow, {
-      props: { record: record({ durationMs: 240 }), expanded: true, ontoggle: noop },
+      props: { record: record({ durationMs: 240 }), onopen: noop },
     });
     expect(getByTestId("activity-cause")).toHaveTextContent("240ms");
   });
 
-  it("shows before and after values, and says redacted instead of a secret", () => {
-    const { getByText, getAllByText } = render(ActivityRow, {
-      props: {
-        record: record({
-          changes: [
-            { key: "logging", from: true, to: false },
-            { key: "apiKey", redacted: true },
-          ],
-        }),
-        expanded: true,
-        ontoggle: noop,
-      },
+  // The row is a summary; the payload lives in the detail dialog the row opens.
+  it("asks for the record to be opened rather than expanding a payload in place", async () => {
+    const onopen = vi.fn();
+    const { getByRole, queryByTestId } = render(ActivityRow, {
+      props: { record: record({ changes: [{ key: "logging", from: true, to: false }] }), onopen },
     });
-    expect(getByText("logging")).toBeInTheDocument();
-    expect(getByText("true")).toBeInTheDocument();
-    expect(getByText("false")).toBeInTheDocument();
-    expect(getByText("apiKey")).toBeInTheDocument();
-    expect(getAllByText(/redacted/i).length).toBeGreaterThan(0);
-  });
 
-  it("renders a missing value as unset rather than as the word undefined", () => {
-    const { getByText, queryByText } = render(ActivityRow, {
-      props: { record: record({ changes: [{ key: "logging", to: false }] }), expanded: true, ontoggle: noop },
-    });
-    expect(getByText("(unset)")).toBeInTheDocument();
-    expect(queryByText("undefined")).toBeNull();
-  });
-
-  it("hides the change table and the raw payload until the row is expanded", () => {
-    const { queryByTestId } = render(ActivityRow, {
-      props: { record: record({ changes: [{ key: "logging", from: true, to: false }] }), expanded: false, ontoggle: noop },
-    });
     expect(queryByTestId("activity-changes")).toBeNull();
     expect(queryByTestId("activity-details")).toBeNull();
+
+    await fireEvent.click(getByRole("button", { name: /Updated demo-plugin/ }));
+    expect(onopen).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the cascade toggle separate from the row's own payload", async () => {
-    const { getByTestId, getByRole, queryByTestId } = render(ActivityRow, {
-      props: { record: record(), expanded: false, followerCount: 2, ontoggle: noop, oncascade: noop },
+  it("keeps the cascade toggle separate from the row's own control", () => {
+    const { getByTestId, getByRole } = render(ActivityRow, {
+      props: { record: record(), followerCount: 2, onopen: noop, oncascade: noop },
     });
 
     const cascade = getByTestId("activity-followers");
     expect(cascade).toHaveTextContent("+2");
     expect(cascade).toHaveAttribute("aria-expanded", "false");
-    // the row's own control is a separate button, so the payload is still reachable
-    expect(getByRole("button", { expanded: false, name: /Updated demo-plugin/ })).toBeInTheDocument();
-    expect(queryByTestId("activity-details")).toBeNull();
+    expect(getByRole("button", { name: /Updated demo-plugin/ })).toBeInTheDocument();
   });
 
   it("offers no cascade toggle when nothing followed, or when no handler is given", () => {
     const withoutFollowers = render(ActivityRow, {
-      props: { record: record(), expanded: false, followerCount: 0, ontoggle: noop, oncascade: noop },
+      props: { record: record(), followerCount: 0, onopen: noop, oncascade: noop },
     });
     expect(withoutFollowers.queryByTestId("activity-followers")).toBeNull();
 
     const withoutHandler = render(ActivityRow, {
-      props: { record: record(), expanded: false, followerCount: 3, ontoggle: noop },
+      props: { record: record(), followerCount: 3, onopen: noop },
     });
     expect(withoutHandler.queryByTestId("activity-followers")).toBeNull();
   });
@@ -134,16 +108,17 @@ describe("ActivityRow", () => {
       id: "old-1", ts: Date.now(), home: "/tmp/home-a", topic: "notification", action: "notified",
       actor: "system", impact: "info", source: "core-proxy", details: {}, text: "Switched provider",
     } as unknown as ActivityRecord;
-    const { getByText } = render(ActivityRow, { props: { record: bare, expanded: false, ontoggle: noop } });
+    const { getByText } = render(ActivityRow, { props: { record: bare, onopen: noop } });
     expect(getByText("Switched provider")).toBeInTheDocument();
   });
+
   it("indents a hop by its depth and names where it ran", () => {
     const { container } = render(ActivityRow, {
       props: {
         record: record({ origin: { app: "claude", home: "/home/me/.claude", entry: "updater", pid: 1 } } as Partial<ActivityRecord>),
         follower: true,
         depth: 2,
-        ontoggle: noop,
+        onopen: noop,
       },
     });
     const hop = container.querySelector("[data-testid='activity-hop']") as HTMLElement;
@@ -153,7 +128,7 @@ describe("ActivityRow", () => {
   });
 
   it("marks a root row as no hop at all", () => {
-    const { container } = render(ActivityRow, { props: { record: record(), ontoggle: noop } });
+    const { container } = render(ActivityRow, { props: { record: record(), onopen: noop } });
     expect(container.querySelector("[data-testid='activity-hop']")).toBeNull();
   });
 });

@@ -6,21 +6,19 @@
 
   let {
     record,
-    expanded = false,
     follower = false,
     depth = 1,
     followerCount = 0,
     cascadeExpanded = false,
-    ontoggle,
+    onopen,
     oncascade,
   }: {
     record: ActivityRecord;
-    expanded?: boolean;
     follower?: boolean;
     depth?: number;
     followerCount?: number;
     cascadeExpanded?: boolean;
-    ontoggle: () => void;
+    onopen: () => void;
     oncascade?: () => void;
   } = $props();
 
@@ -68,16 +66,11 @@
     return parts;
   });
 
-  function display(value: unknown): string {
-    if (value === undefined) return "(unset)";
-    if (value === null) return "null";
-    return typeof value === "string" ? value : JSON.stringify(value);
-  }
 </script>
 
 <div class="wrap" class:follower data-testid={follower ? "activity-hop" : undefined} style={follower ? `--depth: ${depth}` : undefined}>
   <div class="line">
-    <button type="button" class="row" onclick={ontoggle} aria-expanded={expanded}>
+    <button type="button" class="row" onclick={onopen} title={`Show ${record.action} in detail`}>
       <span class="impact impact-{impactVariant(record.impact)}" title={record.impact}>{impactGlyph(record.impact)}</span>
       <span class="text" title={record.text}>{record.text}</span>
       {#if record.origin?.app}
@@ -108,26 +101,6 @@
     <p class="cause" data-testid="activity-cause">{causeParts.join(" / ")}</p>
   {/if}
 
-  {#if expanded}
-    {#if record.changes && record.changes.length > 0}
-      <table class="changes" data-testid="activity-changes">
-        <tbody>
-          {#each record.changes as change (change.key)}
-            <tr>
-              <td class="key">{change.key}</td>
-              {#if change.redacted}
-                <td class="redacted" colspan="2">redacted</td>
-              {:else}
-                <td class="from">{display(change.from)}</td>
-                <td class="to">{display(change.to)}</td>
-              {/if}
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    {/if}
-    <pre class="details" data-testid="activity-details">{JSON.stringify(record.details, null, 2)}</pre>
-  {/if}
 </div>
 
 <style>
@@ -210,23 +183,5 @@
     margin: 0 12px 7px 36px;
     font-size: 11px;
     color: var(--muted);
-  }
-  .changes {
-    margin: 0 12px 8px 36px;
-    border-collapse: collapse;
-    font-size: 11.5px;
-  }
-  .changes td {
-    padding: 2px 8px 2px 0;
-    vertical-align: top;
-  }
-  .key { color: var(--muted); }
-  .from { text-decoration: line-through; opacity: .75; }
-  .redacted { color: var(--warn); font-style: italic; }
-  .details {
-    margin: 0 12px 10px 36px;
-    font-size: 11px;
-    color: var(--muted);
-    overflow-x: auto;
   }
 </style>

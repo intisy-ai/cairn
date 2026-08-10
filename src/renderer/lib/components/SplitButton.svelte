@@ -39,7 +39,7 @@
 <svelte:window onclick={onWindowClick} onkeydown={onKey} />
 
 <div class="split" class:block bind:this={root}>
-  <button type="button" class="btn primary" class:danger {disabled} {title} onclick={() => onPrimary?.()}>
+  <button type="button" class="btn primary" class:danger {disabled} title={title ?? label} onclick={() => onPrimary?.()}>
     {#if progress >= 0}
       <span class="fill" style={`width:${Math.max(4, progress)}%`}></span>
     {/if}
@@ -70,8 +70,11 @@
     display: flex;
     width: 100%;
   }
+  /* min-width:0 lets the label ellipsize instead of the button clipping it mid-word: the
+     progress fill needs overflow:hidden here, which turns a too-long label into a cut one. */
   .split.block .primary {
     flex: 1;
+    min-width: 0;
     justify-content: center;
   }
   .btn {
@@ -125,8 +128,12 @@
   }
   .primary .lbl {
     position: relative;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .caret {
+    flex: none;
     padding: 8px 8px;
     border-radius: 0 8px 8px 0;
     border-left: 1px solid rgba(255, 255, 255, 0.3);

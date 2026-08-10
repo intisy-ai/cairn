@@ -24,4 +24,5 @@ export const SECTIONS: Section[] = [
   screen("apps", "Apps"),
   screen("providers", "Providers"),
   screen("accounts", "Accounts"),
+  screen("activity", "Activity"),
 ];

@@ -6,6 +6,7 @@
   import Card from "../components/Card.svelte";
   import ActivityFilters from "../components/ActivityFilters.svelte";
   import ActivityRow from "../components/ActivityRow.svelte";
+  import ActivityDetailDialog from "../components/ActivityDetailDialog.svelte";
   import { groupByTrace } from "../util/activityTrace.js";
   import Skeleton from "../components/Skeleton.svelte";
   import ErrorState from "../components/ErrorState.svelte";
@@ -30,7 +31,7 @@
   let actorFilter = $state("");
   let query = $state("");
   let range = $state<Range>("24h");
-  let expandedId = $state<string | null>(null);
+  let openRecord = $state<ActivityRecord | null>(null);
   let expandedGroupId = $state<string | null>(null);
   let nextCursor = $state<string | undefined>(undefined);
   let loadingOlder = $state(false);
@@ -63,12 +64,7 @@
     if (typeof patch.range === "string") range = patch.range as Range;
   }
 
-  // A group's cascade and a row's payload expand independently, so they are separate.
   const groups = $derived.by(() => groupByTrace(filtered));
-
-  function toggleExpanded(id: string): void {
-    expandedId = expandedId === id ? null : id;
-  }
 
   function toggleGroup(id: string): void {
     expandedGroupId = expandedGroupId === id ? null : id;
@@ -167,10 +163,9 @@
         <li>
           <ActivityRow
             record={group.root}
-            expanded={expandedId === group.root.id}
             followerCount={group.followers.length}
             cascadeExpanded={expandedGroupId === group.root.id}
-            ontoggle={() => toggleExpanded(group.root.id)}
+            onopen={() => (openRecord = group.root)}
             oncascade={() => toggleGroup(group.root.id)}
           />
           {#if expandedGroupId === group.root.id}
@@ -179,8 +174,7 @@
                 record={hop.record}
                 follower={true}
                 depth={hop.depth}
-                expanded={expandedId === hop.record.id}
-                ontoggle={() => toggleExpanded(hop.record.id)}
+                onopen={() => (openRecord = hop.record)}
               />
             {/each}
           {/if}
@@ -193,6 +187,10 @@
       <button onclick={loadOlder} disabled={loadingOlder}>{loadingOlder ? "Loading..." : "Load older"}</button>
     </div>
   {/if}
+{/if}
+
+{#if openRecord}
+  <ActivityDetailDialog record={openRecord} onClose={() => (openRecord = null)} />
 {/if}
 
 <style>
