@@ -20,7 +20,7 @@
     {@const Section = entry.component}
     <section>
       <h2>{entry.label}</h2>
-      <Section />
+      <Section {...entry.props ?? {}} />
     </section>
   {/each}
 </div>

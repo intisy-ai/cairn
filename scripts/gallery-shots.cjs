@@ -2,7 +2,7 @@
 // offscreen capture needs (disabling acceleration in-process instead yields an unreadable image).
 
 const { app, BrowserWindow } = require("electron");
-const { mkdirSync, writeFileSync } = require("node:fs");
+const { mkdirSync, rmSync, writeFileSync } = require("node:fs");
 const { join } = require("node:path");
 
 const PAGE = join(__dirname, "..", "out", "gallery", "index.html");
@@ -13,12 +13,26 @@ const MAX_HEIGHT = 1600;
 const SETTLE_MS = 250;
 // Past this size the image reader shows raw bytes instead of the picture, so bigger shots go to JPEG.
 const PNG_BUDGET = 100_000;
+// Highest quality that still fits wins: below ~70 the encoder washes out small bold text badly
+// enough to read as a colour bug that is not there.
+const JPEG_QUALITY_STEPS = [90, 80, 70, 60];
 
 // Frozen so two runs of the same state produce the same image.
 const FREEZE_CSS = "*, *::before, *::after { animation: none !important; transition: none !important; }";
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function encode(image) {
+  const png = image.toPNG();
+  if (png.length <= PNG_BUDGET) return { bytes: png, extension: "png" };
+  let bytes = png;
+  for (const quality of JPEG_QUALITY_STEPS) {
+    bytes = image.toJPEG(quality);
+    if (bytes.length <= PNG_BUDGET) break;
+  }
+  return { bytes, extension: "jpg" };
 }
 
 async function shoot(win, section, theme, width) {
@@ -32,16 +46,16 @@ async function shoot(win, section, theme, width) {
   await wait(SETTLE_MS);
 
   const image = await win.webContents.capturePage();
-  const png = image.toPNG();
-  const useJpeg = png.length > PNG_BUDGET;
-  const file = join(OUT_DIR, `${section}-${theme}-${width}.${useJpeg ? "jpg" : "png"}`);
-  // Below ~90 the encoder washes out small bold text, which reads as a colour bug that is not there.
-  const bytes = useJpeg ? image.toJPEG(90) : png;
+  const { bytes, extension } = encode(image);
+  const file = join(OUT_DIR, `${section}-${theme}-${width}.${extension}`);
   writeFileSync(file, bytes);
   console.log(`${file} ${Math.round(bytes.length / 1024)}KB`);
 }
 
 app.whenReady().then(async () => {
+  // A shot that crosses the size budget changes extension, so last run's file would otherwise
+  // survive beside the new one and get read as if it were current.
+  rmSync(OUT_DIR, { recursive: true, force: true });
   mkdirSync(OUT_DIR, { recursive: true });
   const win = new BrowserWindow({ show: false, useContentSize: true, backgroundColor: "#ffffff" });
 
