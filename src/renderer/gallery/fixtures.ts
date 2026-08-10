@@ -68,7 +68,9 @@ const ACCOUNTS: AccountView[] = [
   { id: "acc2", email: "spare@example.com", status: "rate-limited", enabled: true, detail: "oauth", quota: QUOTA.slice(1, 2) },
 ];
 
-const ACTIVITY: ActivityRecord[] = [
+// Exported so the overlay specimens can render a dialog against the same data the
+// Activity screen uses, rather than inventing a second version of it.
+export const ACTIVITY: ActivityRecord[] = [
   {
     id: "act-1", ts: Date.parse("2026-08-10T11:59:00Z"), home: "/home/alpha", topic: "plugin.install",
     action: "plugin_installed", actor: "user", impact: "notice", source: "plugin-updater",

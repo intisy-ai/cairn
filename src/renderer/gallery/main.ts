@@ -15,7 +15,8 @@ if (!target) throw new Error("missing #gallery mount element");
 document.documentElement.dataset.theme = theme === "light" ? "light" : "dark";
 stubCairn(screenFixtures());
 
-(window as unknown as { gallerySections: string[] }).gallerySections = SECTIONS.map((entry) => entry.id);
+(window as unknown as { gallerySections: { id: string; viewportHeight?: number }[] }).gallerySections =
+  SECTIONS.map((entry) => ({ id: entry.id, viewportHeight: entry.viewportHeight }));
 window.addEventListener("hashchange", () => location.reload());
 
 mount(Gallery, { target, props: { section, theme } });

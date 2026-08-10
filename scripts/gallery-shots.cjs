@@ -5,6 +5,11 @@ const { app, BrowserWindow } = require("electron");
 const { mkdirSync, rmSync, writeFileSync } = require("node:fs");
 const { join } = require("node:path");
 
+// Svelte transitions are only instant when the page believes motion is unwanted (see
+// util/motion.ts). Without this a hidden window, which is throttled and may never run an
+// animation, captures every dialog at its opening frame: fully transparent.
+app.commandLine.appendSwitch("force-prefers-reduced-motion");
+
 const PAGE = join(__dirname, "..", "out", "gallery", "index.html");
 const OUT_DIR = join(__dirname, "..", "out", "gallery-shots");
 const THEMES = ["light", "dark"];
@@ -37,17 +42,20 @@ function encode(image) {
 
 async function shoot(win, section, theme, width) {
   win.setContentSize(width, 800);
-  await win.loadFile(PAGE, { hash: `${section}/${theme}` });
+  await win.loadFile(PAGE, { hash: `${section.id}/${theme}` });
   await win.webContents.insertCSS(FREEZE_CSS);
   await wait(SETTLE_MS);
 
-  const height = await win.webContents.executeJavaScript("document.documentElement.scrollHeight");
+  // An overlay is position:fixed and contributes nothing to scrollHeight, so it states the
+  // viewport it needs instead of being measured and clipped to nothing.
+  const height = section.viewportHeight
+    ?? (await win.webContents.executeJavaScript("document.documentElement.scrollHeight"));
   win.setContentSize(width, Math.min(MAX_HEIGHT, Math.max(200, Math.ceil(height))));
   await wait(SETTLE_MS);
 
   const image = await win.webContents.capturePage();
   const { bytes, extension } = encode(image);
-  const file = join(OUT_DIR, `${section}-${theme}-${width}.${extension}`);
+  const file = join(OUT_DIR, `${section.id}-${theme}-${width}.${extension}`);
   writeFileSync(file, bytes);
   console.log(`${file} ${Math.round(bytes.length / 1024)}KB`);
 }
