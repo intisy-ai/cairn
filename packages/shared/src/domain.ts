@@ -259,6 +259,15 @@ export type AppStorageResult = { names: AppPathNames; moves: PathMove[] };
 export type InstalledLibrary = { specifier: string; version: string; usedBy: string[] };
 export type PluginDependencies = { plugin: string; dependencies: InstalledLibrary[] };
 export type HomeLibraries = { home: PluginHome; shared: InstalledLibrary[]; plugins: PluginDependencies[] };
+// One library across every home, which is how it is listed: the homes sit beside it rather than
+// the library being repeated once per home. Versions are per home because they can differ.
+export type UnifiedLibrary = {
+  specifier: string;
+  homes: Record<string, { version: string; installed: boolean }>;
+  // Plugins that declare it, whether or not it reached the shared store.
+  usedBy: string[];
+  declaredBy: string[];
+};
 // "unknown" is distinct from "current": a home whose clone could not be read has no answer,
 // and rendering that as up to date is what made stale badges look authoritative.
 export type UpdateState = "current" | "behind" | "unknown";

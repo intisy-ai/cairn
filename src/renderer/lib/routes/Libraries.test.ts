@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
-import { render, fireEvent, waitFor, screen } from "@testing-library/svelte";
+import { describe, it, expect, vi } from "vitest";
+import { render, fireEvent, waitFor, screen, within } from "@testing-library/svelte";
 import { stubCairn } from "../testing.js";
 import Libraries from "./Libraries.svelte";
 import type { HomeLibraries, PluginHome } from "@cairn/shared";
@@ -9,111 +9,119 @@ function home(id: string, label: string): PluginHome {
   return { id, label, dir: `/${id}`, present: true, hasUpdater: true };
 }
 
+// The same library in two homes, one library used by a plugin, and one used by nothing.
 function data(): HomeLibraries[] {
   return [
     {
       home: home("cairn", "Cairn"),
-      shared: [{ specifier: "@intisy-ai/core", version: "2.1.0", usedBy: ["stub-auth"] }],
+      shared: [
+        { specifier: "@intisy-ai/core", version: "2.1.0", usedBy: ["stub-auth"] },
+        { specifier: "@intisy-ai/left-behind", version: "1.0.0", usedBy: [] },
+      ],
       plugins: [{ plugin: "stub-auth", dependencies: [{ specifier: "undici", version: "6.19.2", usedBy: [] }] }],
     },
     {
       home: home("claude", "Claude Code"),
-      shared: [{ specifier: "@intisy-ai/core-auth", version: "1.4.0", usedBy: [] }],
+      shared: [{ specifier: "@intisy-ai/core", version: "2.1.0", usedBy: ["stub-auth"] }],
       plugins: [],
     },
   ];
 }
 
+function row(specifier: string): HTMLElement {
+  return screen.getByTestId(`library-${specifier}`);
+}
+
 describe("Libraries screen", () => {
-  it("lists the shared store and each plugin's dependencies per home", async () => {
+  // The redesign: a library installed in two homes used to be listed once per home, which
+  // read as two libraries.
+  it("lists a library once however many homes hold it", async () => {
     stubCairn({ librariesList: async () => ({ ok: true, data: data() }) });
     render(Libraries);
 
-    expect(await screen.findByText("@intisy-ai/core")).toBeInTheDocument();
-    expect(screen.getByText("2.1.0")).toBeInTheDocument();
-    expect(screen.getByText("undici")).toBeInTheDocument();
-    expect(screen.getByText("@intisy-ai/core-auth")).toBeInTheDocument();
-    expect(screen.getByText("Cairn")).toBeInTheDocument();
-    expect(screen.getByText("Claude Code")).toBeInTheDocument();
+    await screen.findByText("@intisy-ai/core");
+    expect(screen.getAllByText("@intisy-ai/core")).toHaveLength(1);
   });
 
-  // The point of tracking who declares a shared library is knowing when nothing does.
-  it("names the plugins declaring a shared library, and says so when none do", async () => {
+  it("names the homes a library is installed in, beside it", async () => {
     stubCairn({ librariesList: async () => ({ ok: true, data: data() }) });
     render(Libraries);
 
-    expect(await screen.findByText("stub-auth", { selector: ".users" })).toBeInTheDocument();
-    expect(screen.getByText("unused")).toBeInTheDocument();
+    const core = await waitFor(() => row("@intisy-ai/core"));
+    expect(within(core).getByTitle("Cairn")).toBeInTheDocument();
+    expect(within(core).getByTitle("Claude Code")).toBeInTheDocument();
   });
 
-  // A home with nothing in it is a fact worth seeing: dropping it made an empty home look
-  // as though it did not exist at all, which is how Cairn's own home went missing.
-  it("keeps every home listed while narrowing what is shown inside", async () => {
+  it("says which plugins use a library, and calls one nothing uses unused", async () => {
+    stubCairn({ librariesList: async () => ({ ok: true, data: data() }) });
+    render(Libraries);
+
+    expect(within(await waitFor(() => row("@intisy-ai/core"))).getByText("stub-auth")).toBeInTheDocument();
+    expect(within(row("@intisy-ai/left-behind")).getByText("unused")).toBeInTheDocument();
+  });
+
+  it("lists a plugin's own declared dependency too", async () => {
+    stubCairn({ librariesList: async () => ({ ok: true, data: data() }) });
+    render(Libraries);
+    expect(await screen.findByText("undici")).toBeInTheDocument();
+  });
+
+  it("narrows to the unused ones on demand", async () => {
     stubCairn({ librariesList: async () => ({ ok: true, data: data() }) });
     render(Libraries);
     await screen.findByText("@intisy-ai/core");
 
-    await fireEvent.input(screen.getByLabelText("Search libraries"), { target: { value: "core-auth" } });
+    await fireEvent.click(screen.getByRole("button", { name: /^Unused/ }));
 
     await waitFor(() => expect(screen.queryByText("@intisy-ai/core")).toBeNull());
-    expect(screen.getByText("Cairn")).toBeInTheDocument();
-    expect(screen.getByText("Claude Code")).toBeInTheDocument();
-    expect(screen.getByText("@intisy-ai/core-auth")).toBeInTheDocument();
+    expect(screen.getByText("@intisy-ai/left-behind")).toBeInTheDocument();
   });
 
-  // Ecosystem libraries and third-party packages answer different questions, so they are
-  // never mixed into one list.
-  it("separates our libraries from external ones", async () => {
-    stubCairn({ librariesList: async () => ({ ok: true, data: [{
-      home: home("cairn", "Cairn"),
-      shared: [
-        { specifier: "@intisy-ai/core", version: "2.1.0", usedBy: [] },
-        { specifier: "undici", version: "6.19.2", usedBy: [] },
-      ],
-      plugins: [],
-    }] }) });
-    render(Libraries);
-
-    expect(await screen.findByText("Ours")).toBeInTheDocument();
-    expect(screen.getByText("External")).toBeInTheDocument();
-  });
-
-  it("hides plugin dependencies behind the shared-only filter", async () => {
+  it("filters by specifier and by the plugin that uses it", async () => {
     stubCairn({ librariesList: async () => ({ ok: true, data: data() }) });
-    render(Libraries);
-    await screen.findByText("undici");
+    const { container } = render(Libraries);
+    await screen.findByText("@intisy-ai/core");
 
-    await fireEvent.click(screen.getByRole("button", { name: "Shared only" }));
+    await fireEvent.input(container.querySelector("input")!, { target: { value: "stub-auth" } });
 
-    await waitFor(() => expect(screen.queryByText("undici")).toBeNull());
+    await waitFor(() => expect(screen.queryByText("@intisy-ai/left-behind")).toBeNull());
     expect(screen.getByText("@intisy-ai/core")).toBeInTheDocument();
   });
 
-  // A declared dependency that never installed is the reason to open this screen at all.
-  it("calls out a dependency that is declared but not installed", async () => {
-    stubCairn({ librariesList: async () => ({ ok: true, data: [{
-      home: home("cairn", "Cairn"),
-      shared: [],
-      plugins: [{ plugin: "stub-auth", dependencies: [{ specifier: "undici", version: "", usedBy: [] }] }],
-    }] }) });
+  // A library nothing declares is removable on its own; one in use is not, and the row offers
+  // the only thing that would free it instead.
+  it("removes an unused library from every home holding it, after confirming", async () => {
+    const librariesRemove = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    stubCairn({ librariesList: async () => ({ ok: true, data: data() }), librariesRemove });
     render(Libraries);
 
-    expect(await screen.findByText("not installed")).toBeInTheDocument();
+    const orphan = await waitFor(() => row("@intisy-ai/left-behind"));
+    await fireEvent.click(within(orphan).getByRole("button", { name: "Remove" }));
+
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(librariesRemove).toHaveBeenCalledWith("cairn", "@intisy-ai/left-behind"));
   });
 
-  it("offers a retry when the listing fails", async () => {
-    let calls = 0;
-    stubCairn({
-      librariesList: async () => {
-        calls += 1;
-        return calls === 1 ? { ok: false, error: "engine missing" } : { ok: true, data: data() };
-      },
-    });
+  it("offers to uninstall the plugins using a library instead of removing it", async () => {
+    const pluginsRemoveEverywhere = vi.fn(async () => ({ ok: true, data: { outcomes: [] } }) as const);
+    stubCairn({ librariesList: async () => ({ ok: true, data: data() }), pluginsRemoveEverywhere });
     render(Libraries);
 
-    await screen.findByText(/engine missing/);
-    await fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    const core = await waitFor(() => row("@intisy-ai/core"));
+    expect(within(core).queryByRole("button", { name: "Remove" })).toBeNull();
+    await fireEvent.click(within(core).getByRole("button", { name: "Uninstall users" }));
 
-    expect(await screen.findByText("@intisy-ai/core")).toBeInTheDocument();
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("button", { name: "Uninstall" }));
+
+    await waitFor(() => expect(pluginsRemoveEverywhere).toHaveBeenCalledWith("stub-auth"));
+  });
+
+  it("shows an inline error when the read fails", async () => {
+    stubCairn({ librariesList: async () => ({ ok: false, error: "store unreadable" }) });
+    render(Libraries);
+    expect(await screen.findByText(/store unreadable/)).toBeInTheDocument();
   });
 });

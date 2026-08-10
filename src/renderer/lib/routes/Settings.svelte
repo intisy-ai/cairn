@@ -18,6 +18,7 @@
   let showDeprecated = $state(true);
   let autoUpdateDefault = $state(true);
   let proxyAutostart = $state(false);
+  let pruneLibraries = $state(true);
 
   let sections = $state<HomePlugins[]>([]);
   let sectionsError = $state("");
@@ -26,16 +27,19 @@
   const appGroups = $derived(sections.filter((s) => s.home.id === "cairn" || s.home.present));
 
   async function loadCairnSettings(): Promise<void> {
-    const [theme, deprecated, autoUpdate, autostart] = await Promise.all([
+    const [theme, deprecated, autoUpdate, autostart, prune] = await Promise.all([
       cairn.getConfig("cairn", "theme"),
       cairn.getConfig("cairn", "showDeprecated"),
       cairn.getConfig("cairn", "autoUpdateDefault"),
       cairn.getConfig("cairn", "proxyAutostart"),
+      cairn.getConfig("cairn", "pruneUnusedLibraries"),
     ]);
     themeSetting = theme.ok && (theme.data === "light" || theme.data === "dark" || theme.data === "system") ? theme.data : "system";
     showDeprecated = deprecated.ok && deprecated.data === true;
     autoUpdateDefault = !(autoUpdate.ok && autoUpdate.data === false);
     proxyAutostart = autostart.ok && autostart.data === true;
+    // Absent means on, which is what the sidecar assumes too.
+    pruneLibraries = !(prune.ok && prune.data === false);
     applyThemeSetting(themeSetting);
   }
 
@@ -95,6 +99,11 @@
   async function handleProxyAutostartChange(on: boolean): Promise<void> {
     proxyAutostart = on;
     await cairn.setConfig("cairn", "proxyAutostart", on);
+  }
+
+  async function handlePruneLibrariesChange(on: boolean): Promise<void> {
+    pruneLibraries = on;
+    await cairn.setConfig("cairn", "pruneUnusedLibraries", on);
   }
 
   const SYNC_CATEGORIES: { key: keyof SyncCategories; label: string; desc: string }[] = [
@@ -212,6 +221,19 @@
         <span class="desc">Autostart the proxy daemon when Cairn opens.</span>
       </div>
       <ToggleSwitch checked={proxyAutostart} label="Start the local API on launch" onchange={handleProxyAutostartChange} />
+    </div>
+  </Card>
+</section>
+
+<section class="category">
+  <h2>Libraries</h2>
+  <Card>
+    <div class="row">
+      <div class="info">
+        <b>Remove unused libraries</b>
+        <span class="desc">When the last plugin using a library is uninstalled, remove the library too.</span>
+      </div>
+      <ToggleSwitch checked={pruneLibraries} label="Remove unused libraries" onchange={handlePruneLibrariesChange} />
     </div>
   </Card>
 </section>

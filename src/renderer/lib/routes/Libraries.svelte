@@ -1,23 +1,34 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { HomeLibraries, InstalledLibrary } from "@cairn/shared";
+  import type { HomeLibraries, HostApp, UnifiedLibrary } from "@cairn/shared";
   import { cairn } from "../ipc.js";
+  import { toast } from "../toast.js";
   import { debounce } from "../util/debounce.js";
+  import { buildUnifiedLibraries, isOrphan } from "../util/unifiedLibraries.js";
   import PageHeader from "../components/PageHeader.svelte";
   import SearchField from "../components/SearchField.svelte";
-  import Card from "../components/Card.svelte";
+  import StatCard from "../components/StatCard.svelte";
   import Chip from "../components/Chip.svelte";
+  import Button from "../components/Button.svelte";
+  import AppPills from "../components/AppPills.svelte";
+  import ItemBox from "../components/ItemBox.svelte";
+  import ItemList from "../components/ItemList.svelte";
   import Skeleton from "../components/Skeleton.svelte";
   import EmptyState from "../components/EmptyState.svelte";
   import ErrorState from "../components/ErrorState.svelte";
-  import CollapsibleGroup from "../components/CollapsibleGroup.svelte";
+  import ConfirmDialog from "../components/ConfirmDialog.svelte";
+
+  const VIRTUALIZE_THRESHOLD = 20;
+  const ROW_HEIGHT = 64;
+  const COLUMNS = "minmax(180px, 1.6fr) 110px 96px auto";
 
   let homes = $state<HomeLibraries[]>([]);
   let loadError = $state("");
   let loaded = $state(false);
   let searchRaw = $state("");
   let search = $state("");
-  let sharedOnly = $state(false);
+  let unusedOnly = $state(false);
+  let pendingConfirm = $state<{ title: string; message: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
 
   const applySearch = debounce((value: string) => {
     search = value;
@@ -29,38 +40,93 @@
 
   const term = $derived(search.trim().toLowerCase());
 
-  function matches(library: InstalledLibrary): boolean {
-    return !term || library.specifier.toLowerCase().includes(term);
-  }
-
-  // Ecosystem libraries and third-party packages answer different questions ("is my own
-  // stack in place" vs "what did this pull in"), so they are never mixed into one list.
+  // Ecosystem libraries and third-party packages answer different questions ("is my own stack
+  // in place" vs "what did this pull in"), so the split stays, as a filter rather than as two
+  // lists per home.
   const OWN_SCOPE = "@intisy-ai/";
-  const isOwn = (library: InstalledLibrary): boolean => library.specifier.startsWith(OWN_SCOPE);
 
-  // Every home is listed, including one with nothing in it: an empty store is a fact worth
-  // seeing, and dropping the home made it look as though the home did not exist.
-  const visibleHomes = $derived.by(() =>
-    homes.map((entry) => {
-      const shared = entry.shared.filter(matches);
-      return {
-        home: entry.home,
-        ours: shared.filter(isOwn),
-        external: shared.filter((library) => !isOwn(library)),
-        plugins: sharedOnly
-          ? []
-          : entry.plugins
-              .map((p) => ({ plugin: p.plugin, dependencies: p.dependencies.filter(matches) }))
-              .filter((p) => p.dependencies.length > 0),
-      };
-    }));
+  const libraries = $derived(buildUnifiedLibraries(homes));
+  const homeList = $derived(homes.map((entry) => entry.home));
+  // AppPills renders whichever homes it is given, so the library row says where it is
+  // installed the same way a plugin row does.
+  const pillApps = $derived<HostApp[]>(homeList.map((home) => ({ id: home.id, label: home.label, icon: home.icon })));
 
-  const anyMatch = $derived(visibleHomes.some((e) => e.ours.length + e.external.length + e.plugins.length > 0));
+  const visible = $derived(
+    libraries.filter((library) => {
+      if (unusedOnly && !isOrphan(library)) return false;
+      if (!term) return true;
+      return library.specifier.toLowerCase().includes(term)
+        || library.usedBy.some((plugin) => plugin.toLowerCase().includes(term));
+    }),
+  );
 
   const totals = $derived({
-    shared: homes.reduce((sum, entry) => sum + entry.shared.length, 0),
-    plugins: homes.reduce((sum, entry) => sum + entry.plugins.length, 0),
+    all: libraries.length,
+    ours: libraries.filter((library) => library.specifier.startsWith(OWN_SCOPE)).length,
+    unused: libraries.filter(isOrphan).length,
   });
+
+  function installedIn(library: UnifiedLibrary): Record<string, boolean> {
+    return Object.fromEntries(homeList.map((home) => [home.id, !!library.homes[home.id]?.installed]));
+  }
+
+  // Versions can differ per home, so the row shows one only when every home agrees; otherwise
+  // it says so rather than picking one and implying the others match.
+  function versionLabel(library: UnifiedLibrary): string {
+    const versions = [...new Set(Object.values(library.homes).map((state) => state.version).filter(Boolean))];
+    if (versions.length === 0) return "not built";
+    return versions.length === 1 ? versions[0] : "mixed";
+  }
+
+  function usedByLabel(library: UnifiedLibrary): string {
+    if (library.usedBy.length === 0) return "unused";
+    return library.usedBy.join(", ");
+  }
+
+  function homesHolding(library: UnifiedLibrary): string[] {
+    return homeList.filter((home) => library.homes[home.id]?.installed).map((home) => home.id);
+  }
+
+  async function removeEverywhere(library: UnifiedLibrary): Promise<void> {
+    const targets = homesHolding(library);
+    const failures: string[] = [];
+    for (const homeId of targets) {
+      const result = await cairn.librariesRemove(homeId, library.specifier);
+      if (!result.ok) failures.push(result.error);
+    }
+    if (failures.length > 0) toast.error(failures[0]);
+    else toast.success(`Removed ${library.specifier}`);
+    await load();
+  }
+
+  async function uninstallUsers(library: UnifiedLibrary): Promise<void> {
+    for (const plugin of library.usedBy) {
+      const result = await cairn.pluginsRemoveEverywhere(plugin);
+      if (!result.ok) {
+        toast.error(result.error);
+        break;
+      }
+    }
+    await load();
+  }
+
+  function confirmRemove(library: UnifiedLibrary): void {
+    pendingConfirm = {
+      title: "Remove library?",
+      message: `Remove ${library.specifier} from ${homesHolding(library).length} home(s). Nothing declares it.`,
+      confirmLabel: "Remove",
+      run: () => removeEverywhere(library),
+    };
+  }
+
+  function confirmUninstallUsers(library: UnifiedLibrary): void {
+    pendingConfirm = {
+      title: "Uninstall the plugins using this?",
+      message: `${library.specifier} is used by ${library.usedBy.join(", ")}. Uninstalling them everywhere is what frees it.`,
+      confirmLabel: "Uninstall",
+      run: () => uninstallUsers(library),
+    };
+  }
 
   async function load(): Promise<void> {
     const result = await cairn.librariesList();
@@ -79,9 +145,7 @@
 
 <PageHeader
   title="Libraries"
-  subtitle={loaded && !loadError
-    ? `${totals.shared} shared ${totals.shared === 1 ? "library" : "libraries"}, and the dependencies of ${totals.plugins} ${totals.plugins === 1 ? "plugin" : "plugins"}.`
-    : "Every package installed alongside your plugins, per home."}
+  subtitle="Every package installed alongside your plugins, and which of them use it."
 />
 
 {#if loadError}
@@ -93,122 +157,81 @@
     {/each}
   </div>
 {:else}
+  <section class="summary">
+    <StatCard label="Libraries" value={String(totals.all)} meta={`${totals.ours} from the ecosystem`} />
+    <StatCard label="Unused" value={String(totals.unused)} meta="declared by nothing installed" metaColor={totals.unused > 0 ? "var(--warn)" : ""} />
+    <StatCard label="Homes" value={String(homeList.length)} meta="each with its own store" />
+  </section>
+
   <div class="toolbar">
     <SearchField bind:value={searchRaw} placeholder="Search libraries" />
-    <Chip label="Shared only" on={sharedOnly} onclick={() => (sharedOnly = !sharedOnly)} />
+    <Chip label={`Unused ${totals.unused}`} on={unusedOnly} onclick={() => (unusedOnly = !unusedOnly)} />
   </div>
 
-  {#each visibleHomes as entry (entry.home.id)}
-    <CollapsibleGroup label={entry.home.label} count={entry.ours.length + entry.external.length + entry.plugins.length}>
-      {#snippet body()}
-        {#if entry.ours.length > 0}
-          <p class="sectionlabel">Ours</p>
-          <Card>
-            {#each entry.ours as library (library.specifier)}
-              <div class="lib">
-                <span class="spec">{library.specifier}</span>
-                <span class="ver">{library.version || "not built"}</span>
-                <span class="users">{library.usedBy.length > 0 ? library.usedBy.join(", ") : "unused"}</span>
-              </div>
-            {/each}
-          </Card>
-        {/if}
-        {#if entry.external.length > 0}
-          <p class="sectionlabel">External</p>
-          <Card>
-            {#each entry.external as library (library.specifier)}
-              <div class="lib">
-                <span class="spec">{library.specifier}</span>
-                <span class="ver">{library.version || "not built"}</span>
-                <span class="users">{library.usedBy.length > 0 ? library.usedBy.join(", ") : ""}</span>
-              </div>
-            {/each}
-          </Card>
-        {/if}
-        {#if entry.ours.length + entry.external.length + entry.plugins.length === 0}
-          <p class="empty">Nothing installed in this home yet.</p>
-        {/if}
-        {#each entry.plugins as group (group.plugin)}
-          <p class="sectionlabel">{group.plugin}</p>
-          <Card>
-            {#each group.dependencies as library (library.specifier)}
-              <div class="lib">
-                <span class="spec">{library.specifier}</span>
-                <span class="ver" class:missing={!library.version}>{library.version || "not installed"}</span>
-                <span class="users"></span>
-              </div>
-            {/each}
-          </Card>
-        {/each}
+  {#if visible.length === 0}
+    <EmptyState message={term || unusedOnly ? "No library matches your filters." : "Nothing installed alongside your plugins yet."} />
+  {:else}
+    <ItemList items={visible} key={(library) => library.specifier} rowHeight={ROW_HEIGHT} virtualizeAfter={VIRTUALIZE_THRESHOLD}>
+      {#snippet item(library)}
+        <ItemBox
+          columns={COLUMNS}
+          testid={"library-" + library.specifier}
+          title={library.specifier}
+          subtitle={usedByLabel(library)}
+        >
+          {#snippet actions()}
+            <div class="ver" class:missing={versionLabel(library) === "not built"}>{versionLabel(library)}</div>
+            <AppPills apps={pillApps} values={installedIn(library)} />
+            <div>
+              {#if isOrphan(library)}
+                <Button onclick={() => confirmRemove(library)}>Remove</Button>
+              {:else}
+                <Button onclick={() => confirmUninstallUsers(library)}>Uninstall users</Button>
+              {/if}
+            </div>
+          {/snippet}
+        </ItemBox>
       {/snippet}
-    </CollapsibleGroup>
-  {/each}
-
-  {#if !anyMatch}
-    <EmptyState
-      message={term || sharedOnly ? "No library matches your filters." : "No libraries installed yet."}
-      actionLabel={term || sharedOnly ? "Clear filters" : undefined}
-      onAction={term || sharedOnly ? () => { searchRaw = ""; search = ""; sharedOnly = false; } : undefined}
-    />
+    </ItemList>
   {/if}
 {/if}
 
+{#if pendingConfirm}
+  <ConfirmDialog
+    title={pendingConfirm.title}
+    message={pendingConfirm.message}
+    confirmLabel={pendingConfirm.confirmLabel}
+    danger
+    onConfirm={async () => { const p = pendingConfirm; pendingConfirm = null; if (!p) return; await p.run(); }}
+    onCancel={() => (pendingConfirm = null)}
+  />
+{/if}
+
 <style>
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+    gap: var(--space-md);
+    margin-bottom: var(--space-2xl);
+  }
   .toolbar {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin: 0 2px 18px;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-lg);
     flex-wrap: wrap;
+  }
+  .ver {
+    font-family: var(--mono);
+    font-size: var(--fs-xs);
+    color: var(--muted);
+  }
+  .ver.missing {
+    color: var(--warn);
   }
   .skeletons {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-  }
-  .sectionlabel {
-    margin: 14px 2px 7px;
-    font-size: 10.5px;
-    font-weight: 600;
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    color: var(--faint);
-  }
-  .sectionlabel:first-child {
-    margin-top: 0;
-  }
-  .lib {
-    display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 2fr);
-    align-items: center;
-    gap: 12px;
-    padding: 9px 16px;
-    border-top: 1px solid var(--border);
-  }
-  .lib:first-child {
-    border-top: 0;
-  }
-  .spec {
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--text);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .ver {
-    font-family: var(--mono);
-    font-size: 11.5px;
-    color: var(--muted);
-  }
-  .ver.missing {
-    color: var(--crit);
-  }
-  .users {
-    font-size: 11.5px;
-    color: var(--faint);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    gap: var(--space-sm);
   }
 </style>

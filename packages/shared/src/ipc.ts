@@ -44,6 +44,7 @@ export const INVOKE_CHANNELS = {
   pluginsList: "plugins:list",
   pluginsListCached: "plugins:listCached",
   librariesList: "libraries:list",
+  librariesRemove: "libraries:remove",
   enginesList: "engines:list",
   enginesEnsure: "engines:ensure",
   jobsList: "jobs:list",

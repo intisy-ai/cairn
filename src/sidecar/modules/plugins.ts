@@ -25,6 +25,7 @@ import {
   loadPluginUpdaterInit,
 } from "../lib/optionalEngines.js";
 import { pluginByCapability } from "./engines.js";
+import { pruneUnusedLibraries } from "./libraryPrune.js";
 import { wrap } from "../result.js";
 import { reposDir } from "../lib/storagePaths.js";
 
@@ -194,6 +195,7 @@ export interface PluginsDeps {
   // Called at each phase boundary so a download row can show live progress;
   // percent is coarse phase-based progress 0..100.
   report?: (step: string, percent: number) => void;
+  prune?: (dir: string) => Promise<string[]>;
 }
 
 async function resolveHomes(deps: PluginsDeps): Promise<PluginHome[]> {
@@ -492,6 +494,8 @@ export function pluginsUninstall(homeId: string, name: string, deps: PluginsDeps
     if ((await safeGetPlugins(dir)).some((p) => p.name === name)) {
       const uninstall = deps.uninstallPlugin ?? requirePluginUpdater(await loadPluginUpdaterIndex()).uninstallPlugin;
       await withHome(dir, async () => uninstall(dir, name), homeId);
+      // The plugin is gone, so anything only it declared is now dead weight in the shared store.
+      await (deps.prune ?? pruneUnusedLibraries)(dir);
       return;
     }
     const npmList = deps.npmPlugins ?? getNpmPlugins;

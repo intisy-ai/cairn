@@ -23,6 +23,9 @@ export const LOREM =
 
 export const LONG_NAME = "a-very-long-plugin-name-that-has-to-truncate-somewhere";
 
+const HOME_ALPHA: PluginHome = { id: "alpha", label: "Alpha", dir: "/alpha", present: true, hasUpdater: true };
+const HOME_BETA: PluginHome = { id: "beta", label: "Beta", dir: "/beta", present: true, hasUpdater: true };
+
 function home(id: string, label: string): PluginHome {
   return { id, label, dir: `/${id}`, present: true, hasUpdater: true };
 }
@@ -123,6 +126,13 @@ export function screenFixtures(): Partial<CairnAPI> {
     }),
     marketplaceSourcesSave: async (sources) => ({ ok: true, data: sources }),
     enginesList: async () => ({ ok: true, data: [] }),
+    librariesList: async () => ({ ok: true, data: [
+      { home: HOME_ALPHA, shared: [
+        { specifier: "@intisy-ai/core", version: "2.1.0", usedBy: ["antigravity-auth", "claude-code-auth"] },
+        { specifier: "@intisy-ai/left-behind", version: "0.9.0", usedBy: [] },
+      ], plugins: [{ plugin: "antigravity-auth", dependencies: [{ specifier: "@openauthjs/openauth", version: "0.4.3", usedBy: [] }] }] },
+      { home: HOME_BETA, shared: [{ specifier: "@intisy-ai/core", version: "2.0.4", usedBy: ["claude-code-auth"] }], plugins: [] },
+    ] }),
     appsList: async () => ({ ok: true, data: HOST_APPS }),
     appsConnection: async (app: string) => ({
       ok: true,

@@ -1,13 +1,14 @@
 <script lang="ts">
   import Accounts from "../../lib/routes/Accounts.svelte";
+  import Libraries from "../../lib/routes/Libraries.svelte";
   import Activity from "../../lib/routes/Activity.svelte";
   import Apps from "../../lib/routes/Apps.svelte";
   import Plugins from "../../lib/routes/Plugins.svelte";
   import Providers from "../../lib/routes/Providers.svelte";
 
-  let { which }: { which: "plugins" | "apps" | "providers" | "accounts" | "activity" } = $props();
+  let { which }: { which: "plugins" | "apps" | "providers" | "accounts" | "activity" | "libraries" } = $props();
 
-  const ROUTES = { plugins: Plugins, apps: Apps, providers: Providers, accounts: Accounts, activity: Activity };
+  const ROUTES = { plugins: Plugins, apps: Apps, providers: Providers, accounts: Accounts, activity: Activity, libraries: Libraries };
   const Route = $derived(ROUTES[which]);
 </script>
 

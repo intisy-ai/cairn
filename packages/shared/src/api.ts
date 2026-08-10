@@ -39,6 +39,7 @@ export interface CairnAPI {
   pluginsList(): Promise<Result<HomePlugins[]>>;
   pluginsListCached(): Promise<Result<HomePlugins[]>>;
   librariesList(): Promise<Result<HomeLibraries[]>>;
+  librariesRemove(home: string, specifier: string): Promise<Result<void>>;
   pluginVersions(name: string): Promise<Result<Record<string, PluginVersion>>>;
   pluginVersionsAll(): Promise<Result<Record<string, Record<string, PluginVersion>>>>;
   pluginVersionsCached(): Promise<Result<Record<string, Record<string, PluginVersion>>>>;
