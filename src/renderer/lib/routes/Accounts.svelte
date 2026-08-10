@@ -20,10 +20,24 @@
   const ACCOUNT_ROW_HEIGHT = 64;
   const SECTION_HEADER_HEIGHT = 46;
 
+  // Several providers can read and write one account store (antigravity and gemini-cli
+  // share a pool), so the pool, not the provider, is what has accounts. Keying sections by
+  // provider showed the same account once per lane and offered to add it twice.
+  type AccountPool = {
+    id: string;
+    label: string;
+    providers: ProviderRowData[];
+    // The lane whose bundle loaded, since every account call goes through a provider's
+    // controller and a broken sibling would fail calls the pool can otherwise serve.
+    controllerId: string;
+    accountCount: number;
+    error: string;
+  };
+
   let providers = $state<ProviderRowData[]>([]);
   let providersError = $state("");
   let loaded = $state(false);
-  let accountsByProvider = $state<Record<string, AccountView[]>>({});
+  let accountsByPool = $state<Record<string, AccountView[]>>({});
   let accountErrors = $state<Record<string, string>>({});
   let loadingAccounts = $state<Record<string, boolean>>({});
   let openSections = $state<Record<string, boolean>>({});
@@ -48,74 +62,98 @@
   const term = $derived(search.trim().toLowerCase());
   const searching = $derived(term.length > 0);
 
-  const connected = $derived(providers.filter((provider) => provider.accountCount > 0));
+  function toPool(lanes: ProviderRowData[]): AccountPool {
+    const usable = lanes.find((lane) => !lane.defsError) ?? lanes[0];
+    return {
+      id: lanes[0].accountPool,
+      label: lanes.map((lane) => lane.label).join(", "),
+      providers: lanes,
+      controllerId: usable.id,
+      accountCount: Math.max(...lanes.map((lane) => lane.accountCount)),
+      error: usable.defsError ?? "",
+    };
+  }
 
-  // Every provider gets a section, signed into or not. What keeps that affordable is that a
+  const pools = $derived.by(() => {
+    const lanesByPool = new Map<string, ProviderRowData[]>();
+    for (const provider of providers) {
+      const lanes = lanesByPool.get(provider.accountPool) ?? [];
+      lanes.push(provider);
+      lanesByPool.set(provider.accountPool, lanes);
+    }
+    return [...lanesByPool.values()].map(toPool);
+  });
+
+  const connected = $derived(pools.filter((pool) => pool.accountCount > 0));
+
+  // Every pool gets a section, signed into or not. What keeps that affordable is that a
   // section is closed until asked for: the count on the header is the one already on the
-  // provider row, and no provider's accounts are listed until its section opens.
-  const visibleProviders = $derived.by(() => {
-    if (!term) return providers;
-    return providers.filter((provider) =>
-      provider.label.toLowerCase().includes(term)
-      || (accountsByProvider[provider.id] ?? []).some((account) => accountLabel(account).toLowerCase().includes(term)));
+  // provider rows, and no pool's accounts are listed until its section opens.
+  const visiblePools = $derived.by(() => {
+    if (!term) return pools;
+    return pools.filter((pool) =>
+      pool.label.toLowerCase().includes(term)
+      || (accountsByPool[pool.id] ?? []).some((account) => accountLabel(account).toLowerCase().includes(term)));
   });
 
   const anySectionOpen = $derived(Object.values(openSections).some(Boolean));
 
   // A search that matched inside a section is useless with the section shut, so searching
   // opens what it matched until the search is cleared.
-  function isOpen(providerId: string): boolean {
-    return openSections[providerId] ?? searching;
+  function isOpen(poolId: string): boolean {
+    return openSections[poolId] ?? searching;
   }
 
-  function setOpen(providerId: string, open: boolean): void {
-    openSections[providerId] = open;
-    if (open) ensureAccounts(providerId);
+  function setOpen(pool: AccountPool, open: boolean): void {
+    openSections[pool.id] = open;
+    if (open) ensureAccounts(pool);
   }
 
-  const totalAccounts = $derived(providers.reduce((sum, provider) => sum + provider.accountCount, 0));
+  const totalAccounts = $derived(pools.reduce((sum, pool) => sum + pool.accountCount, 0));
 
-  const pickerProviders = $derived.by(() => {
+  const pickerPools = $derived.by(() => {
     const filter = pickerFilter.trim().toLowerCase();
-    return filter ? providers.filter((provider) => provider.label.toLowerCase().includes(filter)) : providers;
+    return filter ? pools.filter((pool) => pool.label.toLowerCase().includes(filter)) : pools;
   });
 
-  // Matching a provider by name means every one of its accounts matched too, otherwise
+  // Matching a pool by name means every one of its accounts matched too, otherwise
   // searching for a provider would show its section with nothing in it.
-  function accountsFor(provider: ProviderRowData): AccountView[] {
-    const accounts = accountsByProvider[provider.id] ?? [];
-    if (!term || provider.label.toLowerCase().includes(term)) return accounts;
+  function accountsFor(pool: AccountPool): AccountView[] {
+    const accounts = accountsByPool[pool.id] ?? [];
+    if (!term || pool.label.toLowerCase().includes(term)) return accounts;
     return accounts.filter((account) => accountLabel(account).toLowerCase().includes(term));
   }
 
-  async function loadAccounts(providerId: string): Promise<void> {
-    loadingAccounts[providerId] = true;
-    const result = await cairn.accountsList(providerId);
-    loadingAccounts[providerId] = false;
+  async function loadAccounts(pool: AccountPool): Promise<void> {
+    loadingAccounts[pool.id] = true;
+    const result = await cairn.accountsList(pool.controllerId);
+    loadingAccounts[pool.id] = false;
     if (!result.ok) {
-      accountErrors[providerId] = result.error;
+      accountErrors[pool.id] = result.error;
       return;
     }
-    accountsByProvider[providerId] = result.data;
-    accountErrors[providerId] = "";
-    // Keeps the count that decides whether this provider has a section at all in step with
-    // what was just listed, so removing the last account retires the section without a
-    // second round trip for every other provider.
-    const provider = providers.find((row) => row.id === providerId);
-    if (provider) provider.accountCount = result.data.length;
+    accountsByPool[pool.id] = result.data;
+    accountErrors[pool.id] = "";
+    // Keeps the count that decides whether this pool has a section at all in step with what
+    // was just listed, so removing the last account retires the section without a second
+    // round trip for every other pool. Every lane carries the pool's count, so every lane
+    // is corrected.
+    for (const lane of providers) {
+      if (lane.accountPool === pool.id) lane.accountCount = result.data.length;
+    }
   }
 
-  function ensureAccounts(providerId: string): void {
-    if (requested.has(providerId)) return;
-    requested.add(providerId);
-    void loadAccounts(providerId);
+  function ensureAccounts(pool: AccountPool): void {
+    if (requested.has(pool.id)) return;
+    requested.add(pool.id);
+    void loadAccounts(pool);
   }
 
   // Searching has to look inside accounts nobody has opened yet, so a search (and only a
   // search) is what makes the screen read them all.
   $effect(() => {
     if (!term) return;
-    for (const provider of providers) ensureAccounts(provider.id);
+    for (const pool of pools) ensureAccounts(pool);
   });
 
   async function load(): Promise<void> {
@@ -129,28 +167,28 @@
     providers = result.data;
   }
 
-  async function handleToggle(providerId: string, id: string, on: boolean): Promise<void> {
-    const result = await cairn.accountsEnable(providerId, id, on);
+  async function handleToggle(pool: AccountPool, id: string, on: boolean): Promise<void> {
+    const result = await cairn.accountsEnable(pool.controllerId, id, on);
     if (!result.ok) toast.error(result.error);
-    await loadAccounts(providerId);
+    await loadAccounts(pool);
   }
 
-  async function handleRemove(providerId: string, id: string): Promise<void> {
-    const result = await cairn.accountsRemove(providerId, id);
+  async function handleRemove(pool: AccountPool, id: string): Promise<void> {
+    const result = await cairn.accountsRemove(pool.controllerId, id);
     if (result.ok) {
       toast.success("Account removed");
     } else {
       toast.error(result.error);
     }
-    await loadAccounts(providerId);
+    await loadAccounts(pool);
   }
 
-  function confirmRemove(providerId: string, account: AccountView): void {
+  function confirmRemove(pool: AccountPool, account: AccountView): void {
     pendingConfirm = {
       title: "Remove account?",
       message: `Remove ${accountLabel(account)}? You'll need to sign in again to use it.`,
       confirmLabel: "Remove",
-      run: () => handleRemove(providerId, account.id),
+      run: () => handleRemove(pool, account.id),
     };
   }
 
@@ -159,9 +197,9 @@
     pickerOpen = !pickerOpen;
   }
 
-  function pickProvider(provider: ProviderRowData): void {
+  function pickPool(pool: AccountPool): void {
     pickerOpen = false;
-    addFor = { id: provider.id, label: provider.label };
+    addFor = { id: pool.controllerId, label: pool.label };
   }
 
   function closePickerOnOutsideClick(event: MouseEvent): void {
@@ -183,7 +221,7 @@
     {#if loaded && !providersError && providers.length > 0}
       <p>
         {totalAccounts} {totalAccounts === 1 ? "account" : "accounts"}
-        across {connected.length} of {providers.length} {providers.length === 1 ? "provider" : "providers"}.
+        across {connected.length} of {pools.length} {pools.length === 1 ? "provider" : "providers"}.
       </p>
     {:else}
       <p>Signed-in accounts across every provider, with quota and status at a glance.</p>
@@ -201,10 +239,10 @@
             bind:value={pickerFilter}
           />
           <div class="menuscroll">
-            {#each pickerProviders as provider (provider.id)}
-              <button role="menuitem" onclick={() => pickProvider(provider)}>
-                <span class="mlabel">{provider.label}</span>
-                {#if provider.accountCount > 0}<span class="mcount">{provider.accountCount}</span>{/if}
+            {#each pickerPools as pool (pool.id)}
+              <button role="menuitem" onclick={() => pickPool(pool)}>
+                <span class="mlabel">{pool.label}</span>
+                {#if pool.accountCount > 0}<span class="mcount">{pool.accountCount}</span>{/if}
               </button>
             {:else}
               <p class="mempty">No provider matches.</p>
@@ -229,60 +267,62 @@
     <SearchField bind:value={searchRaw} placeholder="Search accounts" />
   </div>
 
-  {#if visibleProviders.length === 0}
+  {#if visiblePools.length === 0}
     <p class="empty">
       {searching
         ? "No account or provider matches your search."
         : "No providers installed yet. Install one from Plugins to sign in."}
     </p>
-  {:else if visibleProviders.length > VIRTUALIZE_THRESHOLD && !anySectionOpen}
+  {:else if visiblePools.length > VIRTUALIZE_THRESHOLD && !anySectionOpen}
     <!-- Closed sections are uniform headers, so the long list windows; opening one makes the
          heights uneven and narrows the list to what you are looking at anyway. -->
-    <VirtualList items={visibleProviders} rowHeight={SECTION_HEADER_HEIGHT}>
-      {#snippet row(provider)}
-        {@render providerSection(provider)}
+    <VirtualList items={visiblePools} rowHeight={SECTION_HEADER_HEIGHT}>
+      {#snippet row(pool)}
+        {@render poolSection(pool)}
       {/snippet}
     </VirtualList>
   {:else}
-    {#each visibleProviders as provider (provider.id)}
-      {@render providerSection(provider)}
+    {#each visiblePools as pool (pool.id)}
+      {@render poolSection(pool)}
     {/each}
   {/if}
 {/if}
 
-{#snippet providerSection(provider: ProviderRowData)}
-  {@const providerAccounts = accountsFor(provider)}
+{#snippet poolSection(pool: AccountPool)}
+  {@const poolAccounts = accountsFor(pool)}
   <CollapsibleGroup
-    label={provider.label}
-    count={isOpen(provider.id) ? providerAccounts.length : provider.accountCount}
-    open={isOpen(provider.id)}
-    onToggle={(open) => setOpen(provider.id, open)}
+    label={pool.label}
+    count={isOpen(pool.id) ? poolAccounts.length : pool.accountCount}
+    open={isOpen(pool.id)}
+    onToggle={(open) => setOpen(pool, open)}
   >
     {#snippet body()}
-      {#if accountErrors[provider.id]}
-        <p class="error">Could not load accounts for {provider.label}: {accountErrors[provider.id]}</p>
+      {#if pool.error}
+        <p class="error">{pool.providers[0].pluginName} failed to load, so these accounts cannot be managed: {pool.error}</p>
+      {:else if accountErrors[pool.id]}
+        <p class="error">Could not load accounts for {pool.label}: {accountErrors[pool.id]}</p>
       {:else}
         <div class="grouptools">
-          <Button onclick={() => (addFor = { id: provider.id, label: provider.label })}>
-            {provider.accountCount > 0 ? "Add another" : "Add account"}
+          <Button onclick={() => (addFor = { id: pool.controllerId, label: pool.label })}>
+            {pool.accountCount > 0 ? "Add another" : "Add account"}
           </Button>
         </div>
-        {#if loadingAccounts[provider.id] && providerAccounts.length === 0}
+        {#if loadingAccounts[pool.id] && poolAccounts.length === 0}
           <div class="skeletons">
-            {#each Array(Math.min(provider.accountCount || 1, 3)) as _}
+            {#each Array(Math.min(pool.accountCount || 1, 3)) as _}
               <Skeleton height="64px" radius="10px" />
             {/each}
           </div>
-        {:else if providerAccounts.length === 0}
+        {:else if poolAccounts.length === 0}
           <p class="empty">{searching ? "No accounts match your search." : "No accounts yet."}</p>
         {:else}
           <ItemList
-            items={providerAccounts}
+            items={poolAccounts}
             key={(account) => account.id}
             rowHeight={ACCOUNT_ROW_HEIGHT}
             virtualizeAfter={VIRTUALIZE_THRESHOLD}
           >
-            {#snippet item(account)}{@render accountRow(provider.id, account)}{/snippet}
+            {#snippet item(account)}{@render accountRow(pool, account)}{/snippet}
           </ItemList>
         {/if}
       {/if}
@@ -290,15 +330,15 @@
   </CollapsibleGroup>
 {/snippet}
 
-{#snippet accountRow(providerId: string, account: AccountView)}
+{#snippet accountRow(pool: AccountPool, account: AccountView)}
   <AccountRow
     label={accountLabel(account)}
     detail={account.detail ?? ""}
     status={accountStatusInfo(account)}
     enabled={account.enabled}
     quota={account.quota ?? []}
-    onToggle={(on) => handleToggle(providerId, account.id, on)}
-    onRemove={() => confirmRemove(providerId, account)}
+    onToggle={(on) => handleToggle(pool, account.id, on)}
+    onRemove={() => confirmRemove(pool, account)}
   />
 {/snippet}
 
@@ -317,7 +357,12 @@
   <AddAccountDialog
     provider={addFor}
     onClose={() => (addFor = null)}
-    onAdded={() => { const id = addFor?.id; addFor = null; if (id) { void loadAccounts(id); } void load(); }}
+    onAdded={() => {
+      const pool = pools.find((candidate) => candidate.controllerId === addFor?.id);
+      addFor = null;
+      if (pool) void loadAccounts(pool);
+      void load();
+    }}
   />
 {/if}
 

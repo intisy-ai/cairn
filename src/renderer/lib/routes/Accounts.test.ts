@@ -280,4 +280,58 @@ describe("Accounts screen", () => {
     await findByRole("dialog", { name: /add ghost account/i });
     await waitFor(() => expect(accountsLoginBegin).toHaveBeenCalledWith("ghost"));
   });
+
+  // antigravity and gemini-cli are two provider lanes over one account store, so a section
+  // per provider listed the same account twice and offered to add it to each.
+  const SHARED_POOL = [
+    { id: "antigravity", label: "Antigravity", accountPool: "antigravity", sharedWith: ["gemini-cli"], pluginName: "antigravity-auth", authKind: "oauth" as const, accountCount: 2, enabled: true, exposure: { claude: true, opencode: true } },
+    { id: "gemini-cli", label: "Gemini CLI", accountPool: "antigravity", sharedWith: ["antigravity"], pluginName: "antigravity-auth", authKind: "oauth" as const, accountCount: 2, enabled: true, exposure: { claude: true, opencode: true } },
+  ];
+
+  it("gives providers sharing one account pool a single section naming both", async () => {
+    const accountsList = vi.fn(async () => ({ ok: true, data: ACCOUNTS }) as const);
+    stubCairn({ providersList: async () => ({ ok: true, data: SHARED_POOL }), accountsList });
+
+    const { container, findAllByText } = render(Accounts);
+    await waitFor(() => expect(groupLabels(container)).toEqual(["Antigravity, Gemini CLI"]));
+
+    await openGroup(container, "Antigravity, Gemini CLI");
+    await waitFor(() => expect(accountsList).toHaveBeenCalledTimes(1));
+    expect(await findAllByText("a@stub.test")).toHaveLength(1);
+  });
+
+  it("counts a shared pool's accounts once in the summary", async () => {
+    stubCairn({ providersList: async () => ({ ok: true, data: SHARED_POOL }), accountsList: async () => ({ ok: true, data: ACCOUNTS }) });
+
+    const { findByText } = render(Accounts);
+    expect(await findByText(/2 accounts across 1 of 1 provider\./)).toBeTruthy();
+  });
+
+  // The pool is reachable through either lane, so a broken one must not decide for both.
+  it("reads a shared pool through the lane whose bundle loaded", async () => {
+    const accountsList = vi.fn(async () => ({ ok: true, data: ACCOUNTS }) as const);
+    const brokenFirst = [
+      { ...SHARED_POOL[0], defsError: "Cannot find package '@intisy-ai/core-auth'" },
+      SHARED_POOL[1],
+    ];
+    stubCairn({ providersList: async () => ({ ok: true, data: brokenFirst }), accountsList });
+
+    const { container } = render(Accounts);
+    await openGroup(container, "Antigravity, Gemini CLI");
+    await waitFor(() => expect(accountsList).toHaveBeenCalledWith("gemini-cli"));
+  });
+
+  it("says why a pool cannot be managed when every lane's bundle failed", async () => {
+    stubCairn({
+      providersList: async () => ({
+        ok: true,
+        data: [{ ...SHARED_POOL[0], defsError: "Cannot find package '@intisy-ai/core-auth'" }],
+      }),
+      accountsList: async () => ({ ok: true, data: [] }),
+    });
+
+    const { container, findByText } = render(Accounts);
+    await openGroup(container, "Antigravity");
+    expect(await findByText(/antigravity-auth failed to load/)).toBeTruthy();
+  });
 });
