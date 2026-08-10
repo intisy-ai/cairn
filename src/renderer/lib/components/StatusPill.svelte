@@ -1,10 +1,10 @@
 <script lang="ts">
   export type StatusVariant = "good" | "warn" | "off";
 
-  let { variant, label }: { variant: StatusVariant; label: string } = $props();
+  let { variant, label, title = "" }: { variant: StatusVariant; label: string; title?: string } = $props();
 </script>
 
-<span class="stpill st-{variant}"><span class="d"></span>{label}</span>
+<span class="stpill st-{variant}" title={title || undefined}><span class="d"></span>{label}</span>
 
 <style>
   .stpill {

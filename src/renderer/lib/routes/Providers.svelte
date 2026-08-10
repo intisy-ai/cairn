@@ -113,7 +113,11 @@
     loaded = true;
   }
 
-  function statusFor(row: ProviderRowData): { variant: StatusVariant; label: string } {
+  // A provider whose plugin bundle failed to load has no metadata behind it, so every
+  // other thing the row could say about it is a fallback. Say that first, and carry the
+  // reason so it is one hover away rather than a mystery.
+  function statusFor(row: ProviderRowData): { variant: StatusVariant; label: string; detail?: string } {
+    if (row.defsError) return { variant: "warn", label: "Won't load", detail: `${row.pluginName} failed to load: ${row.defsError}` };
     return isConnected(row) ? { variant: "good", label: "Connected" } : { variant: "off", label: "Not connected" };
   }
 
@@ -272,6 +276,7 @@
   <ProviderRow
     testid={"provider-" + row.id}
     name={row.label}
+    id={row.id}
     subtitle={row.authKind === "oauth" ? "OAuth" : "API key"}
     translator={row.translator}
     status={statusFor(row)}
@@ -298,8 +303,11 @@
     {#snippet icon()}
       <PluginIcon name={row.label} kind="provider" size={LOGO_SIZE.list} />
     {/snippet}
+    {#snippet badges()}
+      {#if row.id !== row.label}<span class="pid">{row.id}</span>{/if}
+    {/snippet}
     {#snippet actions()}
-      <StatusPill variant={statusFor(row).variant} label={statusFor(row).label} />
+      <StatusPill variant={statusFor(row).variant} label={statusFor(row).label} title={statusFor(row).detail ?? ""} />
       <div onclick={(e) => e.stopPropagation()} role="presentation">
         <ToggleSwitch checked={row.enabled} label={`${row.label} enabled`} onchange={(on) => handleSetEnabled(row.id, on)} />
       </div>
@@ -324,6 +332,11 @@
     margin: 3px 0 0;
     color: var(--muted);
     font-size: 12.5px;
+  }
+  .pid {
+    font-family: var(--mono);
+    font-size: var(--fs-xs);
+    color: var(--faint);
   }
   .summary {
     display: grid;

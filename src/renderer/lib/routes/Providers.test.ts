@@ -252,13 +252,44 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "custom", label: "Custom endpoint", accountPool: "custom", sharedWith: [], pluginName: "custom", authKind: "api-key", accountCount: 1, enabled: false, exposure: { claude: true, opencode: false }, translator: "custom" },
+          { id: "custom", label: "Custom endpoint", accountPool: "custom", sharedWith: [], pluginName: "custom", authKind: "api-key", accountCount: 1, enabled: false, exposure: { claude: true, opencode: false }, translator: "gemini" },
         ],
       }),
     });
 
     const { findByText } = render(Providers);
-    expect(await findByText("custom")).toBeTruthy();
+    expect(await findByText("gemini")).toBeTruthy();
+  });
+
+  it("shows the provider id beside a display name that differs from it", async () => {
+    stubCairn({
+      providersList: async () => ({
+        ok: true,
+        data: [
+          { id: "gemini-cli", label: "Gemini CLI", accountPool: "antigravity", sharedWith: [], pluginName: "antigravity-auth", authKind: "oauth", accountCount: 1, enabled: true, exposure: { claude: true, opencode: true } },
+        ],
+      }),
+    });
+
+    const { findByText } = render(Providers);
+    expect(await findByText("Gemini CLI")).toBeTruthy();
+    expect(await findByText("gemini-cli")).toBeTruthy();
+  });
+
+  it("says a provider whose bundle failed to load will not load, and why", async () => {
+    stubCairn({
+      providersList: async () => ({
+        ok: true,
+        data: [
+          { id: "half-built", label: "half-built", accountPool: "half-built", sharedWith: [], pluginName: "half-built-auth", authKind: "api-key", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false }, defsError: "Cannot find package '@intisy-ai/core-auth'" },
+        ],
+      }),
+    });
+
+    const { findByText } = render(Providers);
+    const pill = await findByText("Won't load");
+    expect(pill.getAttribute("title")).toContain("half-built-auth failed to load");
+    expect(pill.getAttribute("title")).toContain("@intisy-ai/core-auth");
   });
 
   it("opens the custom endpoints dialog from the toolbar", async () => {

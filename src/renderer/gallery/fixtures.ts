@@ -45,9 +45,13 @@ const CATALOG = [
 ];
 
 const PROVIDERS: ProviderRow[] = [
-  { id: "antigravity", label: "Antigravity", accountPool: "antigravity", sharedWith: [], pluginName: "antigravity-auth", authKind: "oauth", accountCount: 3, enabled: true, exposure: { alpha: true, beta: false }, translator: "gemini" },
+  { id: "antigravity", label: "Antigravity", accountPool: "antigravity", sharedWith: ["gemini-cli"], pluginName: "antigravity-auth", authKind: "oauth", accountCount: 3, enabled: true, exposure: { alpha: true, beta: false }, translator: "gemini" },
+  { id: "gemini-cli", label: "Gemini CLI", accountPool: "antigravity", sharedWith: ["antigravity"], pluginName: "antigravity-auth", authKind: "oauth", accountCount: 3, enabled: true, exposure: { alpha: true, beta: false }, translator: "gemini" },
   { id: "claude-code", label: "Claude Code", accountPool: "claude-code", sharedWith: [], pluginName: "claude-code-auth", authKind: "oauth", accountCount: 0, enabled: true, exposure: { alpha: false, beta: false } },
   { id: "stub", label: "Stub", accountPool: "stub", sharedWith: [], pluginName: "stub-auth", authKind: "api-key", accountCount: 0, enabled: false, exposure: { alpha: false, beta: false } },
+  // Falls back to its raw id because its plugin bundle never loaded, the state the
+  // Providers and Accounts screens both have to say out loud.
+  { id: "half-built", label: "half-built", accountPool: "half-built", sharedWith: [], pluginName: "half-built-auth", authKind: "api-key", accountCount: 0, enabled: false, exposure: { alpha: false, beta: false }, defsError: "Cannot find package '@intisy-ai/core-auth' imported from dist/handler.js" },
 ];
 
 const ACCOUNTS: AccountView[] = [

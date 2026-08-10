@@ -11,6 +11,7 @@
   let {
     testid = "",
     name,
+    id = "",
     subtitle,
     translator,
     status,
@@ -24,9 +25,12 @@
   }: {
     testid?: string;
     name: string;
+    // Shown beside the display name when the two differ, so the id the rest of the
+    // app routes on stays visible without becoming the row's title.
+    id?: string;
     subtitle: string;
     translator?: string;
-    status: { variant: StatusVariant; label: string };
+    status: { variant: StatusVariant; label: string; detail?: string };
     apps: HostApp[];
     exposure: Record<string, boolean>;
     accountLabel: string;
@@ -51,11 +55,14 @@
   {#snippet icon()}
     <PluginIcon name={name} kind="provider" size={LOGO_SIZE.list} />
   {/snippet}
+  {#snippet badges()}
+    {#if id && id !== name}<span class="pid">{id}</span>{/if}
+  {/snippet}
   {#snippet meta()}
     {#if translator}<Chip label={translator} />{/if}
   {/snippet}
   {#snippet actions()}
-    <div><StatusPill variant={status.variant} label={status.label} /></div>
+    <div><StatusPill variant={status.variant} label={status.label} title={status.detail ?? ""} /></div>
     <div onclick={(e) => e.stopPropagation()} role="presentation">
       <AppPills {apps} values={exposure} onToggle={onToggleExposure} />
     </div>
@@ -70,5 +77,10 @@
   .acct {
     color: var(--muted);
     font-size: var(--fs-sm);
+  }
+  .pid {
+    font-family: var(--mono);
+    font-size: var(--fs-xs);
+    color: var(--faint);
   }
 </style>
