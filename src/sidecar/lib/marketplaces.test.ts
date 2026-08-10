@@ -132,6 +132,31 @@ describe("scanMarketplaces", () => {
     expect(result.sources.find((s) => s.id === "other")?.entryCount).toBe(0);
   });
 
+  // Priority is the rule, but a dropped entry the user can see in a marketplace has to say
+  // why it is not listed.
+  it("records which entries a lower-priority source lost, and to whom", async () => {
+    const other = mkdtempSync(join(tmpdir(), "dash-mkt-shadow-"));
+    writeFileSync(
+      join(other, "marketplace.json"),
+      JSON.stringify({ entries: [
+        { name: "demo-plugin", url: "u", kind: "plugin" },
+        { name: "other-only", url: "u", kind: "plugin" },
+      ] }),
+    );
+
+    const result = await scanMarketplaces({ sources: [local("demo", demoDir), local("other", other)] });
+
+    const loser = result.sources.find((s) => s.id === "other");
+    expect(loser?.shadowed).toEqual([{ name: "demo-plugin", by: "demo" }]);
+    expect(loser?.entryCount).toBe(1);
+    expect(result.entries.map((e) => e.name)).toContain("other-only");
+  });
+
+  it("reports no shadowing when the marketplaces publish different names", async () => {
+    const result = await scanMarketplaces({ sources: [local("demo", demoDir)] });
+    expect(result.sources[0].shadowed).toBeUndefined();
+  });
+
   it("skips manifest entries that name no kind this app understands", async () => {
     const dir = mkdtempSync(join(tmpdir(), "dash-mkt-bad-"));
     writeFileSync(

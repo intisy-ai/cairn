@@ -49,7 +49,7 @@ const CATALOG = [
 // without losing the entries the healthy one returned.
 const CATALOG_SOURCES = [
   { id: "intisy-ai", label: "intisy-ai", type: "github-org" as const, ok: true, entryCount: 4 },
-  { id: "demo", label: "Demo", type: "local" as const, ok: true, entryCount: 1 },
+  { id: "demo", label: "Demo", type: "local" as const, ok: true, entryCount: 1, shadowed: [{ name: "wakatime-sync", by: "intisy-ai" }] },
   { id: "acme", label: "Acme", type: "manifest" as const, ok: false, entryCount: 0, error: "http 404" },
 ];
 

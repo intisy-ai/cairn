@@ -152,6 +152,12 @@
   function sourceLabel(p: UnifiedPlugin): string {
     return catalogSources.find((s) => s.id === p.sourceId)?.label ?? "";
   }
+
+  // Each shadowed name says who won it: two entries from one source can lose to two
+  // different marketplaces, so a single winner cannot be named for the whole list.
+  function shadowedNames(source: MarketplaceSourceStatus): string {
+    return (source.shadowed ?? []).map((entry) => `${entry.name} (listed by ${entry.by})`).join(", ");
+  }
   const isFiltering = $derived(search.trim() !== "" || kindFilter !== "all" || installedOnly || externalOnly || favoritesOnly || updatableOnly);
   function clearFilters(): void {
     searchRaw = "";
@@ -588,6 +594,13 @@
 
   {#each catalogSources.filter((s) => !s.ok) as source (source.id)}
     <p class="source-error">Could not read the {source.label} marketplace: {source.error}</p>
+  {/each}
+
+  {#each catalogSources.filter((s) => s.shadowed?.length) as source (source.id)}
+    <p class="source-error" data-testid="source-shadowed">
+      {source.label} also publishes {shadowedNames(source)}. Sources higher in the list win, so
+      {source.label}'s {source.shadowed?.length === 1 ? "copy is" : "copies are"} hidden.
+    </p>
   {/each}
 
   {#if showRateLimitBanner}

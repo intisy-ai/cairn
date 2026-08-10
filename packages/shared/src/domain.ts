@@ -32,9 +32,12 @@ export type MarketplaceSource = {
   // local
   path?: string;
 };
+// An entry this source published that a higher-priority source had already claimed, and the
+// marketplace whose copy is listed instead.
+export type ShadowedEntry = { name: string; by: string };
 // What one source contributed to a listing. A source that failed says so here and the others
 // still list: one unreachable marketplace must never read as an empty catalog.
-export type MarketplaceSourceStatus = { id: string; label: string; type: MarketplaceSourceType; ok: boolean; entryCount: number; error?: string };
+export type MarketplaceSourceStatus = { id: string; label: string; type: MarketplaceSourceType; ok: boolean; entryCount: number; error?: string; shadowed?: ShadowedEntry[] };
 export type CatalogResult = { entries: CatalogEntry[]; source: CatalogTokenSource; org: string; rateLimited: boolean; sources: MarketplaceSourceStatus[] };
 export type GithubAccountView = { login: string; name: string | null; avatarUrl: string | null };
 export type GithubStatus = {

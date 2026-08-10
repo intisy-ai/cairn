@@ -857,4 +857,28 @@ describe("Plugins screen", () => {
     expect(await screen.findByText("wakatime-sync")).toBeTruthy();
     expect(await screen.findByText(/Could not read the Acme marketplace: http 404/)).toBeTruthy();
   });
+
+  // The higher-priority copy is the one listed, but the user has to be told the other exists.
+  it("warns which entries a lower-priority marketplace lost, and to whom", async () => {
+    const withShadow = {
+      ...multiSourceCatalog(),
+      sources: [
+        { id: "intisy-ai", label: "intisy-ai", type: "github-org" as const, ok: true, entryCount: 1 },
+        { id: "demo", label: "Demo", type: "local" as const, ok: true, entryCount: 1, shadowed: [{ name: "wakatime-sync", by: "intisy-ai" }] },
+      ],
+    };
+    stubCairn({ pluginsList: async () => ({ ok: true, data: baseSections() }), catalogList: async () => ({ ok: true, data: withShadow }) });
+    render(Plugins);
+
+    const warning = await screen.findByTestId("source-shadowed");
+    expect(warning.textContent).toContain("Demo also publishes wakatime-sync (listed by intisy-ai)");
+    expect(warning.textContent).toContain("copy is hidden");
+  });
+
+  it("shows no shadowing warning when no marketplace lost an entry", async () => {
+    stubCairn({ pluginsList: async () => ({ ok: true, data: baseSections() }), catalogList: async () => ({ ok: true, data: multiSourceCatalog() }) });
+    render(Plugins);
+    await screen.findByTestId("source-filters");
+    expect(screen.queryByTestId("source-shadowed")).toBeNull();
+  });
 });

@@ -8,6 +8,7 @@ import type {
   CatalogResult,
   MarketplaceSource,
   MarketplaceSourceStatus,
+  ShadowedEntry,
 } from "../../../packages/shared/src/domain.js";
 
 const CONFIG_NAME = "marketplaces";
@@ -116,7 +117,9 @@ async function readSource(source: MarketplaceSource, deps: MarketplaceDeps): Pro
 //
 // Two marketplaces can publish the same name. Config order is precedence, so the first
 // source to claim a name keeps it and later ones are skipped rather than rendering twice
-// under one key.
+// under one key. Each skip is recorded against the losing source: dropping an entry the user
+// can see in a marketplace, with no sign of why, is the kind of silence this whole file exists
+// to remove.
 export async function scanMarketplaces(deps: MarketplaceDeps = {}): Promise<CatalogResult> {
   const configured = resolveSources(deps).filter((source) => source.enabled !== false);
 
@@ -129,14 +132,28 @@ export async function scanMarketplaces(deps: MarketplaceDeps = {}): Promise<Cata
   }));
 
   const entries: CatalogEntry[] = [];
-  const claimed = new Set<string>();
+  const claimedBy = new Map<string, string>();
   const sources: MarketplaceSourceStatus[] = [];
   for (const outcome of read) {
-    const fresh = outcome.entries.filter((entry) => !claimed.has(entry.name));
-    for (const entry of fresh) claimed.add(entry.name);
+    const fresh: CatalogEntry[] = [];
+    const shadowed: ShadowedEntry[] = [];
+    for (const entry of outcome.entries) {
+      const winner = claimedBy.get(entry.name);
+      if (winner) shadowed.push({ name: entry.name, by: winner });
+      else fresh.push(entry);
+    }
+    for (const entry of fresh) claimedBy.set(entry.name, outcome.source.label);
     entries.push(...fresh);
     const error = (outcome as { error?: string }).error;
-    sources.push({ id: outcome.source.id, label: outcome.source.label, type: outcome.source.type, ok: !error, entryCount: fresh.length, error });
+    sources.push({
+      id: outcome.source.id,
+      label: outcome.source.label,
+      type: outcome.source.type,
+      ok: !error,
+      entryCount: fresh.length,
+      error,
+      shadowed: shadowed.length > 0 ? shadowed : undefined,
+    });
   }
 
   // The token source and rate-limit flag describe the GitHub read specifically, so they come
