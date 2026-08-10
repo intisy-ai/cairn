@@ -2,11 +2,19 @@
   import { onMount } from "svelte";
   import type { CustomEndpointView } from "@cairn/shared";
   import { cairn } from "../ipc.js";
+  import { navigate } from "../router.js";
   import { track } from "../downloads.js";
   import Button from "./Button.svelte";
   import { fadeMotion, flyMotion } from "../util/motion.js";
 
   let { onClose }: { onClose: () => void } = $props();
+
+  // Translators are marketplace entries now, so "where do more formats come from" has a real
+  // answer to point at rather than a note saying to go and look.
+  function browseTranslators(): void {
+    onClose();
+    navigate("plugins", { kind: "translator" });
+  }
 
   let installed = $state(true);
   let endpoints = $state<CustomEndpointView[]>([]);
@@ -131,6 +139,12 @@
           {#each formats as f (f)}<option value={f}>{f}</option>{/each}
         </select>
       </label>
+      <p class="formats-note">
+        {formats.length === 0
+          ? "No wire formats available. A translator is what teaches this provider a vendor's format."
+          : "More formats come from installed translators."}
+        <button type="button" class="link" onclick={browseTranslators}>Browse translators</button>
+      </p>
       <label>Models<input aria-label="Models (comma separated)" bind:value={form.models} placeholder="gpt-4o, gpt-4o-mini" /></label>
       <Button variant="primary" disabled={busy} onclick={addEndpoint}>Add endpoint</Button>
     </div>
@@ -141,6 +155,21 @@
 </div>
 
 <style>
+  .formats-note {
+    margin: 0;
+    grid-column: 1 / -1;
+    color: var(--muted);
+    font-size: var(--fs-xs);
+  }
+  .link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--accent);
+    font-family: var(--ui);
+    font-size: var(--fs-xs);
+    cursor: pointer;
+  }
   .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 40; }
   .dialog { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 41; width: min(94vw, 560px); max-height: 88vh; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
   .dialog:focus { outline: none; }

@@ -12,7 +12,9 @@ export interface UpdateSummary {
 export type { Chain, ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/index.js";
 import type { ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/index.js";
 import type { AppDescriptor } from "@core/index.js";
-export type CatalogKind = "provider" | "proxy" | "plugin" | "loader";
+// A translator is installable in its own right, not only a library a plugin vendors: a
+// provider that speaks a vendor wire format resolves it from the home's shared store.
+export type CatalogKind = "provider" | "proxy" | "plugin" | "loader" | "translator";
 export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string; deprecated: boolean; topics: string[]; displayName?: string; icon?: string; app?: AppDescriptor; apps?: string[]; sourceId?: string };
 export type RepoMeta = { owner: string; repo: string; htmlUrl: string; stars: number | null; description: string; topics: string[]; readme: string | null };
 export type CatalogTokenSource = "env" | "config" | "anonymous";
@@ -38,7 +40,16 @@ export type ShadowedEntry = { name: string; by: string };
 // What one source contributed to a listing. A source that failed says so here and the others
 // still list: one unreachable marketplace must never read as an empty catalog.
 export type MarketplaceSourceStatus = { id: string; label: string; type: MarketplaceSourceType; ok: boolean; entryCount: number; error?: string; shadowed?: ShadowedEntry[] };
-export type CatalogResult = { entries: CatalogEntry[]; source: CatalogTokenSource; org: string; rateLimited: boolean; sources: MarketplaceSourceStatus[] };
+// A category an installed plugin adds to the marketplace. It states a MATCH rather than a list
+// of entries, so anything published later that fits appears without updating the plugin that
+// declared it.
+export type MarketplaceContribution = {
+  id: string;
+  label: string;
+  match: { topics?: string[]; kind?: CatalogKind };
+  contributedBy: string;
+};
+export type CatalogResult = { entries: CatalogEntry[]; source: CatalogTokenSource; org: string; rateLimited: boolean; sources: MarketplaceSourceStatus[]; contributions?: MarketplaceContribution[] };
 export type GithubAccountView = { login: string; name: string | null; avatarUrl: string | null };
 export type GithubStatus = {
   source: CatalogTokenSource;

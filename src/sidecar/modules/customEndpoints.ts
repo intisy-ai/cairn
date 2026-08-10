@@ -24,7 +24,10 @@ export interface CustomEndpointsDeps {
 export interface EndpointsApi {
   SUPPORTED_FORMATS: readonly string[];
   validateEndpoint: (endpoint: Partial<CustomEndpoint>, opts?: { rejectDuplicate?: boolean }) => string | null;
-  upsertEndpoint: (endpoint: CustomEndpoint, repoDir?: string) => void;
+  // Async because the answer is which translators are installed, not a constant. Older
+  // bundles export only the SUPPORTED_FORMATS array, which is then the floor.
+  supportedFormats?: (configDir: string) => Promise<string[]>;
+  upsertEndpoint: (endpoint: CustomEndpoint, repoDir?: string) => void | Promise<void>;
   removeEndpoint: (id: string, repoDir?: string) => void;
   endpointViews: () => CustomEndpointView[];
   saveKey: (endpointId: string, key: string) => void;
@@ -53,7 +56,11 @@ async function api(deps: CustomEndpointsDeps): Promise<{ plugin: EndpointsApi; r
 }
 
 export function customEndpointsFormats(deps: CustomEndpointsDeps = {}): Promise<Result<string[]>> {
-  return wrap(async () => [...(await api(deps)).plugin.SUPPORTED_FORMATS]);
+  return wrap(async () => {
+    const { plugin } = await api(deps);
+    const dir = deps.dir ?? getConfigDir();
+    return plugin.supportedFormats ? await plugin.supportedFormats(dir) : [...plugin.SUPPORTED_FORMATS];
+  });
 }
 
 export function customEndpointsList(deps: CustomEndpointsDeps = {}): Promise<Result<CustomEndpointView[]>> {
@@ -63,7 +70,7 @@ export function customEndpointsList(deps: CustomEndpointsDeps = {}): Promise<Res
 export function customEndpointsUpsert(endpoint: CustomEndpoint, deps: CustomEndpointsDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
     const { plugin, repo } = await api(deps);
-    plugin.upsertEndpoint(endpoint, repo);
+    await plugin.upsertEndpoint(endpoint, repo);
   });
 }
 

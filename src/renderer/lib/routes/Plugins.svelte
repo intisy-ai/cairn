@@ -1,7 +1,7 @@
 ﻿<script lang="ts">
   import { onMount } from "svelte";
-  import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin, PluginVersion, Result, InstallManyResult, InstallOutcome, RepoRef, EngineView, GithubStatus, MarketplaceSourceStatus } from "@cairn/shared";
-  import { classifyRepoName } from "@cairn/shared";
+  import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin, PluginVersion, Result, InstallManyResult, InstallOutcome, RepoRef, EngineView, GithubStatus, MarketplaceSourceStatus, MarketplaceContribution } from "@cairn/shared";
+  import { classifyRepoName, matchesContribution } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { consumeParams } from "../router.js";
   import { enqueue, enqueueJob, jobSettled, activeByPlugin } from "../downloads.js";
@@ -36,6 +36,8 @@
   let sections = $state<HomePlugins[]>([]);
   let catalog = $state<CatalogEntry[]>([]);
   let catalogSources = $state<MarketplaceSourceStatus[]>([]);
+  let contributions = $state<MarketplaceContribution[]>([]);
+  let contributionFilter = $state<string>("");
   let sourceFilter = $state<string>("all");
   let catalogOrg = $state("");
   let engines = $state<EngineView[]>([]);
@@ -71,8 +73,8 @@
   let selectedName = $state<string | null>(startParams?.plugin ?? null);
   let pendingConfirm = $state<{ title: string; message: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
 
-  type KindFilter = "all" | "provider" | "proxy" | "plugin" | "loader" | "engine";
-  const KIND_FILTERS: KindFilter[] = ["all", "provider", "proxy", "plugin", "loader", "engine"];
+  type KindFilter = "all" | "provider" | "proxy" | "plugin" | "loader" | "translator" | "engine";
+  const KIND_FILTERS: KindFilter[] = ["all", "provider", "proxy", "plugin", "loader", "translator", "engine"];
   const startKind: KindFilter =
     startParams?.kind && (KIND_FILTERS as string[]).includes(startParams.kind) ? (startParams.kind as KindFilter) : "plugin";
   let kindFilter = $state<KindFilter>(startKind);
@@ -115,6 +117,7 @@
     proxy: unified.filter((p) => p.kind === "proxy").length,
     plugin: unified.filter((p) => p.kind === "plugin").length,
     loader: unified.filter((p) => p.kind === "loader").length,
+    translator: unified.filter((p) => p.kind === "translator").length,
     engine: unified.filter((p) => engineIds.has(p.name)).length,
     installed: unified.filter(isInstalled).length,
     external: unified.filter((p) => p.external).length,
@@ -129,6 +132,10 @@
       } else if (kindFilter !== "all" && p.kind !== kindFilter) {
         return false;
       }
+      // A category a plugin contributed matches on the entry's own topics or kind, so it
+      // keeps matching things published after the plugin that declared it.
+      const contributed = contributions.find((c) => c.id === contributionFilter);
+      if (contributed && !matchesContribution(p, contributed)) return false;
       // Something installed from no marketplace at all appears only under "All sources".
       if (sourceFilter !== "all" && p.sourceId !== sourceFilter) return false;
       // An installed one stays listed whatever the filter says, otherwise asking to hide
@@ -148,6 +155,17 @@
   );
   function setKind(kind: KindFilter): void {
     kindFilter = kind;
+  }
+
+  // A contributed category is a category in its own right, not a narrowing of the kind chip:
+  // picking "Translators" while "Plugins" is selected would otherwise match nothing at all.
+  function selectContributed(id: string): void {
+    contributionFilter = contributionFilter === id ? "" : id;
+    if (contributionFilter) kindFilter = "all";
+  }
+
+  function countContributed(contribution: MarketplaceContribution): number {
+    return unified.filter((p) => matchesContribution(p, contribution)).length;
   }
 
   // Which marketplace listed this, named the way its source is named in the filter row.
@@ -193,6 +211,8 @@
       catalogOrg = result.data.org;
       catalogRateLimited = result.data.rateLimited;
       catalogSources = result.data.sources ?? [];
+      contributions = result.data.contributions ?? [];
+      if (contributionFilter && !contributions.some((c) => c.id === contributionFilter)) contributionFilter = "";
       // A source that disappeared from the config must not keep filtering the list to nothing.
       if (sourceFilter !== "all" && !catalogSources.some((s) => s.id === sourceFilter)) sourceFilter = "all";
     }
@@ -570,6 +590,7 @@
     <Chip label={`Proxies ${counts.proxy}`} on={kindFilter === "proxy"} onclick={() => setKind("proxy")} />
     <Chip label={`Plugins ${counts.plugin}`} on={kindFilter === "plugin"} onclick={() => setKind("plugin")} />
     <Chip label={`Loaders ${counts.loader}`} on={kindFilter === "loader"} onclick={() => setKind("loader")} />
+    <Chip label={`Translators ${counts.translator}`} on={kindFilter === "translator"} onclick={() => setKind("translator")} />
     <Chip label={`Engines ${counts.engine}`} on={kindFilter === "engine"} onclick={() => setKind("engine")} />
     <span class="sep"></span>
     <Chip label={`Installed ${counts.installed}`} on={installedOnly} onclick={() => (installedOnly = !installedOnly)} />
@@ -580,6 +601,21 @@
       <Chip label={`Deprecated ${counts.deprecated}`} on={showDeprecated} onclick={toggleDeprecated} />
     {/if}
   </div>
+
+  <!-- Categories installed plugins asked for. Cairn names none of them itself. -->
+  {#if contributions.length > 0}
+    <div class="filters" data-testid="contributed-filters">
+      <span class="fromlabel">From installed plugins</span>
+      {#each contributions as contribution (contribution.id)}
+        <Chip
+          label={`${contribution.label} ${countContributed(contribution)}`}
+          title={`Added by ${contribution.contributedBy}`}
+          on={contributionFilter === contribution.id}
+          onclick={() => selectContributed(contribution.id)}
+        />
+      {/each}
+    </div>
+  {/if}
 
   <!-- Only worth a row of its own once there is more than one marketplace to choose between. -->
   {#if catalogSources.length > 1}
@@ -817,6 +853,11 @@
     font-family: var(--mono);
     font-size: 11px;
     color: var(--faint);
+  }
+  .fromlabel {
+    font-size: var(--fs-xs);
+    color: var(--faint);
+    align-self: center;
   }
   .source-error {
     margin: 0 0 var(--space-md);

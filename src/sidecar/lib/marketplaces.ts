@@ -12,7 +12,7 @@ import type {
 } from "../../../packages/shared/src/domain.js";
 
 const CONFIG_NAME = "marketplaces";
-const KINDS: CatalogKind[] = ["provider", "proxy", "plugin", "loader"];
+const KINDS: CatalogKind[] = ["provider", "proxy", "plugin", "loader", "translator"];
 
 export interface MarketplaceDeps extends OrgScanDeps {
   sources?: MarketplaceSource[];

@@ -875,6 +875,34 @@ describe("Plugins screen", () => {
     expect(warning.textContent).toContain("copy is hidden");
   });
 
+  // A plugin declares a category by MATCH, so a translator published later joins it with no
+  // change to the plugin that declared it.
+  it("offers a category an installed plugin contributed, filtering by its match", async () => {
+    const withTranslators = {
+      ...baseCatalog(),
+      entries: [
+        { name: "wakatime-sync", url: "uw", kind: "plugin" as const, description: "", deprecated: false, topics: ["plugin"] },
+        { name: "openai-translator", url: "uo", kind: "translator" as const, description: "", deprecated: false, topics: ["vendor-translator"] },
+      ],
+      contributions: [{ id: "translators", label: "Translators", match: { topics: ["vendor-translator"] }, contributedBy: "custom-auth" }],
+    };
+    stubCairn({ pluginsList: async () => ({ ok: true, data: baseSections() }), catalogList: async () => ({ ok: true, data: withTranslators }) });
+    render(Plugins);
+
+    const row = await screen.findByTestId("contributed-filters");
+    await fireEvent.click(within(row).getByText("Translators 1"));
+
+    expect(await screen.findByText("openai-translator")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText("wakatime-sync")).toBeNull());
+  });
+
+  it("offers no contributed categories when no plugin declares one", async () => {
+    stubCairn({ pluginsList: async () => ({ ok: true, data: baseSections() }), catalogList: async () => ({ ok: true, data: baseCatalog() }) });
+    render(Plugins);
+    await screen.findByText("wakatime-sync");
+    expect(screen.queryByTestId("contributed-filters")).toBeNull();
+  });
+
   it("shows no shadowing warning when no marketplace lost an entry", async () => {
     stubCairn({ pluginsList: async () => ({ ok: true, data: baseSections() }), catalogList: async () => ({ ok: true, data: multiSourceCatalog() }) });
     render(Plugins);

@@ -1,6 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { accountsLoginBegin, accountsLoginComplete, accountsLoginCancel } from "./accountsLogin.js";
 
+// accountsLoginBegin opens the browser for real when no openUrl is injected, so every call
+// here goes through this: a test that forgot it launched the developer's browser on each run.
+function begin(provider: string, deps: Parameters<typeof accountsLoginBegin>[1] = {}) {
+  return accountsLoginBegin(provider, { openUrl: () => {}, ...deps });
+}
+
 function fakeFlow(overrides = {}) {
   return { url: "https://auth.example/go", instructions: "Paste the code", complete: vi.fn(async () => ({ id: "acc1", label: "user@example" })), cancel: vi.fn(), ...overrides };
 }
@@ -8,20 +14,20 @@ function fakeFlow(overrides = {}) {
 describe("accountsLogin", () => {
   it("begin returns url/instructions and stores the flow", async () => {
     const flow = fakeFlow();
-    const res = await accountsLoginBegin("stub", { resolveLoginFlow: async () => flow });
+    const res = await begin("stub", { resolveLoginFlow: async () => flow });
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.data).toMatchObject({ url: "https://auth.example/go", instructions: "Paste the code" });
   });
   it("complete calls the stored flow.complete and reports the account", async () => {
     const flow = fakeFlow();
-    await accountsLoginBegin("stub", { resolveLoginFlow: async () => flow });
+    await begin("stub", { resolveLoginFlow: async () => flow });
     const res = await accountsLoginComplete("stub", "the-code");
     expect(flow.complete).toHaveBeenCalledWith("the-code");
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.data).toMatchObject({ added: true, label: "user@example" });
   });
   it("begin errors when the provider has no loginFlow", async () => {
-    const res = await accountsLoginBegin("keyonly", { resolveLoginFlow: async () => null });
+    const res = await begin("keyonly", { resolveLoginFlow: async () => null });
     expect(res.ok).toBe(false);
   });
   it("complete without a prior begin errors", async () => {
@@ -32,7 +38,7 @@ describe("accountsLogin", () => {
   // the renderer throws DataCloneError on postMessage, which took the whole sidecar down.
   it("reports loopback as a flag, never as the provider's promise", async () => {
     const flow = fakeFlow({ loopback: new Promise(() => {}) });
-    const res = await accountsLoginBegin("stub", { resolveLoginFlow: async () => flow });
+    const res = await begin("stub", { resolveLoginFlow: async () => flow });
     expect(res.ok).toBe(true);
     if (res.ok) {
       expect(res.data.loopback).toBe(true);
@@ -41,7 +47,7 @@ describe("accountsLogin", () => {
   });
 
   it("says there is no loopback when the provider offers none", async () => {
-    const res = await accountsLoginBegin("stub", { resolveLoginFlow: async () => fakeFlow() });
+    const res = await begin("stub", { resolveLoginFlow: async () => fakeFlow() });
     if (res.ok) expect(res.data.loopback).toBe(false);
   });
 
@@ -50,7 +56,7 @@ describe("accountsLogin", () => {
   it("retires the flow once the provider's own listener completes it", async () => {
     let land: (value: { id: string } | null) => void = () => {};
     const flow = fakeFlow({ loopback: new Promise<{ id: string } | null>((r) => { land = r; }) });
-    await accountsLoginBegin("stub", { resolveLoginFlow: async () => flow });
+    await begin("stub", { resolveLoginFlow: async () => flow });
     land({ id: "acc1" });
     await new Promise((r) => setTimeout(r, 0));
     expect((await accountsLoginComplete("stub", "the-code")).ok).toBe(false);
@@ -61,19 +67,19 @@ describe("accountsLogin", () => {
   // with a click that had no reason to exist.
   it("opens the sign-in page itself", async () => {
     const openUrl = vi.fn();
-    await accountsLoginBegin("stub", { resolveLoginFlow: async () => fakeFlow(), openUrl });
+    await begin("stub", { resolveLoginFlow: async () => fakeFlow(), openUrl });
     expect(openUrl).toHaveBeenCalledWith("https://auth.example/go");
   });
 
   it("opens nothing when the provider has no login flow", async () => {
     const openUrl = vi.fn();
-    await accountsLoginBegin("keyonly", { resolveLoginFlow: async () => null, openUrl });
+    await begin("keyonly", { resolveLoginFlow: async () => null, openUrl });
     expect(openUrl).not.toHaveBeenCalled();
   });
 
   it("cancel invokes the flow cancel and clears it", async () => {
     const flow = fakeFlow();
-    await accountsLoginBegin("stub", { resolveLoginFlow: async () => flow });
+    await begin("stub", { resolveLoginFlow: async () => flow });
     await accountsLoginCancel("stub");
     expect(flow.cancel).toHaveBeenCalled();
     const res = await accountsLoginComplete("stub", "x");

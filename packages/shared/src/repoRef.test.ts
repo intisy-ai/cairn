@@ -36,10 +36,16 @@ describe("classifyRepoName", () => {
     expect(classifyRepoName("claude-code-loader")).toBe("loader");
     expect(classifyRepoName("some-plugin")).toBe("plugin");
   });
-  it("returns null for core libraries and vendor translators", () => {
+  it("returns null for core libraries, which are never installed on their own", () => {
     expect(classifyRepoName("core-proxy")).toBeNull();
-    expect(classifyRepoName("openai-translator")).toBeNull();
-    expect(classifyRepoName("anthropic-translator")).toBeNull();
+    expect(classifyRepoName("core-ir")).toBeNull();
+  });
+
+  // A translator is installed in its own right now: a provider resolves it from the home's
+  // shared store rather than only vendoring it as a submodule.
+  it("classifies a vendor translator as its own kind", () => {
+    expect(classifyRepoName("openai-translator")).toBe("translator");
+    expect(classifyRepoName("anthropic-translator")).toBe("translator");
   });
 });
 
@@ -50,9 +56,13 @@ describe("classifyRepoTopics", () => {
     expect(classifyRepoTopics(["app-loader"])).toBe("loader");
     expect(classifyRepoTopics(["plugin", "typescript"])).toBe("plugin");
   });
+  it("maps the vendor-translator topic to the translator kind", () => {
+    expect(classifyRepoTopics(["vendor-translator", "runtime"])).toBe("translator");
+  });
+
   it("returns null when no installable category topic is present", () => {
     expect(classifyRepoTopics([])).toBeNull();
     expect(classifyRepoTopics(["core-library"])).toBeNull();
-    expect(classifyRepoTopics(["vendor-translator", "runtime", "dashboard"])).toBeNull();
+    expect(classifyRepoTopics(["runtime", "dashboard"])).toBeNull();
   });
 });

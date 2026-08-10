@@ -1,4 +1,4 @@
-import type { CatalogKind } from "./domain.js";
+import type { CatalogKind, MarketplaceContribution } from "./domain.js";
 
 export type RepoRef = { owner: string; repo: string; url: string };
 
@@ -17,7 +17,8 @@ export function parseRepoRef(input: string): RepoRef | null {
 }
 
 export function classifyRepoName(name: string): CatalogKind | null {
-  if (name.endsWith("-translator") || name.startsWith("core-")) return null;
+  if (name.startsWith("core-")) return null;
+  if (name.endsWith("-translator")) return "translator";
   if (name.endsWith("-loader")) return "loader";
   if (name.endsWith("-proxy")) return "proxy";
   if (name.endsWith("-auth")) return "provider";
@@ -33,6 +34,17 @@ export function classifyRepoTopics(topics: string[]): CatalogKind | null {
   if (topics.includes("ai-provider")) return "provider";
   if (topics.includes("app-proxy")) return "proxy";
   if (topics.includes("app-loader")) return "loader";
+  if (topics.includes("vendor-translator")) return "translator";
   if (topics.includes("plugin")) return "plugin";
   return null;
+}
+
+// Whether an entry belongs to a plugin-contributed category. Structural on purpose: the
+// sidecar asks with a CatalogEntry and the renderer with a UnifiedPlugin, and both carry the
+// only two things a match can name.
+export function matchesContribution(entry: { kind: CatalogKind; topics: string[] }, contribution: MarketplaceContribution): boolean {
+  const { topics, kind } = contribution.match;
+  if (kind && entry.kind !== kind) return false;
+  if (topics && !topics.some((topic) => entry.topics.includes(topic))) return false;
+  return true;
 }

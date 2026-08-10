@@ -43,6 +43,14 @@ const CATALOG = [
   { name: "antigravity-auth", url: "https://example/antigravity-auth", kind: "provider" as const, description: LOREM, deprecated: false, topics: ["provider", "gemini"], sourceId: "intisy-ai" },
   { name: LONG_NAME, url: "https://example/long", kind: "plugin" as const, description: LOREM, deprecated: true, topics: ["plugin"], sourceId: "intisy-ai" },
   { name: "demo-provider", url: "https://example/demo-provider", kind: "provider" as const, description: "A provider from a second marketplace.", deprecated: false, topics: ["ai-provider"], sourceId: "demo" },
+  { name: "openai-translator", url: "https://example/openai-translator", kind: "translator" as const, description: "Translates the OpenAI wire format to the canonical IR.", deprecated: false, topics: ["vendor-translator", "openai"], sourceId: "intisy-ai" },
+  { name: "gemini-translator", url: "https://example/gemini-translator", kind: "translator" as const, description: "Translates the Gemini wire format to the canonical IR.", deprecated: false, topics: ["vendor-translator", "gemini"], sourceId: "intisy-ai" },
+];
+
+// What custom-auth's cairn.json declares: a category selected by TOPIC, so a translator
+// published later joins it without custom-auth changing.
+const CONTRIBUTIONS = [
+  { id: "translators", label: "Translators", match: { topics: ["vendor-translator"] }, contributedBy: "custom-auth" },
 ];
 
 // One healthy source and one that failed, which is the state the screen has to render
@@ -123,7 +131,7 @@ export function screenFixtures(): Partial<CairnAPI> {
     accountsList: async (id: string) => ({ ok: true, data: id === "antigravity" ? ACCOUNTS : [] }),
     pluginsList: async () => ({ ok: true, data: SECTIONS }),
     pluginsListCached: async () => ({ ok: true, data: SECTIONS }),
-    catalogList: async () => ({ ok: true, data: { entries: CATALOG, source: "anonymous", org: "intisy-ai", rateLimited: false, sources: CATALOG_SOURCES } }),
+    catalogList: async () => ({ ok: true, data: { entries: CATALOG, source: "anonymous", org: "intisy-ai", rateLimited: false, sources: CATALOG_SOURCES, contributions: CONTRIBUTIONS } }),
   };
 }
 

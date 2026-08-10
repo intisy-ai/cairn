@@ -1,8 +1,8 @@
 <script lang="ts">
-  let { label, on = false, onclick }: { label: string; on?: boolean; onclick?: () => void } = $props();
+  let { label, on = false, title = "", onclick }: { label: string; on?: boolean; title?: string; onclick?: () => void } = $props();
 </script>
 
-<button type="button" class="chip" class:on onclick={onclick}>{label}</button>
+<button type="button" class="chip" class:on title={title || undefined} onclick={onclick}>{label}</button>
 
 <style>
   .chip {
