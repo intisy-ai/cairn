@@ -18,7 +18,9 @@
   <p class="label">{label}</p>
   <div class="v num">{value}{#if unit}<small>{unit}</small>{/if}</div>
   {#if meta}
-    <div class="meta" style={metaColor ? `color:${metaColor}` : ""}><span class="dot"></span> {meta}</div>
+    <div class="meta" style={metaColor ? `color:${metaColor}` : ""}>
+      <span class="dot" style={metaColor ? `background:${metaColor}` : ""}></span> {meta}
+    </div>
   {/if}
 </div>
 

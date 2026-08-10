@@ -29,17 +29,24 @@ const ACCOUNTS = [
 ];
 
 function groupHeaders(container: HTMLElement): HTMLElement[] {
-  return Array.from(container.querySelectorAll<HTMLElement>("button.hd"));
+  return Array.from(container.querySelectorAll<HTMLElement>("[data-testid^='pool-']"));
 }
 
 function groupLabels(container: HTMLElement): (string | null | undefined)[] {
-  return groupHeaders(container).map((header) => header.querySelector(".lbl")?.textContent);
+  return groupHeaders(container).map((header) => header.querySelector("b")?.textContent);
+}
+
+function groupSection(container: HTMLElement, label: string): HTMLElement {
+  const section = Array.from(container.querySelectorAll<HTMLElement>("section.pool"))
+    .find((candidate) => candidate.querySelector("b")?.textContent === label);
+  if (!section) throw new Error(`no ${label} section`);
+  return section;
 }
 
 // Every section starts closed, so a test that wants the accounts has to open one first.
 async function openGroup(container: HTMLElement, label: string): Promise<void> {
   const header = await waitFor(() => {
-    const found = groupHeaders(container).find((h) => h.querySelector(".lbl")?.textContent === label);
+    const found = groupHeaders(container).find((h) => h.querySelector("b")?.textContent === label);
     if (!found) throw new Error(`no ${label} section`);
     return found;
   });
@@ -110,11 +117,11 @@ describe("Accounts screen", () => {
   it("shows an inline error when accountsList fails for a provider", async () => {
     stubCairn({
       providersList: async () => ({ ok: true, data: PROVIDERS }),
-      accountsList: async () => ({ ok: false, error: "no accounts" }),
+      accountsList: async () => ({ ok: false, error: "account store is locked" }),
     });
     const { getByText, container } = render(Accounts);
     await openGroup(container, "Stub");
-    await waitFor(() => expect(getByText(/no accounts/i)).toBeTruthy());
+    await waitFor(() => expect(getByText("Could not load accounts for Stub: account store is locked")).toBeTruthy());
   });
 
   const TWO_PROVIDERS = [
@@ -171,8 +178,7 @@ describe("Accounts screen", () => {
     await openGroup(container, "Stub");
     await waitFor(() => expect(getByText("person0@stub.test")).toBeTruthy());
 
-    const stubHeader = groupHeaders(container).find((h) => h.querySelector(".lbl")?.textContent === "Stub");
-    expect(stubHeader?.querySelector(".cnt")?.textContent).toBe("25");
+    expect(within(groupSection(container, "Stub")).getByText("25 accounts")).toBeTruthy();
 
     const renderedRows = container.querySelectorAll("[role='switch']").length;
     expect(renderedRows).toBeGreaterThan(0);
@@ -273,9 +279,7 @@ describe("Accounts screen", () => {
     await waitFor(() => expect(accountsList).toHaveBeenCalledWith("ghost"));
     expect(accountsList).not.toHaveBeenCalledWith("stub");
 
-    const ghostGroup = Array.from(container.querySelectorAll("section.grp"))
-      .find((group) => group.querySelector(".lbl")?.textContent === "Ghost");
-    await fireEvent.click(within(ghostGroup as HTMLElement).getByRole("button", { name: "Add account" }));
+    await fireEvent.click(within(groupSection(container, "Ghost")).getByRole("button", { name: "Add account" }));
 
     await findByRole("dialog", { name: /add ghost account/i });
     await waitFor(() => expect(accountsLoginBegin).toHaveBeenCalledWith("ghost"));
@@ -304,7 +308,7 @@ describe("Accounts screen", () => {
     stubCairn({ providersList: async () => ({ ok: true, data: SHARED_POOL }), accountsList: async () => ({ ok: true, data: ACCOUNTS }) });
 
     const { findByText } = render(Accounts);
-    expect(await findByText(/2 accounts across 1 of 1 provider\./)).toBeTruthy();
+    expect(await findByText(/across 1 of 1 providers/)).toBeTruthy();
   });
 
   // The pool is reachable through either lane, so a broken one must not decide for both.
@@ -319,6 +323,22 @@ describe("Accounts screen", () => {
     const { container } = render(Accounts);
     await openGroup(container, "Antigravity, Gemini CLI");
     await waitFor(() => expect(accountsList).toHaveBeenCalledWith("gemini-cli"));
+  });
+
+  // The screen has to hold a home with many providers without reading a single account, so
+  // the closed sections window and none of them is asked for its accounts.
+  it("windows the section list while every section is closed, reading no accounts", async () => {
+    const many = Array.from({ length: 40 }, (_, i) => ({
+      id: `p${i}`, label: `Provider ${i}`, accountPool: `p${i}`, sharedWith: [], pluginName: `p${i}-auth`,
+      authKind: "oauth" as const, accountCount: 0, enabled: true, exposure: { claude: true, opencode: true },
+    }));
+    const accountsList = vi.fn(async () => ({ ok: true, data: [] }) as const);
+    stubCairn({ providersList: async () => ({ ok: true, data: many }), accountsList });
+
+    const { container } = render(Accounts);
+    await waitFor(() => expect(groupHeaders(container).length).toBeGreaterThan(0));
+    expect(groupHeaders(container).length).toBeLessThan(many.length);
+    expect(accountsList).not.toHaveBeenCalled();
   });
 
   it("says why a pool cannot be managed when every lane's bundle failed", async () => {

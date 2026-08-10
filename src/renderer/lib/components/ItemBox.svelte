@@ -11,6 +11,7 @@
     selected = false,
     openLabel = "",
     openTarget = "text",
+    expanded,
     onOpen,
     icon,
     badges,
@@ -27,6 +28,9 @@
     selected?: boolean;
     openLabel?: string;
     openTarget?: "text" | "row";
+    // Set only when the row discloses content below itself rather than navigating, so a
+    // reader is told the row is a disclosure and which way it currently sits.
+    expanded?: boolean;
     onOpen?: () => void;
     icon?: Snippet;
     badges?: Snippet;
@@ -60,6 +64,7 @@
   style={!isGrid && columns ? `grid-template-columns:${columns}` : undefined}
   role={wholeRowOpens ? "button" : undefined}
   tabindex={wholeRowOpens ? 0 : undefined}
+  aria-expanded={wholeRowOpens && expanded !== undefined ? expanded : undefined}
   title={wholeRowOpens ? openLabel || undefined : undefined}
   onclick={wholeRowOpens ? onOpen : undefined}
   onkeydown={onRowKeydown}

@@ -8,7 +8,12 @@
   import AccountRow from "../components/AccountRow.svelte";
   import Button from "../components/Button.svelte";
   import SearchField from "../components/SearchField.svelte";
-  import CollapsibleGroup from "../components/CollapsibleGroup.svelte";
+  import PageHeader from "../components/PageHeader.svelte";
+  import StatCard from "../components/StatCard.svelte";
+  import StatusPill, { type StatusVariant } from "../components/StatusPill.svelte";
+  import PluginIcon, { LOGO_SIZE } from "../components/PluginIcon.svelte";
+  import Card from "../components/Card.svelte";
+  import ItemBox from "../components/ItemBox.svelte";
   import ItemList from "../components/ItemList.svelte";
   import VirtualList from "../components/VirtualList.svelte";
   import Skeleton from "../components/Skeleton.svelte";
@@ -18,7 +23,11 @@
 
   const VIRTUALIZE_THRESHOLD = 20;
   const ACCOUNT_ROW_HEIGHT = 64;
-  const SECTION_HEADER_HEIGHT = 46;
+  // A closed section is one carded ItemBox row plus the gap below it. The windowed list
+  // positions by this number, so it has to match .pool's rendered pitch (measured: row
+  // padding + icon/text block + card border + margin).
+  const SECTION_HEADER_HEIGHT = 71;
+  const POOL_COLUMNS = "minmax(150px, 1.6fr) 118px 96px auto 22px";
 
   // Several providers can read and write one account store (antigravity and gemini-cli
   // share a pool), so the pool, not the provider, is what has accounts. Keying sections by
@@ -110,6 +119,24 @@
   }
 
   const totalAccounts = $derived(pools.reduce((sum, pool) => sum + pool.accountCount, 0));
+  const brokenPools = $derived(pools.filter((pool) => pool.error));
+
+  function statusFor(pool: AccountPool): { variant: StatusVariant; label: string; detail: string } {
+    if (pool.error) return { variant: "warn", label: "Won't load", detail: `${pool.providers[0].pluginName} failed to load: ${pool.error}` };
+    if (pool.accountCount > 0) return { variant: "good", label: "Connected", detail: "" };
+    return { variant: "off", label: "Not connected", detail: "" };
+  }
+
+  function countLabel(count: number): string {
+    if (count === 0) return "No accounts";
+    return `${count} account${count === 1 ? "" : "s"}`;
+  }
+
+  // The ids behind a pool, which is the only place the shared lanes are visible now that one
+  // section stands for all of them.
+  function laneIds(pool: AccountPool): string {
+    return pool.providers.map((provider) => provider.id).join(" · ");
+  }
 
   const pickerPools = $derived.by(() => {
     const filter = pickerFilter.trim().toLowerCase();
@@ -215,44 +242,35 @@
 
 <svelte:window onclick={closePickerOnOutsideClick} />
 
-<div class="head">
-  <div>
-    <h1>Accounts</h1>
+<PageHeader title="Accounts" subtitle="Signed-in accounts across every provider, with quota and status at a glance.">
+  {#snippet actions()}
     {#if loaded && !providersError && providers.length > 0}
-      <p>
-        {totalAccounts} {totalAccounts === 1 ? "account" : "accounts"}
-        across {connected.length} of {pools.length} {pools.length === 1 ? "provider" : "providers"}.
-      </p>
-    {:else}
-      <p>Signed-in accounts across every provider, with quota and status at a glance.</p>
-    {/if}
-  </div>
-  {#if loaded && !providersError && providers.length > 0}
-    <div class="picker" bind:this={pickerEl}>
-      <Button variant="primary" onclick={openPicker}>Add account</Button>
-      {#if pickerOpen}
-        <div class="menu" role="menu">
-          <input
-            class="filter"
-            aria-label="Filter providers"
-            placeholder="Filter providers"
-            bind:value={pickerFilter}
-          />
-          <div class="menuscroll">
-            {#each pickerPools as pool (pool.id)}
-              <button role="menuitem" onclick={() => pickPool(pool)}>
-                <span class="mlabel">{pool.label}</span>
-                {#if pool.accountCount > 0}<span class="mcount">{pool.accountCount}</span>{/if}
-              </button>
-            {:else}
-              <p class="mempty">No provider matches.</p>
-            {/each}
+      <div class="picker" bind:this={pickerEl}>
+        <Button variant="primary" onclick={openPicker}>Add account</Button>
+        {#if pickerOpen}
+          <div class="menu" role="menu">
+            <input
+              class="filter"
+              aria-label="Filter providers"
+              placeholder="Filter providers"
+              bind:value={pickerFilter}
+            />
+            <div class="menuscroll">
+              {#each pickerPools as pool (pool.id)}
+                <button role="menuitem" onclick={() => pickPool(pool)}>
+                  <span class="mlabel">{pool.label}</span>
+                  {#if pool.accountCount > 0}<span class="mcount">{pool.accountCount}</span>{/if}
+                </button>
+              {:else}
+                <p class="mempty">No provider matches.</p>
+              {/each}
+            </div>
           </div>
-        </div>
-      {/if}
-    </div>
-  {/if}
-</div>
+        {/if}
+      </div>
+    {/if}
+  {/snippet}
+</PageHeader>
 
 {#if providersError}
   <ErrorState message={"Could not load providers: " + providersError} onRetry={load} />
@@ -263,6 +281,14 @@
     {/each}
   </div>
 {:else}
+  <section class="summary">
+    <StatCard label="Accounts" value={String(totalAccounts)} meta={`across ${connected.length} of ${pools.length} providers`} />
+    <StatCard label="Signed in" value={String(connected.length)} unit={`/ ${pools.length} providers`} />
+    {#if brokenPools.length > 0}
+      <StatCard label="Won't load" value={String(brokenPools.length)} meta="plugin build incomplete" metaColor="var(--warn)" />
+    {/if}
+  </section>
+
   <div class="toolbar">
     <SearchField bind:value={searchRaw} placeholder="Search accounts" />
   </div>
@@ -290,24 +316,44 @@
 
 {#snippet poolSection(pool: AccountPool)}
   {@const poolAccounts = accountsFor(pool)}
-  <CollapsibleGroup
-    label={pool.label}
-    count={isOpen(pool.id) ? poolAccounts.length : pool.accountCount}
-    open={isOpen(pool.id)}
-    onToggle={(open) => setOpen(pool, open)}
-  >
-    {#snippet body()}
-      {#if pool.error}
-        <p class="error">{pool.providers[0].pluginName} failed to load, so these accounts cannot be managed: {pool.error}</p>
-      {:else if accountErrors[pool.id]}
-        <p class="error">Could not load accounts for {pool.label}: {accountErrors[pool.id]}</p>
-      {:else}
-        <div class="grouptools">
-          <Button onclick={() => (addFor = { id: pool.controllerId, label: pool.label })}>
-            {pool.accountCount > 0 ? "Add another" : "Add account"}
-          </Button>
-        </div>
-        {#if loadingAccounts[pool.id] && poolAccounts.length === 0}
+  {@const open = isOpen(pool.id)}
+  {@const status = statusFor(pool)}
+  <section class="pool">
+    <Card>
+      <ItemBox
+        columns={POOL_COLUMNS}
+        testid={"pool-" + pool.id}
+        title={pool.label}
+        subtitle={laneIds(pool)}
+        monoSubtitle
+        openTarget="row"
+        expanded={open}
+        openLabel={`${open ? "Collapse" : "Expand"} ${pool.label}`}
+        onOpen={() => setOpen(pool, !open)}
+      >
+        {#snippet icon()}
+          <PluginIcon name={pool.label} kind="provider" size={LOGO_SIZE.list} />
+        {/snippet}
+        {#snippet actions()}
+          <div><StatusPill variant={status.variant} label={status.label} title={status.detail} /></div>
+          <div class="acct">{countLabel(open ? poolAccounts.length : pool.accountCount)}</div>
+          <div onclick={(e) => e.stopPropagation()} role="presentation">
+            <Button onclick={() => (addFor = { id: pool.controllerId, label: pool.label })} disabled={!!pool.error}>
+              {pool.accountCount > 0 ? "Add another" : "Add account"}
+            </Button>
+          </div>
+          <span class="chev" class:o={open}>&rsaquo;</span>
+        {/snippet}
+      </ItemBox>
+    </Card>
+
+    {#if open}
+      <div class="body">
+        {#if pool.error}
+          <p class="error">{pool.providers[0].pluginName} failed to load, so these accounts cannot be managed: {pool.error}</p>
+        {:else if accountErrors[pool.id]}
+          <p class="error">Could not load accounts for {pool.label}: {accountErrors[pool.id]}</p>
+        {:else if loadingAccounts[pool.id] && poolAccounts.length === 0}
           <div class="skeletons">
             {#each Array(Math.min(pool.accountCount || 1, 3)) as _}
               <Skeleton height="64px" radius="10px" />
@@ -325,9 +371,9 @@
             {#snippet item(account)}{@render accountRow(pool, account)}{/snippet}
           </ItemList>
         {/if}
-      {/if}
-    {/snippet}
-  </CollapsibleGroup>
+      </div>
+    {/if}
+  </section>
 {/snippet}
 
 {#snippet accountRow(pool: AccountPool, account: AccountView)}
@@ -367,23 +413,30 @@
 {/if}
 
 <style>
-  .head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 20px;
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+    gap: var(--space-md);
+    margin-bottom: var(--space-2xl);
   }
-  .head h1 {
-    margin: 0;
-    font-size: 20px;
-    letter-spacing: -.02em;
-    font-weight: 650;
+  .pool {
+    margin-bottom: var(--space-sm);
   }
-  .head p {
-    margin: 3px 0 0;
+  .body {
+    margin: var(--space-sm) 0 var(--space-xl);
+  }
+  .acct {
     color: var(--muted);
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
+  }
+  .chev {
+    font-size: var(--fs-lg);
+    color: var(--faint);
+    transform: rotate(0deg);
+    transition: transform 150ms ease-out;
+  }
+  .chev.o {
+    transform: rotate(90deg);
   }
   .toolbar {
     display: flex;
@@ -470,11 +523,6 @@
     padding: 7px 10px;
     font-size: 12px;
     color: var(--muted);
-  }
-  .grouptools {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: 8px;
   }
   .skeletons {
     display: flex;
