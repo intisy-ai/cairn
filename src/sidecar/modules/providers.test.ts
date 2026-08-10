@@ -74,6 +74,22 @@ function seedSyntheticProvider(repo: string, providerId: string, label: string, 
   );
 }
 
+// A deployed plugin whose handler bundle cannot be imported, which is what a plugin
+// installed but never fully built looks like on disk: the entry file is there, the
+// library it imports is not.
+function seedUnloadableProvider(repo: string, providerId: string): void {
+  const repoDir = join(reposRoot(), repo);
+  mkdirSync(join(repoDir, "dist"), { recursive: true });
+  writeFileSync(
+    join(repoDir, "package.json"),
+    JSON.stringify({
+      name: repo,
+      claudeHub: { authProviders: [{ name: providerId, handler: "dist/handler.js" }] },
+    }),
+  );
+  writeFileSync(join(repoDir, "dist", "handler.js"), `import "./never-built-library.js";\n`);
+}
+
 describe("providers sidecar module", () => {
   it("lists the catalog with account counts, auth kind, and default exposure", async () => {
     seedStubProvider();
@@ -152,6 +168,28 @@ describe("providers sidecar module", () => {
     expect(rowB.accountCount).toBe(1);
     expect(rowA.pluginName).toBe("plugin-a");
     expect(rowB.pluginName).toBe("plugin-b");
+  });
+
+  it("reports why a provider whose handler cannot be imported has no metadata", async () => {
+    seedUnloadableProvider("broken-auth", "broken");
+
+    const { providersList } = await import("./providers.js");
+    const listed = await providersList();
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) throw new Error("unreachable");
+
+    const row = listed.data[0];
+    expect(row.id).toBe("broken");
+    expect(row.defsError).toMatch(/never-built-library/);
+  });
+
+  it("leaves defsError unset for a provider whose handler loads", async () => {
+    seedSyntheticProvider("plugin-a", "providerA", "Provider A", "providerA");
+
+    const { providersList } = await import("./providers.js");
+    const listed = await providersList();
+    if (!listed.ok) throw new Error("unreachable");
+    expect(listed.data[0].defsError).toBeUndefined();
   });
 
   it("providersSetExposure writes an app-id-keyed entry", async () => {

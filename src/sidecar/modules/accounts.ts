@@ -1,21 +1,8 @@
-import { pathToFileURL } from "node:url";
-import { readDeployedProviders } from "@core-loader/loader-runtime.js";
-import { reposDir } from "@core-auth/index.js";
 import type { AccountController } from "@core-auth/index.js";
 import type { AccountView, Result } from "../../../packages/shared/src/domain.js";
+import { importProviderHandler } from "../lib/providerHandler.js";
 import { ok, err } from "../result.js";
 import { emitCairnAction } from "../activity.js";
-
-async function resolveController(provider: string): Promise<AccountController | null> {
-  const deployed = readDeployedProviders(reposDir()).find((p) => p.provider === provider);
-  if (!deployed) return null;
-  try {
-    const mod = await import(pathToFileURL(deployed.handlerPath).href);
-    return (mod.accounts as AccountController | undefined) ?? null;
-  } catch {
-    return null;
-  }
-}
 
 async function guarded<T>(fn: () => Promise<T> | T): Promise<Result<T>> {
   try {
@@ -27,8 +14,9 @@ async function guarded<T>(fn: () => Promise<T> | T): Promise<Result<T>> {
 }
 
 async function requireController(provider: string): Promise<AccountController> {
-  const controller = await resolveController(provider);
-  if (!controller) throw new Error(`no accounts controller for provider: ${provider}`);
+  const { repo, module } = await importProviderHandler(provider);
+  const controller = module.accounts as AccountController | undefined;
+  if (!controller) throw new Error(`${repo} manages no accounts for provider: ${provider}`);
   return controller;
 }
 

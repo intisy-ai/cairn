@@ -1,5 +1,5 @@
 import { readDeployedProviders } from "@core-loader/loader-runtime.js";
-import { loadProviderDefs, type ProviderDef } from "@core-loader/provider-def.js";
+import { loadProviderDefsResult, type ProviderDefsResult } from "@core-loader/provider-def.js";
 import { reposDir, listAccounts } from "@core-auth/index.js";
 import { getApps } from "@core/index.js";
 import { exposureFor, readExposureMap, setExposure } from "../lib/exposure.js";
@@ -14,11 +14,11 @@ export function providersList(): Promise<Result<ProviderRow[]>> {
 
     // A handler module can back several deployed entries (a shared handler backing
     // multiple providers); import it once and reuse the resolved defs for all of them.
-    const defsByHandler = new Map<string, Promise<ProviderDef[]>>();
-    function defsFor(handlerPath: string): Promise<ProviderDef[]> {
+    const defsByHandler = new Map<string, Promise<ProviderDefsResult>>();
+    function defsFor(handlerPath: string): Promise<ProviderDefsResult> {
       let cached = defsByHandler.get(handlerPath);
       if (!cached) {
-        cached = loadProviderDefs(handlerPath);
+        cached = loadProviderDefsResult(handlerPath);
         defsByHandler.set(handlerPath, cached);
       }
       return cached;
@@ -26,7 +26,7 @@ export function providersList(): Promise<Result<ProviderRow[]>> {
 
     const rows: ProviderRow[] = [];
     for (const entry of deployed) {
-      const defs = await defsFor(entry.handlerPath);
+      const { defs, error } = await defsFor(entry.handlerPath);
       const def = defs.find((d) => d.id === entry.provider) ?? defs[0] ?? null;
       const accountPool = def?.accountPool ?? entry.accountPool;
       const exposure = exposureFor(exposureMap, entry.provider);
@@ -41,6 +41,7 @@ export function providersList(): Promise<Result<ProviderRow[]>> {
         accountPool,
         sharedWith: [],
         pluginName: entry.repo,
+        defsError: error,
       });
     }
 

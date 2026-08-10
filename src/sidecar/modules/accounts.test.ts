@@ -31,23 +31,28 @@ function seedStubProvider(): void {
   materializeLibraries(stubCloneDir, configDir);
 }
 
+function seedProvider(repo: string, providerId: string, handlerSource: string): void {
+  const configDir = process.env.HUB_CONFIG_DIR as string;
+  const repoDir = join(configDir, "repos", repo);
+  mkdirSync(join(repoDir, "dist"), { recursive: true });
+  writeFileSync(
+    join(repoDir, "package.json"),
+    JSON.stringify({
+      name: repo,
+      claudeHub: { authProviders: [{ name: providerId, handler: "dist/handler.js" }] },
+    }),
+  );
+  writeFileSync(join(repoDir, "dist", "handler.js"), handlerSource);
+}
+
 // Simulates a provider bundled with its own copy of core-auth: the thrown error
 // is a plain Error with name "LockTimeoutError", not an instance of the
 // dashboard's own LockTimeoutError class, since esbuild gives each provider
 // bundle its own class identity for the same error type.
 function seedLockedProvider(): void {
-  const configDir = process.env.HUB_CONFIG_DIR as string;
-  const repoDir = join(configDir, "repos", "locked-auth");
-  mkdirSync(join(repoDir, "dist"), { recursive: true });
-  writeFileSync(
-    join(repoDir, "package.json"),
-    JSON.stringify({
-      name: "locked-auth",
-      claudeHub: { authProviders: [{ name: "locked", handler: "dist/handler.js" }] },
-    }),
-  );
-  writeFileSync(
-    join(repoDir, "dist", "handler.js"),
+  seedProvider(
+    "locked-auth",
+    "locked",
     `export const accounts = {
       list() {
         const e = new Error("store busy");
@@ -59,6 +64,16 @@ function seedLockedProvider(): void {
     };
 `,
   );
+}
+
+// A plugin installed but never fully built: its entry file is on disk, the library
+// that file imports is not.
+function seedUnloadableProvider(): void {
+  seedProvider("broken-auth", "broken", `import "./never-built-library.js";\n`);
+}
+
+function seedControllerlessProvider(): void {
+  seedProvider("routing-only", "controllerless", `export const def = { id: "controllerless", label: "Routing Only" };\n`);
 }
 
 describe("accounts sidecar module", () => {
@@ -94,6 +109,31 @@ describe("accounts sidecar module", () => {
     const { accountsList } = await import("./accounts.js");
     const result = await accountsList("nonexistent-provider");
     expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("no provider deployed");
+  });
+
+  it("blames the failed bundle, not a missing controller, when the handler cannot be imported", async () => {
+    seedUnloadableProvider();
+    const { accountsList } = await import("./accounts.js");
+
+    const result = await accountsList("broken");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("broken-auth failed to load");
+    expect(result.error).toMatch(/never-built-library/);
+  });
+
+  it("says the plugin manages no accounts when its handler loads without a controller", async () => {
+    seedControllerlessProvider();
+    const { accountsList } = await import("./accounts.js");
+
+    const result = await accountsList("controllerless");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("manages no accounts");
   });
 
   it("maps a cross-bundle LockTimeoutError (matched by name, not class identity) to the locked-store message", async () => {

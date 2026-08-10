@@ -1,7 +1,6 @@
-import { pathToFileURL } from "node:url";
-import { readDeployedProviders } from "@core-loader/loader-runtime.js";
-import { reposDir, openBrowser } from "@core-auth/index.js";
+import { openBrowser } from "@core-auth/index.js";
 import type { LoginBegin, LoginComplete, Result } from "../../../packages/shared/src/domain.js";
+import { importProviderHandler } from "../lib/providerHandler.js";
 import { ok, err } from "../result.js";
 
 type LoginAccount = { id?: string; label?: string };
@@ -24,18 +23,14 @@ export interface AccountsLoginDeps {
 
 const pending = new Map<string, LoginFlow>();
 
+// A null return means the provider genuinely offers no in-app login. A bundle that
+// cannot be imported throws instead, so a broken install never reads as an API-key-only
+// provider.
 async function realResolveLoginFlow(provider: string): Promise<LoginFlow | null> {
-  const deployed = readDeployedProviders(reposDir()).find((p) => p.provider === provider);
-  if (!deployed) return null;
-  try {
-    const mod = await import(pathToFileURL(deployed.handlerPath).href);
-    const factory = mod.loginFlow as (() => LoginFlow | Promise<LoginFlow> | undefined) | undefined;
-    if (typeof factory !== "function") return null;
-    const flow = await factory();
-    return flow ?? null;
-  } catch {
-    return null;
-  }
+  const { module } = await importProviderHandler(provider);
+  const factory = module.loginFlow as (() => LoginFlow | Promise<LoginFlow> | undefined) | undefined;
+  if (typeof factory !== "function") return null;
+  return (await factory()) ?? null;
 }
 
 export async function accountsLoginBegin(provider: string, deps: AccountsLoginDeps = {}): Promise<Result<LoginBegin>> {
