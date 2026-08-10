@@ -13,10 +13,29 @@ export type { Chain, ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-p
 import type { ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/index.js";
 import type { AppDescriptor } from "@core/index.js";
 export type CatalogKind = "provider" | "proxy" | "plugin" | "loader";
-export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string; deprecated: boolean; topics: string[]; displayName?: string; icon?: string; app?: AppDescriptor; apps?: string[] };
+export type CatalogEntry = { name: string; url: string; kind: CatalogKind; description: string; deprecated: boolean; topics: string[]; displayName?: string; icon?: string; app?: AppDescriptor; apps?: string[]; sourceId?: string };
 export type RepoMeta = { owner: string; repo: string; htmlUrl: string; stars: number | null; description: string; topics: string[]; readme: string | null };
 export type CatalogTokenSource = "env" | "config" | "anonymous";
-export type CatalogResult = { entries: CatalogEntry[]; source: CatalogTokenSource; org: string; rateLimited: boolean };
+
+// Where entries come from. A GitHub org is one kind of marketplace, not the only one: a
+// manifest names its entries outright (a URL, or a directory for one that is not published).
+export type MarketplaceSourceType = "github-org" | "manifest" | "local";
+export type MarketplaceSource = {
+  id: string;
+  label: string;
+  type: MarketplaceSourceType;
+  enabled?: boolean;
+  // github-org
+  org?: string;
+  // manifest
+  url?: string;
+  // local
+  path?: string;
+};
+// What one source contributed to a listing. A source that failed says so here and the others
+// still list: one unreachable marketplace must never read as an empty catalog.
+export type MarketplaceSourceStatus = { id: string; label: string; type: MarketplaceSourceType; ok: boolean; entryCount: number; error?: string };
+export type CatalogResult = { entries: CatalogEntry[]; source: CatalogTokenSource; org: string; rateLimited: boolean; sources: MarketplaceSourceStatus[] };
 export type GithubAccountView = { login: string; name: string | null; avatarUrl: string | null };
 export type GithubStatus = {
   source: CatalogTokenSource;
@@ -256,6 +275,9 @@ export type UnifiedPlugin = {
   // The repo is archived upstream. Still installable, just kept out of the list unless
   // asked for, or unless it is already installed somewhere and needs managing.
   deprecated: boolean;
+  // Which configured marketplace listed this. Absent for something installed from outside
+  // every marketplace, which is the same thing `external` reports from the URL's owner.
+  sourceId?: string;
 };
 export type InstallOutcome = { home: string; ok: boolean; error?: string };
 export type InstallManyResult = { outcomes: InstallOutcome[] };

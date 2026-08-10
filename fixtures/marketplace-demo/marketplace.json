@@ -1,0 +1,35 @@
+{
+  "name": "Demo marketplace",
+  "entries": [
+    {
+      "name": "demo-provider",
+      "url": "https://github.com/example/demo-provider",
+      "kind": "provider",
+      "description": "A provider published by a marketplace other than the built-in one.",
+      "topics": ["ai-provider", "demo"],
+      "displayName": "Demo Provider"
+    },
+    {
+      "name": "demo-plugin",
+      "url": "https://github.com/example/demo-plugin",
+      "kind": "plugin",
+      "description": "A plugin that exists only to exercise a second marketplace source.",
+      "topics": ["plugin", "demo"]
+    },
+    {
+      "name": "demo-translator",
+      "url": "https://github.com/example/demo-translator",
+      "kind": "plugin",
+      "description": "Stands in for a vendor translator until translators become their own kind.",
+      "topics": ["vendor-translator", "demo"]
+    },
+    {
+      "name": "demo-archived",
+      "url": "https://github.com/example/demo-archived",
+      "kind": "plugin",
+      "description": "An archived entry, so the deprecated filter has something to match.",
+      "topics": ["plugin", "demo"],
+      "deprecated": true
+    }
+  ]
+}

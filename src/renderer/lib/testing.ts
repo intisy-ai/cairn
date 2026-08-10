@@ -109,7 +109,7 @@ function defaultCairn(): CairnAPI {
     importApps: async () => ({ ok: true, data: [] }),
     importPreview: async () => ({ ok: true, data: { accounts: 0, routingSlots: null, exposedProviders: 0 } }),
     importRun: async () => ({ ok: true, data: { accounts: 0, providers: 0, routingImported: false, notes: [] } }),
-    catalogList: async () => ({ ok: true, data: { entries: [], source: "anonymous", org: "intisy-ai", rateLimited: false } }),
+    catalogList: async () => ({ ok: true, data: { entries: [], source: "anonymous", org: "intisy-ai", rateLimited: false, sources: [] } }),
     catalogListCached: async () => ({ ok: true, data: null }),
     githubStatus: async () => ({
       ok: true,

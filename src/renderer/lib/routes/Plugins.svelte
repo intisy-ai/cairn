@@ -1,6 +1,6 @@
 ﻿<script lang="ts">
   import { onMount } from "svelte";
-  import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin, PluginVersion, Result, InstallManyResult, InstallOutcome, RepoRef, EngineView, GithubStatus } from "@cairn/shared";
+  import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin, PluginVersion, Result, InstallManyResult, InstallOutcome, RepoRef, EngineView, GithubStatus, MarketplaceSourceStatus } from "@cairn/shared";
   import { classifyRepoName } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { consumeParams } from "../router.js";
@@ -34,6 +34,8 @@
 
   let sections = $state<HomePlugins[]>([]);
   let catalog = $state<CatalogEntry[]>([]);
+  let catalogSources = $state<MarketplaceSourceStatus[]>([]);
+  let sourceFilter = $state<string>("all");
   let catalogOrg = $state("");
   let engines = $state<EngineView[]>([]);
   let versions = $state<Record<string, Record<string, PluginVersion>>>({});
@@ -125,6 +127,8 @@
       } else if (kindFilter !== "all" && p.kind !== kindFilter) {
         return false;
       }
+      // Something installed from no marketplace at all appears only under "All sources".
+      if (sourceFilter !== "all" && p.sourceId !== sourceFilter) return false;
       // An installed one stays listed whatever the filter says, otherwise asking to hide
       // deprecated entries would hide something already on disk and leave no way to remove it.
       if (p.deprecated && !showDeprecated && !isInstalled(p)) return false;
@@ -142,6 +146,11 @@
   );
   function setKind(kind: KindFilter): void {
     kindFilter = kind;
+  }
+
+  // Which marketplace listed this, named the way its source is named in the filter row.
+  function sourceLabel(p: UnifiedPlugin): string {
+    return catalogSources.find((s) => s.id === p.sourceId)?.label ?? "";
   }
   const isFiltering = $derived(search.trim() !== "" || kindFilter !== "all" || installedOnly || externalOnly || favoritesOnly || updatableOnly);
   function clearFilters(): void {
@@ -175,6 +184,9 @@
       catalog = result.data.entries;
       catalogOrg = result.data.org;
       catalogRateLimited = result.data.rateLimited;
+      catalogSources = result.data.sources ?? [];
+      // A source that disappeared from the config must not keep filtering the list to nothing.
+      if (sourceFilter !== "all" && !catalogSources.some((s) => s.id === sourceFilter)) sourceFilter = "all";
     }
   }
 
@@ -560,6 +572,24 @@
     {/if}
   </div>
 
+  <!-- Only worth a row of its own once there is more than one marketplace to choose between. -->
+  {#if catalogSources.length > 1}
+    <div class="filters" data-testid="source-filters">
+      <Chip label="All sources" on={sourceFilter === "all"} onclick={() => (sourceFilter = "all")} />
+      {#each catalogSources as source (source.id)}
+        <Chip
+          label={source.ok ? `${source.label} ${source.entryCount}` : `${source.label} unavailable`}
+          on={sourceFilter === source.id}
+          onclick={() => (sourceFilter = source.id)}
+        />
+      {/each}
+    </div>
+  {/if}
+
+  {#each catalogSources.filter((s) => !s.ok) as source (source.id)}
+    <p class="source-error">Could not read the {source.label} marketplace: {source.error}</p>
+  {/each}
+
   {#if showRateLimitBanner}
     <div class="ratelimit-banner">
       <span>GitHub's anonymous rate limit was reached. Installing still works; connect a GitHub account to keep browsing the catalog.</span>
@@ -624,6 +654,7 @@
         {#if badgeLabel(p)}
           <span class="chip" title={p.external ? "Installed from a repo outside the marketplace org" : undefined}>{badgeLabel(p)}</span>
         {/if}
+        {#if catalogSources.length > 1 && sourceLabel(p)}<span class="src">{sourceLabel(p)}</span>{/if}
       {/snippet}
       {#snippet meta()}
         {#if mode === "list" && p.topics.length > 0}
@@ -766,6 +797,18 @@
     font-family: var(--mono);
     font-size: 11px;
     color: var(--faint);
+  }
+  .source-error {
+    margin: 0 0 var(--space-md);
+    color: var(--warn);
+    font-size: var(--fs-sm);
+  }
+  .src {
+    font-size: var(--fs-xs);
+    color: var(--faint);
+    border: var(--hairline) solid var(--border);
+    border-radius: var(--radius-xs);
+    padding: 0 var(--space-2xs);
   }
   .ver {
     font-family: var(--mono);

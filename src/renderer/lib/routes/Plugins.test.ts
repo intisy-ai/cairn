@@ -803,4 +803,58 @@ describe("Plugins screen", () => {
     expect(await screen.findByRole("dialog")).toBeTruthy();
     expect(within(screen.getByRole("dialog")).getByText("wakatime-sync")).toBeTruthy();
   });
+
+  function multiSourceCatalog() {
+    return {
+      ...baseCatalog(),
+      entries: [
+        { name: "wakatime-sync", url: "uw", kind: "plugin" as const, description: "from the org", deprecated: false, sourceId: "intisy-ai" },
+        { name: "demo-plugin", url: "ud", kind: "plugin" as const, description: "from the demo marketplace", deprecated: false, sourceId: "demo" },
+      ],
+      sources: [
+        { id: "intisy-ai", label: "intisy-ai", type: "github-org" as const, ok: true, entryCount: 1 },
+        { id: "demo", label: "Demo", type: "local" as const, ok: true, entryCount: 1 },
+      ],
+    };
+  }
+
+  // With one marketplace the screen must look exactly as it did before this existed.
+  it("offers no source filter while only one marketplace is configured", async () => {
+    stubCairn({ pluginsList: async () => ({ ok: true, data: baseSections() }), catalogList: async () => ({ ok: true, data: baseCatalog() }) });
+    render(Plugins);
+    await screen.findByText("wakatime-sync");
+    expect(screen.queryByTestId("source-filters")).toBeNull();
+  });
+
+  it("browses marketplaces combined by default and one at a time when asked", async () => {
+    stubCairn({ pluginsList: async () => ({ ok: true, data: baseSections() }), catalogList: async () => ({ ok: true, data: multiSourceCatalog() }) });
+    render(Plugins);
+    await screen.findByTestId("source-filters");
+
+    expect(await screen.findByText("wakatime-sync")).toBeTruthy();
+    expect(screen.getByText("demo-plugin")).toBeTruthy();
+
+    await fireEvent.click(within(screen.getByTestId("source-filters")).getByText("Demo 1"));
+
+    await waitFor(() => expect(screen.queryByText("wakatime-sync")).toBeNull());
+    expect(screen.getByText("demo-plugin")).toBeTruthy();
+  });
+
+  // A marketplace being down must not read as an empty catalog, which is what a
+  // single-source scan could not distinguish.
+  it("still lists a healthy marketplace's entries and names the one that failed", async () => {
+    const withFailure = {
+      ...multiSourceCatalog(),
+      entries: [multiSourceCatalog().entries[0]],
+      sources: [
+        { id: "intisy-ai", label: "intisy-ai", type: "github-org" as const, ok: true, entryCount: 1 },
+        { id: "acme", label: "Acme", type: "manifest" as const, ok: false, entryCount: 0, error: "http 404" },
+      ],
+    };
+    stubCairn({ pluginsList: async () => ({ ok: true, data: baseSections() }), catalogList: async () => ({ ok: true, data: withFailure }) });
+    render(Plugins);
+
+    expect(await screen.findByText("wakatime-sync")).toBeTruthy();
+    expect(await screen.findByText(/Could not read the Acme marketplace: http 404/)).toBeTruthy();
+  });
 });

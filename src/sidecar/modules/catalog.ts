@@ -1,5 +1,5 @@
-import { scanOrg } from "../lib/orgScan.js";
-import type { OrgScanDeps } from "../lib/orgScan.js";
+import { scanMarketplaces } from "../lib/marketplaces.js";
+import type { MarketplaceDeps } from "../lib/marketplaces.js";
 import type { CatalogResult, Result } from "../../../packages/shared/src/domain.js";
 import { readCache, writeCache } from "../lib/cache.js";
 import { getConfigDir } from "@core-auth/index.js";
@@ -8,9 +8,9 @@ import { wrap } from "../result.js";
 const CATALOG_NS = "catalog";
 const CATALOG_KEY = "org";
 
-export function catalogList(deps: OrgScanDeps = {}, cacheDir: string = getConfigDir()): Promise<Result<CatalogResult>> {
+export function catalogList(deps: MarketplaceDeps = {}, cacheDir: string = getConfigDir()): Promise<Result<CatalogResult>> {
   return wrap(async () => {
-    const result = await scanOrg(deps);
+    const result = await scanMarketplaces(deps);
     // A rate-limited scan returns an empty catalog; caching it would blank the next paint.
     if (result.entries.length > 0) writeCache(CATALOG_NS, CATALOG_KEY, result, cacheDir);
     return result;

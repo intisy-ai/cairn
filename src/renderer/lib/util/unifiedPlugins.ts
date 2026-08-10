@@ -95,6 +95,7 @@ export function buildUnifiedPlugins(
       apps: catEntry?.apps,
       favorite: favorites.includes(name),
       deprecated: catEntry?.deprecated ?? false,
+      sourceId: catEntry?.sourceId,
     });
   }
   out.sort((a, b) => Number(b.favorite) - Number(a.favorite) || a.name.localeCompare(b.name));

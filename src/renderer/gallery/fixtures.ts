@@ -38,10 +38,19 @@ const SECTIONS: HomePlugins[] = [
 ];
 
 const CATALOG = [
-  { name: "wakatime-sync", url: "https://example/wakatime-sync", kind: "plugin" as const, description: "Reports coding activity to WakaTime.", deprecated: false, topics: ["plugin", "metrics"] },
-  { name: "config-ledger", url: "https://example/config-ledger", kind: "plugin" as const, description: "Keeps every home's config in one git repo.", deprecated: false, topics: ["plugin", "git"] },
-  { name: "antigravity-auth", url: "https://example/antigravity-auth", kind: "provider" as const, description: LOREM, deprecated: false, topics: ["provider", "gemini"] },
-  { name: LONG_NAME, url: "https://example/long", kind: "plugin" as const, description: LOREM, deprecated: true, topics: ["plugin"] },
+  { name: "wakatime-sync", url: "https://example/wakatime-sync", kind: "plugin" as const, description: "Reports coding activity to WakaTime.", deprecated: false, topics: ["plugin", "metrics"], sourceId: "intisy-ai" },
+  { name: "config-ledger", url: "https://example/config-ledger", kind: "plugin" as const, description: "Keeps every home's config in one git repo.", deprecated: false, topics: ["plugin", "git"], sourceId: "intisy-ai" },
+  { name: "antigravity-auth", url: "https://example/antigravity-auth", kind: "provider" as const, description: LOREM, deprecated: false, topics: ["provider", "gemini"], sourceId: "intisy-ai" },
+  { name: LONG_NAME, url: "https://example/long", kind: "plugin" as const, description: LOREM, deprecated: true, topics: ["plugin"], sourceId: "intisy-ai" },
+  { name: "demo-provider", url: "https://example/demo-provider", kind: "provider" as const, description: "A provider from a second marketplace.", deprecated: false, topics: ["ai-provider"], sourceId: "demo" },
+];
+
+// One healthy source and one that failed, which is the state the screen has to render
+// without losing the entries the healthy one returned.
+const CATALOG_SOURCES = [
+  { id: "intisy-ai", label: "intisy-ai", type: "github-org" as const, ok: true, entryCount: 4 },
+  { id: "demo", label: "Demo", type: "local" as const, ok: true, entryCount: 1 },
+  { id: "acme", label: "Acme", type: "manifest" as const, ok: false, entryCount: 0, error: "http 404" },
 ];
 
 const PROVIDERS: ProviderRow[] = [
@@ -103,7 +112,7 @@ export function screenFixtures(): Partial<CairnAPI> {
     accountsList: async (id: string) => ({ ok: true, data: id === "antigravity" ? ACCOUNTS : [] }),
     pluginsList: async () => ({ ok: true, data: SECTIONS }),
     pluginsListCached: async () => ({ ok: true, data: SECTIONS }),
-    catalogList: async () => ({ ok: true, data: { entries: CATALOG, source: "anonymous", org: "intisy-ai", rateLimited: false } }),
+    catalogList: async () => ({ ok: true, data: { entries: CATALOG, source: "anonymous", org: "intisy-ai", rateLimited: false, sources: CATALOG_SOURCES } }),
   };
 }
 

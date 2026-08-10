@@ -169,12 +169,12 @@ export async function scanOrg(deps: OrgScanDeps = {}): Promise<CatalogResult> {
         // enrichment failure never empties the catalog
       }
     }
-    const result: CatalogResult = { entries, source, org, rateLimited: false };
+    const result: CatalogResult = { entries, source, org, rateLimited: false, sources: [] };
     if (entries.length > 0 || !cache) cache = { at: now(), result };
     return cache.result;
   } catch {
     if (cache) return cache.result;
-    const empty: CatalogResult = { entries: [], source, org, rateLimited };
+    const empty: CatalogResult = { entries: [], source, org, rateLimited, sources: [] };
     return empty;
   }
 }
