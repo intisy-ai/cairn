@@ -62,7 +62,7 @@ async function run(job: JobMessage): Promise<void> {
 
 // The update badge is read from this home's cache, so an install that does not write it leaves
 // the plugin looking behind forever. Done here because this is where the fresh clone is.
-async function recordInstalledVersion(job: JobMessage): Promise<void> {
+export async function recordInstalledVersion(job: JobMessage): Promise<void> {
   try {
     const [cacheModule, git] = await Promise.all([import("@plugin-updater/cache.js"), import("@plugin-updater/git.js")]);
     const head = git.getLocalHead(job.plugin);
@@ -77,6 +77,7 @@ async function recordInstalledVersion(job: JobMessage): Promise<void> {
       remoteHead: head,
       latestVersion: previous?.latestVersion ?? null,
       updateAvailable: false,
+      experimentalAvailable: previous?.experimentalAvailable ?? null,
       updatedAt: cache.checkedAt,
     };
     cacheModule.writeUpdateCache(job.homeDir, cache);
