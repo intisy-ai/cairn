@@ -1,0 +1,76 @@
+import { join } from "node:path";
+import { existsSync } from "node:fs";
+import type { HomePluginData, PluginDataEntry, PluginHome, Result } from "../../../packages/shared/src/domain.js";
+import { pluginHomes } from "../lib/pluginHomes.js";
+import { loadPluginUpdaterIndex } from "../lib/optionalEngines.js";
+import { probeDeclarations } from "../lib/schemaProbe.js";
+import { pluginDir } from "../lib/storagePaths.js";
+import { wrap } from "../result.js";
+
+export interface PluginDataDeps {
+  homes?: PluginHome[];
+  read?: (dir: string, plugin: string, declared: string[]) => Promise<PluginDataEntry[]>;
+  declaredPaths?: (dir: string, plugin: string) => Promise<string[]>;
+}
+
+// Most of what a plugin leaves behind is found by name, but a plugin writing outside that
+// convention says where; that declaration rides on the same `config schema` probe as its
+// settings, so reading it costs nothing a settings screen has not already paid for.
+async function realDeclaredPaths(dir: string, plugin: string): Promise<string[]> {
+  const bundle = join(pluginDir(dir), `${plugin}.js`);
+  if (!existsSync(bundle)) return [];
+  try {
+    const declarations = await probeDeclarations([{ plugin, path: bundle }]);
+    return declarations.get(plugin)?.data?.paths ?? [];
+  } catch {
+    return [];
+  }
+}
+
+// Finding and deleting a plugin's data is plugin-updater's job for the same reason reading
+// the library store is: it is the thing that put it there. Without the engine there is
+// nothing to report and nothing to delete.
+async function realRead(dir: string, plugin: string, declared: string[]): Promise<PluginDataEntry[]> {
+  const index = await loadPluginUpdaterIndex();
+  return index ? index.pluginData(dir, plugin, declared) : [];
+}
+
+// What this plugin would leave behind in each home, so a confirmation can name it before
+// anything is deleted. A home holding nothing of the plugin's is left out.
+export function pluginsData(name: string, deps: PluginDataDeps = {}): Promise<Result<HomePluginData[]>> {
+  return wrap(async () => {
+    const homes = deps.homes ?? (await pluginHomes());
+    const read = deps.read ?? realRead;
+    const declaredPaths = deps.declaredPaths ?? realDeclaredPaths;
+
+    const found: HomePluginData[] = [];
+    for (const home of homes) {
+      if (home.id !== "cairn" && !home.present) continue;
+      const entries = await read(home.dir, name, await declaredPaths(home.dir, name));
+      if (entries.length > 0) found.push({ home, entries });
+    }
+    return found;
+  });
+}
+
+export interface RemoveDataDeps {
+  homes?: PluginHome[];
+  remove?: (dir: string, paths: string[]) => Promise<string[]>;
+}
+
+// Deletes exactly the paths pluginsData reported and the confirmation listed. The caller
+// passes them back rather than the plugin name because the declaration saying where a plugin
+// keeps state lives in the plugin's own bundle: after an uninstall there is nothing left to
+// ask. plugin-updater re-checks every path against the home before deleting it.
+export function pluginsRemoveData(homeId: string, paths: string[], deps: RemoveDataDeps = {}): Promise<Result<string[]>> {
+  return wrap(async () => {
+    const homes = deps.homes ?? (await pluginHomes());
+    const home = homes.find((candidate) => candidate.id === homeId);
+    if (!home) throw new Error(`unknown home: ${homeId}`);
+    const remove = deps.remove ?? (async (dir: string, targets: string[]) => {
+      const index = await loadPluginUpdaterIndex();
+      return index ? index.removeDataPaths(dir, targets) : [];
+    });
+    return remove(home.dir, paths);
+  });
+}

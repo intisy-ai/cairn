@@ -87,6 +87,8 @@ function defaultCairn(): CairnAPI {
     pluginsSetAutoUpdate: async (_home, _name, _on) => ({ ok: true, data: undefined }),
     pluginsDowngrade: async (_home, _name, _hash) => ({ ok: true, data: undefined }),
     pluginsUninstall: async (_home, _name) => ({ ok: true, data: undefined }),
+    pluginsData: async () => ({ ok: true, data: [] }),
+    pluginsRemoveData: async () => ({ ok: true, data: [] }),
     configSchemas: async () => ({ ok: true, data: [] }),
     configWrite: async (_home, _plugin, _key, _value) => ({ ok: true, data: undefined }),
     configAction: async (_home, _plugin, _actionId) => ({ ok: true, data: { stdout: "", stderr: "" } }),

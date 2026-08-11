@@ -3,7 +3,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { readCache, writeCacheMany } from "./cache.js";
 import { getConfigDir } from "@core-auth/index.js";
-import type { FieldSpec, ActionSpec, MenuSpec, SectionSpec } from "../../../packages/shared/src/domain.js";
+import type { FieldSpec, ActionSpec, MenuSpec, SectionSpec, DataSpec } from "../../../packages/shared/src/domain.js";
 
 // Reading a plugin's settings means running its bundle, which costs a process spawn each.
 // Measured on real homes that is ~0.2-1.0s per plugin, so doing it for every plugin of
@@ -23,6 +23,7 @@ export interface Declaration {
   actions?: ActionSpec[];
   menu?: MenuSpec;
   sections?: SectionSpec[];
+  data?: DataSpec;
 }
 
 export interface Bundle {
@@ -30,7 +31,7 @@ export interface Bundle {
   path: string;
 }
 
-type ProbeOutput = { name?: unknown; defaults?: unknown; fields?: unknown; actions?: unknown; menu?: unknown; sections?: unknown } | null;
+type ProbeOutput = { name?: unknown; defaults?: unknown; fields?: unknown; actions?: unknown; menu?: unknown; sections?: unknown; data?: unknown } | null;
 type SpawnFn = (bundlePath: string) => Promise<ProbeOutput>;
 
 export interface ProbeDeps {
@@ -72,6 +73,7 @@ function toDeclaration(output: ProbeOutput): Declaration | null {
   if (Array.isArray(output.actions)) declaration.actions = output.actions as ActionSpec[];
   if (output.menu && typeof output.menu === "object") declaration.menu = output.menu as MenuSpec;
   if (Array.isArray(output.sections)) declaration.sections = output.sections as SectionSpec[];
+  if (output.data && typeof output.data === "object") declaration.data = output.data as DataSpec;
   return declaration;
 }
 

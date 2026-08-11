@@ -42,4 +42,5 @@ export const SECTIONS: Section[] = [
   overlay("marketplaces", "Marketplaces", "marketplaces"),
   overlay("endpoints", "Custom endpoints", "custom-endpoints", 520),
   overlay("confirm", "Confirm", "confirm", 420),
+  overlay("confirm-optin", "Confirm with opt-in", "confirm-optin", 460),
 ];

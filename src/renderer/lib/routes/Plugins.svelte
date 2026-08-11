@@ -1,7 +1,7 @@
 ﻿<script lang="ts">
   import { onMount } from "svelte";
-  import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin, PluginVersion, Result, InstallManyResult, InstallOutcome, RepoRef, EngineView, GithubStatus, MarketplaceSourceStatus, MarketplaceContribution } from "@cairn/shared";
-  import { classifyRepoName, matchesContribution, LIBRARY_KINDS } from "@cairn/shared";
+  import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin, PluginVersion, Result, InstallManyResult, InstallOutcome, RepoRef, EngineView, GithubStatus, MarketplaceSourceStatus, MarketplaceContribution, HomePluginData } from "@cairn/shared";
+  import { classifyRepoName, matchesContribution, LIBRARY_KINDS, formatBytes } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { consumeParams } from "../router.js";
   import { enqueue, enqueueJob, jobSettled, activeByPlugin } from "../downloads.js";
@@ -71,7 +71,14 @@
   // Arriving with ?plugin= opens that plugin straight away, so a link from another screen
   // lands on the plugin itself rather than just the list.
   let selectedName = $state<string | null>(startParams?.plugin ?? null);
-  let pendingConfirm = $state<{ title: string; message: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
+  let pendingConfirm = $state<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    optIn?: string;
+    optInNote?: string;
+    run: (optedIn: boolean) => Promise<void>;
+  } | null>(null);
 
   type KindFilter = "all" | "provider" | "proxy" | "plugin" | "loader" | "translator" | "engine";
   const KIND_FILTERS: KindFilter[] = ["all", "provider", "proxy", "plugin", "loader", "translator", "engine"];
@@ -438,11 +445,37 @@
   }
   // Through the same queue as an install, so a removal shows its progress, can be cancelled,
   // and lands in the download history instead of happening invisibly.
-  async function removeHome(p: UnifiedPlugin, homeId: string): Promise<void> {
+  async function removeHome(p: UnifiedPlugin, homeId: string, data: HomePluginData[] = []): Promise<void> {
     const queued = await enqueueJob("remove", p.name, p.url ?? "", homeId);
     if (queued.ok) await jobSettled(queued.data.id);
     else await cairn.pluginsUninstall(homeId, p.name);
+    await deleteData(p, data.filter((entry) => entry.home.id === homeId));
     await reload();
+  }
+
+  // The paths were read before the uninstall, while the plugin was still there to declare
+  // them; deleting them afterwards means the same list serves the queued per-home removal
+  // and the direct remove-everywhere alike.
+  async function deleteData(p: UnifiedPlugin, data: HomePluginData[]): Promise<void> {
+    for (const entry of data) {
+      const result = await cairn.pluginsRemoveData(entry.home.id, entry.entries.map((file) => file.path));
+      if (!result.ok) toast.error(`${p.displayName}: ${result.error}`);
+    }
+  }
+
+  // What the plugin would leave behind, so the confirmation can name it instead of asking
+  // about "config data" in the abstract. A read that fails offers nothing rather than
+  // blocking the uninstall.
+  async function dataToOffer(p: UnifiedPlugin): Promise<HomePluginData[]> {
+    const result = await cairn.pluginsData(p.name);
+    return result.ok ? result.data : [];
+  }
+
+  function dataSummary(data: HomePluginData[]): string {
+    const files = data.reduce((total, entry) => total + entry.entries.length, 0);
+    const bytes = data.reduce((total, entry) => total + entry.entries.reduce((sum, file) => sum + file.bytes, 0), 0);
+    const where = data.map((entry) => entry.home.label).join(", ");
+    return `${files} file${files === 1 ? "" : "s"} (${formatBytes(bytes)}) in ${where}`;
   }
   // Install/update home-by-home (each its own queued task) and reload after each,
   // so a plugin's pills and button reflect every home as soon as it finishes
@@ -520,12 +553,33 @@
     else toast.error(result.error);
     await reload();
   }
-  function confirmRemoveEverywhere(p: UnifiedPlugin): void {
+  async function confirmRemoveEverywhere(p: UnifiedPlugin): Promise<void> {
+    const data = await dataToOffer(p);
     pendingConfirm = {
       title: "Remove everywhere?",
       message: `Remove ${p.displayName} from every app it's installed in? This can't be undone.`,
       confirmLabel: "Remove everywhere",
-      run: () => handleRemoveEverywhere(p),
+      ...(data.length > 0 ? { optIn: "Also delete its settings and logs", optInNote: dataSummary(data) } : {}),
+      run: async (deleteToo) => {
+        await handleRemoveEverywhere(p);
+        if (deleteToo) await deleteData(p, data);
+      },
+    };
+  }
+
+  async function confirmRemoveHome(p: UnifiedPlugin, homeId: string): Promise<void> {
+    const data = (await dataToOffer(p)).filter((entry) => entry.home.id === homeId);
+    if (data.length === 0) {
+      await removeHome(p, homeId);
+      return;
+    }
+    pendingConfirm = {
+      title: `Remove from ${data[0].home.label}?`,
+      message: `Remove ${p.displayName} from ${data[0].home.label}.`,
+      confirmLabel: "Remove",
+      optIn: "Also delete its settings and logs",
+      optInNote: dataSummary(data),
+      run: (deleteToo) => removeHome(p, homeId, deleteToo ? data : []),
     };
   }
   async function installFromUrl(repo: RepoRef): Promise<Result<unknown>> {
@@ -684,7 +738,7 @@
         onUpdateHome={(homeId) => updateHome(p, homeId)}
         onInstallAll={() => handleInstallAll(p)}
         onRemoveEverywhere={() => confirmRemoveEverywhere(p)}
-        onToggleHome={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
+        onToggleHome={(homeId, on) => (on ? addHome(p, homeId) : confirmRemoveHome(p, homeId))}
       />
     </div>
   {/snippet}
@@ -726,7 +780,7 @@
           <AppPills
             apps={applicableHomesFor(p)}
             values={installedMap(p)}
-            onToggle={(homeId, on) => (on ? addHome(p, homeId) : removeHome(p, homeId))}
+            onToggle={(homeId, on) => (on ? addHome(p, homeId) : confirmRemoveHome(p, homeId))}
           />
         {/if}
         {@render installActions(p)}
@@ -773,7 +827,7 @@
       onUpdate={() => handleUpdate(selectedPlugin)}
       onRepairHome={(homeId) => repairHome(selectedPlugin, homeId)}
       onUpdateHome={(homeId) => updateHome(selectedPlugin, homeId)}
-      onToggleHome={(homeId, on) => (on ? addHome(selectedPlugin, homeId) : removeHome(selectedPlugin, homeId))}
+      onToggleHome={(homeId, on) => (on ? addHome(selectedPlugin, homeId) : confirmRemoveHome(selectedPlugin, homeId))}
       onToggleFavorite={() => toggleFavorite(selectedPlugin)}
       onChanged={reload}
     />
@@ -789,7 +843,9 @@
       message={pendingConfirm.message}
       confirmLabel={pendingConfirm.confirmLabel}
       danger
-      onConfirm={async () => { const p = pendingConfirm; pendingConfirm = null; if (!p) return; await p.run(); }}
+      optIn={pendingConfirm.optIn ?? ""}
+      optInNote={pendingConfirm.optInNote ?? ""}
+      onConfirm={async (optedIn) => { const p = pendingConfirm; pendingConfirm = null; if (!p) return; await p.run(optedIn); }}
       onCancel={() => (pendingConfirm = null)}
     />
   {/if}

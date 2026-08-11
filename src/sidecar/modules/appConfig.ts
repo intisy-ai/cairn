@@ -19,7 +19,7 @@ function realProbe(bundlePath: string): Promise<PluginConfigSchema | null> {
     execFile("node", [bundlePath, "config", "schema"], { timeout: 10000 }, (error, stdout) => {
       if (error) { resolve(null); return; }
       try {
-        const data = JSON.parse(stdout.trim()) as { name?: unknown; defaults?: unknown; current?: unknown; fields?: unknown; actions?: unknown; sections?: unknown };
+        const data = JSON.parse(stdout.trim()) as { name?: unknown; defaults?: unknown; current?: unknown; fields?: unknown; actions?: unknown; sections?: unknown; data?: unknown };
         if (typeof data.name !== "string") { resolve(null); return; }
         const schema: PluginConfigSchema = {
           plugin: data.name,
@@ -29,6 +29,7 @@ function realProbe(bundlePath: string): Promise<PluginConfigSchema | null> {
         if (Array.isArray(data.fields)) schema.fields = data.fields as PluginConfigSchema["fields"];
         if (Array.isArray(data.actions)) schema.actions = data.actions as PluginConfigSchema["actions"];
         if (Array.isArray(data.sections)) schema.sections = data.sections as PluginConfigSchema["sections"];
+        if (data.data && typeof data.data === "object") schema.data = data.data as PluginConfigSchema["data"];
         resolve(schema);
       } catch {
         resolve(null);

@@ -526,6 +526,84 @@ describe("Plugins screen", () => {
     await waitFor(() => expect(pluginsRemoveEverywhere).toHaveBeenCalledWith("wakatime-sync"));
   });
 
+  // Reinstalling is the common case, so keeping a plugin's settings is the default and
+  // deleting them is a deliberate extra tick.
+  it("offers to delete the plugin's data on uninstall, off by default", async () => {
+    const pluginsRemoveData = vi.fn(async () => ({ ok: true, data: [] }) as const);
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      pluginsRemoveEverywhere: async () => ({ ok: true, data: { outcomes: [] } }),
+      pluginsData: async () => ({
+        ok: true,
+        data: [{
+          home: { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true },
+          entries: [{ path: "config/wakatime-sync.json", bytes: 120 }, { path: "logs/2026-08-11/wakatime-sync-09-00-00.log", bytes: 400 }],
+        }],
+      }),
+      pluginsRemoveData,
+    });
+    render(Plugins);
+
+    const row = within(await screen.findByTestId("plugin-wakatime-sync"));
+    await fireEvent.click(row.getByRole("button", { name: "More install options" }));
+    await fireEvent.click(row.getByRole("button", { name: "Remove everywhere" }));
+
+    const dialog = within(await screen.findByRole("dialog"));
+    const checkbox = dialog.getByRole("checkbox") as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+    // The offer names what it would delete rather than asking about "config data" abstractly.
+    expect(dialog.getByText("2 files (520 B) in Claude Code")).toBeInTheDocument();
+
+    await fireEvent.click(dialog.getByRole("button", { name: "Remove everywhere" }));
+    await waitFor(() => expect(pluginsRemoveData).not.toHaveBeenCalled());
+  });
+
+  it("deletes exactly the listed paths once the box is ticked", async () => {
+    const pluginsRemoveData = vi.fn(async () => ({ ok: true, data: [] }) as const);
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      pluginsRemoveEverywhere: async () => ({ ok: true, data: { outcomes: [] } }),
+      pluginsData: async () => ({
+        ok: true,
+        data: [{
+          home: { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true },
+          entries: [{ path: "config/wakatime-sync.json", bytes: 120 }],
+        }],
+      }),
+      pluginsRemoveData,
+    });
+    render(Plugins);
+
+    const row = within(await screen.findByTestId("plugin-wakatime-sync"));
+    await fireEvent.click(row.getByRole("button", { name: "More install options" }));
+    await fireEvent.click(row.getByRole("button", { name: "Remove everywhere" }));
+
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("checkbox"));
+    await fireEvent.click(dialog.getByRole("button", { name: "Remove everywhere" }));
+
+    await waitFor(() => expect(pluginsRemoveData).toHaveBeenCalledWith("claude", ["config/wakatime-sync.json"]));
+  });
+
+  it("does not offer the checkbox for a plugin that left nothing behind", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      pluginsRemoveEverywhere: async () => ({ ok: true, data: { outcomes: [] } }),
+      pluginsData: async () => ({ ok: true, data: [] }),
+    });
+    render(Plugins);
+
+    const row = within(await screen.findByTestId("plugin-wakatime-sync"));
+    await fireEvent.click(row.getByRole("button", { name: "More install options" }));
+    await fireEvent.click(row.getByRole("button", { name: "Remove everywhere" }));
+
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.queryByRole("checkbox")).toBeNull();
+  });
+
   it("shows a Clear filters empty state when the search matches nothing, and clicking it restores the rows", async () => {
     stubCairn({
       pluginsList: async () => ({ ok: true, data: baseSections() }),

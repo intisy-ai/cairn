@@ -1,4 +1,4 @@
-﻿import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, HomeLibraries, AppStorage, AppStorageResult, AppPathNames, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, MarketplaceSource, AppSummary, PluginConfigSchema, PluginMenu, PluginSettingsSection, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec, UpdateSummary, Job, JobKind } from "./domain.js";
+﻿import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, HomeLibraries, HomePluginData, AppStorage, AppStorageResult, AppPathNames, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, MarketplaceSource, AppSummary, PluginConfigSchema, PluginMenu, PluginSettingsSection, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec, UpdateSummary, Job, JobKind } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -51,6 +51,8 @@ export interface CairnAPI {
   pluginsSetAutoUpdate(home: string, name: string, on: boolean): Promise<Result<void>>;
   pluginsDowngrade(home: string, name: string, hash: string): Promise<Result<void>>;
   pluginsUninstall(home: string, name: string): Promise<Result<void>>;
+  pluginsData(name: string): Promise<Result<HomePluginData[]>>;
+  pluginsRemoveData(home: string, paths: string[]): Promise<Result<string[]>>;
   configSchemas(home: string): Promise<Result<PluginConfigSchema[]>>;
   menusList(opts?: { wait?: boolean }): Promise<Result<PluginMenu[]>>;
   settingsSections(opts?: { wait?: boolean }): Promise<Result<PluginSettingsSection[]>>;

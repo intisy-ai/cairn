@@ -5,7 +5,7 @@
   import CustomEndpointsDialog from "../../lib/components/CustomEndpointsDialog.svelte";
   import { ACTIVITY } from "../fixtures.js";
 
-  let { which }: { which: "activity-detail" | "marketplaces" | "confirm" | "custom-endpoints" } = $props();
+  let { which }: { which: "activity-detail" | "marketplaces" | "confirm" | "confirm-optin" | "custom-endpoints" } = $props();
 
   const noop = (): void => {};
 </script>
@@ -16,6 +16,17 @@
   <MarketplacesDialog onClose={noop} />
 {:else if which === "custom-endpoints"}
   <CustomEndpointsDialog onClose={noop} />
+{:else if which === "confirm-optin"}
+  <ConfirmDialog
+    title="Remove everywhere?"
+    message="Remove wakatime-sync from every app it's installed in? This can't be undone."
+    confirmLabel="Remove everywhere"
+    danger
+    optIn="Also delete its settings and logs"
+    optInNote="3 files (1.2 KB) in Claude Code, OpenCode"
+    onConfirm={noop}
+    onCancel={noop}
+  />
 {:else}
   <ConfirmDialog
     title="Remove account?"

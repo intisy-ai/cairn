@@ -1,6 +1,6 @@
 export type { AccountView, AccountQuota, AccountStatus } from "@core-auth/index.js";
-export type { Impact, ActivityRecord, ActivityQuery, ActivityStats, ActivityHomeStats, FieldType, FieldSpec, ActionSpec, MenuSpec, SectionSpec, ResolvedSection } from "@core/index.js";
-import type { FieldSpec, ActionSpec, MenuSpec, SectionSpec, ResolvedSection } from "@core/index.js";
+export type { Impact, ActivityRecord, ActivityQuery, ActivityStats, ActivityHomeStats, FieldType, FieldSpec, ActionSpec, MenuSpec, SectionSpec, ResolvedSection, DataSpec } from "@core/index.js";
+import type { FieldSpec, ActionSpec, MenuSpec, SectionSpec, ResolvedSection, DataSpec } from "@core/index.js";
 
 // What an update run did, as the dashboard reports it back to the renderer.
 export interface UpdateSummary {
@@ -323,11 +323,16 @@ export type PluginConfigSchema = {
   actions?: ActionSpec[];
   menu?: MenuSpec;
   sections?: SectionSpec[];
+  data?: DataSpec;
   // How the declaration splits into contributed sections and what no section claimed.
   // Resolved in the sidecar by core, so every surface splits a declaration the same way
   // and the renderer never has to know the rule.
   layout?: PluginLayout;
 };
+// One thing a plugin left behind in a home, relative to that home. `declared` marks a path
+// the plugin named itself rather than one core's naming found.
+export type PluginDataEntry = { path: string; bytes: number; declared?: boolean };
+export type HomePluginData = { home: PluginHome; entries: PluginDataEntry[] };
 export type PluginLayout = { sections: ResolvedSection[]; fields: FieldSpec[]; actions: ActionSpec[] };
 // One contributed menu, folded across every home that offers it.
 export type PluginMenu = MenuSpec & { plugin: string; homes: string[] };

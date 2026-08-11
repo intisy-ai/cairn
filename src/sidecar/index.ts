@@ -17,6 +17,7 @@ import { configSchemas, configWrite, configAction } from "./modules/appConfig.js
 import { menusList, settingsSections } from "./modules/contributions.js";
 import { ledgerHomes, ledgerCommit, ledgerRestore, ledgerDiffRefs, ledgerProfileCreate, ledgerProfileSwitch } from "./modules/ledger.js";
 import { busDrain } from "./modules/bus.js";
+import { pluginsData, pluginsRemoveData } from "./modules/pluginData.js";
 import { jobsList, jobsEnqueue, jobsCancel, jobsClearFinished, setJobListener } from "./modules/jobs.js";
 import type { JobKind } from "./jobs/model.js";
 import { activityRead, activityStatsRead } from "./modules/activity.js";
@@ -165,6 +166,8 @@ registerHandler("plugins:setEnabled", (home, name, on) => pluginsSetEnabled(home
 registerHandler("plugins:setAutoUpdate", (home, name, on) => pluginsSetAutoUpdate(home as PluginHomeId, name as string, on as boolean));
 registerHandler("plugins:downgrade", (home, name, hash) => pluginsDowngrade(home as PluginHomeId, name as string, hash as string));
 registerHandler("plugins:uninstall", (home, name) => pluginsUninstall(home as string, name as string));
+registerHandler("plugins:data", (name) => pluginsData(name as string));
+registerHandler("plugins:removeData", (home, paths) => pluginsRemoveData(home as string, paths as string[]));
 registerHandler("proxies:list", () => proxiesList());
 registerHandler("proxies:setEnabled", (name, on) => proxiesSetEnabled(name as string, on as boolean));
 registerHandler("config:schemas", (home) => configSchemas(home as string));
