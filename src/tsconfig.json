@@ -5,7 +5,7 @@
     "rootDir": ".",
     "composite": true
   },
-  "include": ["main/**/*.ts", "preload/**/*.ts", "sidecar/**/*.ts"],
-  "exclude": ["main/**/*.test.ts", "preload/**/*.test.ts", "sidecar/**/*.test.ts"],
+  "include": ["main/**/*.ts", "preload/**/*.ts", "sidecar/**/*.ts", "installer/**/*.ts"],
+  "exclude": ["main/**/*.test.ts", "preload/**/*.test.ts", "sidecar/**/*.test.ts", "installer/**/*.test.ts"],
   "references": [{ "path": "../packages/shared" }, { "path": "../vendor" }]
 }
