@@ -1,4 +1,4 @@
-import type { HomeLibraries, PluginHome, UnifiedLibrary } from "@cairn/shared";
+import type { HomeLibraries, UnifiedLibrary } from "@cairn/shared";
 
 // One row per library rather than one per home. A library installed in three homes was listed
 // three times, which read as three libraries; the homes belong beside it, the way a plugin's do.
@@ -71,8 +71,4 @@ export function orphanHomeIds(library: UnifiedLibrary): string[] {
     .filter(([, state]) => state.installed && state.usedBy.length === 0)
     .map(([homeId]) => homeId)
     .sort();
-}
-
-export function homeIdsFor(library: UnifiedLibrary, homes: PluginHome[]): string[] {
-  return homes.filter((home) => library.homes[home.id]?.installed).map((home) => home.id);
 }
