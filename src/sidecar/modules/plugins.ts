@@ -6,7 +6,7 @@ const execFileAsync = promisify(execFile);
 import { join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
 import { getConfigValue, isBootstrapPlugin, activityEnv } from "@core/index.js";
-import { svgIconDataUri } from "../lib/pluginIcon.js";
+import { readPluginManifest } from "../lib/pluginManifest.js";
 import { emitCairnAction } from "../activity.js";
 import type { UpdateCache } from "@plugin-updater/cache.js";
 import type { Plugin, NpmPlugin } from "@plugin-updater/types.js";
@@ -140,28 +140,9 @@ function readDescription(homeDirPath: string, name: string): string {
   }
 }
 
-// Read a plugin's cairn.json manifest from its deployed clone: displayName plus
-// the referenced icon SVG base64-encoded into a data URI (safe for an <img>).
-function readManifest(homeDirPath: string, name: string): { displayName?: string; icon?: string } {
-  try {
-    const repoDir = join(reposDir(homeDirPath), name);
-    const manifest = JSON.parse(readFileSync(join(repoDir, "cairn.json"), "utf-8"));
-    const out: { displayName?: string; icon?: string } = {};
-    if (typeof manifest.displayName === "string" && manifest.displayName) out.displayName = manifest.displayName;
-    if (typeof manifest.icon === "string" && manifest.icon.endsWith(".svg")) {
-      try {
-        out.icon = svgIconDataUri(readFileSync(join(repoDir, manifest.icon), "utf-8"));
-      } catch { /* icon file missing */ }
-    }
-    return out;
-  } catch {
-    return {};
-  }
-}
-
 function rowFor(name: string, kind: "git" | "npm", enabled: boolean, url: string | undefined, cache: UpdateCache, homeDirPath: string): PluginRow {
   const entry = cache.plugins[name];
-  const manifest = readManifest(homeDirPath, name);
+  const manifest = readPluginManifest(name, homeDirPath);
   return {
     name,
     kind,

@@ -277,6 +277,7 @@
     testid={"provider-" + row.id}
     name={row.label}
     id={row.id}
+    logo={row.icon ?? ""}
     subtitle={row.authKind === "oauth" ? "OAuth" : "API key"}
     translator={row.translator}
     status={statusFor(row)}

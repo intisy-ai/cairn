@@ -1,8 +1,9 @@
 import { readDeployedProviders } from "@core-loader/loader-runtime.js";
 import { loadProviderDefsResult, type ProviderDefsResult } from "@core-loader/provider-def.js";
-import { reposDir, listAccounts } from "@core-auth/index.js";
+import { reposDir, listAccounts, getConfigDir } from "@core-auth/index.js";
 import { getApps } from "@core/index.js";
 import { exposureFor, readExposureMap, setExposure } from "../lib/exposure.js";
+import { readPluginManifest, providerIcon } from "../lib/pluginManifest.js";
 import type { ProviderRow, Result } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
 import { emitCairnAction } from "../activity.js";
@@ -24,6 +25,18 @@ export function providersList(): Promise<Result<ProviderRow[]>> {
       return cached;
     }
 
+    // One manifest read per deploying plugin, not per provider: a plugin deploying several
+    // providers would otherwise re-read and re-encode the same icons for each of them.
+    const manifests = new Map<string, ReturnType<typeof readPluginManifest>>();
+    function manifestFor(plugin: string): ReturnType<typeof readPluginManifest> {
+      let cached = manifests.get(plugin);
+      if (!cached) {
+        cached = readPluginManifest(plugin, getConfigDir());
+        manifests.set(plugin, cached);
+      }
+      return cached;
+    }
+
     const rows: ProviderRow[] = [];
     for (const entry of deployed) {
       const { defs, error } = await defsFor(entry.handlerPath);
@@ -41,6 +54,7 @@ export function providersList(): Promise<Result<ProviderRow[]>> {
         accountPool,
         sharedWith: [],
         pluginName: entry.repo,
+        icon: providerIcon(manifestFor(entry.repo), entry.provider),
         defsError: error,
       });
     }

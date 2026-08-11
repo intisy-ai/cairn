@@ -12,6 +12,7 @@
     testid = "",
     name,
     id = "",
+    logo = "",
     subtitle,
     translator,
     status,
@@ -25,6 +26,8 @@
   }: {
     testid?: string;
     name: string;
+    // The provider's mark, already resolved to a data URI; empty falls back to a lettermark.
+    logo?: string;
     // Shown beside the display name when the two differ, so the id the rest of the
     // app routes on stays visible without becoming the row's title.
     id?: string;
@@ -53,7 +56,7 @@
   {onOpen}
 >
   {#snippet icon()}
-    <PluginIcon name={name} kind="provider" size={LOGO_SIZE.list} />
+    <PluginIcon icon={logo} name={name} kind="provider" size={LOGO_SIZE.list} />
   {/snippet}
   {#snippet badges()}
     {#if id && id !== name}<span class="pid">{id}</span>{/if}

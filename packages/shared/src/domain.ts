@@ -106,6 +106,9 @@ export type ProviderRow = {
   sharedWith: string[];
   // The deploying plugin's repo/bundle name, used to target its settings.
   pluginName: string;
+  // The provider's own mark where its plugin declared one, else the plugin's; absent when
+  // neither exists, which is what the lettermark is for.
+  icon?: string;
   // Why this provider's handler bundle yielded no metadata, when it failed to load.
   // Everything the row shows apart from the account count is a fallback while set.
   defsError?: string;

@@ -113,7 +113,7 @@
   transition:flyMotion={{ y: 8 }}
 >
   <div class="header">
-    <PluginIcon name={provider.label} size={LOGO_SIZE.detail} />
+    <PluginIcon icon={provider.icon ?? ""} name={provider.label} kind="provider" size={LOGO_SIZE.detail} />
     <div class="titles">
       <h2>{provider.label}</h2>
       <div class="chips">
