@@ -56,6 +56,23 @@ describe("PluginDetail channel control", () => {
     expect(await findByLabelText(/experimental/i)).toBeTruthy();
   });
 
+  // The auto-update switch beside it is a bare pill too, distinguished only by its own
+  // title, so the channel switch must carry a title of its own or the two are indistinguishable.
+  it("carries its own title, distinct from the neighbouring auto-update switch", async () => {
+    stubCairn({
+      pluginVersions: async () => ({
+        ok: true,
+        data: {
+          claude: { kind: "git", label: "v1", updateState: "current", autoUpdate: true, onExperimental: false, experimentalAvailable: true },
+        },
+      }),
+    });
+
+    const { findByTitle } = await openAvailability();
+    expect(await findByTitle("Track the experimental channel")).toBeTruthy();
+    expect(await findByTitle("Auto-update on launch")).toBeTruthy();
+  });
+
   it("hides it when detection said no", async () => {
     stubCairn({
       pluginVersions: async () => ({

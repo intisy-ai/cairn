@@ -209,11 +209,13 @@
                   <ToggleSwitch checked={v.autoUpdate} label={`Auto-update ${h.label}`} onchange={(o) => setAutoUpdate(h.id, o)} />
                 </label>
                 {#if v.experimentalAvailable === true}
-                  <ToggleSwitch
-                    checked={v.onExperimental}
-                    label={`Experimental build ${h.label}`}
-                    onchange={(o) => setChannel(h.id, o)}
-                  />
+                  <label class="auto" title="Track the experimental channel">
+                    <ToggleSwitch
+                      checked={v.onExperimental}
+                      label={`Experimental build ${h.label}`}
+                      onchange={(o) => setChannel(h.id, o)}
+                    />
+                  </label>
                 {/if}
               {/if}
             {:else}
