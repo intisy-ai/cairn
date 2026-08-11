@@ -511,6 +511,65 @@ describe("plugins sidecar module", () => {
   });
 });
 
+const HOME = { id: "claude", label: "Claude", dir: "/homes/claude", present: true, hasUpdater: true };
+
+function cacheWith(experimentalAvailable: boolean | null) {
+  return () => ({
+    checkedAt: "2026-08-11T00:00:00.000Z",
+    plugins: { demo: { kind: "git" as const, installedVersion: null, localHead: "a".repeat(40), remoteHead: "a".repeat(40), latestVersion: null, updateAvailable: false, experimentalAvailable, updatedAt: null } },
+  });
+}
+
+describe("pluginVersions channel reporting", () => {
+  // Resolution itself is plugin-updater's, tested there. What must hold HERE is that the
+  // answer reaches the right home's row unaltered, and that a home is asked about the
+  // plugin it is actually reporting on.
+  it("passes the updater's answer through to the home's row", async () => {
+    const { pluginVersions } = await import("./plugins.js");
+    const result = await pluginVersions("demo", {
+      homes: [HOME],
+      getPlugins: () => [{ name: "demo", url: "u" }],
+      readCache: cacheWith(true),
+      channelState: () => ({ onExperimental: true, experimentalAvailable: true }),
+      exists: () => true,
+      describe: () => "v1.0.0",
+    });
+
+    expect(result.ok && result.data.claude.onExperimental).toBe(true);
+    expect(result.ok && result.data.claude.experimentalAvailable).toBe(true);
+  });
+
+  it("reports off and unknown when no updater answers", async () => {
+    const { pluginVersions } = await import("./plugins.js");
+    const result = await pluginVersions("demo", {
+      homes: [HOME],
+      getPlugins: () => [{ name: "demo", url: "u" }],
+      readCache: () => ({ checkedAt: "", plugins: {} }),
+      channelState: () => ({ onExperimental: false, experimentalAvailable: null }),
+      exists: () => true,
+      describe: () => "v1.0.0",
+    });
+
+    expect(result.ok && result.data.claude.onExperimental).toBe(false);
+    expect(result.ok && result.data.claude.experimentalAvailable).toBeNull();
+  });
+
+  it("asks about the plugin it is reporting, in that plugin's own home", async () => {
+    const asked: Array<[string, string]> = [];
+    const { pluginVersions } = await import("./plugins.js");
+    await pluginVersions("demo", {
+      homes: [HOME],
+      getPlugins: () => [{ name: "demo", url: "u" }],
+      readCache: cacheWith(true),
+      channelState: (dir, name) => { asked.push([dir, name]); return { onExperimental: false, experimentalAvailable: null }; },
+      exists: () => true,
+      describe: () => "v1.0.0",
+    });
+
+    expect(asked).toEqual([["/homes/claude", "demo"]]);
+  });
+});
+
 describe("plugin versions", () => {
   it("formats git describe output into tag, ahead, and bare-sha forms", async () => {
     const { formatGitVersion } = await import("./plugins.js");
@@ -533,7 +592,7 @@ describe("plugin versions", () => {
     });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data.claude).toEqual({ kind: "git", label: "v1.2.3 +5", updateState: "behind", autoUpdate: true, checkedAt: "" });
+    expect(result.data.claude).toEqual({ kind: "git", label: "v1.2.3 +5", updateState: "behind", autoUpdate: true, checkedAt: "", onExperimental: false, experimentalAvailable: null });
     expect(result.data.cairn).toBeUndefined();
   });
 
@@ -546,7 +605,7 @@ describe("plugin versions", () => {
     const result = await pluginVersions("npm-x", { homes: fakeHomes, describe: () => null, exists: () => false });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data.claude).toEqual({ kind: "npm", label: "2.0.1", updateState: "behind", autoUpdate: true });
+    expect(result.data.claude).toEqual({ kind: "npm", label: "2.0.1", updateState: "behind", autoUpdate: true, onExperimental: false, experimentalAvailable: null });
   });
 
   it("falls back to the short commit sha for a git repo with no describe output", async () => {
@@ -558,7 +617,7 @@ describe("plugin versions", () => {
     const result = await pluginVersions("plugin-a", { homes: fakeHomes, describe: () => null, exists: (p) => p.includes("claude") });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data.claude).toEqual({ kind: "git", label: "abcdef1", updateState: "current", autoUpdate: true, checkedAt: "" });
+    expect(result.data.claude).toEqual({ kind: "git", label: "abcdef1", updateState: "current", autoUpdate: true, checkedAt: "", onExperimental: false, experimentalAvailable: null });
   });
 
   it("reports a registered-but-not-cloned home's version as unknown, not borrowed", async () => {
@@ -575,8 +634,8 @@ describe("plugin versions", () => {
     });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data.claude).toEqual({ kind: "git", label: "v0.2.0 +5", updateState: "current", autoUpdate: true, checkedAt: "" });
-    expect(result.data.opencode).toEqual({ kind: "git", label: null, updateState: "unknown", autoUpdate: true });
+    expect(result.data.claude).toEqual({ kind: "git", label: "v0.2.0 +5", updateState: "current", autoUpdate: true, checkedAt: "", onExperimental: false, experimentalAvailable: null });
+    expect(result.data.opencode).toEqual({ kind: "git", label: null, updateState: "unknown", autoUpdate: true, onExperimental: false, experimentalAvailable: null });
   });
 
   // Listing the homes is what the plugin screen waits on before it can paint anything at all,
@@ -632,7 +691,7 @@ describe("plugin versions", () => {
     if (!cached.ok) throw new Error("unreachable");
     // No cache entry was seeded, so nothing is known about this home's update state. It used
     // to report "no update available", which is how a never-checked home looked up to date.
-    expect(cached.data["plugin-a"].claude).toEqual({ kind: "git", label: "v3.1.0", updateState: "unknown", autoUpdate: true, checkedAt: "" });
+    expect(cached.data["plugin-a"].claude).toEqual({ kind: "git", label: "v3.1.0", updateState: "unknown", autoUpdate: true, checkedAt: "", onExperimental: false, experimentalAvailable: null });
   });
 
   it("collects versions for every installed plugin across homes in one pass", async () => {
@@ -650,7 +709,7 @@ describe("plugin versions", () => {
     });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data["plugin-a"].claude).toEqual({ kind: "git", label: "v2.0.0", updateState: "behind", autoUpdate: true, checkedAt: "" });
+    expect(result.data["plugin-a"].claude).toEqual({ kind: "git", label: "v2.0.0", updateState: "behind", autoUpdate: true, checkedAt: "", onExperimental: false, experimentalAvailable: null });
   });
 });
 

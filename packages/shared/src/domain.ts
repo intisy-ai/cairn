@@ -281,9 +281,9 @@ export type PluginVersion = {
   autoUpdate: boolean;
   // When this home's update cache was last written, so a day-old answer can read as day-old.
   checkedAt?: string | null;
-  onExperimental?: boolean;
+  onExperimental: boolean;
   // null means the channel branch has not been confirmed either way, and the switch is not offered.
-  experimentalAvailable?: boolean | null;
+  experimentalAvailable: boolean | null;
 };
 export type EngineHomeState = { installed: boolean; enabled: boolean };
 export type EngineView = { id: string; capability: string; url: string; homes: Record<string, EngineHomeState> };

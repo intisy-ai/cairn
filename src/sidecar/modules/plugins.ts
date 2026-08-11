@@ -82,6 +82,13 @@ async function realReadUpdateCache(dir: string): Promise<UpdateCache> {
   return mod ? mod.readUpdateCache(dir) : EMPTY_UPDATE_CACHE;
 }
 
+// The single question both the dashboard and the loader TUI ask; without the engine there is
+// no channel to report, so a missing plugin-updater reads the same as "never opted in".
+async function realChannelState(dir: string, name: string): Promise<{ onExperimental: boolean; experimentalAvailable: boolean | null }> {
+  const mod = await loadPluginUpdaterIndex();
+  return mod ? mod.pluginChannelState(dir, name) : { onExperimental: false, experimentalAvailable: null };
+}
+
 async function realSyncPluginsAcrossApps(dir: string): Promise<void> {
   const mod = await loadPluginUpdaterSyncbridge();
   if (mod) await mod.syncPluginsAcrossApps(dir);
@@ -251,6 +258,7 @@ export interface PluginVersionsDeps {
   exists?: (path: string) => boolean;
   getPlugins?: (dir: string) => Plugin[] | Promise<Plugin[]>;
   npmPlugins?: (dir: string) => Promise<NpmPlugin[]>;
+  channelState?: (dir: string, name: string) => { onExperimental: boolean; experimentalAvailable: boolean | null } | Promise<{ onExperimental: boolean; experimentalAvailable: boolean | null }>;
   // Where the persistent version cache lives; "" disables it (used in tests).
   cacheDir?: string;
 }
@@ -275,9 +283,24 @@ export function gitUpdateState(entry: UpdateCache["plugins"][string] | undefined
   return entry.localHead ? "current" : "unknown";
 }
 
-async function gitVersionFor(repoDir: string, entry: UpdateCache["plugins"][string] | undefined, describe: (dir: string) => string | null | Promise<string | null>, autoUpdate: boolean, checkedAt: string | null): Promise<PluginVersion> {
+async function gitVersionFor(
+  repoDir: string,
+  entry: UpdateCache["plugins"][string] | undefined,
+  describe: (dir: string) => string | null | Promise<string | null>,
+  autoUpdate: boolean,
+  checkedAt: string | null,
+  channel: { onExperimental: boolean; experimentalAvailable: boolean | null },
+): Promise<PluginVersion> {
   const label = formatGitVersion(await describe(repoDir)) ?? (entry?.localHead ? entry.localHead.slice(0, 7) : null);
-  return { kind: "git", label, updateState: gitUpdateState(entry), autoUpdate, checkedAt };
+  return {
+    kind: "git",
+    label,
+    updateState: gitUpdateState(entry),
+    autoUpdate,
+    checkedAt,
+    onExperimental: channel.onExperimental,
+    experimentalAvailable: channel.experimentalAvailable,
+  };
 }
 
 // A plugin can be registered in a home's plugins.json but not yet cloned there
@@ -285,7 +308,7 @@ async function gitVersionFor(repoDir: string, entry: UpdateCache["plugins"][stri
 // genuinely unknown until it is cloned, so report it as such (label null) rather
 // than borrowing another home's version and implying a certainty we don't have.
 function markUnknown(perHome: Record<string, PluginVersion>, homes: { id: string; autoUpdate: boolean }[]): void {
-  for (const h of homes) perHome[h.id] = { kind: "git", label: null, updateState: "unknown", autoUpdate: h.autoUpdate };
+  for (const h of homes) perHome[h.id] = { kind: "git", label: null, updateState: "unknown", autoUpdate: h.autoUpdate, onExperimental: false, experimentalAvailable: null };
 }
 
 export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Promise<Result<Record<string, PluginVersion>>> {
@@ -305,9 +328,10 @@ export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Pro
       const autoUpdate = gitEntry ? gitEntry.autoUpdate !== false : true;
       const repoDir = join(reposDir(home.dir), name);
       if (exists(repoDir)) {
-        out[home.id] = await gitVersionFor(repoDir, entry, describe, autoUpdate, cache.checkedAt ?? null);
+        const channel = await (deps.channelState ?? realChannelState)(home.dir, name);
+        out[home.id] = await gitVersionFor(repoDir, entry, describe, autoUpdate, cache.checkedAt ?? null, channel);
       } else if (entry?.kind === "npm") {
-        out[home.id] = { kind: "npm", label: entry.installedVersion, updateState: entry.updateAvailable ? "behind" : "current", autoUpdate: true };
+        out[home.id] = { kind: "npm", label: entry.installedVersion, updateState: entry.updateAvailable ? "behind" : "current", autoUpdate: true, onExperimental: false, experimentalAvailable: null };
       } else if (gitEntry) {
         registeredWithoutClone.push({ id: home.id, autoUpdate });
       }
@@ -339,7 +363,8 @@ export function pluginVersionsAll(deps: PluginVersionsDeps = {}): Promise<Result
         gitEntries.map(async (p) => {
           const repoDir = join(reposDir(home.dir), p.name);
           if (!exists(repoDir)) return { p, version: null };
-          return { p, version: await gitVersionFor(repoDir, cache.plugins[p.name], describe, p.autoUpdate !== false, cache.checkedAt ?? null) };
+          const channel = await (deps.channelState ?? realChannelState)(home.dir, p.name);
+          return { p, version: await gitVersionFor(repoDir, cache.plugins[p.name], describe, p.autoUpdate !== false, cache.checkedAt ?? null, channel) };
         }),
       );
       for (const { p, version } of described) {
@@ -349,7 +374,7 @@ export function pluginVersionsAll(deps: PluginVersionsDeps = {}): Promise<Result
       }
       for (const p of await listNpm(home.dir)) {
         const entry = cache.plugins[p.name];
-        (out[p.name] ??= {})[home.id] = { kind: "npm", label: entry?.installedVersion ?? null, updateState: entry?.updateAvailable ? "behind" : "current", autoUpdate: true };
+        (out[p.name] ??= {})[home.id] = { kind: "npm", label: entry?.installedVersion ?? null, updateState: entry?.updateAvailable ? "behind" : "current", autoUpdate: true, onExperimental: false, experimentalAvailable: null };
       }
     }
     for (const { name, homeId, autoUpdate } of missing) {
