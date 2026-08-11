@@ -443,6 +443,18 @@
     if (queued.ok) await jobSettled(queued.data.id);
     await reload();
   }
+  // The toggle is only true once the clone matches it, so the switch runs the update that
+  // makes it so.
+  async function setChannel(p: UnifiedPlugin, homeId: string, channel: "experimental" | "stable"): Promise<void> {
+    const result = await cairn.pluginsSetChannel(homeId, p.name, channel);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    const queued = await enqueueJob("update", p.name, p.url ?? "", homeId);
+    if (queued.ok) await jobSettled(queued.data.id);
+    await reload();
+  }
   // Through the same queue as an install, so a removal shows its progress, can be cancelled,
   // and lands in the download history instead of happening invisibly.
   async function removeHome(p: UnifiedPlugin, homeId: string, data: HomePluginData[] = []): Promise<void> {
@@ -827,6 +839,7 @@
       onUpdate={() => handleUpdate(selectedPlugin)}
       onRepairHome={(homeId) => repairHome(selectedPlugin, homeId)}
       onUpdateHome={(homeId) => updateHome(selectedPlugin, homeId)}
+      onSetChannel={(homeId, channel) => setChannel(selectedPlugin, homeId, channel)}
       onToggleHome={(homeId, on) => (on ? addHome(selectedPlugin, homeId) : confirmRemoveHome(selectedPlugin, homeId))}
       onToggleFavorite={() => toggleFavorite(selectedPlugin)}
       onChanged={reload}

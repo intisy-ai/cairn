@@ -24,6 +24,7 @@
     onToggleHome,
     onToggleFavorite,
     onChanged,
+    onSetChannel,
   }: {
     plugin: UnifiedPlugin;
     homes: { id: string; label: string; icon?: string; hasUpdater?: boolean }[];
@@ -39,6 +40,7 @@
     onToggleHome: (homeId: string, on: boolean) => void;
     onToggleFavorite?: () => void;
     onChanged?: () => void;
+    onSetChannel?: (homeId: string, channel: "experimental" | "stable") => void;
   } = $props();
 
   const repo = $derived({
@@ -98,6 +100,14 @@
     if (current) versions = { ...versions, [homeId]: { ...current, autoUpdate: on } };
     await cairn.pluginsSetAutoUpdate(homeId, plugin.name, on);
     onChanged?.();
+  }
+
+  // Both directions write an explicit channel: "inherit" would leave a plugin riding the
+  // home's global flag exactly where it was.
+  async function setChannel(homeId: string, on: boolean): Promise<void> {
+    const current = versions[homeId];
+    if (current) versions = { ...versions, [homeId]: { ...current, onExperimental: on } };
+    onSetChannel?.(homeId, on ? "experimental" : "stable");
   }
 
   onMount(loadVersions);
@@ -187,6 +197,13 @@
                 <label class="auto" title="Auto-update on launch">
                   <ToggleSwitch checked={v.autoUpdate} label={`Auto-update ${h.label}`} onchange={(o) => setAutoUpdate(h.id, o)} />
                 </label>
+                {#if v.experimentalAvailable === true}
+                  <ToggleSwitch
+                    checked={v.onExperimental}
+                    label={`Experimental build ${h.label}`}
+                    onchange={(o) => setChannel(h.id, o)}
+                  />
+                {/if}
               {/if}
             {:else}
               <span class="state">{on ? "Installed" : "Not installed"}</span>

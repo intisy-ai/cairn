@@ -21,7 +21,15 @@ const PLUGIN: UnifiedPlugin = {
 };
 
 function version(overrides: Partial<PluginVersion> = {}): PluginVersion {
-  return { kind: "git", label: "v1.0.0", updateState: "current", autoUpdate: true, ...overrides };
+  return {
+    kind: "git",
+    label: "v1.0.0",
+    updateState: "current",
+    autoUpdate: true,
+    onExperimental: false,
+    experimentalAvailable: null,
+    ...overrides,
+  };
 }
 
 function props(homes: { id: string; label: string; hasUpdater?: boolean }[]) {
