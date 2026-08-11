@@ -56,6 +56,10 @@
     return Object.values(versions[p.name] ?? {}).map((v) => v.label).find((l): l is string => !!l) ?? "";
   }
 
+  function onExperimentalSomewhere(p: UnifiedPlugin): boolean {
+    return Object.values(versions[p.name] ?? {}).some((v) => v.onExperimental);
+  }
+
   let searchRaw = $state("");
   let search = $state("");
   const applySearch = debounce((value: string) => {
@@ -774,6 +778,7 @@
         {#if badgeLabel(p)}
           <span class="chip" title={p.external ? "Installed from a repo outside the marketplace org" : undefined}>{badgeLabel(p)}</span>
         {/if}
+        {#if onExperimentalSomewhere(p)}<span class="chip" title="Tracking the experimental channel">experimental</span>{/if}
         {#if catalogSources.length > 1 && sourceLabel(p)}<span class="src">{sourceLabel(p)}</span>{/if}
       {/snippet}
       {#snippet meta()}

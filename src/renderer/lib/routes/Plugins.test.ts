@@ -61,6 +61,28 @@ describe("Plugins screen", () => {
     expect(screen.getByText("Demo from catalog")).toBeInTheDocument();
   });
 
+  it("tags a row on the experimental channel and leaves an off-channel row untagged", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      pluginVersionsAll: async () => ({
+        ok: true,
+        data: {
+          "wakatime-sync": {
+            claude: { kind: "git", label: "v1.0.0", updateState: "current", autoUpdate: true, onExperimental: true, experimentalAvailable: true },
+          },
+        },
+      }),
+    });
+    render(Plugins);
+
+    const onChannel = within(await screen.findByTestId("plugin-wakatime-sync"));
+    expect(onChannel.getByText("experimental")).toBeInTheDocument();
+
+    const offChannel = within(await screen.findByTestId("plugin-demo"));
+    expect(offChannel.queryByText("experimental")).toBeNull();
+  });
+
   it("checks every managed home for updates and reloads the rows afterwards", async () => {
     const checked: string[] = [];
     let listCalls = 0;
