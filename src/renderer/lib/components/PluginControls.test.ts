@@ -34,6 +34,17 @@ describe("PluginControls and contributed sections", () => {
     expect(screen.queryByRole("switch", { name: "p Spare" })).toBeNull();
   });
 
+  it("names the home a spanning write failed in, since the others may have succeeded", async () => {
+    stubCairn({
+      configWrite: async (home: string) => (home === "opencode" ? { ok: false, error: "read-only home" } : { ok: true, data: undefined }),
+    });
+    const schema: PluginConfigSchema = { plugin: "p", defaults: { on: true }, current: {}, fields: [{ key: "on", type: "boolean" }] };
+    render(PluginControls, { homeId: "claude", schema, writeHomes: ["claude", "opencode"] });
+
+    await fireEvent.click(await screen.findByRole("switch", { name: "p on" }));
+    expect(await screen.findByText("opencode: read-only home")).toBeInTheDocument();
+  });
+
   it("drops what a section claimed when the screen already renders that section", async () => {
     render(PluginControls, { homeId: "claude", schema: SCHEMA, hideContributed: true });
     expect(await screen.findByRole("switch", { name: "p Spare" })).toBeInTheDocument();

@@ -41,6 +41,8 @@ function byOrderThenLabel(a: { order?: number; label: string }, b: { order?: num
 // A plugin asks for UI of its own in its capability declaration: a nav entry (menu) and
 // sections placed inside the dashboard's own settings screen. This collects both across
 // every home the dashboard manages, so one pass over the declarations serves both.
+// (Not to be confused with a MarketplaceContribution, which is a catalog entry a plugin
+// publishes rather than a piece of the dashboard's own UI.)
 // A home that cannot be read contributes nothing rather than sinking the whole list: one
 // broken bundle must not cost the user every other plugin's contribution.
 async function collect(deps: ContributionsDeps): Promise<Contributions> {

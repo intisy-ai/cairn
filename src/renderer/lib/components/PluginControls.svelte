@@ -107,15 +107,17 @@
   async function save(field: FieldSpec, value: unknown): Promise<void> {
     values = { ...values, [field.key]: value };
     const toWrite = coerceForSave(field, value);
-    const writes = await Promise.all((writeHomes ?? [homeId]).map((home) => cairn.configWrite(home, schema.plugin, field.key, toWrite)));
-    const result = writes.find((write) => !write.ok) ?? writes[0];
-    if (result.ok) {
-      saved = { ...saved, [field.key]: true };
-      errors = { ...errors, [field.key]: "" };
-    } else {
-      saved = { ...saved, [field.key]: false };
-      errors = { ...errors, [field.key]: result.error };
-    }
+    const homes = writeHomes?.length ? writeHomes : [homeId];
+    // A write spanning homes can fail in one and succeed in the rest, so a failure names the
+    // home it happened in; with a single home that prefix would only be noise.
+    const failures = (await Promise.all(homes.map(async (home) => {
+      const result = await cairn.configWrite(home, schema.plugin, field.key, toWrite);
+      if (result.ok) return "";
+      return homes.length > 1 ? `${home}: ${result.error}` : result.error;
+    }))).filter(Boolean);
+
+    saved = { ...saved, [field.key]: failures.length === 0 };
+    errors = { ...errors, [field.key]: failures.join("; ") };
   }
 
   function addListItem(field: FieldSpec): void {
