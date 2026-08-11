@@ -1,6 +1,7 @@
 import { writable, derived, get } from "svelte/store";
 import type { Job, JobKind, JobPhase, JobSample, Result } from "@cairn/shared";
 import { cairn } from "./ipc.js";
+import { invalidate } from "./cache.js";
 import { humanizeId } from "./util/appLabel.js";
 
 // The panel shows two kinds of work. Plugin jobs belong to the sidecar, which owns the queue
@@ -127,6 +128,11 @@ export function watchJobs(): () => void {
     if (result.ok) jobs.set(result.data);
   });
   return cairn.onJobEvent((job) => {
+    // A job installs, updates or removes a plugin in a home, so anything the read cache holds
+    // about plugins is stale the moment it ends. The renderer only learns this from the event:
+    // the change happened in the sidecar, behind no call of its own. Cleared before the store
+    // notifies, so a caller waiting on jobSettled resumes against an empty cache.
+    if (!LIVE.includes(JOB_STATUS[job.status])) invalidate();
     jobs.update((list) => {
       const index = list.findIndex((j) => j.id === job.id);
       if (index < 0) return [...list, job];

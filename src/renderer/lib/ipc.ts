@@ -7,8 +7,9 @@ declare global {
   }
 }
 
-// Read methods go through the client cache (name -> TTL ms); every other method is
-// a mutation that invalidates the cache after it runs, so the next read is fresh.
+// Read methods go through the client cache (name -> TTL ms). A method that is
+// neither a cached read, a live read, nor a passthrough is taken to be a mutation
+// and invalidates the cache after it runs, so the next read is fresh.
 const READ_TTL: Record<string, number> = {
   overviewSummary: 30000,
   accountsList: 30000,
@@ -20,7 +21,6 @@ const READ_TTL: Record<string, number> = {
   appsList: 60000,
   appsSummary: 30000,
   appStorageGet: 15000,
-  appStorageSet: 30000,
   pluginsList: 30000,
   pluginsListCached: 10000,
   pluginsData: 10000,
@@ -38,10 +38,53 @@ const READ_TTL: Record<string, number> = {
   activityRead: 10000,
 };
 
-// Push-listener subscriptions return their unsubscribe function synchronously;
-// they must pass straight through rather than being wrapped as an async
-// mutation (which would turn the unsubscribe function into a Promise of one).
-const PASSTHROUGH = new Set(["onServerStatus", "onDownloadProgress", "onActivityEvent"]);
+// Reads that must not be cached: each is either wanted live (jobsList backs the
+// Downloads panel, where a stale answer freezes visible progress) or already
+// answered from a cache the sidecar owns. They read nothing else stale, so unlike a
+// mutation they leave the rest of the cache alone.
+const LIVE_READS = new Set([
+  "proxiesList",
+  "jobsList",
+  "appsConnection",
+  "repoMeta",
+  "repoMetaCached",
+  "pluginVersions",
+  "pluginVersionsAll",
+  "pluginVersionsCached",
+  "enginesList",
+  "ledgerHomes",
+  "ledgerDiffRefs",
+  "activityStats",
+  "globalSettingsRead",
+  "catalogListCached",
+  "favoritesList",
+  "marketplaceSourcesList",
+  "customEndpointsFormats",
+]);
+
+// Methods that return synchronously: the window controls return nothing, and a push
+// subscription returns its unsubscribe function. Wrapping either as an async mutation
+// would turn that unsubscribe into a Promise of one.
+const PASSTHROUGH = new Set([
+  "minimize",
+  "maximize",
+  "close",
+  "onServerStatus",
+  "onDownloadProgress",
+  "onActivityEvent",
+  "onJobEvent",
+]);
+
+export type IpcKind = "cached" | "live" | "passthrough" | "mutation";
+
+// Exported so a test can hold the full expected classification: leaving a read out of
+// the tables above is silent otherwise, and costs every other screen its cache.
+export function classify(name: string): IpcKind {
+  if (name in READ_TTL) return "cached";
+  if (LIVE_READS.has(name)) return "live";
+  if (PASSTHROUGH.has(name)) return "passthrough";
+  return "mutation";
+}
 
 export const cairn: CairnAPI = new Proxy({} as CairnAPI, {
   get(_target, property) {
@@ -49,14 +92,18 @@ export const cairn: CairnAPI = new Proxy({} as CairnAPI, {
     const real = (window.cairn as unknown as Record<string | symbol, unknown>)?.[property];
     if (typeof real !== "function") return real;
     const bound = (real as (...args: unknown[]) => unknown).bind(window.cairn);
-    if (name in READ_TTL) {
-      return (...args: unknown[]) => cached(name + ":" + JSON.stringify(args), READ_TTL[name], () => bound(...args) as Promise<unknown>);
+    switch (classify(name)) {
+      case "cached":
+        return (...args: unknown[]) => cached(name + ":" + JSON.stringify(args), READ_TTL[name], () => bound(...args) as Promise<unknown>);
+      case "live":
+      case "passthrough":
+        return bound;
+      case "mutation":
+        return async (...args: unknown[]) => {
+          const result = await bound(...args);
+          invalidate();
+          return result;
+        };
     }
-    if (PASSTHROUGH.has(name)) return bound;
-    return async (...args: unknown[]) => {
-      const result = await bound(...args);
-      invalidate();
-      return result;
-    };
   },
 });

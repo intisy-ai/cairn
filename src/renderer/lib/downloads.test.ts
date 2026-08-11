@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { get } from "svelte/store";
-import { downloads, rows, activeByPlugin, activeByPluginHome, enqueue, track, toggleDownloads, closeDownloads, clearFinished, setStep, resetDownloadsForTest, seedJobsForTest, jobKey } from "./downloads.js";
+import { downloads, rows, activeByPlugin, activeByPluginHome, enqueue, track, toggleDownloads, closeDownloads, clearFinished, setStep, resetDownloadsForTest, seedJobsForTest, jobKey, watchJobs } from "./downloads.js";
 import type { Job } from "@cairn/shared";
+
+const pushed = vi.hoisted(() => ({ listener: undefined as ((job: Job) => void) | undefined }));
+const cache = vi.hoisted(() => ({ invalidate: vi.fn() }));
 
 vi.mock("./ipc.js", () => ({
   cairn: {
@@ -9,8 +12,14 @@ vi.mock("./ipc.js", () => ({
     jobsClearFinished: async () => ({ ok: true, data: undefined }),
     jobsList: async () => ({ ok: true, data: [] }),
     jobsEnqueue: async () => ({ ok: false, error: "not wired in tests" }),
+    onJobEvent: (listener: (job: Job) => void) => {
+      pushed.listener = listener;
+      return () => {};
+    },
   },
 }));
+
+vi.mock("./cache.js", () => ({ invalidate: cache.invalidate }));
 
 function job(overrides: Partial<Job> = {}): Job {
   return {
@@ -140,5 +149,37 @@ describe("downloads", () => {
     expect(labels).toContain("Install p2");
     expect(labels).not.toContain("finished");
     expect(labels).not.toContain("Install plugin-x");
+  });
+});
+
+// A job changes a home from the sidecar, behind no call the renderer made, so the pushed
+// event is the only thing that can tell the read cache it went stale.
+describe("watchJobs", () => {
+  beforeEach(() => {
+    resetDownloadsForTest();
+    cache.invalidate.mockClear();
+    watchJobs();
+  });
+
+  it("leaves the read cache alone while a job is still running", () => {
+    pushed.listener?.(job({ status: "running" }));
+    expect(cache.invalidate).not.toHaveBeenCalled();
+  });
+
+  it("drops the read cache once a job ends", () => {
+    pushed.listener?.(job({ status: "done" }));
+    expect(cache.invalidate).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops it before publishing the row, so a caller waiting on the job reloads fresh", () => {
+    let invalidationsWhenPublished = -1;
+    const stop = rows.subscribe(($rows) => {
+      if ($rows.some((row) => row.jobId === "j1" && row.status === "done")) {
+        invalidationsWhenPublished = cache.invalidate.mock.calls.length;
+      }
+    });
+    pushed.listener?.(job({ status: "done" }));
+    stop();
+    expect(invalidationsWhenPublished).toBe(1);
   });
 });

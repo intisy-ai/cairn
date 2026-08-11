@@ -2,7 +2,7 @@ import type { CairnAPI } from "@cairn/shared";
 import { bustCacheForTests } from "./cache.js";
 import { resetViewModeForTests } from "./viewMode.js";
 
-function defaultCairn(): CairnAPI {
+export function defaultCairn(): CairnAPI {
   return {
     getConfig: async () => ({ ok: true, data: undefined }),
     setConfig: async () => ({ ok: true, data: undefined }),

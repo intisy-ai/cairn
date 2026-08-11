@@ -1,9 +1,51 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, waitFor } from "@testing-library/svelte";
-import { stubCairn } from "./testing.js";
-import { cairn } from "./ipc.js";
+import { stubCairn, defaultCairn } from "./testing.js";
+import { cairn, classify, type IpcKind } from "./ipc.js";
 import Overview from "./routes/Overview.svelte";
+
+// Every CairnAPI method, by how the proxy must treat it. A method absent here, or
+// classified differently by ipc.ts, fails the drift test below: an unclassified read
+// falls through to the mutation branch and silently wipes every screen's cache.
+const EXPECTED: Record<string, IpcKind> = {
+  overviewSummary: "cached", accountsList: "cached", providersList: "cached", routingApps: "cached",
+  routingGet: "cached", proxyStatus: "cached", appsDetect: "cached", appsList: "cached",
+  appsSummary: "cached", appStorageGet: "cached", pluginsList: "cached", pluginsListCached: "cached",
+  pluginsData: "cached", librariesList: "cached", configSchemas: "cached", getConfig: "cached",
+  usageSnapshot: "cached", importApps: "cached", importPreview: "cached", catalogList: "cached",
+  customEndpointsList: "cached", menusList: "cached", settingsSections: "cached",
+  githubStatus: "cached", activityRead: "cached",
+
+  proxiesList: "live", jobsList: "live", appsConnection: "live", repoMeta: "live",
+  repoMetaCached: "live", pluginVersions: "live", pluginVersionsAll: "live",
+  pluginVersionsCached: "live", enginesList: "live", ledgerHomes: "live", ledgerDiffRefs: "live",
+  activityStats: "live", globalSettingsRead: "live", catalogListCached: "live",
+  favoritesList: "live", marketplaceSourcesList: "live", customEndpointsFormats: "live",
+
+  minimize: "passthrough", maximize: "passthrough", close: "passthrough",
+  onServerStatus: "passthrough", onDownloadProgress: "passthrough",
+  onActivityEvent: "passthrough", onJobEvent: "passthrough",
+
+  setConfig: "mutation", accountsEnable: "mutation", accountsRemove: "mutation",
+  accountsRefreshQuota: "mutation", accountsLoginBegin: "mutation", accountsLoginComplete: "mutation",
+  accountsLoginCancel: "mutation", providersSetEnabled: "mutation", providersSetExposure: "mutation",
+  routingSetChain: "mutation", proxyStart: "mutation", proxyStop: "mutation",
+  proxiesSetEnabled: "mutation", jobsEnqueue: "mutation", jobsCancel: "mutation",
+  jobsClearFinished: "mutation", appsInstallCli: "mutation", appsUninstallCli: "mutation",
+  appsInstallLoader: "mutation", appStorageSet: "mutation", librariesRemove: "mutation",
+  enginesEnsure: "mutation", pluginsInstall: "mutation", pluginsRemoveEverywhere: "mutation",
+  pluginsSetEnabled: "mutation", pluginsSetAutoUpdate: "mutation", pluginsDowngrade: "mutation",
+  pluginsUninstall: "mutation", pluginsRemoveData: "mutation", configWrite: "mutation",
+  configAction: "mutation", ledgerCommit: "mutation", ledgerRestore: "mutation",
+  ledgerProfileCreate: "mutation", ledgerProfileSwitch: "mutation", busDrain: "mutation",
+  updatesCheck: "mutation", updatesOne: "mutation", updatesAll: "mutation", importRun: "mutation",
+  githubAddAccount: "mutation", githubSwitchAccount: "mutation", githubRemoveAccount: "mutation",
+  githubConnectGhCli: "mutation", githubSetStar: "mutation", githubStarCairn: "mutation",
+  githubDeviceStart: "mutation", githubDevicePoll: "mutation", favoritesToggle: "mutation",
+  marketplaceSourcesSave: "mutation", customEndpointsUpsert: "mutation",
+  customEndpointsRemove: "mutation", customEndpointsSaveKey: "mutation",
+};
 
 describe("cairn proxy", () => {
   it("reads window.cairn lazily, so a stub installed after import still resolves", async () => {
@@ -46,5 +88,56 @@ describe("cairn proxy", () => {
       expect(getByText("7")).toBeTruthy();
       expect(getByText("9")).toBeTruthy();
     });
+  });
+});
+
+describe("method classification", () => {
+  const methods = Object.entries(defaultCairn())
+    .filter(([, value]) => typeof value === "function")
+    .map(([name]) => name);
+
+  it("classifies every CairnAPI method deliberately", () => {
+    const unclassified = methods.filter((name) => !(name in EXPECTED));
+    expect(unclassified).toEqual([]);
+    expect(Object.keys(EXPECTED).filter((name) => !methods.includes(name))).toEqual([]);
+    for (const name of methods) expect([name, classify(name)]).toEqual([name, EXPECTED[name]]);
+  });
+
+  it("keeps another screen's cached read across a live read", async () => {
+    const appsList = vi.fn(async () => ({ ok: true as const, data: [] }));
+    stubCairn({ appsList });
+
+    await cairn.appsList();
+    await cairn.jobsList();
+    await cairn.appsList();
+
+    expect(appsList).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops it across a mutation", async () => {
+    const appsList = vi.fn(async () => ({ ok: true as const, data: [] }));
+    stubCairn({ appsList });
+
+    await cairn.appsList();
+    await cairn.proxyStart();
+    await cairn.appsList();
+
+    expect(appsList).toHaveBeenCalledTimes(2);
+  });
+
+  it("sends a repeated storage write through rather than answering it from the cache", async () => {
+    const appStorageSet = vi.fn(async () => ({ ok: true as const, data: { names: { repos: "r", plugin: "p", cache: "c", config: "cfg" }, moves: [] } }));
+    stubCairn({ appStorageSet });
+
+    const names = { repos: "r", plugin: "p", cache: "c", config: "cfg" };
+    await cairn.appStorageSet("claude", names);
+    await cairn.appStorageSet("claude", names);
+
+    expect(appStorageSet).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns a subscription's unsubscribe function, not a promise of one", () => {
+    stubCairn();
+    expect(typeof cairn.onJobEvent(() => {})).toBe("function");
   });
 });
