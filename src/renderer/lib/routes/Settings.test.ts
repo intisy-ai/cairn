@@ -16,6 +16,27 @@ function cairnHome(): HomePlugins {
   return { home: { id: "cairn", label: "Cairn", dir: "/store", present: true, hasUpdater: true }, rows: [] };
 }
 
+// A plugin declaring one contributed section plus a setting it left to its own group. The
+// layout is what the sidecar resolves and ships; the renderer only places it.
+const CONTRIBUTED_SCHEMA: PluginConfigSchema = {
+  plugin: "a-plugin",
+  defaults: { on: true, spare: true },
+  current: {},
+  fields: [{ key: "on", type: "boolean", label: "On" }, { key: "spare", type: "boolean", label: "Spare" }],
+  actions: [{ id: "doIt", label: "Do it" }],
+  layout: {
+    sections: [{
+      id: "feature",
+      label: "Feature",
+      plugin: "a-plugin",
+      fields: [{ key: "on", type: "boolean", label: "On" }],
+      actions: [{ id: "doIt", label: "Do it" }],
+    }],
+    fields: [{ key: "spare", type: "boolean", label: "Spare" }],
+    actions: [],
+  },
+};
+
 describe("Settings screen", () => {
   it("loads and saves the four Cairn settings, asserting exact setConfig triples", async () => {
     const setConfigCalls: unknown[][] = [];
@@ -116,25 +137,68 @@ describe("Settings screen", () => {
     expect(await screen.findByLabelText("Theme")).toBeInTheDocument();
   });
 
-  it("renders the Sync section, persists a category toggle, and runs sync now", async () => {
-    const setCalls: [string, unknown][] = [];
-    const syncRun = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+  // Nothing here names a plugin: the section, its controls and its action all come from the
+  // declaration, which is the whole point of the contribution surface.
+  it("renders a contributed section with its attribution, controls and action", async () => {
+    const writeCalls: unknown[][] = [];
+    const runAction = vi.fn(async () => ({ ok: true, data: { stdout: "done", stderr: "" } }) as const);
     stubCairn({
-      syncStatus: async () => ({
+      pluginsList: async () => ({ ok: true, data: [cairnHome()] }),
+      settingsSections: async () => ({
         ok: true,
-        data: { enabled: true, categories: { accounts: true, plugins: true, settings: true, pluginConfigs: true }, exclude: [], homes: ["/a", "/b"], pluginConfigs: [] },
+        data: [{ plugin: "a-plugin", id: "feature", label: "Feature", description: "What it does.", homes: ["cairn"] }],
       }),
-      syncSetConfig: async (key, value) => { setCalls.push([key, value]); return { ok: true, data: undefined }; },
-      syncRun,
+      configSchemas: async () => ({ ok: true, data: [CONTRIBUTED_SCHEMA] }),
+      configWrite: async (...args: unknown[]) => { writeCalls.push(args); return { ok: true, data: undefined }; },
+      configAction: runAction,
     });
+
     render(Settings);
 
-    const accountsSwitch = await screen.findByLabelText("Accounts");
-    await fireEvent.click(accountsSwitch);
-    await waitFor(() => expect(setCalls.some(([k]) => k === "categories")).toBe(true));
+    expect(await screen.findByText("Feature")).toBeInTheDocument();
+    expect(screen.getByText("Added by a-plugin")).toBeInTheDocument();
+    expect(screen.getByText("What it does.")).toBeInTheDocument();
 
-    await fireEvent.click(screen.getByRole("button", { name: /sync now/i }));
-    await waitFor(() => expect(syncRun).toHaveBeenCalledOnce());
+    await fireEvent.click(screen.getByRole("switch", { name: "a-plugin On" }));
+    await waitFor(() => expect(writeCalls).toContainEqual(["cairn", "a-plugin", "on", false]));
+
+    await fireEvent.click(screen.getByRole("button", { name: "Do it" }));
+    await waitFor(() => expect(runAction).toHaveBeenCalledWith("cairn", "a-plugin", "doIt"));
+  });
+
+  it("keeps a control a section claimed out of the plugin's own per-app group", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: [cairnHome()] }),
+      settingsSections: async () => ({
+        ok: true,
+        data: [{ plugin: "a-plugin", id: "feature", label: "Feature", homes: ["cairn"] }],
+      }),
+      configSchemas: async () => ({ ok: true, data: [CONTRIBUTED_SCHEMA] }),
+    });
+
+    render(Settings);
+
+    await waitFor(() => expect(screen.getAllByRole("switch", { name: "a-plugin On" })).toHaveLength(1));
+    expect(screen.getByRole("switch", { name: "a-plugin Spare" })).toBeInTheDocument();
+  });
+
+  it("writes to every home a section declared as spanning them", async () => {
+    const writeCalls: unknown[][] = [];
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: [cairnHome()] }),
+      settingsSections: async () => ({
+        ok: true,
+        data: [{ plugin: "a-plugin", id: "feature", label: "Feature", scope: "allHomes", homes: ["claude", "opencode"] }],
+      }),
+      configSchemas: async () => ({ ok: true, data: [CONTRIBUTED_SCHEMA] }),
+      configWrite: async (...args: unknown[]) => { writeCalls.push(args); return { ok: true, data: undefined }; },
+    });
+
+    render(Settings);
+
+    await fireEvent.click(await screen.findByRole("switch", { name: "a-plugin On" }));
+    await waitFor(() => expect(writeCalls).toContainEqual(["claude", "a-plugin", "on", false]));
+    expect(writeCalls).toContainEqual(["opencode", "a-plugin", "on", false]);
   });
 });
 

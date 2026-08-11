@@ -1,4 +1,4 @@
-﻿import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, HomeLibraries, AppStorage, AppStorageResult, AppPathNames, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, MarketplaceSource, AppSummary, PluginConfigSchema, PluginMenu, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, SyncStatus, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec, UpdateSummary, Job, JobKind } from "./domain.js";
+﻿import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, HomeLibraries, AppStorage, AppStorageResult, AppPathNames, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, MarketplaceSource, AppSummary, PluginConfigSchema, PluginMenu, PluginSettingsSection, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, ConfigHomeView, ConfigDiffRow, ProfileSwitchResult, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec, UpdateSummary, Job, JobKind } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -53,11 +53,9 @@ export interface CairnAPI {
   pluginsUninstall(home: string, name: string): Promise<Result<void>>;
   configSchemas(home: string): Promise<Result<PluginConfigSchema[]>>;
   menusList(opts?: { wait?: boolean }): Promise<Result<PluginMenu[]>>;
+  settingsSections(opts?: { wait?: boolean }): Promise<Result<PluginSettingsSection[]>>;
   configWrite(home: string, plugin: string, key: string, value: unknown): Promise<Result<void>>;
   configAction(home: string, plugin: string, actionId: string): Promise<Result<{ stdout: string; stderr: string }>>;
-  syncStatus(): Promise<Result<SyncStatus>>;
-  syncRun(): Promise<Result<void>>;
-  syncSetConfig(key: string, value: unknown): Promise<Result<void>>;
   ledgerHomes(): Promise<Result<ConfigHomeView[]>>;
   ledgerCommit(home: string, reason: string): Promise<Result<boolean>>;
   ledgerRestore(home: string, ref: string): Promise<Result<number>>;

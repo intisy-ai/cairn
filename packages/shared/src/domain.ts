@@ -1,6 +1,6 @@
 export type { AccountView, AccountQuota, AccountStatus } from "@core-auth/index.js";
-export type { Impact, ActivityRecord, ActivityQuery, ActivityStats, ActivityHomeStats, FieldType, FieldSpec, ActionSpec, MenuSpec } from "@core/index.js";
-import type { FieldSpec, ActionSpec, MenuSpec } from "@core/index.js";
+export type { Impact, ActivityRecord, ActivityQuery, ActivityStats, ActivityHomeStats, FieldType, FieldSpec, ActionSpec, MenuSpec, SectionSpec, ResolvedSection } from "@core/index.js";
+import type { FieldSpec, ActionSpec, MenuSpec, SectionSpec, ResolvedSection } from "@core/index.js";
 
 // What an update run did, as the dashboard reports it back to the renderer.
 export interface UpdateSummary {
@@ -200,8 +200,6 @@ export type ImportSummary = { accounts: number; providers: number; routingImport
 export type ImportSelection = { accounts: boolean; routing: boolean; exposure: boolean };
 export type ImportPreview = { accounts: number; routingSlots: number | null; exposedProviders: number };
 export type RoutingApp = { app: string; label: string };
-export type SyncCategories = { accounts: boolean; plugins: boolean; settings: boolean; pluginConfigs: boolean };
-export type SyncStatus = { enabled: boolean; categories: SyncCategories; exclude: string[]; homes: string[]; pluginConfigs: string[] };
 
 // A unit of plugin work the sidecar runs one at a time in its own process. The renderer
 // mirrors this list rather than keeping a queue of its own, so cancel and per-home status
@@ -319,9 +317,19 @@ export type PluginConfigSchema = {
   fields?: FieldSpec[];
   actions?: ActionSpec[];
   menu?: MenuSpec;
+  sections?: SectionSpec[];
+  // How the declaration splits into contributed sections and what no section claimed.
+  // Resolved in the sidecar by core, so every surface splits a declaration the same way
+  // and the renderer never has to know the rule.
+  layout?: PluginLayout;
 };
+export type PluginLayout = { sections: ResolvedSection[]; fields: FieldSpec[]; actions: ActionSpec[] };
 // One contributed menu, folded across every home that offers it.
 export type PluginMenu = MenuSpec & { plugin: string; homes: string[] };
+// One contributed settings section, folded across every home that offers it. The controls
+// themselves stay in the plugin's schema; this is only what the settings screen needs to
+// place the section and say who added it.
+export type PluginSettingsSection = Omit<SectionSpec, "fields" | "actions"> & { plugin: string; homes: string[] };
 export type AppAccountSummary = { provider: string; label: string; enabled: boolean; quotaPct: number | null };
 export type AppProviderAgg = { provider: string; accounts: number; enabled: number };
 export type AppSummary = {

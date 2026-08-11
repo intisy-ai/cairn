@@ -4,8 +4,18 @@
   import ToggleSwitch from "./ToggleSwitch.svelte";
   import Button from "./Button.svelte";
   import Spinner from "./Spinner.svelte";
+  import SettingRow from "./SettingRow.svelte";
 
-  let { homeId, schema }: { homeId: string; schema: PluginConfigSchema } = $props();
+  // With no sectionId this renders whatever no contributed section claimed, which for a
+  // plugin declaring no sections is its whole declaration. With one, it renders exactly
+  // that section's controls.
+  //
+  // Values are read from, and actions run in, `homeId`. `writeHomes` exists for a setting
+  // a plugin declared as spanning homes: the write lands in each of them, so the homes do
+  // not drift apart behind one control.
+  let { homeId, schema, sectionId, writeHomes }: { homeId: string; schema: PluginConfigSchema; sectionId?: string; writeHomes?: string[] } = $props();
+
+  const section = $derived(sectionId ? (schema.layout?.sections ?? []).find((s) => s.id === sectionId) ?? null : null);
 
   // Declared fields win; otherwise infer typed fields from the flat defaults/current
   // so plugins that never declared capabilities render exactly as before.
@@ -19,8 +29,13 @@
     });
   }
 
-  const fields = $derived(schema.fields?.length ? schema.fields : inferredFields());
-  const actions = $derived<ActionSpec[]>(schema.actions ?? []);
+  // A plugin that declared nothing is inferred from its values, exactly as before. One that
+  // declared fields shows the leftovers, so a control claimed by a contributed section is
+  // not repeated here.
+  const fields = $derived(
+    section ? section.fields : !schema.fields?.length ? inferredFields() : (schema.layout?.fields ?? schema.fields),
+  );
+  const actions = $derived<ActionSpec[]>(section ? section.actions : (schema.layout?.actions ?? schema.actions ?? []));
 
   const groups = $derived.by(() => {
     const order: string[] = [];
@@ -92,7 +107,8 @@
   async function save(field: FieldSpec, value: unknown): Promise<void> {
     values = { ...values, [field.key]: value };
     const toWrite = coerceForSave(field, value);
-    const result = await cairn.configWrite(homeId, schema.plugin, field.key, toWrite);
+    const writes = await Promise.all((writeHomes ?? [homeId]).map((home) => cairn.configWrite(home, schema.plugin, field.key, toWrite)));
+    const result = writes.find((write) => !write.ok) ?? writes[0];
     if (result.ok) {
       saved = { ...saved, [field.key]: true };
       errors = { ...errors, [field.key]: "" };
@@ -153,55 +169,57 @@
   <div class="group">
     {#if group.name}<p class="grouphead">{group.name}</p>{/if}
     {#each group.fields as field (field.key)}
-      <div class="field" data-testid={"control-" + field.key}>
-        <div class="labels">
-          <span class="label">{field.label ?? field.key}</span>
-          {#if field.description}<span class="desc">{field.description}</span>{/if}
-        </div>
-        <div class="widget">
-          {#if field.type === "boolean"}
-            <ToggleSwitch checked={values[field.key] as boolean} label={aria(field)} onchange={(on) => save(field, on)} />
-          {:else if field.type === "number"}
-            <input type="number" aria-label={aria(field)} min={field.min} max={field.max} step={field.step}
-              value={values[field.key] as number} onchange={(e) => save(field, Number(e.currentTarget.value))} />
-          {:else if field.type === "secret"}
-            <input type="password" aria-label={aria(field)} placeholder={field.placeholder ?? "Set new value"}
-              onchange={(e) => save(field, e.currentTarget.value)} />
-          {:else if field.type === "select"}
-            <select aria-label={aria(field)} value={values[field.key] as string} onchange={(e) => save(field, e.currentTarget.value)}>
-              {#each field.options ?? [] as opt (opt.value)}<option value={opt.value}>{opt.label}</option>{/each}
-            </select>
-          {:else if field.type === "list"}
-            <div class="list">
-              {#each (values[field.key] as unknown[]) ?? [] as item, i}
-                <div class="listrow">
-                  <input type={field.itemType === "number" ? "number" : "text"} aria-label={`${aria(field)} ${i + 1}`}
-                    value={item as string | number} onchange={(e) => setListItem(field, i, e.currentTarget.value)} />
-                  <button class="rm" title="Remove" aria-label="Remove" onclick={() => removeListItem(field, i)}>×</button>
-                </div>
-              {/each}
-              <button class="add" onclick={() => addListItem(field)}>+ Add</button>
-            </div>
-          {:else}
-            <textarea aria-label={aria(field)} rows="3" placeholder={field.placeholder}
-              value={values[field.key] as string} onchange={(e) => save(field, e.currentTarget.value)}></textarea>
-          {/if}
-          {#if errors[field.key]}<span class="fielderror">{errors[field.key]}</span>
-          {:else if saved[field.key]}<span class="fieldsaved">Saved</span>{/if}
-        </div>
+      <div data-testid={"control-" + field.key}>
+        <SettingRow
+          name={field.label ?? field.key}
+          description={field.description ?? ""}
+          note={errors[field.key] ? errors[field.key] : saved[field.key] ? "Saved" : ""}
+          tone={errors[field.key] ? "bad" : "good"}
+        >
+          {#snippet control()}
+            {#if field.type === "boolean"}
+              <ToggleSwitch checked={values[field.key] as boolean} label={aria(field)} onchange={(on) => save(field, on)} />
+            {:else if field.type === "number"}
+              <input class="control sized" type="number" aria-label={aria(field)} min={field.min} max={field.max} step={field.step}
+                value={values[field.key] as number} onchange={(e) => save(field, Number(e.currentTarget.value))} />
+            {:else if field.type === "secret"}
+              <input class="control sized" type="password" aria-label={aria(field)} placeholder={field.placeholder ?? "Set new value"}
+                onchange={(e) => save(field, e.currentTarget.value)} />
+            {:else if field.type === "select"}
+              <select class="control sized" aria-label={aria(field)} value={values[field.key] as string} onchange={(e) => save(field, e.currentTarget.value)}>
+                {#each field.options ?? [] as opt (opt.value)}<option value={opt.value}>{opt.label}</option>{/each}
+              </select>
+            {:else if field.type === "list"}
+              <div class="list">
+                {#each (values[field.key] as unknown[]) ?? [] as item, i}
+                  <div class="listrow">
+                    <input class="control sized" type={field.itemType === "number" ? "number" : "text"} aria-label={`${aria(field)} ${i + 1}`}
+                      value={item as string | number} onchange={(e) => setListItem(field, i, e.currentTarget.value)} />
+                    <button class="rm" title="Remove" aria-label="Remove" onclick={() => removeListItem(field, i)}>×</button>
+                  </div>
+                {/each}
+                <button class="add" onclick={() => addListItem(field)}>+ Add</button>
+              </div>
+            {:else}
+              <textarea class="control sized" aria-label={aria(field)} rows="3" placeholder={field.placeholder}
+                value={values[field.key] as string} onchange={(e) => save(field, e.currentTarget.value)}></textarea>
+            {/if}
+          {/snippet}
+        </SettingRow>
       </div>
     {/each}
   </div>
 {/each}
 
-{#if actions.length > 0}
-  <div class="actions">
-    {#each actions as action (action.id)}
-      <div class="action">
-        <div class="labels">
-          <span class="label">{action.label}</span>
-          {#if action.description}<span class="desc">{action.description}</span>{/if}
-        </div>
+{#each actions as action (action.id)}
+  <div class="action">
+    <SettingRow
+      name={action.label}
+      description={action.description ?? ""}
+      note={actionErr[action.id] ?? ""}
+      tone="bad"
+    >
+      {#snippet control()}
         {#if confirming === action.id}
           <div class="confirm">
             <span>{action.confirm}</span>
@@ -214,151 +232,79 @@
             {action.label}
           </Button>
         {/if}
-        {#if actionErr[action.id]}<span class="fielderror">{actionErr[action.id]}</span>
-        {:else if actionOut[action.id]}<pre class="actionout">{actionOut[action.id]}</pre>{/if}
-      </div>
-    {/each}
+      {/snippet}
+    </SettingRow>
+    {#if !actionErr[action.id] && actionOut[action.id]}<pre class="actionout">{actionOut[action.id]}</pre>{/if}
   </div>
-{/if}
+{/each}
 
 <style>
   .group {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 4px 0;
   }
   .grouphead {
-    margin: 8px 0 0;
-    font-size: 10.5px;
+    margin: var(--space-lg) var(--space-2xl) 0;
+    font-size: var(--fs-micro);
     letter-spacing: .06em;
     text-transform: uppercase;
     color: var(--faint);
     font-weight: 600;
   }
-  .field {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 14px;
-  }
-  .labels {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    flex: 1;
-  }
-  .label {
-    font-size: 12.5px;
-    font-weight: 600;
-    letter-spacing: -.01em;
-  }
-  .desc {
-    font-size: 11.5px;
-    color: var(--muted);
-  }
-  .widget {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 4px;
-    flex: none;
-  }
-  input[type="text"],
-  input[type="number"],
-  input[type="password"],
-  select,
-  textarea {
-    font-family: var(--ui);
-    font-size: 12.5px;
-    padding: 6px 9px;
-    border-radius: 7px;
-    border: 1px solid var(--border-strong);
-    background: var(--surface);
-    color: var(--text);
-    width: 200px;
-  }
-  textarea {
-    font-family: var(--mono);
-    font-size: 11.5px;
-    resize: vertical;
+  /* One width for every control so a column of rows lines up, whatever each row holds. */
+  .sized {
+    width: var(--track-control);
   }
   .list {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--space-xs);
   }
   .listrow {
     display: flex;
-    gap: 6px;
+    gap: var(--space-xs);
     align-items: center;
   }
   .rm {
-    border: 1px solid var(--border-strong);
+    border: var(--hairline) solid var(--border-strong);
     background: var(--surface);
     color: var(--faint);
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     cursor: pointer;
-    width: 26px;
-    height: 26px;
+    width: var(--space-4xl);
+    height: var(--space-4xl);
     flex: none;
   }
   .add {
     align-self: flex-end;
-    border: 1px dashed var(--border-strong);
+    border: var(--hairline) dashed var(--border-strong);
     background: none;
     color: var(--muted);
-    border-radius: 7px;
-    padding: 5px 10px;
-    font-size: 11.5px;
+    border-radius: var(--radius-sm);
+    padding: var(--space-2xs) var(--space-md);
+    font-size: var(--fs-xs);
     cursor: pointer;
-  }
-  .actions {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-top: 8px;
-    border-top: 1px solid var(--border);
-    padding-top: 12px;
-  }
-  .action {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    flex-wrap: wrap;
   }
   .confirm {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 12px;
+    gap: var(--space-sm);
+    font-size: var(--fs-xs);
     color: var(--muted);
   }
   .actionout {
-    margin: 0;
+    margin: 0 var(--space-2xl) var(--space-lg);
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--faint);
     background: var(--surface-2);
-    border-radius: 7px;
-    padding: 6px 9px;
-    max-width: 100%;
+    border-radius: var(--radius-sm);
+    padding: var(--space-xs) var(--space-md);
     overflow: auto;
-    flex-basis: 100%;
-  }
-  .fielderror {
-    color: var(--crit);
-    font-size: 11px;
-  }
-  .fieldsaved {
-    color: var(--good);
-    font-size: 11px;
   }
   .empty {
     margin: 0;
     color: var(--faint);
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
   }
 </style>

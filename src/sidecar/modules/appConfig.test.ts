@@ -38,8 +38,43 @@ describe("appConfig sidecar module", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data).toEqual([{ plugin: "plugin-a", defaults: { logging: true }, current: {} }]);
+    expect(result.data).toEqual([
+      { plugin: "plugin-a", defaults: { logging: true }, current: {}, layout: { sections: [], fields: [], actions: [] } },
+    ]);
     expect(declarations).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves each declaration into its contributed sections and what no section claimed", async () => {
+    const { dir, home } = makeHome("claude", "Claude Code");
+    writeFileSync(join(dir, "plugin", "sync-bridge.js"), "// bundle placeholder", "utf8");
+    seedPlugins(dir, [{ name: "sync-bridge", url: "https://github.com/intisy-ai/sync-bridge", enabled: true }]);
+
+    const { configSchemas } = await import("./appConfig.js");
+    const result = await configSchemas("claude", {
+      homes: [home],
+      engineSchemas: async () => [],
+      declarations: async () =>
+        new Map([[
+          "sync-bridge",
+          {
+            defaults: { enabled: true, logging: true },
+            fields: [
+              { key: "enabled", type: "boolean" as const },
+              { key: "logging", type: "boolean" as const },
+            ],
+            actions: [{ id: "sync", label: "Sync now" }],
+            sections: [{ id: "sync", label: "Sync", fields: ["enabled"], actions: ["sync"] }],
+          },
+        ]]),
+    });
+
+    if (!result.ok) throw new Error("unreachable");
+    const { layout } = result.data[0];
+    expect(layout?.sections.map((s) => ({ id: s.id, plugin: s.plugin, keys: s.fields.map((f) => f.key), actions: s.actions.map((a) => a.id) }))).toEqual([
+      { id: "sync", plugin: "sync-bridge", keys: ["enabled"], actions: ["sync"] },
+    ]);
+    expect(layout?.fields.map((f) => f.key)).toEqual(["logging"]);
+    expect(layout?.actions).toEqual([]);
   });
 
   it("omits a plugin when the probe returns null", async () => {

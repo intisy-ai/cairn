@@ -1,14 +1,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { HomePlugins, PluginConfigSchema, SyncStatus, SyncCategories } from "@cairn/shared";
+  import type { HomePlugins, PluginConfigSchema, PluginSettingsSection } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { applyThemeSetting } from "../theme.js";
   import type { ThemeSetting } from "../theme.js";
   import Card from "../components/Card.svelte";
   import ToggleSwitch from "../components/ToggleSwitch.svelte";
-  import Button from "../components/Button.svelte";
-  import Spinner from "../components/Spinner.svelte";
   import PluginControls from "../components/PluginControls.svelte";
+  import ContributedSection from "../components/ContributedSection.svelte";
+  import SettingRow from "../components/SettingRow.svelte";
   import GlobalSettings from "../components/GlobalSettings.svelte";
   import AutoUpdateSettings from "../components/AutoUpdateSettings.svelte";
   import GitHubAccounts from "../components/GitHubAccounts.svelte";
@@ -106,48 +106,22 @@
     await cairn.setConfig("cairn", "pruneUnusedLibraries", on);
   }
 
-  const SYNC_CATEGORIES: { key: keyof SyncCategories; label: string; desc: string }[] = [
-    { key: "accounts", label: "Accounts", desc: "Mirror provider logins across apps (no login is ever lost)." },
-    { key: "plugins", label: "Plugins", desc: "Install a plugin in one app and it appears in the others." },
-    { key: "settings", label: "Global settings", desc: "Share config/settings.json across apps (secrets excluded)." },
-    { key: "pluginConfigs", label: "Plugin configs", desc: "Share each plugin's config across apps (secrets excluded)." },
-  ];
+  // Every section here is a plugin's own declaration, rendered generically. Cairn keeps no
+  // knowledge of which plugin contributes what.
+  let contributed = $state<PluginSettingsSection[]>([]);
+  const homeLabels = $derived(Object.fromEntries(sections.map((s) => [s.home.id, s.home.label])));
 
-  let sync = $state<SyncStatus | null>(null);
-  let syncRunning = $state(false);
-
-  async function loadSync(): Promise<void> {
-    const result = await cairn.syncStatus();
-    if (result.ok) sync = result.data;
-  }
-
-  async function handleSyncEnabled(on: boolean): Promise<void> {
-    if (sync) sync = { ...sync, enabled: on };
-    await cairn.syncSetConfig("enabled", on);
-  }
-
-  async function handleSyncCategory(key: keyof SyncCategories, on: boolean): Promise<void> {
-    if (!sync) return;
-    const categories = { ...sync.categories, [key]: on };
-    sync = { ...sync, categories };
-    await cairn.syncSetConfig("categories", categories);
-  }
-
-  async function handleSyncNow(): Promise<void> {
-    if (syncRunning) return;
-    syncRunning = true;
-    try {
-      await cairn.syncRun();
-      await loadSync();
-    } finally {
-      syncRunning = false;
-    }
+  async function loadContributed(): Promise<void> {
+    const cached = await cairn.settingsSections();
+    if (cached.ok) contributed = cached.data;
+    const fresh = await cairn.settingsSections({ wait: true });
+    if (fresh.ok) contributed = fresh.data;
   }
 
   onMount(() => {
     loadCairnSettings();
     loadAppGroups();
-    loadSync();
+    loadContributed();
   });
 </script>
 
@@ -161,21 +135,20 @@
 <section class="category">
   <h2>Appearance</h2>
   <Card>
-    <div class="row">
-      <div class="info">
-        <b>Theme</b>
-        <span class="desc">Follow the system, or force light or dark.</span>
-      </div>
-      <select
-        aria-label="Theme"
-        value={themeSetting}
-        onchange={(event) => handleThemeChange((event.currentTarget as HTMLSelectElement).value as ThemeSetting)}
-      >
-        <option value="system">System</option>
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
-      </select>
-    </div>
+    <SettingRow name="Theme" description="Follow the system, or force light or dark.">
+      {#snippet control()}
+        <select
+          class="control"
+          aria-label="Theme"
+          value={themeSetting}
+          onchange={(event) => handleThemeChange((event.currentTarget as HTMLSelectElement).value as ThemeSetting)}
+        >
+          <option value="system">System</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      {/snippet}
+    </SettingRow>
   </Card>
 </section>
 
@@ -189,52 +162,44 @@
 <section class="category">
   <h2>Marketplace</h2>
   <Card>
-    <div class="row">
-      <div class="info">
-        <b>Show deprecated plugins</b>
-        <span class="desc">List archived repos in the marketplace so they can be installed again.</span>
-      </div>
-      <ToggleSwitch checked={showDeprecated} label="Show deprecated plugins" onchange={handleShowDeprecatedChange} />
-    </div>
+    <SettingRow name="Show deprecated plugins" description="List archived repos in the marketplace so they can be installed again.">
+      {#snippet control()}
+        <ToggleSwitch checked={showDeprecated} label="Show deprecated plugins" onchange={handleShowDeprecatedChange} />
+      {/snippet}
+    </SettingRow>
   </Card>
 </section>
 
 <section class="category">
   <h2>Plugins</h2>
   <Card>
-    <div class="row">
-      <div class="info">
-        <b>Auto-update new installs</b>
-        <span class="desc">Newly installed plugins start with auto-update enabled.</span>
-      </div>
-      <ToggleSwitch checked={autoUpdateDefault} label="Auto-update new installs" onchange={handleAutoUpdateChange} />
-    </div>
+    <SettingRow name="Auto-update new installs" description="Newly installed plugins start with auto-update enabled.">
+      {#snippet control()}
+        <ToggleSwitch checked={autoUpdateDefault} label="Auto-update new installs" onchange={handleAutoUpdateChange} />
+      {/snippet}
+    </SettingRow>
   </Card>
 </section>
 
 <section class="category">
   <h2>Local API</h2>
   <Card>
-    <div class="row">
-      <div class="info">
-        <b>Start the local API on launch</b>
-        <span class="desc">Autostart the proxy daemon when Cairn opens.</span>
-      </div>
-      <ToggleSwitch checked={proxyAutostart} label="Start the local API on launch" onchange={handleProxyAutostartChange} />
-    </div>
+    <SettingRow name="Start the local API on launch" description="Autostart the proxy daemon when Cairn opens.">
+      {#snippet control()}
+        <ToggleSwitch checked={proxyAutostart} label="Start the local API on launch" onchange={handleProxyAutostartChange} />
+      {/snippet}
+    </SettingRow>
   </Card>
 </section>
 
 <section class="category">
   <h2>Libraries</h2>
   <Card>
-    <div class="row">
-      <div class="info">
-        <b>Remove unused libraries</b>
-        <span class="desc">When the last plugin using a library is uninstalled, remove the library too.</span>
-      </div>
-      <ToggleSwitch checked={pruneLibraries} label="Remove unused libraries" onchange={handlePruneLibrariesChange} />
-    </div>
+    <SettingRow name="Remove unused libraries" description="When the last plugin using a library is uninstalled, remove the library too.">
+      {#snippet control()}
+        <ToggleSwitch checked={pruneLibraries} label="Remove unused libraries" onchange={handlePruneLibrariesChange} />
+      {/snippet}
+    </SettingRow>
   </Card>
 </section>
 
@@ -243,44 +208,9 @@
   <GlobalSettings />
 </section>
 
-<section class="category">
-  <h2>Sync</h2>
-  <Card>
-    <div class="row">
-      <div class="info">
-        <b>Sync across apps</b>
-        <span class="desc">Keep accounts, plugins, and settings mirrored across every app. Secrets are never shared.</span>
-      </div>
-      <ToggleSwitch checked={sync?.enabled ?? true} label="Sync across apps" onchange={handleSyncEnabled} />
-    </div>
-    {#each SYNC_CATEGORIES as cat (cat.key)}
-      <div class="row">
-        <div class="info">
-          <b>{cat.label}</b>
-          <span class="desc">{cat.desc}</span>
-        </div>
-        <ToggleSwitch
-          checked={sync?.categories?.[cat.key] ?? true}
-          label={cat.label}
-          disabled={sync?.enabled === false}
-          onchange={(on) => handleSyncCategory(cat.key, on)}
-        />
-      </div>
-    {/each}
-    <div class="row">
-      <div class="info">
-        <b>Sync now</b>
-        <span class="desc">
-          {#if sync && sync.homes.length > 0}Reconciles {sync.homes.length} app home{sync.homes.length === 1 ? "" : "s"} immediately.{:else}Runs a reconcile across your app homes.{/if}
-        </span>
-      </div>
-      <Button disabled={syncRunning || sync?.enabled === false} onclick={handleSyncNow}>
-        {#if syncRunning}<Spinner />{/if}
-        Sync now
-      </Button>
-    </div>
-  </Card>
-</section>
+{#each contributed as section (section.plugin + ":" + section.id)}
+  <ContributedSection {section} {homeLabels} />
+{/each}
 
 <section class="category">
   <h2>Per-app configuration</h2>
@@ -319,81 +249,49 @@
 
 <style>
   .updates {
-    padding-bottom: 10px;
-    margin-bottom: 6px;
-    border-bottom: 1px solid var(--border);
+    padding-bottom: var(--space-md);
+    margin-bottom: var(--space-xs);
+    border-bottom: var(--hairline) solid var(--border);
   }
   .head {
     display: flex;
     align-items: flex-start;
-    gap: 16px;
-    margin-bottom: 20px;
+    gap: var(--space-2xl);
+    margin-bottom: var(--space-3xl);
   }
   .head h1 {
     margin: 0;
-    font-size: 20px;
+    font-size: var(--fs-xl);
     letter-spacing: -.02em;
     font-weight: 650;
   }
   .head p {
-    margin: 3px 0 0;
+    margin: var(--space-3xs) 0 0;
     color: var(--muted);
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
   }
   .category {
-    margin-bottom: 22px;
+    margin-bottom: var(--space-3xl);
   }
   .category h2 {
-    margin: 0 2px 10px;
-    font-size: 13px;
+    margin: 0 var(--space-3xs) var(--space-md);
+    font-size: var(--fs-md);
     font-weight: 650;
     letter-spacing: -.01em;
   }
-  .row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 14px 18px;
-  }
-  .info {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    min-width: 0;
-  }
-  .info b {
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: -.01em;
-  }
-  .desc {
-    color: var(--muted);
-    font-size: 12px;
-  }
-  select {
-    font-family: var(--ui);
-    font-size: 12.5px;
-    font-weight: 600;
-    padding: 7px 10px;
-    border-radius: 8px;
-    border: 1px solid var(--border-strong);
-    background: var(--surface);
-    color: var(--text);
-  }
   .apphome {
-    margin-bottom: 14px;
+    margin-bottom: var(--space-xl);
   }
   .plugin {
-    border-top: 1px solid var(--border);
+    border-top: var(--hairline) solid var(--border);
   }
   .plugin:first-child {
     border-top: 0;
   }
   .plugin summary {
     cursor: pointer;
-    padding: 12px 18px;
-    font-size: 12.5px;
+    padding: var(--space-lg) var(--space-2xl);
+    font-size: var(--fs-sm);
     font-weight: 600;
     list-style: none;
   }
@@ -401,19 +299,16 @@
     display: none;
   }
   .fields {
-    padding: 0 18px 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+    padding-bottom: var(--space-xs);
   }
   .empty {
     margin: 0;
-    padding: 16px 18px;
+    padding: var(--space-2xl);
     color: var(--faint);
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
   }
   .error {
     color: var(--crit);
-    font-size: 13px;
+    font-size: var(--fs-md);
   }
 </style>

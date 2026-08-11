@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
-import { setConfigValue, isBootstrapPlugin } from "@core/index.js";
+import { setConfigValue, isBootstrapPlugin, resolveLayout } from "@core/index.js";
 import type { PluginConfigSchema, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir, homeById } from "../lib/pluginHomes.js";
 import { safeGetPlugins, loadPluginUpdaterConfig, loadPluginUpdaterIndex } from "../lib/optionalEngines.js";
@@ -19,7 +19,7 @@ function realProbe(bundlePath: string): Promise<PluginConfigSchema | null> {
     execFile("node", [bundlePath, "config", "schema"], { timeout: 10000 }, (error, stdout) => {
       if (error) { resolve(null); return; }
       try {
-        const data = JSON.parse(stdout.trim()) as { name?: unknown; defaults?: unknown; current?: unknown; fields?: unknown; actions?: unknown };
+        const data = JSON.parse(stdout.trim()) as { name?: unknown; defaults?: unknown; current?: unknown; fields?: unknown; actions?: unknown; sections?: unknown };
         if (typeof data.name !== "string") { resolve(null); return; }
         const schema: PluginConfigSchema = {
           plugin: data.name,
@@ -28,6 +28,7 @@ function realProbe(bundlePath: string): Promise<PluginConfigSchema | null> {
         };
         if (Array.isArray(data.fields)) schema.fields = data.fields as PluginConfigSchema["fields"];
         if (Array.isArray(data.actions)) schema.actions = data.actions as PluginConfigSchema["actions"];
+        if (Array.isArray(data.sections)) schema.sections = data.sections as PluginConfigSchema["sections"];
         resolve(schema);
       } catch {
         resolve(null);
@@ -79,7 +80,9 @@ export function configSchemas(homeId: string, deps: ConfigSchemasDeps = {}): Pro
     for (const schema of await engineSchemas(home)) {
       if (!probed.has(schema.plugin)) schemas.push(schema);
     }
-    return schemas;
+    // Split every declaration here, once, so the renderer receives sections and leftovers
+    // already separated rather than reimplementing core's rule in the browser.
+    return schemas.map((schema) => ({ ...schema, layout: resolveLayout(schema.plugin, schema) }));
   });
 }
 
