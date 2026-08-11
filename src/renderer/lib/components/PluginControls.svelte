@@ -6,14 +6,15 @@
   import Spinner from "./Spinner.svelte";
   import SettingRow from "./SettingRow.svelte";
 
-  // With no sectionId this renders whatever no contributed section claimed, which for a
-  // plugin declaring no sections is its whole declaration. With one, it renders exactly
-  // that section's controls.
+  // By default this renders the plugin's whole declaration. `sectionId` narrows it to one
+  // contributed section; `hideContributed` drops what such a section already renders, which
+  // a screen showing both needs so a control never appears twice.
   //
   // Values are read from, and actions run in, `homeId`. `writeHomes` exists for a setting
   // a plugin declared as spanning homes: the write lands in each of them, so the homes do
   // not drift apart behind one control.
-  let { homeId, schema, sectionId, writeHomes }: { homeId: string; schema: PluginConfigSchema; sectionId?: string; writeHomes?: string[] } = $props();
+  let { homeId, schema, sectionId, hideContributed = false, writeHomes }:
+    { homeId: string; schema: PluginConfigSchema; sectionId?: string; hideContributed?: boolean; writeHomes?: string[] } = $props();
 
   const section = $derived(sectionId ? (schema.layout?.sections ?? []).find((s) => s.id === sectionId) ?? null : null);
 
@@ -29,13 +30,12 @@
     });
   }
 
-  // A plugin that declared nothing is inferred from its values, exactly as before. One that
-  // declared fields shows the leftovers, so a control claimed by a contributed section is
-  // not repeated here.
-  const fields = $derived(
-    section ? section.fields : !schema.fields?.length ? inferredFields() : (schema.layout?.fields ?? schema.fields),
+  // A plugin that declared nothing is inferred from its values, exactly as before.
+  const declared = $derived(schema.fields?.length ? schema.fields : inferredFields());
+  const fields = $derived(section ? section.fields : hideContributed ? (schema.layout?.fields ?? declared) : declared);
+  const actions = $derived<ActionSpec[]>(
+    section ? section.actions : hideContributed ? (schema.layout?.actions ?? schema.actions ?? []) : (schema.actions ?? []),
   );
-  const actions = $derived<ActionSpec[]>(section ? section.actions : (schema.layout?.actions ?? schema.actions ?? []));
 
   const groups = $derived.by(() => {
     const order: string[] = [];

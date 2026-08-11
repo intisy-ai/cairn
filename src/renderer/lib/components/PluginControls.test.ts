@@ -5,6 +5,43 @@ import { stubCairn } from "../testing.js";
 import type { PluginConfigSchema } from "@cairn/shared";
 import PluginControls from "./PluginControls.svelte";
 
+// A plugin's own page shows everything it declared; a screen that also renders the
+// contributed section asks for the remainder so no control appears twice.
+describe("PluginControls and contributed sections", () => {
+  const SCHEMA: PluginConfigSchema = {
+    plugin: "p",
+    defaults: { claimed: true, spare: true },
+    current: {},
+    fields: [{ key: "claimed", type: "boolean", label: "Claimed" }, { key: "spare", type: "boolean", label: "Spare" }],
+    actions: [{ id: "go", label: "Go" }],
+    layout: {
+      sections: [{ id: "s", label: "S", plugin: "p", fields: [{ key: "claimed", type: "boolean", label: "Claimed" }], actions: [{ id: "go", label: "Go" }] }],
+      fields: [{ key: "spare", type: "boolean", label: "Spare" }],
+      actions: [],
+    },
+  };
+
+  it("renders the whole declaration by default", async () => {
+    render(PluginControls, { homeId: "claude", schema: SCHEMA });
+    expect(await screen.findByRole("switch", { name: "p Claimed" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "p Spare" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Go" })).toBeInTheDocument();
+  });
+
+  it("renders only one section when asked for it by id", async () => {
+    render(PluginControls, { homeId: "claude", schema: SCHEMA, sectionId: "s" });
+    expect(await screen.findByRole("switch", { name: "p Claimed" })).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "p Spare" })).toBeNull();
+  });
+
+  it("drops what a section claimed when the screen already renders that section", async () => {
+    render(PluginControls, { homeId: "claude", schema: SCHEMA, hideContributed: true });
+    expect(await screen.findByRole("switch", { name: "p Spare" })).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "p Claimed" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Go" })).toBeNull();
+  });
+});
+
 describe("PluginControls", () => {
   it("renders a declared select and writes the coerced value", async () => {
     const writes: unknown[][] = [];

@@ -231,7 +231,7 @@
               <details class="plugin">
                 <summary>{schema.plugin}</summary>
                 <div class="fields">
-                  <PluginControls homeId={group.home.id} {schema} />
+                  <PluginControls homeId={group.home.id} {schema} hideContributed />
                 </div>
               </details>
             {/each}
