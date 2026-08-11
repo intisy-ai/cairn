@@ -37,6 +37,7 @@ export const SECTIONS: Section[] = [
   screen("accounts", "Accounts"),
   screen("activity", "Activity"),
   screen("libraries", "Libraries"),
+  screen("settings", "Settings"),
   overlay("activity", "Activity detail", "activity-detail"),
   overlay("marketplaces", "Marketplaces", "marketplaces"),
   overlay("endpoints", "Custom endpoints", "custom-endpoints", 520),

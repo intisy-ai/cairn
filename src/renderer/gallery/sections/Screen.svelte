@@ -5,10 +5,11 @@
   import Apps from "../../lib/routes/Apps.svelte";
   import Plugins from "../../lib/routes/Plugins.svelte";
   import Providers from "../../lib/routes/Providers.svelte";
+  import Settings from "../../lib/routes/Settings.svelte";
 
-  let { which }: { which: "plugins" | "apps" | "providers" | "accounts" | "activity" | "libraries" } = $props();
+  let { which }: { which: "plugins" | "apps" | "providers" | "accounts" | "activity" | "libraries" | "settings" } = $props();
 
-  const ROUTES = { plugins: Plugins, apps: Apps, providers: Providers, accounts: Accounts, activity: Activity, libraries: Libraries };
+  const ROUTES = { plugins: Plugins, apps: Apps, providers: Providers, accounts: Accounts, activity: Activity, libraries: Libraries, settings: Settings };
   const Route = $derived(ROUTES[which]);
 </script>
 

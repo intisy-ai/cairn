@@ -5,6 +5,7 @@
   import { cairn } from "../ipc.js";
   import Card from "./Card.svelte";
   import ToggleSwitch from "./ToggleSwitch.svelte";
+  import SettingRow from "./SettingRow.svelte";
 
   let fields = $state<FieldSpec[]>([]);
   let values = $state<Record<string, unknown>>({});
@@ -56,32 +57,28 @@
 </script>
 
 <Card>
-  <h2>Shared settings</h2>
-  <p class="desc">
-    Stored in this home's <code>config/settings.json</code> and read by every plugin. A change applies to newly
-    started processes; anything already running keeps the value it read.
-  </p>
-
-  {#if loadError}
-    <p class="error">Could not load settings: {loadError}</p>
-  {/if}
+  <div class="intro">
+    <h2>Shared settings</h2>
+    <p class="desc">
+      Stored in this home's <code>config/settings.json</code> and read by every plugin. A change applies to newly
+      started processes; anything already running keeps the value it read.
+    </p>
+    {#if loadError}
+      <p class="error">Could not load settings: {loadError}</p>
+    {/if}
+  </div>
 
   {#each groups as group (group.name)}
-    <section>
-      <h3>{group.name}</h3>
-      {#each group.items as field (field.key)}
-        <div class="row">
+    <p class="grouphead">{group.name}</p>
+    {#each group.items as field (field.key)}
+      <SettingRow name={labelFor(field)} description={field.description ?? ""} controlId={field.type === "boolean" ? "" : "gs-" + field.key}>
+        {#snippet control()}
           {#if field.type === "boolean"}
-            <ToggleSwitch
-              label={labelFor(field)}
-              checked={values[field.key] === true}
-              onchange={(on: boolean) => write(field.key, on)}
-            />
-            <span class="name">{labelFor(field)}</span>
+            <ToggleSwitch label={labelFor(field)} checked={values[field.key] === true} onchange={(on: boolean) => write(field.key, on)} />
           {:else if field.type === "select"}
-            <label for={"gs-" + field.key}>{labelFor(field)}</label>
             <select
               id={"gs-" + field.key}
+              class="control sized"
               value={String(values[field.key] ?? "")}
               onchange={(e) => write(field.key, (e.currentTarget as HTMLSelectElement).value)}
             >
@@ -90,9 +87,9 @@
               {/each}
             </select>
           {:else if field.type === "number"}
-            <label for={"gs-" + field.key}>{labelFor(field)}</label>
             <input
               id={"gs-" + field.key}
+              class="control sized"
               type="number"
               min={field.min}
               max={field.max}
@@ -101,24 +98,21 @@
               onchange={(e) => write(field.key, Number((e.currentTarget as HTMLInputElement).value))}
             />
           {:else}
-            <label for={"gs-" + field.key}>{labelFor(field)}</label>
             <input
               id={"gs-" + field.key}
+              class="control sized"
               type="text"
               value={String(values[field.key] ?? "")}
               onchange={(e) => write(field.key, (e.currentTarget as HTMLInputElement).value)}
             />
           {/if}
-          {#if field.description}
-            <span class="hint">{field.description}</span>
-          {/if}
-        </div>
-      {/each}
-    </section>
+        {/snippet}
+      </SettingRow>
+    {/each}
   {/each}
 
   {#if stats}
-    <p class="hint stats">
+    <p class="stats">
       Activity log: {formatBytes(stats.bytes)} across {stats.segments} segments{stats.oldestTs
         ? `, oldest event ${new Date(stats.oldestTs).toLocaleDateString()}`
         : ""}. Limits apply when the log rotates (about every 1 MB), so a quiet home keeps its history until then.
@@ -127,42 +121,38 @@
 </Card>
 
 <style>
-  h2 {
-    margin: 0 0 4px;
-    font-size: 15px;
-    font-weight: 650;
+  .intro {
+    padding: var(--space-xl) var(--space-2xl) var(--space-xs);
   }
-  h3 {
-    margin: 14px 0 6px;
-    font-size: 12.5px;
-    color: var(--muted);
+  h2 {
+    margin: 0 0 var(--space-2xs);
+    font-size: var(--fs-md);
+    font-weight: 650;
+    letter-spacing: -.01em;
+  }
+  .grouphead {
+    margin: var(--space-lg) var(--space-2xl) 0;
+    font-size: var(--fs-micro);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--faint);
     font-weight: 600;
   }
+  .sized {
+    width: var(--track-control);
+  }
   .desc,
-  .hint {
+  .stats {
+    margin: 0;
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--fs-xs);
   }
   .stats {
-    margin-top: 14px;
-  }
-  .row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    padding: 5px 0;
-  }
-  .row label,
-  .row .name {
-    font-size: 12.5px;
-    min-width: 170px;
-  }
-  .hint {
-    flex: 1 1 220px;
+    padding: var(--space-lg) var(--space-2xl) var(--space-xl);
   }
   .error {
+    margin: var(--space-sm) 0 0;
     color: var(--crit);
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
   }
 </style>

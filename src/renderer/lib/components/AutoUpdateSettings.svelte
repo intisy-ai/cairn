@@ -2,6 +2,7 @@
   import type { PluginConfigSchema } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import ToggleSwitch from "./ToggleSwitch.svelte";
+  import SettingRow from "./SettingRow.svelte";
 
   // The schema is handed in by whoever already resolved this home's plugin settings, so
   // showing these controls costs no extra probing of the home's bundles.
@@ -61,31 +62,31 @@
 </script>
 
 <div class="auto">
-  <div class="row">
-    <label for={"mode-" + homeId}>Automatic updates</label>
-    <select id={"mode-" + homeId} value={mode} onchange={(e) => setMode((e.currentTarget as HTMLSelectElement).value)}>
-      {#each MODES as option (option)}
-        <option value={option}>{option}</option>
-      {/each}
-    </select>
-    <span class="hint">
-      A check always runs on an enabled trigger below, so update badges stay accurate. Only installing is gated:
-      off and check never install, update does.
-    </span>
-  </div>
+  <SettingRow
+    name="Automatic updates"
+    description="A check always runs on an enabled trigger below, so update badges stay accurate. Only installing is gated: off and check never install, update does."
+    controlId={"mode-" + homeId}
+  >
+    {#snippet control()}
+      <select id={"mode-" + homeId} class="control" value={mode} onchange={(e) => setMode((e.currentTarget as HTMLSelectElement).value)}>
+        {#each MODES as option (option)}
+          <option value={option}>{option}</option>
+        {/each}
+      </select>
+    {/snippet}
+  </SettingRow>
 
-  <div class="triggers">
-    {#each TRIGGER_LABELS as trigger (trigger.key)}
-      <div class="row">
+  {#each TRIGGER_LABELS as trigger (trigger.key)}
+    <SettingRow name={"Check " + trigger.label}>
+      {#snippet control()}
         <ToggleSwitch
           label={"Check " + trigger.label}
           checked={triggers[trigger.key]}
           onchange={(on: boolean) => setTrigger(trigger.key, on)}
         />
-        <span class="name">Check {trigger.label}</span>
-      </div>
-    {/each}
-  </div>
+      {/snippet}
+    </SettingRow>
+  {/each}
 
   {#if loadError}
     <p class="error">Could not read or write this app's update settings: {loadError}</p>
@@ -96,43 +97,11 @@
   .auto {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-  }
-  .row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    padding: 4px 0;
-  }
-  label,
-  .name {
-    font-size: 12.5px;
-    min-width: 150px;
-  }
-  .name {
-    min-width: 0;
-  }
-  select {
-    font-family: var(--ui);
-    font-size: 12px;
-    color: var(--text);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 4px 8px;
-  }
-  .hint {
-    flex: 1 1 240px;
-    color: var(--muted);
-    font-size: 11.5px;
-  }
-  .triggers {
-    padding-left: 2px;
   }
   .error {
-    margin: 4px 0 0;
+    margin: 0;
+    padding: 0 var(--space-2xl) var(--space-lg);
     color: var(--crit);
-    font-size: 12px;
+    font-size: var(--fs-xs);
   }
 </style>

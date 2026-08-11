@@ -1,4 +1,4 @@
-﻿import type { AccountQuota, AccountView, ActivityRecord, CairnAPI, HomePlugins, HostApp, PluginHome, ProviderRow } from "@cairn/shared";
+﻿import type { AccountQuota, AccountView, ActivityRecord, CairnAPI, HomePlugins, HostApp, PluginConfigSchema, PluginHome, ProviderRow } from "@cairn/shared";
 
 export const HOST_APPS: HostApp[] = [
   { id: "alpha", label: "Alpha" },
@@ -112,6 +112,36 @@ export const ACTIVITY: ActivityRecord[] = [
   },
 ];
 
+// One plugin-contributed settings section plus the declaration behind it, so the Settings
+// screen shows the generic contribution path rather than an empty frame.
+const CONTRIBUTED_SECTION = { plugin: "a-plugin", id: "feature", label: "Feature", description: "What this plugin adds to the app.", order: 40, homes: ["alpha", "beta"] };
+
+const CONTRIBUTED_SCHEMA: PluginConfigSchema = {
+  plugin: "a-plugin",
+  defaults: { on: true, mirror: false, spare: true },
+  current: {},
+  fields: [
+    { key: "on", type: "boolean", label: "Enabled", description: "Master switch for the feature." },
+    { key: "mirror", type: "boolean", label: "Mirror across apps", description: "Keep both apps in step." },
+    { key: "spare", type: "boolean", label: "Spare setting" },
+  ],
+  actions: [{ id: "run", label: "Run now", description: "Do the thing immediately." }],
+  layout: {
+    sections: [{
+      id: "feature",
+      label: "Feature",
+      plugin: "a-plugin",
+      fields: [
+        { key: "on", type: "boolean", label: "Enabled", description: "Master switch for the feature." },
+        { key: "mirror", type: "boolean", label: "Mirror across apps", description: "Keep both apps in step." },
+      ],
+      actions: [{ id: "run", label: "Run now", description: "Do the thing immediately." }],
+    }],
+    fields: [{ key: "spare", type: "boolean", label: "Spare setting" }],
+    actions: [],
+  },
+};
+
 // Enough of the API for the real screens to render populated in the gallery.
 export function screenFixtures(): Partial<CairnAPI> {
   return {
@@ -143,6 +173,26 @@ export function screenFixtures(): Partial<CairnAPI> {
     pluginsList: async () => ({ ok: true, data: SECTIONS }),
     pluginsListCached: async () => ({ ok: true, data: SECTIONS }),
     catalogList: async () => ({ ok: true, data: { entries: CATALOG, source: "anonymous", org: "intisy-ai", rateLimited: false, sources: CATALOG_SOURCES, contributions: CONTRIBUTIONS } }),
+    // The Settings screen applies the stored theme on mount; without this it would answer
+    // "system" and repaint the gallery in whatever the host prefers, ruining the light shot.
+    getConfig: async (name: string, key: string) => ({
+      ok: true,
+      data: name === "cairn" && key === "theme" ? document.documentElement.dataset.theme ?? "system" : undefined,
+    }),
+    settingsSections: async () => ({ ok: true, data: [CONTRIBUTED_SECTION] }),
+    configSchemas: async () => ({ ok: true, data: [CONTRIBUTED_SCHEMA] }),
+    globalSettingsRead: async () => ({
+      ok: true,
+      data: {
+        defaults: { logConsole: false, activityMinImpact: "info", activityMaxDays: 30 },
+        current: {},
+        fields: [
+          { key: "logConsole", type: "boolean", label: "Mirror logs to the console" },
+          { key: "activityMinImpact", type: "select", label: "Record activity from", options: [{ value: "info", label: "info" }, { value: "error", label: "error" }] },
+          { key: "activityMaxDays", type: "number", label: "Keep at most (days)", min: 0 },
+        ],
+      },
+    }),
   };
 }
 

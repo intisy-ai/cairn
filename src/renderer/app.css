@@ -57,6 +57,7 @@
 
   --track-card: 240px;
   --track-stat: 170px;
+  --track-control: 200px;
 
   --hairline: 1px;
   --ring: 0 0 0 3px var(--accent-weak);
@@ -167,6 +168,37 @@ body {
   color: var(--faint);
   font-weight: 600;
   margin: 0;
+}
+
+/* Every editable control in the app wears this, so a settings screen never shows a browser
+   default next to a styled one. Scoped component styles can still size a control; they must
+   not restate its skin. */
+.control {
+  font-family: var(--ui);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: var(--surface);
+  border: var(--hairline) solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-md);
+}
+.control:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+.control:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+select.control {
+  font-weight: 600;
+  cursor: pointer;
+}
+textarea.control {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  resize: vertical;
 }
 
 .num {
