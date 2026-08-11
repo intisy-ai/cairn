@@ -102,7 +102,7 @@ describe("PluginDetail channel control", () => {
   });
 
   it("writes an explicit stable channel when switched off, never inherit", async () => {
-    const onSetChannel = vi.fn();
+    const onSetChannel = vi.fn(async () => true);
     stubCairn({
       pluginVersions: async () => ({
         ok: true,
@@ -119,7 +119,7 @@ describe("PluginDetail channel control", () => {
   });
 
   it("writes an explicit experimental channel when switched on", async () => {
-    const onSetChannel = vi.fn();
+    const onSetChannel = vi.fn(async () => true);
     stubCairn({
       pluginVersions: async () => ({
         ok: true,
@@ -133,5 +133,44 @@ describe("PluginDetail channel control", () => {
     await fireEvent.click(await findByLabelText(/experimental/i));
 
     expect(onSetChannel).toHaveBeenCalledWith("claude", "experimental");
+  });
+
+  it("stays switched on once the write reports success", async () => {
+    const onSetChannel = vi.fn(async () => true);
+    stubCairn({
+      pluginVersions: async () => ({
+        ok: true,
+        data: {
+          claude: { kind: "git", label: "v1", updateState: "current", autoUpdate: true, onExperimental: false, experimentalAvailable: true },
+        },
+      }),
+    });
+
+    const { findByLabelText } = await openAvailability({ onSetChannel });
+    const control = await findByLabelText(/experimental/i);
+    await fireEvent.click(control);
+
+    await waitFor(() => expect(control.getAttribute("aria-checked")).toBe("true"));
+  });
+
+  // This is the case the optimistic flip must undo: without a revert, a failed write left the
+  // switch showing a channel the disk was never moved to.
+  it("reverts to its original position when the write fails", async () => {
+    const onSetChannel = vi.fn(async () => false);
+    stubCairn({
+      pluginVersions: async () => ({
+        ok: true,
+        data: {
+          claude: { kind: "git", label: "v1", updateState: "current", autoUpdate: true, onExperimental: false, experimentalAvailable: true },
+        },
+      }),
+    });
+
+    const { findByLabelText } = await openAvailability({ onSetChannel });
+    const control = await findByLabelText(/experimental/i);
+    await fireEvent.click(control);
+
+    await waitFor(() => expect(onSetChannel).toHaveBeenCalledWith("claude", "experimental"));
+    await waitFor(() => expect(control.getAttribute("aria-checked")).toBe("false"));
   });
 });

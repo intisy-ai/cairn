@@ -444,16 +444,17 @@
     await reload();
   }
   // The toggle is only true once the clone matches it, so the switch runs the update that
-  // makes it so.
-  async function setChannel(p: UnifiedPlugin, homeId: string, channel: "experimental" | "stable"): Promise<void> {
+  // makes it so. Returns whether the write succeeded, so the switch can revert itself on failure.
+  async function setChannel(p: UnifiedPlugin, homeId: string, channel: "experimental" | "stable"): Promise<boolean> {
     const result = await cairn.pluginsSetChannel(homeId, p.name, channel);
     if (!result.ok) {
       toast.error(result.error);
-      return;
+      return false;
     }
     const queued = await enqueueJob("update", p.name, p.url ?? "", homeId);
     if (queued.ok) await jobSettled(queued.data.id);
     await reload();
+    return true;
   }
   // Through the same queue as an install, so a removal shows its progress, can be cancelled,
   // and lands in the download history instead of happening invisibly.

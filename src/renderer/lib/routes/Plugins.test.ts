@@ -518,6 +518,42 @@ describe("Plugins screen", () => {
     await waitFor(() => expect(pluginsSetAutoUpdate).toHaveBeenCalledWith("claude", "wakatime-sync", false));
   });
 
+  // A rejected channel write must stop before the update job, or the clone would end up
+  // running the branch the write just failed to set.
+  it("does not enqueue an update when the channel write fails", async () => {
+    const pluginsSetChannel = vi.fn(async () => ({ ok: false, error: "boom" }) as const);
+    const jobsEnqueue = enqueueSpy();
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      pluginVersions: async () => ({
+        ok: true,
+        data: {
+          claude: {
+            kind: "git",
+            label: "v1.0.0",
+            updateState: "current",
+            autoUpdate: true,
+            onExperimental: false,
+            experimentalAvailable: true,
+          },
+        },
+      }),
+      pluginsSetChannel,
+      jobsEnqueue,
+    });
+    render(Plugins);
+
+    const row = within(await screen.findByTestId("plugin-wakatime-sync"));
+    await fireEvent.click(row.getByTitle("View wakatime-sync"));
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("button", { name: "Availability" }));
+
+    await fireEvent.click(dialog.getByRole("switch", { name: "Experimental build Claude Code" }));
+    await waitFor(() => expect(pluginsSetChannel).toHaveBeenCalledWith("claude", "wakatime-sync", "experimental"));
+    expect(jobsEnqueue).not.toHaveBeenCalled();
+  });
+
   it("confirms before removing a plugin everywhere", async () => {
     const pluginsRemoveEverywhere = vi.fn(async () => ({ ok: true, data: { outcomes: [] } }) as const);
     stubCairn({

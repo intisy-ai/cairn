@@ -40,7 +40,7 @@
     onToggleHome: (homeId: string, on: boolean) => void;
     onToggleFavorite?: () => void;
     onChanged?: () => void;
-    onSetChannel?: (homeId: string, channel: "experimental" | "stable") => void;
+    onSetChannel?: (homeId: string, channel: "experimental" | "stable") => Promise<boolean>;
   } = $props();
 
   const repo = $derived({
@@ -106,8 +106,19 @@
   // home's global flag exactly where it was.
   async function setChannel(homeId: string, on: boolean): Promise<void> {
     const current = versions[homeId];
+    const previous = current?.onExperimental;
     if (current) versions = { ...versions, [homeId]: { ...current, onExperimental: on } };
-    onSetChannel?.(homeId, on ? "experimental" : "stable");
+    let succeeded = false;
+    try {
+      succeeded = (await onSetChannel?.(homeId, on ? "experimental" : "stable")) ?? false;
+    } catch {
+      succeeded = false;
+    }
+    // A failed write must not leave the switch showing a channel the disk never moved to.
+    if (!succeeded && current) {
+      const latest = versions[homeId];
+      if (latest) versions = { ...versions, [homeId]: { ...latest, onExperimental: previous! } };
+    }
   }
 
   onMount(loadVersions);
