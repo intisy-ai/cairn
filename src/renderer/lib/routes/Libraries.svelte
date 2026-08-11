@@ -6,6 +6,8 @@
   import { debounce } from "../util/debounce.js";
   import { buildUnifiedLibraries, isOrphan, orphanHomeIds } from "../util/unifiedLibraries.js";
   import { navigate } from "../router.js";
+  import { track } from "../downloads.js";
+  import Dialog from "../components/Dialog.svelte";
   import PageHeader from "../components/PageHeader.svelte";
   import SearchField from "../components/SearchField.svelte";
   import StatCard from "../components/StatCard.svelte";
@@ -30,6 +32,9 @@
   let search = $state("");
   let unusedOnly = $state(false);
   let pendingConfirm = $state<{ title: string; message: string; confirmLabel: string; run: () => Promise<void> } | null>(null);
+  // A row is a fixed height (the list windows itself past a threshold), so only the first few
+  // users fit; the rest are one click away rather than spilling over the row below.
+  let showingUsers = $state<UnifiedLibrary | null>(null);
 
   const applySearch = debounce((value: string) => {
     search = value;
@@ -96,21 +101,34 @@
     return `left over in ${orphans.map(homeLabel).join(", ")}`;
   }
 
+  // Both of these are removals like any other, so they report through Downloads rather than
+  // running invisibly and only surfacing a toast at the end.
   async function removeWhereUnused(library: UnifiedLibrary): Promise<void> {
     const targets = orphanHomeIds(library);
-    const failures: string[] = [];
-    for (const homeId of targets) {
-      const result = await cairn.librariesRemove(homeId, library.specifier);
-      if (!result.ok) failures.push(result.error);
-    }
-    if (failures.length > 0) toast.error(failures[0]);
-    else toast.success(`Removed ${library.specifier}`);
+    const result = await track(
+      `Remove ${library.specifier}`,
+      targets.map(homeLabel).join(", "),
+      async () => {
+        for (const homeId of targets) {
+          const removed = await cairn.librariesRemove(homeId, library.specifier);
+          if (!removed.ok) return removed;
+        }
+        return { ok: true, data: undefined } as const;
+      },
+    );
+    if (result.ok) toast.success(`Removed ${library.specifier}`);
+    else toast.error(result.error);
     await load();
   }
 
   async function uninstallUsers(library: UnifiedLibrary): Promise<void> {
     for (const plugin of library.usedBy) {
-      const result = await cairn.pluginsRemoveEverywhere(plugin);
+      const result = await track(
+        `Remove ${plugin} everywhere`,
+        "all homes",
+        () => cairn.pluginsRemoveEverywhere(plugin),
+        (data) => (data.outcomes.find((outcome) => outcome.error)?.error ?? null),
+      );
       if (!result.ok) {
         toast.error(result.error);
         break;
@@ -138,7 +156,20 @@
     };
   }
 
+  // Enough names to recognise the row at a glance; the rest are behind the counter, because
+  // a row that grows with its user count overlaps the row beneath it once the list windows.
+  const SHOWN_USERS = 3;
+
+  function shownUsers(library: UnifiedLibrary): string[] {
+    return library.usedBy.slice(0, SHOWN_USERS);
+  }
+
+  function hiddenUserCount(library: UnifiedLibrary): number {
+    return Math.max(0, library.usedBy.length - SHOWN_USERS);
+  }
+
   function openPlugin(plugin: string): void {
+    showingUsers = null;
     navigate("plugins", { plugin }, { redirect: true });
   }
 
@@ -198,9 +229,12 @@
             {:else}
               <span class="users">
                 <span class="lead">Used by</span>
-                {#each library.usedBy as plugin (plugin)}
+                {#each shownUsers(library) as plugin (plugin)}
                   <button type="button" class="user" onclick={() => openPlugin(plugin)}>{plugin}</button>
                 {/each}
+                {#if hiddenUserCount(library) > 0}
+                  <button type="button" class="more" onclick={() => (showingUsers = library)}>+{hiddenUserCount(library)} more</button>
+                {/if}
               </span>
             {/if}
             {#if leftoverNote(library) && !isOrphan(library)}
@@ -222,6 +256,19 @@
       {/snippet}
     </ItemList>
   {/if}
+{/if}
+
+{#if showingUsers}
+  {@const library = showingUsers}
+  <Dialog title={library.specifier} subtitle={`Used by ${library.usedBy.length} plugins.`} width="sm" onClose={() => (showingUsers = null)}>
+    {#snippet body()}
+      <ul class="userlist">
+        {#each library.usedBy as plugin (plugin)}
+          <li><button type="button" class="user" onclick={() => openPlugin(plugin)}>{plugin}</button></li>
+        {/each}
+      </ul>
+    {/snippet}
+  </Dialog>
 {/if}
 
 {#if pendingConfirm}
@@ -249,11 +296,35 @@
     margin-bottom: var(--space-lg);
     flex-wrap: wrap;
   }
+  /* One line, always: the row has a fixed height and the counter carries the overflow. */
   .users {
     display: inline-flex;
     align-items: baseline;
     gap: var(--space-sm);
-    flex-wrap: wrap;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .userlist {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    align-items: flex-start;
+  }
+  .more {
+    border: 0;
+    background: none;
+    padding: 0;
+    font: inherit;
+    color: var(--muted);
+    cursor: pointer;
+    flex: none;
+  }
+  .more:hover {
+    color: var(--text);
+    text-decoration: underline;
   }
   .lead,
   .unused {
@@ -266,6 +337,8 @@
     font: inherit;
     color: var(--accent);
     cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .user:hover {
     text-decoration: underline;

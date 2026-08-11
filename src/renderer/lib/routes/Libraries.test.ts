@@ -4,6 +4,7 @@ import { render, fireEvent, waitFor, screen, within } from "@testing-library/sve
 import { stubCairn } from "../testing.js";
 import { get } from "svelte/store";
 import { router } from "../router.js";
+import { rows as downloadRows, resetDownloadsForTest } from "../downloads.js";
 import Libraries from "./Libraries.svelte";
 import type { HomeLibraries, PluginHome } from "@cairn/shared";
 
@@ -176,5 +177,70 @@ describe("navigating from a library to what uses it", () => {
     await fireEvent.click(within(core).getByRole("button", { name: "stub-auth" }));
 
     await waitFor(() => expect(get(router).screen).toBe("plugins"));
+  });
+});
+
+// The list windows itself past a fixed row height, so a row that grew with its user count
+// overlapped the row beneath it. The names that do not fit go behind a counter instead.
+describe("a library with more users than fit on its row", () => {
+  const MANY = ["a-plugin", "b-plugin", "c-plugin", "d-plugin", "e-plugin"];
+
+  function crowded(): HomeLibraries[] {
+    return [{ home: home("cairn", "Cairn"), shared: [{ specifier: "@intisy-ai/core", version: "2.1.0", usedBy: MANY }], plugins: [] }];
+  }
+
+  it("shows the first few and counts the rest", async () => {
+    stubCairn({ librariesList: async () => ({ ok: true, data: crowded() }) });
+    render(Libraries);
+
+    const core = await waitFor(() => row("@intisy-ai/core"));
+    expect(within(core).getByRole("button", { name: "a-plugin" })).toBeInTheDocument();
+    expect(within(core).queryByRole("button", { name: "d-plugin" })).toBeNull();
+    expect(within(core).getByRole("button", { name: "+2 more" })).toBeInTheDocument();
+  });
+
+  it("reaches every one of them through the counter", async () => {
+    stubCairn({ librariesList: async () => ({ ok: true, data: crowded() }) });
+    render(Libraries);
+
+    await fireEvent.click(within(await waitFor(() => row("@intisy-ai/core"))).getByRole("button", { name: "+2 more" }));
+
+    const dialog = within(await screen.findByRole("dialog"));
+    for (const plugin of MANY) expect(dialog.getByRole("button", { name: plugin })).toBeInTheDocument();
+
+    await fireEvent.click(dialog.getByRole("button", { name: "e-plugin" }));
+    await waitFor(() => expect(get(router).screen).toBe("plugins"));
+  });
+});
+
+// Removing from here is a removal like any other: it belongs in Downloads rather than running
+// invisibly behind a toast.
+describe("progress for a removal started from a library", () => {
+  it("reports uninstalling the plugins that use it", async () => {
+    resetDownloadsForTest();
+    stubCairn({
+      librariesList: async () => ({ ok: true, data: data() }),
+      pluginsRemoveEverywhere: async () => ({ ok: true, data: { outcomes: [] } }),
+    });
+    render(Libraries);
+
+    await fireEvent.click(within(await waitFor(() => row("@intisy-ai/core"))).getByRole("button", { name: "Uninstall users" }));
+    await fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Uninstall" }));
+
+    await waitFor(() => expect(get(downloadRows).some((task) => task.label === "Remove stub-auth everywhere")).toBe(true));
+  });
+
+  it("reports removing the library itself", async () => {
+    resetDownloadsForTest();
+    stubCairn({
+      librariesList: async () => ({ ok: true, data: data() }),
+      librariesRemove: async () => ({ ok: true, data: undefined }),
+    });
+    render(Libraries);
+
+    await fireEvent.click(within(await waitFor(() => row("@intisy-ai/left-behind"))).getByRole("button", { name: "Remove" }));
+    await fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(get(downloadRows).some((task) => task.label === "Remove @intisy-ai/left-behind")).toBe(true));
   });
 });
