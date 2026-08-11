@@ -55,6 +55,7 @@ export const INVOKE_CHANNELS = {
   pluginsRemoveEverywhere: "plugins:removeEverywhere",
   pluginsSetEnabled: "plugins:setEnabled",
   pluginsSetAutoUpdate: "plugins:setAutoUpdate",
+  pluginsSetChannel: "plugins:setChannel",
   pluginsDowngrade: "plugins:downgrade",
   pluginsUninstall: "plugins:uninstall",
   pluginsData: "plugins:data",

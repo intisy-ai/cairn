@@ -85,6 +85,7 @@ export function defaultCairn(): CairnAPI {
     pluginsRemoveEverywhere: async (_name) => ({ ok: true, data: { outcomes: [] } }),
     pluginsSetEnabled: async (_home, _name, _on) => ({ ok: true, data: undefined }),
     pluginsSetAutoUpdate: async (_home, _name, _on) => ({ ok: true, data: undefined }),
+    pluginsSetChannel: async () => ({ ok: true, data: undefined }),
     pluginsDowngrade: async (_home, _name, _hash) => ({ ok: true, data: undefined }),
     pluginsUninstall: async (_home, _name) => ({ ok: true, data: undefined }),
     pluginsData: async () => ({ ok: true, data: [] }),

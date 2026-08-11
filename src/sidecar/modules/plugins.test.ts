@@ -197,6 +197,30 @@ describe("plugins sidecar module", () => {
     expect(onDisk.find((p) => p.name === "plugin-a")?.autoUpdate).toBe(false);
   });
 
+  describe("pluginsSetChannel", () => {
+    it("writes the channel through to the home's plugins.json", async () => {
+      const calls: Array<[string, string, string]> = [];
+      const { pluginsSetChannel } = await import("./plugins.js");
+      const result = await pluginsSetChannel("claude", "demo", "experimental", {
+        homes: [{ id: "claude", label: "Claude", dir: "/homes/claude", present: true, hasUpdater: true }],
+        setPluginChannel: (dir, name, channel) => { calls.push([dir, name, channel]); return true; },
+      });
+
+      expect(result.ok).toBe(true);
+      expect(calls).toEqual([["/homes/claude", "demo", "experimental"]]);
+    });
+
+    it("reports a plugin that is not registered in that home", async () => {
+      const { pluginsSetChannel } = await import("./plugins.js");
+      const result = await pluginsSetChannel("claude", "nope", "experimental", {
+        homes: [{ id: "claude", label: "Claude", dir: "/homes/claude", present: true, hasUpdater: true }],
+        setPluginChannel: () => false,
+      });
+
+      expect(result).toEqual({ ok: false, error: "plugin not found: nope" });
+    });
+  });
+
   it("setEnabled returns ok:false for an unknown plugin", async () => {
     seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
     const { pluginsSetEnabled } = await import("./plugins.js");

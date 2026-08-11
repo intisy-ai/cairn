@@ -9,7 +9,7 @@ import { accountsLoginBegin, accountsLoginComplete, accountsLoginCancel } from "
 import { providersList, providersSetEnabled, providersSetExposure } from "./modules/providers.js";
 import { routingApps, routingGet, routingSetChain } from "./modules/routing.js";
 import { appsDetect, appsList, appsInstallCli, appsUninstallCli, appsSummary, appsConnection, appsInstallLoader } from "./modules/apps.js";
-import { pluginsList, pluginsListCached, pluginVersions, pluginVersionsAll, pluginVersionsCached, pluginsInstall, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsSetAutoUpdate, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
+import { pluginsList, pluginsListCached, pluginVersions, pluginVersionsAll, pluginVersionsCached, pluginsInstall, pluginsRemoveEverywhere, pluginsSetEnabled, pluginsSetAutoUpdate, pluginsSetChannel, pluginsDowngrade, pluginsUninstall } from "./modules/plugins.js";
 import { enginesList, ensureEngine } from "./modules/engines.js";
 import { proxiesList, proxiesSetEnabled } from "./modules/proxies.js";
 import { repoMeta, repoMetaCached } from "./modules/repo.js";
@@ -164,6 +164,7 @@ registerHandler("plugins:install", (home, name, url, progressId) => pluginsInsta
 registerHandler("plugins:removeEverywhere", (name) => pluginsRemoveEverywhere(name as string));
 registerHandler("plugins:setEnabled", (home, name, on) => pluginsSetEnabled(home as PluginHomeId, name as string, on as boolean));
 registerHandler("plugins:setAutoUpdate", (home, name, on) => pluginsSetAutoUpdate(home as PluginHomeId, name as string, on as boolean));
+registerHandler("plugins:setChannel", (home, name, channel) => pluginsSetChannel(home as PluginHomeId, name as string, channel as "inherit" | "stable" | "experimental"));
 registerHandler("plugins:downgrade", (home, name, hash) => pluginsDowngrade(home as PluginHomeId, name as string, hash as string));
 registerHandler("plugins:uninstall", (home, name) => pluginsUninstall(home as string, name as string));
 registerHandler("plugins:data", (name) => pluginsData(name as string));

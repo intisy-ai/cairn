@@ -39,6 +39,7 @@ function isPluginManager(name: string): boolean {
   return pluginByCapability(PLUGIN_MANAGEMENT)?.id === name;
 }
 
+type PluginChannel = "inherit" | "stable" | "experimental";
 type UpdatePluginPublicFn = (name: string, url: string, branch?: string, commitHash?: string) => Promise<void | object>;
 type SyncPluginsAcrossAppsFn = (configDir: string) => Promise<void>;
 type DowngradeFn = (plugin: { name: string; url?: string; branch?: string }, commitHash: string) => string;
@@ -69,6 +70,11 @@ async function realSetPluginEnabled(dir: string, name: string, on: boolean): Pro
 async function realSetPluginAutoUpdate(dir: string, name: string, on: boolean): Promise<boolean | null> {
   const mod = await loadPluginUpdaterConfig();
   return mod ? mod.setPluginAutoUpdate(dir, name, on) : null;
+}
+
+async function realSetPluginChannel(dir: string, name: string, channel: PluginChannel): Promise<boolean | null> {
+  const mod = await loadPluginUpdaterConfig();
+  return mod ? mod.setPluginChannel(dir, name, channel) : null;
 }
 
 async function realReadUpdateCache(dir: string): Promise<UpdateCache> {
@@ -172,6 +178,7 @@ export interface PluginsDeps {
   hasUpdater?: HasUpdaterFn;
   registerWithApp?: RegisterWithAppFn;
   ensureUpdater?: (homeId: string) => Promise<Result<void>>;
+  setPluginChannel?: (dir: string, name: string, channel: PluginChannel) => boolean | null | Promise<boolean | null>;
   getPlugins?: (dir: string) => Plugin[] | Promise<Plugin[]>;
   // Called at each phase boundary so a download row can show live progress;
   // percent is coarse phase-based progress 0..100.
@@ -452,6 +459,23 @@ export function pluginsSetAutoUpdate(homeId: PluginHomeId, name: string, on: boo
       subject: { kind: "plugin", id: name, label: name },
       homeId,
       details: { autoUpdate: on, message: `Auto-update ${on ? "on" : "off"} for ${name}` },
+    }, homes);
+  });
+}
+
+export function pluginsSetChannel(homeId: PluginHomeId, name: string, channel: PluginChannel, deps: PluginsDeps = {}): Promise<Result<void>> {
+  return wrap(async () => {
+    const homes = await resolveHomes(deps);
+    const dir = homeDir(homeId, homes);
+    const setChannel = deps.setPluginChannel ?? realSetPluginChannel;
+    const result = await setChannel(dir, name, channel);
+    if (result === null) throw new Error("plugin-updater is not available in this build");
+    if (!result) throw new Error(`plugin not found: ${name}`);
+    await emitCairnAction({
+      action: "plugin_channel_changed",
+      subject: { kind: "plugin", id: name, label: name },
+      homeId,
+      details: { channel, message: `${name} now tracks ${channel === "experimental" ? "experimental" : "stable"}` },
     }, homes);
   });
 }

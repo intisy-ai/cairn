@@ -35,7 +35,7 @@ const EXPECTED: Record<string, IpcKind> = {
   jobsClearFinished: "mutation", appsInstallCli: "mutation", appsUninstallCli: "mutation",
   appsInstallLoader: "mutation", appStorageSet: "mutation", librariesRemove: "mutation",
   enginesEnsure: "mutation", pluginsInstall: "mutation", pluginsRemoveEverywhere: "mutation",
-  pluginsSetEnabled: "mutation", pluginsSetAutoUpdate: "mutation", pluginsDowngrade: "mutation",
+  pluginsSetEnabled: "mutation", pluginsSetAutoUpdate: "mutation", pluginsSetChannel: "mutation", pluginsDowngrade: "mutation",
   pluginsUninstall: "mutation", pluginsRemoveData: "mutation", configWrite: "mutation",
   configAction: "mutation", ledgerCommit: "mutation", ledgerRestore: "mutation",
   ledgerProfileCreate: "mutation", ledgerProfileSwitch: "mutation", busDrain: "mutation",

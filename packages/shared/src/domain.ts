@@ -281,6 +281,13 @@ export type PluginVersion = {
   autoUpdate: boolean;
   // When this home's update cache was last written, so a day-old answer can read as day-old.
   checkedAt?: string | null;
+  // The RESOLVED answer, not the stored channel: a plugin left at inherit in a home whose
+  // global flag is on is tracking experimental, and a control bound to the stored value
+  // would say otherwise. Optional here because Task 10 is what makes every producer of a
+  // PluginVersion populate it; until then it is simply absent, never a wrong guess.
+  onExperimental?: boolean;
+  // null means the channel branch has not been confirmed either way, and the switch is not offered.
+  experimentalAvailable?: boolean | null;
 };
 export type EngineHomeState = { installed: boolean; enabled: boolean };
 export type EngineView = { id: string; capability: string; url: string; homes: Record<string, EngineHomeState> };
