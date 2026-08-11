@@ -568,6 +568,27 @@ describe("pluginVersions channel reporting", () => {
 
     expect(asked).toEqual([["/homes/claude", "demo"]]);
   });
+
+  // A registered-but-not-cloned plugin still has a plugins.json entry and a cache, so the
+  // channel answer is real and must not be defaulted away just because there is no clone
+  // to describe.
+  it("asks the real channel state for a plugin that is registered but not yet cloned", async () => {
+    const asked: Array<[string, string]> = [];
+    const { pluginVersions } = await import("./plugins.js");
+    const result = await pluginVersions("demo", {
+      homes: [HOME],
+      getPlugins: () => [{ name: "demo", url: "u" }],
+      readCache: () => ({ checkedAt: "", plugins: {} }),
+      channelState: (dir, name) => { asked.push([dir, name]); return { onExperimental: true, experimentalAvailable: true }; },
+      exists: () => false,
+      describe: () => "v1.0.0",
+    });
+
+    expect(result.ok && result.data.claude).toEqual({
+      kind: "git", label: null, updateState: "unknown", autoUpdate: true, onExperimental: true, experimentalAvailable: true,
+    });
+    expect(asked).toEqual([["/homes/claude", "demo"]]);
+  });
 });
 
 describe("plugin versions", () => {
