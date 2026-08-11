@@ -23,6 +23,7 @@ const READ_TTL: Record<string, number> = {
   appStorageSet: 30000,
   pluginsList: 30000,
   pluginsListCached: 10000,
+  pluginsData: 10000,
   librariesList: 30000,
   configSchemas: 30000,
   getConfig: 30000,
