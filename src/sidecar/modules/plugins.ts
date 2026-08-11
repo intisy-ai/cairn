@@ -303,13 +303,7 @@ async function gitVersionFor(
   };
 }
 
-// A plugin can be registered in a home's plugins.json but not yet cloned there
-// (plugin-updater materializes it on that app's next launch). Its version there is
-// genuinely unknown until it is cloned, so report it as such (label null) rather
-// than borrowing another home's version and implying a certainty we don't have.
-// The channel answer needs no clone though: it comes from the home's plugins.json
-// entry and the update cache, both readable right now, so it is asked for here
-// rather than defaulted away.
+// A registered-but-uncloned plugin has no real version (label null), but its channel answer needs no clone, so it is still asked for here.
 async function markUnknown(
   perHome: Record<string, PluginVersion>,
   name: string,

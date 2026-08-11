@@ -521,9 +521,7 @@ function cacheWith(experimentalAvailable: boolean | null) {
 }
 
 describe("pluginVersions channel reporting", () => {
-  // Resolution itself is plugin-updater's, tested there. What must hold HERE is that the
-  // answer reaches the right home's row unaltered, and that a home is asked about the
-  // plugin it is actually reporting on.
+  // Resolution itself is plugin-updater's (tested there); here it's only pass-through, to the right home.
   it("passes the updater's answer through to the home's row", async () => {
     const { pluginVersions } = await import("./plugins.js");
     const result = await pluginVersions("demo", {
@@ -569,9 +567,7 @@ describe("pluginVersions channel reporting", () => {
     expect(asked).toEqual([["/homes/claude", "demo"]]);
   });
 
-  // A registered-but-not-cloned plugin still has a plugins.json entry and a cache, so the
-  // channel answer is real and must not be defaulted away just because there is no clone
-  // to describe.
+  // A registered-but-not-cloned plugin still has a real channel answer and must not be defaulted away.
   it("asks the real channel state for a plugin that is registered but not yet cloned", async () => {
     const asked: Array<[string, string]> = [];
     const { pluginVersions } = await import("./plugins.js");
