@@ -2,6 +2,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, waitFor, screen, within } from "@testing-library/svelte";
 import { stubCairn } from "../testing.js";
+import { get } from "svelte/store";
+import { router } from "../router.js";
 import Libraries from "./Libraries.svelte";
 import type { HomeLibraries, PluginHome } from "@cairn/shared";
 
@@ -57,7 +59,7 @@ describe("Libraries screen", () => {
     render(Libraries);
 
     expect(within(await waitFor(() => row("@intisy-ai/core"))).getByText("stub-auth")).toBeInTheDocument();
-    expect(within(row("@intisy-ai/left-behind")).getByText("unused")).toBeInTheDocument();
+    expect(within(row("@intisy-ai/left-behind")).getByText("used by nothing installed")).toBeInTheDocument();
   });
 
   it("lists a plugin's own declared dependency too", async () => {
@@ -123,5 +125,56 @@ describe("Libraries screen", () => {
     stubCairn({ librariesList: async () => ({ ok: false, error: "store unreadable" }) });
     render(Libraries);
     expect(await screen.findByText(/store unreadable/)).toBeInTheDocument();
+  });
+});
+
+// A library used in one home and left over in another is the common case after uninstalling
+// its last consumer there. Merging the two answers made the leftover unremovable, because the
+// row claimed a user it only had somewhere else.
+describe("a library left over in one home", () => {
+  function split(): HomeLibraries[] {
+    return [
+      { home: home("cairn", "Cairn"), shared: [{ specifier: "@intisy-ai/openai-translator", version: "0.1.1", usedBy: [] }], plugins: [] },
+      { home: home("claude", "Claude Code"), shared: [{ specifier: "@intisy-ai/openai-translator", version: "0.1.1", usedBy: ["custom-auth"] }], plugins: [] },
+    ];
+  }
+
+  it("still offers to remove it, and names the home it is left over in", async () => {
+    const librariesRemove = vi.fn(async () => ({ ok: true, data: undefined }) as const);
+    stubCairn({ librariesList: async () => ({ ok: true, data: split() }), librariesRemove });
+    render(Libraries);
+
+    const entry = await waitFor(() => row("@intisy-ai/openai-translator"));
+    expect(within(entry).getByText("left over in Cairn")).toBeInTheDocument();
+    await fireEvent.click(within(entry).getByRole("button", { name: "Remove" }));
+
+    const dialog = within(await screen.findByRole("dialog"));
+    await fireEvent.click(dialog.getByRole("button", { name: "Remove" }));
+
+    // Only the home that no longer needs it; the one still using it is left alone.
+    await waitFor(() => expect(librariesRemove).toHaveBeenCalledWith("cairn", "@intisy-ai/openai-translator"));
+    expect(librariesRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it("counts as unused for the filter, since there is something to clean up", async () => {
+    stubCairn({ librariesList: async () => ({ ok: true, data: split() }) });
+    render(Libraries);
+    await screen.findByText("@intisy-ai/openai-translator");
+
+    await fireEvent.click(screen.getByRole("button", { name: /^Unused/ }));
+
+    expect(screen.getByText("@intisy-ai/openai-translator")).toBeInTheDocument();
+  });
+});
+
+describe("navigating from a library to what uses it", () => {
+  it("opens the plugin when its name is clicked", async () => {
+    stubCairn({ librariesList: async () => ({ ok: true, data: data() }) });
+    render(Libraries);
+
+    const core = await waitFor(() => row("@intisy-ai/core"));
+    await fireEvent.click(within(core).getByRole("button", { name: "stub-auth" }));
+
+    await waitFor(() => expect(get(router).screen).toBe("plugins"));
   });
 });

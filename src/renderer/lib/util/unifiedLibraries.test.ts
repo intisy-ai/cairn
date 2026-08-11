@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildUnifiedLibraries, isOrphan } from "./unifiedLibraries.js";
+import { buildUnifiedLibraries, isOrphan, orphanHomeIds } from "./unifiedLibraries.js";
 import type { HomeLibraries, InstalledLibrary, PluginHome } from "@cairn/shared";
 
 function home(id: string, label: string): PluginHome {
@@ -84,5 +84,44 @@ describe("isOrphan", () => {
     const used = rows.find((r) => r.specifier === "@intisy-ai/core")!;
     expect(isOrphan(orphan)).toBe(true);
     expect(isOrphan(used)).toBe(false);
+  });
+});
+
+// A library can be load-bearing in one home and left over in another: uninstalling its last
+// consumer there leaves the store entry behind. Merging the two answers made the leftover
+// unremovable, because the row claimed a user it only had elsewhere.
+describe("orphanHomeIds", () => {
+  const rows = () => buildUnifiedLibraries([
+    { home: home("alpha", "Alpha"), shared: [lib("@intisy-ai/openai-translator", "0.1.1", ["custom-auth"])], plugins: [] },
+    { home: home("beta", "Beta"), shared: [lib("@intisy-ai/openai-translator", "0.1.1")], plugins: [] },
+  ]);
+
+  it("keeps each home's own answer to who uses it", () => {
+    const [library] = rows();
+    expect(library.homes.alpha.usedBy).toEqual(["custom-auth"]);
+    expect(library.homes.beta.usedBy).toEqual([]);
+  });
+
+  it("names only the homes where nothing declares it", () => {
+    expect(orphanHomeIds(rows()[0])).toEqual(["beta"]);
+  });
+
+  it("is not an orphan overall while one home still uses it", () => {
+    expect(isOrphan(rows()[0])).toBe(false);
+  });
+
+  it("ignores a home that does not hold it, so a declared-but-uninstalled row is not removable", () => {
+    const [library] = buildUnifiedLibraries([
+      { home: home("alpha", "Alpha"), shared: [], plugins: [{ plugin: "custom-auth", dependencies: [lib("@openauthjs/openauth", "0.4.3")] }] },
+    ]);
+    expect(orphanHomeIds(library)).toEqual([]);
+  });
+
+  it("names every home for a library nothing uses anywhere", () => {
+    const [library] = buildUnifiedLibraries([
+      { home: home("alpha", "Alpha"), shared: [lib("@intisy-ai/left-behind", "1.0.0")], plugins: [] },
+      { home: home("beta", "Beta"), shared: [lib("@intisy-ai/left-behind", "1.0.0")], plugins: [] },
+    ]);
+    expect(orphanHomeIds(library)).toEqual(["alpha", "beta"]);
   });
 });

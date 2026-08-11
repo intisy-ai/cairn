@@ -160,8 +160,12 @@ export function screenFixtures(): Partial<CairnAPI> {
       { home: HOME_ALPHA, shared: [
         { specifier: "@intisy-ai/core", version: "2.1.0", usedBy: ["antigravity-auth", "claude-code-auth"] },
         { specifier: "@intisy-ai/left-behind", version: "0.9.0", usedBy: [] },
-      ], plugins: [{ plugin: "antigravity-auth", dependencies: [{ specifier: "@openauthjs/openauth", version: "0.4.3", usedBy: [] }] }] },
-      { home: HOME_BETA, shared: [{ specifier: "@intisy-ai/core", version: "2.0.4", usedBy: ["claude-code-auth"] }], plugins: [] },
+        { specifier: "@intisy-ai/half-used", version: "0.1.1", usedBy: [] },
+      ], plugins: [{ plugin: "antigravity-auth", dependencies: [{ specifier: "@openauthjs/openauth", version: "0.4.3", usedBy: ["antigravity-auth"] }] }] },
+      { home: HOME_BETA, shared: [
+        { specifier: "@intisy-ai/core", version: "2.0.4", usedBy: ["claude-code-auth"] },
+        { specifier: "@intisy-ai/half-used", version: "0.1.1", usedBy: ["claude-code-auth"] },
+      ], plugins: [] },
     ] }),
     appsList: async () => ({ ok: true, data: HOST_APPS }),
     appsConnection: async (app: string) => ({

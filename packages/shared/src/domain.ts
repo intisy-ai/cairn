@@ -261,8 +261,10 @@ export type HomeLibraries = { home: PluginHome; shared: InstalledLibrary[]; plug
 // the library being repeated once per home. Versions are per home because they can differ.
 export type UnifiedLibrary = {
   specifier: string;
-  homes: Record<string, { version: string; installed: boolean }>;
-  // Plugins that declare it, whether or not it reached the shared store.
+  // usedBy is per home because a library can be load-bearing in one and left over in
+  // another; only the home's own answer says whether it is safe to remove there.
+  homes: Record<string, { version: string; installed: boolean; usedBy: string[] }>;
+  // Plugins that declare it in any home, whether or not it reached the shared store.
   usedBy: string[];
   declaredBy: string[];
 };

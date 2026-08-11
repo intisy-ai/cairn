@@ -4,7 +4,8 @@
   import { cairn } from "../ipc.js";
   import { toast } from "../toast.js";
   import { debounce } from "../util/debounce.js";
-  import { buildUnifiedLibraries, isOrphan } from "../util/unifiedLibraries.js";
+  import { buildUnifiedLibraries, isOrphan, orphanHomeIds } from "../util/unifiedLibraries.js";
+  import { navigate } from "../router.js";
   import PageHeader from "../components/PageHeader.svelte";
   import SearchField from "../components/SearchField.svelte";
   import StatCard from "../components/StatCard.svelte";
@@ -53,17 +54,21 @@
 
   const visible = $derived(
     libraries.filter((library) => {
-      if (unusedOnly && !isOrphan(library)) return false;
+      if (unusedOnly && orphanHomeIds(library).length === 0) return false;
       if (!term) return true;
       return library.specifier.toLowerCase().includes(term)
         || library.usedBy.some((plugin) => plugin.toLowerCase().includes(term));
     }),
   );
 
+  // A library nothing uses ANYWHERE and one left over in a single home both need cleaning up,
+  // so the count is of rows with anything to remove, not only of rows used by nobody at all.
+  const removable = $derived(libraries.filter((library) => orphanHomeIds(library).length > 0));
+
   const totals = $derived({
     all: libraries.length,
     ours: libraries.filter((library) => library.specifier.startsWith(OWN_SCOPE)).length,
-    unused: libraries.filter(isOrphan).length,
+    unused: removable.length,
   });
 
   function installedIn(library: UnifiedLibrary): Record<string, boolean> {
@@ -78,17 +83,21 @@
     return versions.length === 1 ? versions[0] : "mixed";
   }
 
-  function usedByLabel(library: UnifiedLibrary): string {
-    if (library.usedBy.length === 0) return "unused";
-    return library.usedBy.join(", ");
+  function homeLabel(homeId: string): string {
+    return homeList.find((home) => home.id === homeId)?.label ?? homeId;
   }
 
-  function homesHolding(library: UnifiedLibrary): string[] {
-    return homeList.filter((home) => library.homes[home.id]?.installed).map((home) => home.id);
+  // Where a row is left over, saying so beats a bare "unused" that a row used elsewhere
+  // would contradict.
+  function leftoverNote(library: UnifiedLibrary): string {
+    const orphans = orphanHomeIds(library);
+    if (orphans.length === 0) return "";
+    if (isOrphan(library)) return "used by nothing";
+    return `left over in ${orphans.map(homeLabel).join(", ")}`;
   }
 
-  async function removeEverywhere(library: UnifiedLibrary): Promise<void> {
-    const targets = homesHolding(library);
+  async function removeWhereUnused(library: UnifiedLibrary): Promise<void> {
+    const targets = orphanHomeIds(library);
     const failures: string[] = [];
     for (const homeId of targets) {
       const result = await cairn.librariesRemove(homeId, library.specifier);
@@ -111,11 +120,12 @@
   }
 
   function confirmRemove(library: UnifiedLibrary): void {
+    const targets = orphanHomeIds(library).map(homeLabel);
     pendingConfirm = {
       title: "Remove library?",
-      message: `Remove ${library.specifier} from ${homesHolding(library).length} home(s). Nothing declares it.`,
+      message: `Remove ${library.specifier} from ${targets.join(", ")}. Nothing installed there declares it.`,
       confirmLabel: "Remove",
-      run: () => removeEverywhere(library),
+      run: () => removeWhereUnused(library),
     };
   }
 
@@ -126,6 +136,10 @@
       confirmLabel: "Uninstall",
       run: () => uninstallUsers(library),
     };
+  }
+
+  function openPlugin(plugin: string): void {
+    navigate("plugins", { plugin }, { redirect: true });
   }
 
   async function load(): Promise<void> {
@@ -159,7 +173,7 @@
 {:else}
   <section class="summary">
     <StatCard label="Libraries" value={String(totals.all)} meta={`${totals.ours} from the ecosystem`} />
-    <StatCard label="Unused" value={String(totals.unused)} meta="declared by nothing installed" metaColor={totals.unused > 0 ? "var(--warn)" : ""} />
+    <StatCard label="Unused" value={String(totals.unused)} meta="with a copy nothing there uses" metaColor={totals.unused > 0 ? "var(--warn)" : ""} />
     <StatCard label="Homes" value={String(homeList.length)} meta="each with its own store" />
   </section>
 
@@ -177,13 +191,27 @@
           columns={COLUMNS}
           testid={"library-" + library.specifier}
           title={library.specifier}
-          subtitle={usedByLabel(library)}
         >
+          {#snippet meta()}
+            {#if isOrphan(library)}
+              <span class="unused">used by nothing installed</span>
+            {:else}
+              <span class="users">
+                <span class="lead">Used by</span>
+                {#each library.usedBy as plugin (plugin)}
+                  <button type="button" class="user" onclick={() => openPlugin(plugin)}>{plugin}</button>
+                {/each}
+              </span>
+            {/if}
+            {#if leftoverNote(library) && !isOrphan(library)}
+              <span class="leftover">{leftoverNote(library)}</span>
+            {/if}
+          {/snippet}
           {#snippet actions()}
             <div class="ver" class:missing={versionLabel(library) === "not built"}>{versionLabel(library)}</div>
             <AppPills apps={pillApps} values={installedIn(library)} />
             <div>
-              {#if isOrphan(library)}
+              {#if orphanHomeIds(library).length > 0}
                 <Button onclick={() => confirmRemove(library)}>Remove</Button>
               {:else}
                 <Button onclick={() => confirmUninstallUsers(library)}>Uninstall users</Button>
@@ -220,6 +248,31 @@
     gap: var(--space-sm);
     margin-bottom: var(--space-lg);
     flex-wrap: wrap;
+  }
+  .users {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+  }
+  .lead,
+  .unused {
+    color: var(--faint);
+  }
+  .user {
+    border: 0;
+    background: none;
+    padding: 0;
+    font: inherit;
+    color: var(--accent);
+    cursor: pointer;
+  }
+  .user:hover {
+    text-decoration: underline;
+  }
+  .leftover {
+    margin-left: var(--space-sm);
+    color: var(--warn);
   }
   .ver {
     font-family: var(--mono);
