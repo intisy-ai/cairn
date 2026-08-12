@@ -7,6 +7,15 @@ import CardNode from "./CardNode.svelte";
 import GroupNode from "./GroupNode.svelte";
 import Tabs from "./Tabs.svelte";
 import TextNode from "./TextNode.svelte";
+import Stats from "./Stats.svelte";
+import Table from "./Table.svelte";
+import ListNode from "./ListNode.svelte";
+import Chips from "./Chips.svelte";
+import FormNode from "./FormNode.svelte";
+import FieldsNode from "./FieldsNode.svelte";
+import Banner from "./Banner.svelte";
+import Meter from "./Meter.svelte";
+import Actions from "./Actions.svelte";
 
 type NodeComponent = Component<{ node: ScreenNode; ctx: ScreenContext }>;
 
@@ -35,3 +44,12 @@ registerNode("card", CardNode);
 registerNode("group", GroupNode);
 registerNode("tabs", Tabs);
 registerNode("text", TextNode);
+registerNode("stats", Stats);
+registerNode("table", Table);
+registerNode("list", ListNode);
+registerNode("chips", Chips);
+registerNode("form", FormNode);
+registerNode("fields", FieldsNode);
+registerNode("banner", Banner);
+registerNode("meter", Meter);
+registerNode("actions", Actions);
