@@ -7,7 +7,7 @@ import type { PluginHome } from "../../../packages/shared/src/domain.js";
 // Simulate both optional engine repos being absent from this build: every dynamic
 // import() the loaders below issue for these specifiers rejects, exactly like a
 // missing sibling repo (ERR_MODULE_NOT_FOUND) or a broken one would.
-vi.mock("@plugin-updater/config.js", () => {
+vi.mock("@intisy-ai/plugin-updater/dist/config.js", () => {
   throw new Error("simulated: plugin-updater not installed");
 });
 vi.mock("@config-ledger/lib.js", () => {

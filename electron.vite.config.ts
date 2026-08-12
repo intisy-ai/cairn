@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 // and rejects it (ERR_UNSUPPORTED_ESM_URL_SCHEME), so the import always fails even
 // when the engine is present. `output.paths` rewrites those two ids to real file://
 // URLs, which Node resolves correctly on every platform.
-const OPTIONAL_ENGINE_EXTERNAL = [/[\\/]tools[\\/]plugin-updater[\\/]dist[\\/]/, /[\\/]plugins[\\/]config-ledger[\\/]dist[\\/]/];
+const OPTIONAL_ENGINE_EXTERNAL = [/[\\/]plugins[\\/]config-ledger[\\/]dist[\\/]/];
 
 export default defineConfig({
   main: {
@@ -19,7 +19,6 @@ export default defineConfig({
         "@core-auth": fileURLToPath(new URL("./core-auth/dist", import.meta.url)),
         "@core-loader": fileURLToPath(new URL("./core-loader/dist", import.meta.url)),
         "@core-proxy": fileURLToPath(new URL("./core-proxy/dist", import.meta.url)),
-        "@plugin-updater": fileURLToPath(new URL("../../plugins/plugin-updater/dist", import.meta.url)),
         "@config-ledger": fileURLToPath(new URL("../../plugins/config-ledger/dist", import.meta.url)),
       },
     },

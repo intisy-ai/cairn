@@ -2,10 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { UpdateCache } from "@plugin-updater/cache.js";
+import type { UpdateCache } from "@intisy-ai/plugin-updater/dist/cache.js";
 
 const FAKE_HEAD = "a".repeat(40);
-vi.mock("@plugin-updater/git.js", () => ({ getLocalHead: () => FAKE_HEAD }));
+vi.mock("@intisy-ai/plugin-updater/dist/git.js", () => ({ getLocalHead: () => FAKE_HEAD }));
 
 function seedCache(homeDir: string, cache: UpdateCache): void {
   mkdirSync(join(homeDir, "cache"), { recursive: true });

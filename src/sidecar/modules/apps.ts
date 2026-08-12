@@ -3,7 +3,7 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join, delimiter } from "node:path";
 import { getApps, getAppDescriptor, resolveHome } from "@core/index.js";
 import type { AppDescriptor } from "@core/index.js";
-import type { Plugin } from "@plugin-updater/types.js";
+import type { Plugin } from "@intisy-ai/plugin-updater/dist/types.js";
 import { resolveModelMap } from "@core-proxy/model-map.js";
 import { normalizeQuotas } from "../../../vendor/usage/snapshot.js";
 import { appRealHome, loaderInstalled } from "../lib/pluginHomes.js";

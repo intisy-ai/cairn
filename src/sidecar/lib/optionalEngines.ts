@@ -1,25 +1,26 @@
-// plugin-updater and config-ledger are OPTIONAL engine plugins: Cairn must build and run with
-// either or both sibling repos absent, degrading the dependent feature instead of crashing (see
-// electron.vite.config.ts's `external` entries, which stop the bundler from needing their dist
-// files at build time). Every value-level use of `@plugin-updater/*` / `@config-ledger/*` goes
-// through one of the presence-probed loaders below rather than a static import, so a missing
-// engine surfaces as "feature unavailable", never an unhandled module-resolution crash. A miss is
-// cached like a hit: these resolve through a fixed alias path, not something that can appear
-// mid-run, so there is no benefit to retrying.
-import type { Plugin } from "@plugin-updater/types.js";
+// config-ledger is an OPTIONAL engine plugin: Cairn must build and run with its sibling repo
+// absent, degrading the dependent feature instead of crashing. Its value-level uses go through
+// the presence-probed loader below, so a missing engine surfaces as "feature unavailable" rather
+// than a module-resolution crash. A miss is cached like a hit: it resolves through a fixed path,
+// not something that can appear mid-run.
+//
+// plugin-updater is a hard dependency (Cairn's install engine), but its imports stay DYNAMIC:
+// ESM hoists static imports, so PLUGIN_UPDATER_LIBRARY_MODE below would be set after its module
+// body had already activated it against whatever home is ambient.
+import type { Plugin } from "@intisy-ai/plugin-updater/dist/types.js";
 
 // Every engine import in the app goes through this module, so this is the one place that
 // can promise an engine is loaded as a library: plugin-updater's entry otherwise activates
 // itself on import and would run against whatever home happens to be ambient.
 process.env.PLUGIN_UPDATER_LIBRARY_MODE = "1";
 
-type PluginUpdaterConfig = typeof import("@plugin-updater/config.js");
-type PluginUpdaterCache = typeof import("@plugin-updater/cache.js");
-type PluginUpdaterSyncbridge = typeof import("@plugin-updater/syncbridge.js");
-type PluginUpdaterEnv = typeof import("@plugin-updater/env.js");
-type PluginUpdaterNpm = typeof import("@plugin-updater/npm.js");
-type PluginUpdaterIndex = typeof import("@plugin-updater/index.js");
-type PluginUpdaterInit = typeof import("@plugin-updater/init.js");
+type PluginUpdaterConfig = typeof import("@intisy-ai/plugin-updater/dist/config.js");
+type PluginUpdaterCache = typeof import("@intisy-ai/plugin-updater/dist/cache.js");
+type PluginUpdaterSyncbridge = typeof import("@intisy-ai/plugin-updater/dist/syncbridge.js");
+type PluginUpdaterEnv = typeof import("@intisy-ai/plugin-updater/dist/env.js");
+type PluginUpdaterNpm = typeof import("@intisy-ai/plugin-updater/dist/npm.js");
+type PluginUpdaterIndex = typeof import("@intisy-ai/plugin-updater/dist/index.js");
+type PluginUpdaterInit = typeof import("@intisy-ai/plugin-updater/dist/init.js");
 type ConfigLedgerLib = typeof import("@config-ledger/lib.js");
 
 const cache = new Map<string, Promise<unknown>>();
@@ -50,13 +51,13 @@ function loadOnce<T>(specifier: string, doImport: () => Promise<T>): () => Promi
   };
 }
 
-export const loadPluginUpdaterConfig = loadOnce<PluginUpdaterConfig>("@plugin-updater/config.js", () => import("@plugin-updater/config.js"));
-export const loadPluginUpdaterCache = loadOnce<PluginUpdaterCache>("@plugin-updater/cache.js", () => import("@plugin-updater/cache.js"));
-export const loadPluginUpdaterSyncbridge = loadOnce<PluginUpdaterSyncbridge>("@plugin-updater/syncbridge.js", () => import("@plugin-updater/syncbridge.js"));
-export const loadPluginUpdaterEnv = loadOnce<PluginUpdaterEnv>("@plugin-updater/env.js", () => import("@plugin-updater/env.js"));
-export const loadPluginUpdaterNpm = loadOnce<PluginUpdaterNpm>("@plugin-updater/npm.js", () => import("@plugin-updater/npm.js"));
-export const loadPluginUpdaterIndex = loadOnce<PluginUpdaterIndex>("@plugin-updater/index.js", () => import("@plugin-updater/index.js"));
-export const loadPluginUpdaterInit = loadOnce<PluginUpdaterInit>("@plugin-updater/init.js", () => import("@plugin-updater/init.js"));
+export const loadPluginUpdaterConfig = loadOnce<PluginUpdaterConfig>("@intisy-ai/plugin-updater/dist/config.js", () => import("@intisy-ai/plugin-updater/dist/config.js"));
+export const loadPluginUpdaterCache = loadOnce<PluginUpdaterCache>("@intisy-ai/plugin-updater/dist/cache.js", () => import("@intisy-ai/plugin-updater/dist/cache.js"));
+export const loadPluginUpdaterSyncbridge = loadOnce<PluginUpdaterSyncbridge>("@intisy-ai/plugin-updater/dist/syncbridge.js", () => import("@intisy-ai/plugin-updater/dist/syncbridge.js"));
+export const loadPluginUpdaterEnv = loadOnce<PluginUpdaterEnv>("@intisy-ai/plugin-updater/dist/env.js", () => import("@intisy-ai/plugin-updater/dist/env.js"));
+export const loadPluginUpdaterNpm = loadOnce<PluginUpdaterNpm>("@intisy-ai/plugin-updater/dist/npm.js", () => import("@intisy-ai/plugin-updater/dist/npm.js"));
+export const loadPluginUpdaterIndex = loadOnce<PluginUpdaterIndex>("@intisy-ai/plugin-updater/dist/index.js", () => import("@intisy-ai/plugin-updater/dist/index.js"));
+export const loadPluginUpdaterInit = loadOnce<PluginUpdaterInit>("@intisy-ai/plugin-updater/dist/init.js", () => import("@intisy-ai/plugin-updater/dist/init.js"));
 export const loadConfigLedger = loadOnce<ConfigLedgerLib>("@config-ledger/lib.js", () => import("@config-ledger/lib.js"));
 
 export function resetOptionalEngineCacheForTests(): void {

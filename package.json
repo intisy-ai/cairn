@@ -22,7 +22,11 @@
     "gallery:shots": "npm run gallery:build && electron scripts/gallery-shots.cjs --disable-gpu --force-device-scale-factor=1",
     "test": "vitest run",
     "test:live": "vitest run --config vitest.live.config.ts",
-    "build:deps": "npm --prefix core install && npm --prefix core run build && npm --prefix core-auth install && npm --prefix core-auth run build && npm --prefix core-loader install && npm --prefix core-loader run build && npm --prefix core-proxy install && npm --prefix core-proxy run build"
+    "build:deps": "npm --prefix core install && npm --prefix core run build && npm --prefix core-auth install && npm --prefix core-auth run build && npm --prefix core-loader install && npm --prefix core-loader run build && npm --prefix core-proxy install && npm --prefix core-proxy run build",
+    "link:updater": "npm install --no-save file:../../plugins/plugin-updater"
+  },
+  "dependencies": {
+    "@intisy-ai/plugin-updater": "^1.12.0"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^4.0.0",

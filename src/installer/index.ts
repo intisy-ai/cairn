@@ -20,10 +20,10 @@ function report(jobId: string, phase: string, percent: number): void {
 
 async function run(job: JobMessage): Promise<void> {
   const [env, index, config, init] = await Promise.all([
-    import("@plugin-updater/env.js"),
-    import("@plugin-updater/index.js"),
-    import("@plugin-updater/config.js"),
-    import("@plugin-updater/init.js"),
+    import("@intisy-ai/plugin-updater/dist/env.js"),
+    import("@intisy-ai/plugin-updater/dist/index.js"),
+    import("@intisy-ai/plugin-updater/dist/config.js"),
+    import("@intisy-ai/plugin-updater/dist/init.js"),
   ]);
   env.setEarlyLaunchConfigDir(job.homeDir);
 
@@ -64,7 +64,7 @@ async function run(job: JobMessage): Promise<void> {
 // the plugin looking behind forever. Done here because this is where the fresh clone is.
 export async function recordInstalledVersion(job: JobMessage): Promise<void> {
   try {
-    const [cacheModule, git] = await Promise.all([import("@plugin-updater/cache.js"), import("@plugin-updater/git.js")]);
+    const [cacheModule, git] = await Promise.all([import("@intisy-ai/plugin-updater/dist/cache.js"), import("@intisy-ai/plugin-updater/dist/git.js")]);
     const head = git.getLocalHead(job.plugin);
     if (!head) return;
     const cache = cacheModule.readUpdateCache(job.homeDir);

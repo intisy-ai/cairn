@@ -4,7 +4,7 @@ import { resolveStoreDir } from "../../main/lib/storeDir.js";
 import { appsDetect } from "../modules/apps.js";
 import { renderCairnMark } from "../../../packages/shared/src/logo.js";
 import { svgIconDataUri } from "./pluginIcon.js";
-import type { Plugin } from "@plugin-updater/types.js";
+import type { Plugin } from "@intisy-ai/plugin-updater/dist/types.js";
 import type { AppPresence, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
 import { safeGetPlugins, loadPluginUpdaterConfig } from "./optionalEngines.js";
 

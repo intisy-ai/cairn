@@ -8,9 +8,9 @@ vi.mock("../activity.js", () => ({
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getAppConfigDir, getAppName } from "@plugin-updater/env.js";
-import type { Plugin } from "@plugin-updater/types.js";
-import type { UpdateCache } from "@plugin-updater/cache.js";
+import { getAppConfigDir, getAppName } from "@intisy-ai/plugin-updater/dist/env.js";
+import type { Plugin } from "@intisy-ai/plugin-updater/dist/types.js";
+import type { UpdateCache } from "@intisy-ai/plugin-updater/dist/cache.js";
 import type { PluginHome } from "../../../packages/shared/src/domain.js";
 
 let cairnDir: string;

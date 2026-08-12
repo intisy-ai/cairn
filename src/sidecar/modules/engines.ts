@@ -1,6 +1,6 @@
 import { knownPlugins, pluginByCapability } from "@core/index.js";
 import type { PluginRegistration } from "@core/index.js";
-import type { Plugin } from "@plugin-updater/types.js";
+import type { Plugin } from "@intisy-ai/plugin-updater/dist/types.js";
 import { pluginHomes, homeById } from "../lib/pluginHomes.js";
 import { safeGetPlugins } from "../lib/optionalEngines.js";
 import type { EngineView, EngineHomeState, PluginHome, PluginHomeId, Result, CliResult } from "../../../packages/shared/src/domain.js";
