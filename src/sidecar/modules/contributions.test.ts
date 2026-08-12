@@ -249,6 +249,16 @@ describe("contributions cache", () => {
     expect(sections.ok && sections.data.map((s) => s.plugin)).toEqual(["q"]);
   });
 
+  it("treats a pre-upgrade cache (the old menus/sections shape) as a cold cache rather than crashing", async () => {
+    writeCache(CONTRIBUTIONS_NS, "contributions", { menus: [{ plugin: "p", id: "s", label: "P" }], sections: [] } as never, cacheDir);
+    const schemas = vi.fn(async () => []);
+
+    const result = await screensList({}, { cacheDir, homes: HOMES, schemas });
+
+    expect(result).toEqual({ ok: true, data: [] });
+    expect(schemas).not.toHaveBeenCalled();
+  });
+
   it("drops a contribution from the cache once the plugin stops making it", async () => {
     cached({
       screens: [{ plugin: "gone", id: "g", label: "Gone", layout: { kind: "stack" }, homes: ["cairn"] }],

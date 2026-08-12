@@ -78,6 +78,34 @@ describe("PluginMenu", () => {
     await fireEvent.click(screen.getByRole("button", { name: "OpenCode" }));
     await waitFor(() => expect(screen.getByText("from OpenCode")).toBeInTheDocument());
   });
+
+  it("does not paint a slower home's answer once the user has switched away from it", async () => {
+    let resolveClaude: (value: { ok: true; data: { sources: Record<string, unknown> } }) => void = () => {};
+    const claudePending = new Promise<{ ok: true; data: { sources: Record<string, unknown> } }>((resolve) => { resolveClaude = resolve; });
+    const SCREEN_MULTI = { ...SCREEN, homes: ["claude", "opencode"] };
+    stubCairn({
+      screensList: async () => ({ ok: true, data: [SCREEN_MULTI] }),
+      pluginsList: async () => ({
+        ok: true,
+        data: [
+          { home: { id: "claude", label: "Claude", dir: "/c", present: true, hasUpdater: true }, rows: [] },
+          { home: { id: "opencode", label: "OpenCode", dir: "/o", present: true, hasUpdater: true }, rows: [] },
+        ],
+      }),
+      screenData: async (_plugin: string, _screenId: string, homeId: string) =>
+        homeId === "claude" ? claudePending : { ok: true, data: { sources: { line: "from OpenCode" } } },
+    });
+    render(PluginMenu, { plugin: "demo", screenId: "config" });
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "OpenCode" })).toBeInTheDocument());
+    await fireEvent.click(screen.getByRole("button", { name: "OpenCode" }));
+    await waitFor(() => expect(screen.getByText("from OpenCode")).toBeInTheDocument());
+
+    resolveClaude({ ok: true, data: { sources: { line: "from Claude" } } });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByText("from OpenCode")).toBeInTheDocument();
+    expect(screen.queryByText("from Claude")).toBeNull();
+  });
 });
 
 describe("refreshOn", () => {

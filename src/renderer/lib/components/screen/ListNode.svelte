@@ -2,7 +2,7 @@
   import type { ScreenNode, ItemShape } from "@cairn/shared";
   import ItemList from "../ItemList.svelte";
   import ItemBox from "../ItemBox.svelte";
-  import Button from "../Button.svelte";
+  import ActionButton from "./ActionButton.svelte";
   import EmptyState from "../EmptyState.svelte";
   import type { ScreenContext } from "./context.js";
 
@@ -27,7 +27,7 @@
     <ItemBox title={field(row, shape.title)} subtitle={field(row, shape.subtitle)}>
       {#snippet actions()}
         {#each rowActions as actionId (actionId)}
-          <Button disabled={ctx.busy} onclick={() => ctx.invoke(actionId, { id: row.id })}>{actionId}</Button>
+          <ActionButton {ctx} {actionId} args={{ id: row.id }} />
         {/each}
       {/snippet}
     </ItemBox>

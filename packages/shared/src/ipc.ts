@@ -124,7 +124,7 @@ void _invokeChannelsMatchApi;
 // timer, so attributing them to a user action would make routine polling look like
 // something a person did. Anything not listed here is treated as a change.
 const READ_ONLY_ACTIONS: readonly string[] = [
-  "apps", "check", "connection", "detect", "drain", "device-poll", "formats", "get",
+  "apps", "check", "connection", "data", "detect", "drain", "device-poll", "formats", "get",
   "list", "meta", "metaCached", "preview", "read", "schemas", "snapshot", "stats",
   "status", "summary", "versions", "versionsAll", "versionsCached",
 ];

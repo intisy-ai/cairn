@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/svelte";
 import ScreenRenderer from "./ScreenRenderer.svelte";
 import { stubCairn } from "../../testing.js";
@@ -7,6 +7,10 @@ import { stubCairn } from "../../testing.js";
 function ctx(sources: Record<string, unknown>, invoke = vi.fn(async () => {})) {
   return { plugin: "p", screenId: "s", homeId: "claude", sources, invoke, busy: false };
 }
+
+beforeEach(() => {
+  stubCairn();
+});
 
 describe("data leaves", () => {
   it("renders a stat per summary entry", () => {
@@ -101,5 +105,55 @@ describe("data leaves backed by the plugin's own schema", () => {
 
     await fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
     expect(invoke).toHaveBeenCalledWith("wipe", {});
+  });
+
+  it("routes a list row action's declared confirm through ConfirmDialog before invoking", async () => {
+    const invoke = vi.fn(async () => {});
+    stubCairn({
+      configSchemas: async () => ({
+        ok: true,
+        data: [{
+          plugin: "p",
+          defaults: {},
+          current: {},
+          actions: [{ id: "restore", label: "Restore", confirm: "Overwrite uncommitted changes?", danger: true }],
+        }],
+      }),
+    });
+    const node = { kind: "list", source: "rows", rowActions: ["restore"], item: { title: "subject" } };
+    render(ScreenRenderer, { node, ctx: ctx({ rows: [{ id: "a1b2", subject: "manual snapshot" }] }, invoke) });
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Restore" })).toBeInTheDocument());
+    await fireEvent.click(screen.getByRole("button", { name: "Restore" }));
+    expect(screen.getByText("Overwrite uncommitted changes?")).toBeInTheDocument();
+    expect(invoke).not.toHaveBeenCalled();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(invoke).toHaveBeenCalledWith("restore", { id: "a1b2" });
+  });
+
+  it("routes a table row action's declared confirm through ConfirmDialog before invoking", async () => {
+    const invoke = vi.fn(async () => {});
+    stubCairn({
+      configSchemas: async () => ({
+        ok: true,
+        data: [{
+          plugin: "p",
+          defaults: {},
+          current: {},
+          actions: [{ id: "restore", label: "Restore", confirm: "Overwrite uncommitted changes?", danger: true }],
+        }],
+      }),
+    });
+    const node = { kind: "table", source: "rows", rowActions: ["restore"], columns: [{ key: "key" }] };
+    render(ScreenRenderer, { node, ctx: ctx({ rows: [{ id: "a1b2", key: "theme" }] }, invoke) });
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Restore" })).toBeInTheDocument());
+    await fireEvent.click(screen.getByRole("button", { name: "Restore" }));
+    expect(screen.getByText("Overwrite uncommitted changes?")).toBeInTheDocument();
+    expect(invoke).not.toHaveBeenCalled();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(invoke).toHaveBeenCalledWith("restore", { id: "a1b2" });
   });
 });

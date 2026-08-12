@@ -30,7 +30,9 @@
 
   async function loadData(): Promise<void> {
     if (!spec || !homeId) return;
+    const requestedHome = homeId;
     const result = await cairn.screenData(plugin, screenId, homeId);
+    if (requestedHome !== homeId) return;
     if (!result.ok) { loadError = result.error; return; }
     loadError = "";
     sources = result.data.sources;

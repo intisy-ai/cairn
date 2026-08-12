@@ -44,6 +44,23 @@ describe("appConfig sidecar module", () => {
     expect(declarations).toHaveBeenCalledTimes(1);
   });
 
+  it("carries a plugin's declared screen through to the schema it returns", async () => {
+    const { dir, home } = makeHome("claude", "Claude Code");
+    writeFileSync(join(dir, "plugin", "plugin-a.js"), "// bundle placeholder", "utf8");
+    seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
+
+    const screen = { id: "main", label: "Main", layout: { kind: "stack" } };
+    const { configSchemas } = await import("./appConfig.js");
+    const result = await configSchemas("claude", {
+      homes: [home],
+      engineSchemas: async () => [],
+      declarations: async () => new Map([["plugin-a", { defaults: {}, screens: [screen] }]]),
+    });
+
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data[0].screens).toEqual([screen]);
+  });
+
   it("resolves each declaration into its contributed sections and what no section claimed", async () => {
     const { dir, home } = makeHome("claude", "Claude Code");
     writeFileSync(join(dir, "plugin", "sync-bridge.js"), "// bundle placeholder", "utf8");

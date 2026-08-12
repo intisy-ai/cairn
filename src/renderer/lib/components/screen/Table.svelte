@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ScreenNode, Column } from "@cairn/shared";
   import EmptyState from "../EmptyState.svelte";
-  import Button from "../Button.svelte";
+  import ActionButton from "./ActionButton.svelte";
   import type { ScreenContext } from "./context.js";
 
   interface Row { id: string; [key: string]: unknown }
@@ -41,7 +41,7 @@
             <span class={"c " + (column.tone ?? "normal")} title={String(row[column.key] ?? "")}>{cell(row, column)}</span>
           {/each}
           {#each rowActions as actionId (actionId)}
-            <Button disabled={ctx.busy} onclick={() => ctx.invoke(actionId, { id: row.id })}>{actionId}</Button>
+            <ActionButton {ctx} {actionId} args={{ id: row.id }} />
           {/each}
         </li>
       {/each}

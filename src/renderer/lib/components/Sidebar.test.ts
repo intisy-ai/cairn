@@ -67,6 +67,17 @@ describe("screen painting", () => {
     navigate("overview");
   });
 
+  it("survives a cached answer with no data array (a stale pre-upgrade cache) and still refreshes", async () => {
+    stubCairn({
+      screensList: async (opts?: { wait?: boolean }) => (opts?.wait
+        ? { ok: true as const, data: [{ plugin: "ledger", id: "main", label: "Ledger", homes: ["claude"], layout: { kind: "text" } }] }
+        : { ok: true as const, data: undefined as never }),
+    });
+    render(Sidebar, { props: { hasRouting: true } });
+
+    expect(await screen.findByRole("button", { name: /Ledger/ })).toBeInTheDocument();
+  });
+
   it("still shows the refreshed screens when the cache was cold", async () => {
     stubCairn({
       screensList: async (opts?: { wait?: boolean }) => (opts?.wait

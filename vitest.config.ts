@@ -16,6 +16,8 @@ export default defineConfig({
     },
   },
   test: {
+    // The default "forks" pool crashes serializing IPC results back to the parent, which
+    // always exits non-zero even when every test passed.
     pool: "threads",
     include: ["src/**/*.test.ts", "vendor/**/*.test.ts", "packages/shared/**/*.test.ts"],
     setupFiles: ["./vitest.setup.ts"],

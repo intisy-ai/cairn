@@ -26,10 +26,7 @@
   const running = $derived($serverStatus?.running === true);
   const port = $derived($serverStatus?.port ?? apiPort);
 
-  // Whatever plugins asked for a place in the navigation, one screen per entry. Painted
-  // from the last known set so the sidebar never waits, then replaced by a refresh that
-  // resolves each home's plugin declarations in the background. The sidecar already
-  // orders the list by declared order then label, so this renders it as returned.
+  // Painted from the last known set so the sidebar never waits, then replaced by a background refresh.
   let pluginScreens = $state<PluginScreen[]>([]);
 
   function apply(screens: PluginScreen[]): void {
@@ -39,7 +36,7 @@
 
   onMount(() => {
     void cairn.screensList().then((cached) => {
-      if (cached.ok && cached.data.length > 0) apply(cached.data);
+      if (cached.ok && cached.data?.length > 0) apply(cached.data);
       return cairn.screensList({ wait: true }).then((fresh) => {
         if (fresh.ok) apply(fresh.data);
       });

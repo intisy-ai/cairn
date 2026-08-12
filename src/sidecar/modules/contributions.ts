@@ -99,10 +99,18 @@ function refresh(deps: ContributionsDeps, cacheDir: string): Promise<Contributio
   return inFlight;
 }
 
+// A cache written by a pre-upgrade build carries the old { menus, sections } shape. Trusting
+// it as-is would hand a caller `screens: undefined`, so the shape is checked, not just presence.
+function isContributions(value: unknown): value is Contributions {
+  const v = value as Partial<Contributions> | null;
+  return !!v && Array.isArray(v.screens) && Array.isArray(v.sections);
+}
+
 function read(opts: ContributionsOptions, deps: ContributionsDeps): Promise<Contributions> {
   const cacheDir = deps.cacheDir ?? getConfigDir();
   if (opts.wait) return refresh(deps, cacheDir);
-  return Promise.resolve(readCache<Contributions>(CONTRIBUTIONS_NS, CONTRIBUTIONS_KEY, cacheDir)?.value ?? EMPTY);
+  const cached = readCache<Contributions>(CONTRIBUTIONS_NS, CONTRIBUTIONS_KEY, cacheDir)?.value;
+  return Promise.resolve(isContributions(cached) ? cached : EMPTY);
 }
 
 export function screensList(opts: ContributionsOptions = {}, deps: ContributionsDeps = {}): Promise<Result<PluginScreen[]>> {
