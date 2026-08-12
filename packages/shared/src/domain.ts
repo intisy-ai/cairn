@@ -1,6 +1,6 @@
 export type { AccountView, AccountQuota, AccountStatus } from "@core-auth/index.js";
 export type { Impact, ActivityRecord, ActivityQuery, ActivityStats, ActivityHomeStats, FieldType, FieldSpec, ActionSpec, MenuSpec, SectionSpec, ResolvedSection, DataSpec } from "@core/index.js";
-import type { FieldSpec, ActionSpec, MenuSpec, SectionSpec, ResolvedSection, DataSpec } from "@core/index.js";
+import type { FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec } from "@core/index.js";
 
 // What an update run did, as the dashboard reports it back to the renderer.
 export interface UpdateSummary {
@@ -324,9 +324,9 @@ export type PluginConfigSchema = {
   current: Record<string, unknown>;
   fields?: FieldSpec[];
   actions?: ActionSpec[];
-  menu?: MenuSpec;
   sections?: SectionSpec[];
   data?: DataSpec;
+  screens?: PluginScreen[];
   // How the declaration splits into contributed sections and what no section claimed.
   // Resolved in the sidecar by core, so every surface splits a declaration the same way
   // and the renderer never has to know the rule.
@@ -337,8 +337,57 @@ export type PluginConfigSchema = {
 export type PluginDataEntry = { path: string; bytes: number; declared?: boolean };
 export type HomePluginData = { home: PluginHome; entries: PluginDataEntry[] };
 export type PluginLayout = { sections: ResolvedSection[]; fields: FieldSpec[]; actions: ActionSpec[] };
-// One contributed menu, folded across every home that offers it.
-export type PluginMenu = MenuSpec & { plugin: string; homes: string[] };
+export interface NodeStyle {
+  width?: string;
+  grow?: number;
+  align?: "start" | "center" | "end";
+  pad?: "none" | "tight" | "normal";
+  tone?: string;
+}
+
+export interface ScreenNode {
+  kind: string;
+  style?: NodeStyle;
+  children?: ScreenNode[];
+  [prop: string]: unknown;
+}
+
+export interface Column {
+  key: string;
+  label?: string;
+  tone?: "normal" | "muted" | "mono" | "old" | "new";
+  truncate?: number;
+}
+
+export interface ItemShape {
+  title: string;
+  subtitle?: string;
+  badge?: string;
+  icon?: string;
+}
+
+export interface PluginScreen {
+  plugin: string;
+  id: string;
+  label: string;
+  glyph?: string;
+  order?: number;
+  scope?: "home" | "allHomes";
+  refreshOn?: string[];
+  layout: ScreenNode;
+  homes: string[];
+}
+
+export interface ScreenData {
+  sources: Record<string, unknown>;
+}
+
+export interface InvokeResult {
+  ok: boolean;
+  message?: string;
+  refresh?: boolean;
+  sources?: Record<string, unknown>;
+}
 // One contributed settings section, folded across every home that offers it. The controls
 // themselves stay in the plugin's schema; this is only what the settings screen needs to
 // place the section and say who added it.
