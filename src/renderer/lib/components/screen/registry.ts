@@ -1,0 +1,37 @@
+import type { Component } from "svelte";
+import type { NodeStyle, ScreenNode } from "@cairn/shared";
+import type { ScreenContext } from "./context.js";
+import Stack from "./Stack.svelte";
+import Grid from "./Grid.svelte";
+import CardNode from "./CardNode.svelte";
+import GroupNode from "./GroupNode.svelte";
+import Tabs from "./Tabs.svelte";
+import TextNode from "./TextNode.svelte";
+
+type NodeComponent = Component<{ node: ScreenNode; ctx: ScreenContext }>;
+
+export const NODE_RENDERERS: Record<string, NodeComponent> = {};
+
+export function registerNode(kind: string, component: NodeComponent): void {
+  NODE_RENDERERS[kind] = component;
+}
+
+const PAD = { none: "0", tight: "var(--space-xs)", normal: "var(--space-xl) var(--space-2xl)" };
+
+export function styleOf(style?: NodeStyle): string {
+  if (!style) return "";
+  const out: string[] = [];
+  if (style.width) out.push(`width:${style.width}`);
+  if (typeof style.grow === "number") out.push(`flex-grow:${style.grow}`);
+  if (style.align) out.push(`align-items:${style.align}`);
+  if (style.pad && style.pad in PAD) out.push(`padding:${PAD[style.pad]}`);
+  return out.join(";");
+}
+
+registerNode("stack", Stack);
+registerNode("row", Stack);
+registerNode("grid", Grid);
+registerNode("card", CardNode);
+registerNode("group", GroupNode);
+registerNode("tabs", Tabs);
+registerNode("text", TextNode);
