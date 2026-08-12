@@ -1,20 +1,26 @@
 import { writable } from "svelte/store";
-import type { PluginMenu } from "@cairn/shared";
+import type { PluginScreen } from "@cairn/shared";
 
 export type CairnScreenId = "overview" | "providers" | "accounts" | "routing" | "usage" | "activity" | "localApi" | "apps" | "plugins" | "libraries" | "downloads" | "config" | "settings";
-// A plugin that declared a menu gets a screen of its own, addressed by its name. Cairn's
-// own screens stay a closed set; anything a plugin contributes lives behind this prefix.
-export type PluginScreenId = `plugin:${string}`;
+// A plugin can declare more than one screen, so a contributed screen is addressed by the
+// plugin AND the screen id, not the plugin alone. Cairn's own screens stay a closed set;
+// anything a plugin contributes lives behind this prefix.
+export type PluginScreenId = `plugin:${string}:${string}`;
 export type ScreenId = CairnScreenId | PluginScreenId;
+export type PluginScreenRef = { plugin: string; screenId: string };
 
 const PLUGIN_PREFIX = "plugin:";
 
-export function pluginScreen(plugin: string): PluginScreenId {
-  return `${PLUGIN_PREFIX}${plugin}`;
+export function pluginScreen(plugin: string, screenId: string): PluginScreenId {
+  return `${PLUGIN_PREFIX}${plugin}:${screenId}`;
 }
 
-export function pluginOfScreen(screen: string): string | null {
-  return screen.startsWith(PLUGIN_PREFIX) ? screen.slice(PLUGIN_PREFIX.length) : null;
+export function pluginOfScreen(screen: string): PluginScreenRef | null {
+  if (!screen.startsWith(PLUGIN_PREFIX)) return null;
+  const rest = screen.slice(PLUGIN_PREFIX.length);
+  const sep = rest.indexOf(":");
+  if (sep === -1) return null;
+  return { plugin: rest.slice(0, sep), screenId: rest.slice(sep + 1) };
 }
 
 export type ScreenSection = "main" | "network";
@@ -57,16 +63,16 @@ const past: RouterState[] = [];
 const future: RouterState[] = [];
 let redirectedFrom: ScreenId | null = null;
 
-// The contributed menus the sidebar has loaded, so history can name their screens.
-let PLUGIN_MENUS: PluginMenu[] = [];
+// The contributed screens the sidebar has loaded, so history can name them.
+let PLUGIN_SCREENS: PluginScreen[] = [];
 
-export function setPluginMenus(menus: PluginMenu[]): void {
-  PLUGIN_MENUS = menus;
+export function setPluginScreens(screens: PluginScreen[]): void {
+  PLUGIN_SCREENS = screens;
 }
 
 function labelOf(id: ScreenId): string {
-  const plugin = pluginOfScreen(id);
-  if (plugin) return PLUGIN_MENUS.find((menu) => menu.plugin === plugin)?.label ?? plugin;
+  const ref = pluginOfScreen(id);
+  if (ref) return PLUGIN_SCREENS.find((s) => s.plugin === ref.plugin && s.id === ref.screenId)?.label ?? ref.plugin;
   return SCREENS.find((screen) => screen.id === id)?.label ?? "";
 }
 

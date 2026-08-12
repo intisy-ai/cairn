@@ -3,9 +3,10 @@
   import MarketplacesDialog from "../../lib/components/MarketplacesDialog.svelte";
   import ConfirmDialog from "../../lib/components/ConfirmDialog.svelte";
   import CustomEndpointsDialog from "../../lib/components/CustomEndpointsDialog.svelte";
-  import { ACTIVITY } from "../fixtures.js";
+  import PluginDetail from "../../lib/components/PluginDetail.svelte";
+  import { ACTIVITY, PLUGIN_DETAIL, PLUGIN_DETAIL_HOMES } from "../fixtures.js";
 
-  let { which }: { which: "activity-detail" | "marketplaces" | "confirm" | "confirm-optin" | "custom-endpoints" } = $props();
+  let { which }: { which: "activity-detail" | "marketplaces" | "confirm" | "confirm-optin" | "custom-endpoints" | "plugin-detail" } = $props();
 
   const noop = (): void => {};
 </script>
@@ -16,6 +17,17 @@
   <MarketplacesDialog onClose={noop} />
 {:else if which === "custom-endpoints"}
   <CustomEndpointsDialog onClose={noop} />
+{:else if which === "plugin-detail"}
+  <PluginDetail
+    plugin={PLUGIN_DETAIL}
+    homes={PLUGIN_DETAIL_HOMES}
+    onClose={noop}
+    onInstallAll={noop}
+    onRemoveEverywhere={noop}
+    onUpdate={noop}
+    onUpdateHome={async () => {}}
+    onToggleHome={noop}
+  />
 {:else if which === "confirm-optin"}
   <ConfirmDialog
     title="Remove everywhere?"

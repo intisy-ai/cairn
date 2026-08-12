@@ -5,6 +5,7 @@ import Primitives from "./sections/Primitives.svelte";
 import Rows from "./sections/Rows.svelte";
 import Overlay from "./sections/Overlay.svelte";
 import Screen from "./sections/Screen.svelte";
+import PluginScreen from "./sections/PluginScreen.svelte";
 import Tokens from "./sections/Tokens.svelte";
 
 // viewportHeight is for sections whose content is position:fixed. The shot harness sizes the
@@ -38,9 +39,11 @@ export const SECTIONS: Section[] = [
   screen("activity", "Activity"),
   screen("libraries", "Libraries"),
   screen("settings", "Settings"),
+  { id: "plugin-screen", label: "Plugin screen", component: PluginScreen as Component },
   overlay("activity", "Activity detail", "activity-detail"),
   overlay("marketplaces", "Marketplaces", "marketplaces"),
   overlay("endpoints", "Custom endpoints", "custom-endpoints", 520),
   overlay("confirm", "Confirm", "confirm", 420),
   overlay("confirm-optin", "Confirm with opt-in", "confirm-optin", 460),
+  overlay("plugin-detail", "Plugin detail", "plugin-detail"),
 ];

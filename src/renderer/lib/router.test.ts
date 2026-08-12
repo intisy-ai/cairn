@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { get } from "svelte/store";
-import { router, navigate, consumeParams, back, forward, nav, SCREENS, pluginScreen, pluginOfScreen, setPluginMenus } from "./router.js";
+import { router, navigate, consumeParams, back, forward, nav, SCREENS, pluginScreen, pluginOfScreen, setPluginScreens } from "./router.js";
+import type { PluginScreen } from "@cairn/shared";
+
+function screen(plugin: string, label: string): PluginScreen {
+  return { plugin, id: "main", label, homes: ["claude"], layout: { kind: "text" } };
+}
 
 describe("router", () => {
   it("defaults to the overview screen", () => {
@@ -116,28 +121,28 @@ describe("router", () => {
 
 describe("plugin-contributed screens", () => {
   it("navigates to a screen a plugin contributed", () => {
-    navigate(pluginScreen("config-ledger"));
-    expect(get(router).screen).toBe("plugin:config-ledger");
-    expect(pluginOfScreen(get(router).screen)).toBe("config-ledger");
+    navigate(pluginScreen("config-ledger", "main"));
+    expect(get(router).screen).toBe("plugin:config-ledger:main");
+    expect(pluginOfScreen(get(router).screen)).toEqual({ plugin: "config-ledger", screenId: "main" });
   });
 
   it("reports no plugin for one of Cairn's own screens", () => {
     expect(pluginOfScreen("settings")).toBeNull();
   });
 
-  // History labels come from the contributed menu, so "Back to ..." names the screen
+  // History labels come from the contributed screen, so "Back to ..." names the screen
   // the user actually saw rather than a raw id.
   it("names a contributed screen in history from its declared label", () => {
-    setPluginMenus([{ plugin: "config-ledger", label: "Ledger", homes: ["claude"] }]);
-    navigate(pluginScreen("config-ledger"));
+    setPluginScreens([screen("config-ledger", "Ledger")]);
+    navigate(pluginScreen("config-ledger", "main"));
     navigate("overview", undefined, { redirect: true });
     expect(get(nav).redirectLabel).toBe("Ledger");
     expect(get(nav).backLabel).toBe("Ledger");
   });
 
-  it("falls back to the plugin name when no menu is known yet", () => {
-    setPluginMenus([]);
-    navigate(pluginScreen("wakatime-sync"));
+  it("falls back to the plugin name when no screen is known yet", () => {
+    setPluginScreens([]);
+    navigate(pluginScreen("wakatime-sync", "main"));
     navigate("overview", undefined, { redirect: true });
     expect(get(nav).redirectLabel).toBe("wakatime-sync");
   });

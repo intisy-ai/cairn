@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { router, navigate, SCREENS, pluginScreen, setPluginMenus } from "../router.js";
+  import { router, navigate, SCREENS, pluginScreen, setPluginScreens } from "../router.js";
   import type { ScreenId } from "../router.js";
   import { cairn } from "../ipc.js";
-  import type { PluginMenu } from "@cairn/shared";
+  import type { PluginScreen } from "@cairn/shared";
   import { serverStatus, watchServerStatus } from "../serverStatus.js";
   import { unseenErrorCount } from "../stores/activity.js";
   import { PROXY_PORT } from "@cairn/shared";
@@ -26,20 +26,21 @@
   const running = $derived($serverStatus?.running === true);
   const port = $derived($serverStatus?.port ?? apiPort);
 
-  // Whatever plugins asked for a place in the navigation. Painted from the last known set
-  // so the sidebar never waits, then replaced by a refresh that resolves each home's
-  // plugin declarations in the background.
-  let pluginMenus = $state<PluginMenu[]>([]);
+  // Whatever plugins asked for a place in the navigation, one screen per entry. Painted
+  // from the last known set so the sidebar never waits, then replaced by a refresh that
+  // resolves each home's plugin declarations in the background. The sidecar already
+  // orders the list by declared order then label, so this renders it as returned.
+  let pluginScreens = $state<PluginScreen[]>([]);
 
-  function apply(menus: PluginMenu[]): void {
-    pluginMenus = menus;
-    setPluginMenus(menus);
+  function apply(screens: PluginScreen[]): void {
+    pluginScreens = screens;
+    setPluginScreens(screens);
   }
 
   onMount(() => {
-    void cairn.menusList().then((cached) => {
+    void cairn.screensList().then((cached) => {
       if (cached.ok && cached.data.length > 0) apply(cached.data);
-      return cairn.menusList({ wait: true }).then((fresh) => {
+      return cairn.screensList({ wait: true }).then((fresh) => {
         if (fresh.ok) apply(fresh.data);
       });
     });
@@ -77,13 +78,13 @@
       </button>
     {/each}
   </nav>
-  {#if pluginMenus.length > 0}
+  {#if pluginScreens.length > 0}
     <div class="navsec"><p class="label">Plugins</p></div>
     <nav class="nav">
-      {#each pluginMenus as menu (menu.plugin)}
-        {@const id = pluginScreen(menu.plugin)}
-        <button type="button" class={$router.screen === id ? "active" : ""} title={menu.label} onclick={go(id)}>
-          <span class="ic">{menu.glyph ?? "◇"}</span> <span class="lbl">{menu.label}</span>
+      {#each pluginScreens as screen (screen.plugin + ":" + screen.id)}
+        {@const id = pluginScreen(screen.plugin, screen.id)}
+        <button type="button" class={$router.screen === id ? "active" : ""} title={screen.label} onclick={go(id)}>
+          <span class="ic">{screen.glyph ?? "◇"}</span> <span class="lbl">{screen.label}</span>
         </button>
       {/each}
     </nav>

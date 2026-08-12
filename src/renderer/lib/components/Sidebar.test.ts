@@ -21,9 +21,9 @@ describe("Sidebar", () => {
   });
 });
 
-describe("contributed menus", () => {
-  it("renders a nav item per contributed menu, with its declared label and glyph", async () => {
-    stubCairn({ menusList: async () => ({ ok: true, data: [{ plugin: "config-ledger", label: "Ledger", glyph: "@", homes: ["claude"] }] }) });
+describe("contributed screens", () => {
+  it("renders a nav item per contributed screen, with its declared label and glyph", async () => {
+    stubCairn({ screensList: async () => ({ ok: true, data: [{ plugin: "config-ledger", id: "main", label: "Ledger", glyph: "@", homes: ["claude"], layout: { kind: "text" } }] }) });
     render(Sidebar, { props: { hasRouting: true } });
 
     const button = await screen.findByRole("button", { name: /Ledger/ });
@@ -31,16 +31,16 @@ describe("contributed menus", () => {
   });
 
   it("navigates to that plugin's own screen when the item is pressed", async () => {
-    stubCairn({ menusList: async () => ({ ok: true, data: [{ plugin: "config-ledger", label: "Ledger", homes: ["claude"] }] }) });
+    stubCairn({ screensList: async () => ({ ok: true, data: [{ plugin: "config-ledger", id: "main", label: "Ledger", homes: ["claude"], layout: { kind: "text" } }] }) });
     render(Sidebar, { props: { hasRouting: true } });
 
     await fireEvent.click(await screen.findByRole("button", { name: /Ledger/ }));
-    expect(get(router).screen).toBe("plugin:config-ledger");
+    expect(get(router).screen).toBe("plugin:config-ledger:main");
     navigate("overview");
   });
 
-  it("shows no plugin section at all when nothing contributes a menu", async () => {
-    stubCairn({ menusList: async () => ({ ok: true, data: [] }) });
+  it("shows no plugin section at all when nothing contributes a screen", async () => {
+    stubCairn({ screensList: async () => ({ ok: true, data: [] }) });
     render(Sidebar, { props: { hasRouting: true } });
 
     await waitFor(() => expect(screen.getByText("Network")).toBeInTheDocument());
@@ -48,15 +48,15 @@ describe("contributed menus", () => {
   });
 });
 
-describe("menu painting", () => {
-  it("paints cached menus first, then replaces them when the refresh lands", async () => {
+describe("screen painting", () => {
+  it("paints cached screens first, then replaces them when the refresh lands", async () => {
     const calls: (boolean | undefined)[] = [];
     stubCairn({
-      menusList: async (opts?: { wait?: boolean }) => {
+      screensList: async (opts?: { wait?: boolean }) => {
         calls.push(opts?.wait);
         return opts?.wait
-          ? { ok: true as const, data: [{ plugin: "ledger", label: "Fresh", homes: ["claude"] }] }
-          : { ok: true as const, data: [{ plugin: "ledger", label: "Cached", homes: ["claude"] }] };
+          ? { ok: true as const, data: [{ plugin: "ledger", id: "main", label: "Fresh", homes: ["claude"], layout: { kind: "text" } }] }
+          : { ok: true as const, data: [{ plugin: "ledger", id: "main", label: "Cached", homes: ["claude"], layout: { kind: "text" } }] };
       },
     });
     render(Sidebar, { props: { hasRouting: true } });
@@ -67,10 +67,10 @@ describe("menu painting", () => {
     navigate("overview");
   });
 
-  it("still shows the refreshed menus when the cache was cold", async () => {
+  it("still shows the refreshed screens when the cache was cold", async () => {
     stubCairn({
-      menusList: async (opts?: { wait?: boolean }) => (opts?.wait
-        ? { ok: true as const, data: [{ plugin: "ledger", label: "Ledger", homes: ["claude"] }] }
+      screensList: async (opts?: { wait?: boolean }) => (opts?.wait
+        ? { ok: true as const, data: [{ plugin: "ledger", id: "main", label: "Ledger", homes: ["claude"], layout: { kind: "text" } }] }
         : { ok: true as const, data: [] }),
     });
     render(Sidebar, { props: { hasRouting: true } });

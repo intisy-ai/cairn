@@ -1,4 +1,4 @@
-﻿import type { AccountQuota, AccountView, ActivityRecord, CairnAPI, HomePlugins, HostApp, PluginConfigSchema, PluginHome, ProviderRow } from "@cairn/shared";
+﻿import type { AccountQuota, AccountView, ActivityRecord, CairnAPI, HomePlugins, HostApp, PluginConfigSchema, PluginHome, ProviderRow, UnifiedPlugin } from "@cairn/shared";
 
 export const HOST_APPS: HostApp[] = [
   { id: "alpha", label: "Alpha" },
@@ -169,6 +169,27 @@ const MANY_LIBRARIES = [
   })),
 ];
 
+// The plugin the "Plugin detail" overlay specimen opens, so the dialog no screenshot
+// covers today renders with real-looking data rather than an empty shell.
+export const PLUGIN_DETAIL: UnifiedPlugin = {
+  name: "wakatime-sync",
+  kind: "plugin",
+  description: "Reports coding activity to WakaTime.",
+  url: "https://github.com/intisy-ai/wakatime-sync",
+  updateAvailable: true,
+  homes: { alpha: { installed: true, version: "1.4.0" }, beta: { installed: true, version: "1.3.0" } },
+  topics: ["plugin", "metrics"],
+  displayName: "wakatime-sync",
+  icon: "",
+  external: false,
+  favorite: false,
+  deprecated: false,
+};
+export const PLUGIN_DETAIL_HOMES = [
+  { id: "alpha", label: "Alpha", hasUpdater: true },
+  { id: "beta", label: "Beta", hasUpdater: true },
+];
+
 // Enough of the API for the real screens to render populated in the gallery.
 export function screenFixtures(): Partial<CairnAPI> {
   return {
@@ -208,6 +229,13 @@ export function screenFixtures(): Partial<CairnAPI> {
     }),
     settingsSections: async () => ({ ok: true, data: [CONTRIBUTED_SECTION] }),
     configSchemas: async () => ({ ok: true, data: [CONTRIBUTED_SCHEMA] }),
+    pluginVersions: async () => ({
+      ok: true,
+      data: {
+        alpha: { kind: "git", label: "v1.4.0", updateState: "behind", autoUpdate: true, onExperimental: false, experimentalAvailable: true },
+        beta: { kind: "git", label: "v1.3.0", updateState: "current", autoUpdate: false, onExperimental: false, experimentalAvailable: true },
+      },
+    }),
     globalSettingsRead: async () => ({
       ok: true,
       data: {

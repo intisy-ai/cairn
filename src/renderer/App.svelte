@@ -34,8 +34,8 @@
   import { watchActivityErrors } from "./lib/stores/activity.js";
   import ToastHost from "./lib/components/ToastHost.svelte";
 
-  const contributedPlugin = $derived(pluginOfScreen($router.screen));
-  const activeLabel = $derived(SCREENS.find((screen) => screen.id === $router.screen)?.label ?? contributedPlugin ?? "");
+  const contributedScreen = $derived(pluginOfScreen($router.screen));
+  const activeLabel = $derived(SCREENS.find((screen) => screen.id === $router.screen)?.label ?? contributedScreen?.plugin ?? "");
 
   // Depend only on the screen value, never the whole router store: a route that
   // mutates params in onMount (Plugins clears its deep-link param) must not make
@@ -77,8 +77,8 @@
           {#if $nav.redirected}
             <button class="backbar" onclick={back} title="Go back">‹ Back to {$nav.redirectLabel}</button>
           {/if}
-          {#if contributedPlugin}
-            <PluginMenu plugin={contributedPlugin} />
+          {#if contributedScreen}
+            <PluginMenu plugin={contributedScreen.plugin} screenId={contributedScreen.screenId} />
           {:else}
             {#await routeModule}
               <div class="route-loading"><Skeleton height="80px" radius="12px" /></div>

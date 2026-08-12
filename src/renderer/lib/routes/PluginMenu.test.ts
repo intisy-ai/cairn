@@ -1,99 +1,49 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/svelte";
-import { stubCairn } from "../testing.js";
 import PluginMenu from "./PluginMenu.svelte";
-import type { HomePlugins, PluginConfigSchema } from "@cairn/shared";
+import { stubCairn } from "../testing.js";
 
-const MENUS = [{ plugin: "ledger", label: "Ledger", homes: ["claude", "opencode"] }];
-
-function sections(): HomePlugins[] {
-  return [
-    { home: { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true }, rows: [] },
-    { home: { id: "opencode", label: "OpenCode", dir: "/o", present: true, hasUpdater: true }, rows: [] },
-  ];
-}
-
-function schema(overrides: Partial<PluginConfigSchema> = {}): PluginConfigSchema {
-  return {
-    plugin: "ledger",
-    defaults: { retention: 5 },
-    current: {},
-    fields: [{ key: "retention", type: "number", label: "Retention" }],
-    ...overrides,
-  };
-}
+const SCREEN = {
+  plugin: "demo", id: "config", label: "Config", homes: ["claude"], refreshOn: ["config."],
+  layout: { kind: "stack", children: [{ kind: "text", source: "line" }, { kind: "actions", ids: ["go"] }] },
+};
 
 describe("PluginMenu", () => {
-  it("titles the screen with the label the plugin declared", async () => {
+  it("paints the plugin's screen from its own data", async () => {
     stubCairn({
-      menusList: async () => ({ ok: true, data: MENUS }),
-      pluginsList: async () => ({ ok: true, data: sections() }),
-      configSchemas: async () => ({ ok: true, data: [schema()] }),
+      screensList: async () => ({ ok: true, data: [SCREEN] }),
+      screenData: async () => ({ ok: true, data: { sources: { line: "from the plugin" } } }),
     });
-    render(PluginMenu, { props: { plugin: "ledger" } });
-
-    expect(await screen.findByRole("heading", { name: "Ledger" })).toBeInTheDocument();
+    render(PluginMenu, { plugin: "demo", screenId: "config" });
+    await waitFor(() => expect(screen.getByText("from the plugin")).toBeInTheDocument());
   });
 
-  it("renders the plugin's own declared settings for the first home it is in", async () => {
-    const asked: string[] = [];
+  it("re-reads after an action that asks for a refresh", async () => {
+    const screenData = vi.fn(async () => ({ ok: true, data: { sources: { line: "v1" } } }));
     stubCairn({
-      menusList: async () => ({ ok: true, data: MENUS }),
-      pluginsList: async () => ({ ok: true, data: sections() }),
-      configSchemas: async (homeId: string) => { asked.push(homeId); return { ok: true, data: [schema()] }; },
+      screensList: async () => ({ ok: true, data: [SCREEN] }),
+      screenData,
+      screenInvoke: async () => ({ ok: true, data: { ok: true, refresh: true } }),
     });
-    render(PluginMenu, { props: { plugin: "ledger" } });
-
-    expect(await screen.findByLabelText("ledger Retention")).toHaveValue(5);
-    await waitFor(() => expect(asked).toContain("claude"));
+    render(PluginMenu, { plugin: "demo", screenId: "config" });
+    await waitFor(() => expect(screen.getByRole("button", { name: "go" })).toBeInTheDocument());
+    await fireEvent.click(screen.getByRole("button", { name: "go" }));
+    await waitFor(() => expect(screenData).toHaveBeenCalledTimes(2));
   });
 
-  it("switches home when the plugin contributes in more than one", async () => {
+  it("shows the plugin's own error rather than a blank screen", async () => {
     stubCairn({
-      menusList: async () => ({ ok: true, data: MENUS }),
-      pluginsList: async () => ({ ok: true, data: sections() }),
-      configSchemas: async (homeId: string) => ({
-        ok: true,
-        data: [schema({ current: { retention: homeId === "claude" ? 1 : 2 } })],
-      }),
+      screensList: async () => ({ ok: true, data: [SCREEN] }),
+      screenData: async () => ({ ok: false, error: "not a git repository" }),
     });
-    render(PluginMenu, { props: { plugin: "ledger" } });
-
-    expect(await screen.findByLabelText("ledger Retention")).toHaveValue(1);
-    await fireEvent.click(screen.getByRole("button", { name: "OpenCode" }));
-    await waitFor(() => expect(screen.getByLabelText("ledger Retention")).toHaveValue(2));
-  });
-
-  it("writes a change to the selected home's config", async () => {
-    const configWrite = vi.fn(async () => ({ ok: true as const, data: undefined }));
-    stubCairn({
-      menusList: async () => ({ ok: true, data: MENUS }),
-      pluginsList: async () => ({ ok: true, data: sections() }),
-      configSchemas: async () => ({ ok: true, data: [schema()] }),
-      configWrite,
-    });
-    render(PluginMenu, { props: { plugin: "ledger" } });
-
-    const input = await screen.findByLabelText("ledger Retention");
-    await fireEvent.change(input, { target: { value: "9" } });
-    await waitFor(() => expect(configWrite).toHaveBeenCalledWith("claude", "ledger", "retention", 9));
+    render(PluginMenu, { plugin: "demo", screenId: "config" });
+    await waitFor(() => expect(screen.getByText(/not a git repository/)).toBeInTheDocument());
   });
 
   it("says so when the plugin is installed nowhere", async () => {
-    stubCairn({
-      menusList: async () => ({ ok: true, data: [{ plugin: "ledger", label: "Ledger", homes: [] }] }),
-      pluginsList: async () => ({ ok: true, data: sections() }),
-    });
-    render(PluginMenu, { props: { plugin: "ledger" } });
-
-    expect(await screen.findByText(/not installed in any app/)).toBeInTheDocument();
-  });
-
-  it("surfaces a failure to read the menus instead of rendering an empty screen", async () => {
-    stubCairn({ menusList: async () => ({ ok: false, error: "sidecar down" }) });
-    render(PluginMenu, { props: { plugin: "ledger" } });
-
-    expect(await screen.findByText(/sidecar down/)).toBeInTheDocument();
+    stubCairn({ screensList: async () => ({ ok: true, data: [{ ...SCREEN, homes: [] }] }) });
+    render(PluginMenu, { plugin: "demo", screenId: "config" });
+    await waitFor(() => expect(screen.getByText(/not installed/)).toBeInTheDocument());
   });
 });
