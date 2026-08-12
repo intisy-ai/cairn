@@ -24,13 +24,17 @@ describe("registerHandlers", () => {
     await handlers["plugins:install"]({}, "a", "b", "c");
     await handlers["providers:list"]({});
     await handlers["config:schemas"]({}, "claude");
-    await handlers["menus:list"]({});
+    await handlers["screens:data"]({}, "config-ledger", "config", "claude");
+    await handlers["screens:invoke"]({}, "config-ledger", "commit", "claude", {});
 
     expect(calls.find((c) => c.channel === "plugins:install")?.timeout).toBe(600000);
     expect(calls.find((c) => c.channel === "providers:list")?.timeout).toBeUndefined();
     // Resolving a home's plugin declarations can legitimately need seconds on a cold cache,
     // which the 15s default is too tight for.
     expect(calls.find((c) => c.channel === "config:schemas")?.timeout).toBe(60000);
-    expect(calls.find((c) => c.channel === "menus:list")?.timeout).toBe(60000);
+    // Each must comfortably outlast the sidecar's own spawn timeout (10s / 600s in
+    // uiProbe.ts) rather than race it at the IPC layer.
+    expect(calls.find((c) => c.channel === "screens:data")?.timeout).toBe(25000);
+    expect(calls.find((c) => c.channel === "screens:invoke")?.timeout).toBe(615000);
   });
 });

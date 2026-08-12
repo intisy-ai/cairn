@@ -3,6 +3,7 @@ import { IPC_CHANNELS } from "@cairn/shared";
 import type { Result } from "@cairn/shared";
 import * as proxyDaemon from "../daemon/proxyDaemon.js";
 import { wrap } from "../../sidecar/result.js";
+import { UI_DATA_TIMEOUT_MS, UI_INVOKE_TIMEOUT_MS } from "../../sidecar/lib/uiProbe.js";
 
 export interface RpcSupervisor {
   rpc(channel: string, args: unknown[], timeoutMs?: number): Promise<Result<unknown>>;
@@ -20,9 +21,12 @@ const LONG_MS = 600000;
 // bundle identity and bounded (MAX_PARALLEL x PROBE_TIMEOUT_MS in the sidecar's schemaProbe),
 // but a cold cache across several homes still outlasts the 15s default.
 const PROBING_MS = 60000;
+// A channel that spawns a plugin bundle and waits on it must give the sidecar's own
+// spawn timeout room to fire and report a real error first; racing it with an equal
+// or shorter IPC deadline would surface a generic timeout instead.
+const RPC_HEADROOM_MS = 15000;
 const CHANNEL_TIMEOUTS: Record<string, number> = {
   "config:schemas": PROBING_MS,
-  "menus:list": PROBING_MS,
   "usage:snapshot": 120000,
   "plugins:versionsAll": 120000,
   "repo:meta": 60000,
@@ -35,6 +39,8 @@ const CHANNEL_TIMEOUTS: Record<string, number> = {
   "sync:run": LONG_MS,
   "import:run": LONG_MS,
   "config:action": LONG_MS,
+  "screens:data": UI_DATA_TIMEOUT_MS + RPC_HEADROOM_MS,
+  "screens:invoke": UI_INVOKE_TIMEOUT_MS + RPC_HEADROOM_MS,
 };
 
 export function registerHandlers(supervisor: RpcSupervisor): void {
