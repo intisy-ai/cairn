@@ -54,6 +54,13 @@
     return homeLabels[id] ?? id;
   }
 
+  // A failure to resolve the screen itself (spec still null) needs loadScreen re-run;
+  // a failure reading the resolved screen's data needs loadData re-run instead.
+  function retry(): void {
+    if (spec) void loadData();
+    else void loadScreen();
+  }
+
   // The plugin names the topics its data depends on, so a change made anywhere (its own CLI,
   // another surface) repaints this screen without it polling for one.
   let poll: ReturnType<typeof setInterval> | undefined;
@@ -77,6 +84,8 @@
 
 {#if !loaded}
   <Skeleton height="80px" radius="12px" />
+{:else if loadError}
+  <ErrorState message={loadError} onRetry={retry} />
 {:else if !spec || spec.homes.length === 0}
   <Card><p class="empty">{plugin} is not installed in any app.</p></Card>
 {:else}
@@ -86,9 +95,6 @@
         <button class="hchip" class:on={homeId === id} onclick={() => (homeId = id)}>{labelFor(id)}</button>
       {/each}
     </div>
-  {/if}
-  {#if loadError}
-    <ErrorState message={loadError} onRetry={loadData} />
   {/if}
   {#if notice}<p class="notice">{notice}</p>{/if}
   <ScreenRenderer node={spec.layout} ctx={{ plugin, screenId, homeId, sources, invoke, busy }} />

@@ -46,4 +46,77 @@ describe("PluginMenu", () => {
     render(PluginMenu, { plugin: "demo", screenId: "config" });
     await waitFor(() => expect(screen.getByText(/not installed/)).toBeInTheDocument());
   });
+
+  // A screensList failure must not read as "not installed": that message means the plugin
+  // was resolved and genuinely has no homes, which is not what a read error tells you.
+  it("surfaces a failure to read the screens instead of rendering an empty screen", async () => {
+    stubCairn({ screensList: async () => ({ ok: false, error: "sidecar down" }) });
+    render(PluginMenu, { plugin: "demo", screenId: "config" });
+    await waitFor(() => expect(screen.getByText(/sidecar down/)).toBeInTheDocument());
+    expect(screen.queryByText(/not installed/)).toBeNull();
+  });
+
+  it("switches home when the plugin contributes in more than one", async () => {
+    const SCREEN_MULTI = { ...SCREEN, homes: ["claude", "opencode"] };
+    stubCairn({
+      screensList: async () => ({ ok: true, data: [SCREEN_MULTI] }),
+      pluginsList: async () => ({
+        ok: true,
+        data: [
+          { home: { id: "claude", label: "Claude", dir: "/c", present: true, hasUpdater: true }, rows: [] },
+          { home: { id: "opencode", label: "OpenCode", dir: "/o", present: true, hasUpdater: true }, rows: [] },
+        ],
+      }),
+      screenData: async (_plugin: string, _screenId: string, homeId: string) => ({
+        ok: true,
+        data: { sources: { line: homeId === "claude" ? "from Claude" : "from OpenCode" } },
+      }),
+    });
+    render(PluginMenu, { plugin: "demo", screenId: "config" });
+
+    await waitFor(() => expect(screen.getByText("from Claude")).toBeInTheDocument());
+    await fireEvent.click(screen.getByRole("button", { name: "OpenCode" }));
+    await waitFor(() => expect(screen.getByText("from OpenCode")).toBeInTheDocument());
+  });
+});
+
+describe("refreshOn", () => {
+  // The plugin declares topic PREFIXES; the interval callback drains the bus itself, so the
+  // test captures that callback (rather than waiting out the real 5s) and invokes it directly.
+  async function capturedFollow(): Promise<() => Promise<void>> {
+    const spy = vi.spyOn(globalThis, "setInterval");
+    render(PluginMenu, { plugin: "demo", screenId: "config" });
+    await waitFor(() => expect(spy).toHaveBeenCalled());
+    const follow = spy.mock.calls[0][0] as unknown as () => Promise<void>;
+    spy.mockRestore();
+    return follow;
+  }
+
+  it("re-reads when a drained event's topic matches a declared prefix", async () => {
+    const screenData = vi.fn(async () => ({ ok: true, data: { sources: { line: "v1" } } }));
+    stubCairn({
+      screensList: async () => ({ ok: true, data: [SCREEN] }),
+      screenData,
+      busDrain: async () => ({ ok: true, data: [{ topic: "config.changed", source: "demo", ts: 0, payload: null }] }),
+    });
+    const follow = await capturedFollow();
+    await waitFor(() => expect(screenData).toHaveBeenCalledTimes(1));
+
+    await follow();
+    await waitFor(() => expect(screenData).toHaveBeenCalledTimes(2));
+  });
+
+  it("ignores a drained event whose topic does not match a declared prefix", async () => {
+    const screenData = vi.fn(async () => ({ ok: true, data: { sources: { line: "v1" } } }));
+    stubCairn({
+      screensList: async () => ({ ok: true, data: [SCREEN] }),
+      screenData,
+      busDrain: async () => ({ ok: true, data: [{ topic: "other.thing", source: "demo", ts: 0, payload: null }] }),
+    });
+    const follow = await capturedFollow();
+    await waitFor(() => expect(screenData).toHaveBeenCalledTimes(1));
+
+    await follow();
+    expect(screenData).toHaveBeenCalledTimes(1);
+  });
 });
