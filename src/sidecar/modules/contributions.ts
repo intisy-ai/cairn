@@ -1,4 +1,4 @@
-import type { PluginConfigSchema, PluginHome, PluginMenu, PluginSettingsSection, Result } from "../../../packages/shared/src/domain.js";
+import type { PluginConfigSchema, PluginHome, PluginScreen, PluginSettingsSection, Result } from "../../../packages/shared/src/domain.js";
 import { pluginHomes } from "../lib/pluginHomes.js";
 import { readCache, writeCache } from "../lib/cache.js";
 import { getConfigDir } from "@core-auth/index.js";
@@ -9,7 +9,7 @@ export const CONTRIBUTIONS_NS = "contributions";
 const CONTRIBUTIONS_KEY = "contributions";
 
 export interface Contributions {
-  menus: PluginMenu[];
+  screens: PluginScreen[];
   sections: PluginSettingsSection[];
 }
 
@@ -26,7 +26,7 @@ export interface ContributionsOptions {
   wait?: boolean;
 }
 
-const EMPTY: Contributions = { menus: [], sections: [] };
+const EMPTY: Contributions = { screens: [], sections: [] };
 
 async function realSchemas(homeId: string): Promise<PluginConfigSchema[]> {
   const result = await configSchemas(homeId);
@@ -38,9 +38,10 @@ function byOrderThenLabel(a: { order?: number; label: string }, b: { order?: num
   return (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) || a.label.localeCompare(b.label);
 }
 
-// A plugin asks for UI of its own in its capability declaration: a nav entry (menu) and
-// sections placed inside the dashboard's own settings screen. This collects both across
-// every home the dashboard manages, so one pass over the declarations serves both.
+// A plugin asks for UI of its own in its capability declaration: a screen (a nav entry plus
+// a nested layout tree) and sections placed inside the dashboard's own settings screen. This
+// collects both across every home the dashboard manages, so one pass over the declarations
+// serves both.
 // (Not to be confused with a MarketplaceContribution, which is a catalog entry a plugin
 // publishes rather than a piece of the dashboard's own UI.)
 // A home that cannot be read contributes nothing rather than sinking the whole list: one
@@ -48,7 +49,7 @@ function byOrderThenLabel(a: { order?: number; label: string }, b: { order?: num
 async function collect(deps: ContributionsDeps): Promise<Contributions> {
   const homes = deps.homes ?? (await pluginHomes());
   const schemas = deps.schemas ?? realSchemas;
-  const menus = new Map<string, PluginMenu>();
+  const screens = new Map<string, PluginScreen>();
   const sections = new Map<string, PluginSettingsSection>();
 
   for (const home of homes) {
@@ -60,10 +61,11 @@ async function collect(deps: ContributionsDeps): Promise<Contributions> {
       continue;
     }
     for (const schema of found) {
-      if (schema.menu) {
-        const existing = menus.get(schema.plugin);
-        if (existing) existing.homes.push(home.id);
-        else menus.set(schema.plugin, { ...schema.menu, plugin: schema.plugin, homes: [home.id] });
+      for (const spec of schema.screens ?? []) {
+        const key = `${schema.plugin}:${spec.id}`;
+        const existing = screens.get(key);
+        if (existing) { existing.homes.push(home.id); continue; }
+        screens.set(key, { ...spec, plugin: schema.plugin, homes: [home.id] });
       }
       for (const spec of schema.sections ?? []) {
         const key = `${schema.plugin}:${spec.id}`;
@@ -76,7 +78,7 @@ async function collect(deps: ContributionsDeps): Promise<Contributions> {
   }
 
   return {
-    menus: [...menus.values()].sort(byOrderThenLabel),
+    screens: [...screens.values()].sort(byOrderThenLabel),
     sections: [...sections.values()].sort(byOrderThenLabel),
   };
 }
@@ -103,8 +105,8 @@ function read(opts: ContributionsOptions, deps: ContributionsDeps): Promise<Cont
   return Promise.resolve(readCache<Contributions>(CONTRIBUTIONS_NS, CONTRIBUTIONS_KEY, cacheDir)?.value ?? EMPTY);
 }
 
-export function menusList(opts: ContributionsOptions = {}, deps: ContributionsDeps = {}): Promise<Result<PluginMenu[]>> {
-  return wrap(async () => (await read(opts, deps)).menus);
+export function screensList(opts: ContributionsOptions = {}, deps: ContributionsDeps = {}): Promise<Result<PluginScreen[]>> {
+  return wrap(async () => (await read(opts, deps)).screens);
 }
 
 export function settingsSections(opts: ContributionsOptions = {}, deps: ContributionsDeps = {}): Promise<Result<PluginSettingsSection[]>> {

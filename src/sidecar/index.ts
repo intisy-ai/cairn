@@ -14,7 +14,7 @@ import { enginesList, ensureEngine } from "./modules/engines.js";
 import { proxiesList, proxiesSetEnabled } from "./modules/proxies.js";
 import { repoMeta, repoMetaCached } from "./modules/repo.js";
 import { configSchemas, configWrite, configAction } from "./modules/appConfig.js";
-import { menusList, settingsSections } from "./modules/contributions.js";
+import { screensList, settingsSections } from "./modules/contributions.js";
 import { screenData, screenInvoke } from "./modules/screens.js";
 import { busDrain } from "./modules/bus.js";
 import { pluginsData, pluginsRemoveData } from "./modules/pluginData.js";
@@ -172,7 +172,7 @@ registerHandler("plugins:removeData", (home, paths) => pluginsRemoveData(home as
 registerHandler("proxies:list", () => proxiesList());
 registerHandler("proxies:setEnabled", (name, on) => proxiesSetEnabled(name as string, on as boolean));
 registerHandler("config:schemas", (home) => configSchemas(home as string));
-registerHandler("menus:list", (opts) => menusList((opts ?? {}) as { wait?: boolean }));
+registerHandler("screens:list", (opts) => screensList((opts ?? {}) as { wait?: boolean }));
 registerHandler("settings:sections", (opts) => settingsSections((opts ?? {}) as { wait?: boolean }));
 registerHandler("config:write", (home, plugin, key, value) => configWrite(home as string, plugin as string, key as string, value));
 registerHandler("config:action", (home, plugin, actionId) => configAction(home as string, plugin as string, actionId as string));
