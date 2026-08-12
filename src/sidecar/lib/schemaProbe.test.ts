@@ -52,7 +52,7 @@ describe("probeDeclarations", () => {
     expect(result.get("plugin-a")).toEqual({ defaults: { logging: false } });
   });
 
-  it("carries the declared fields, actions and menu through", async () => {
+  it("carries the declared fields, actions and screens through", async () => {
     const b = bundle("plugin-a");
     const spawn = vi.fn(async () => ({
       name: "plugin-a",
@@ -60,7 +60,7 @@ describe("probeDeclarations", () => {
       current: { x: 2 },
       fields: [{ key: "x", type: "number" }],
       actions: [{ id: "go", label: "Go" }],
-      menu: { label: "A" },
+      screens: [{ id: "s", label: "A", layout: { kind: "stack" } }],
     }));
 
     const result = await probeDeclarations([b], { spawn, cacheDir: dir });
@@ -69,7 +69,7 @@ describe("probeDeclarations", () => {
       defaults: { x: 1 },
       fields: [{ key: "x", type: "number" }],
       actions: [{ id: "go", label: "Go" }],
-      menu: { label: "A" },
+      screens: [{ id: "s", label: "A", layout: { kind: "stack" } }],
     });
   });
 
