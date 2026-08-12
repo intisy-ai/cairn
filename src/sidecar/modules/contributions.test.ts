@@ -34,6 +34,10 @@ function withSections(plugin: string, sections: NonNullable<PluginConfigSchema["
   return { plugin, defaults: {}, current: {}, sections };
 }
 
+function withScreens(plugin: string, screens: PluginScreen[]): PluginConfigSchema {
+  return { plugin, defaults: {}, current: {}, screens };
+}
+
 describe("screensList", () => {
   it("lists a screen per contributing plugin, with the homes that offer it", async () => {
     const result = await screensList({ wait: true }, {
@@ -108,6 +112,18 @@ describe("screensList", () => {
       schemas: async (homeId) => [schema("p", screenSpec("s", homeId === "cairn" ? { label: "First" } : { label: "Second" }))],
     });
     expect(result.ok && result.data).toEqual([{ plugin: "p", id: "s", label: "First", layout: { kind: "stack" }, homes: ["cairn", "claude"] }]);
+  });
+
+  it("keeps two screens of the same plugin apart, and the same id of two plugins apart", async () => {
+    const result = await screensList({ wait: true }, {
+      cacheDir,
+      homes: [HOMES[0]],
+      schemas: async () => [
+        withScreens("a", [screenSpec("one", { label: "One", order: 1 }), screenSpec("two", { label: "Two", order: 2 })]),
+        withScreens("b", [screenSpec("one", { label: "B One", order: 3 })]),
+      ],
+    });
+    expect(result.ok && result.data.map((s) => `${s.plugin}:${s.id}`)).toEqual(["a:one", "a:two", "b:one"]);
   });
 
   it("lists a screen declared in two homes once, naming both", async () => {
