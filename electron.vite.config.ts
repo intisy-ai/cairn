@@ -2,13 +2,9 @@ import { defineConfig } from "electron-vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-// The alias-resolved dist paths for the two optional engines (see optionalEngines.ts):
-// externalizing them (below) leaves their absolute filesystem path as the literal
-// dynamic-import() specifier in the emitted bundle. On Windows that path is
-// "F:\...\dist\config.js": Node's ESM loader parses the drive letter as a URL scheme
-// and rejects it (ERR_UNSUPPORTED_ESM_URL_SCHEME), so the import always fails even
-// when the engine is present. `output.paths` rewrites those two ids to real file://
-// URLs, which Node resolves correctly on every platform.
+// Externalizing config-ledger's alias-resolved dist path (below) leaves its absolute Windows path
+// as the literal dynamic-import() specifier; Node's ESM loader parses the drive letter as a URL
+// scheme and rejects it, so `output.paths` rewrites the id to a real file:// URL instead.
 const OPTIONAL_ENGINE_EXTERNAL = [/[\\/]plugins[\\/]config-ledger[\\/]dist[\\/]/];
 
 export default defineConfig({
