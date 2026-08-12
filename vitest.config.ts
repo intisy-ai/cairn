@@ -16,6 +16,7 @@ export default defineConfig({
     },
   },
   test: {
+    pool: "threads",
     include: ["src/**/*.test.ts", "vendor/**/*.test.ts", "packages/shared/**/*.test.ts"],
     setupFiles: ["./vitest.setup.ts"],
     // The sidecar tests import real bundles and build real homes on disk, which takes a few
