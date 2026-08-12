@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/svelte";
+import { render, screen, fireEvent, waitFor } from "@testing-library/svelte";
 import ScreenRenderer from "./ScreenRenderer.svelte";
+import { stubCairn } from "../../testing.js";
 
 function ctx(sources: Record<string, unknown>, invoke = vi.fn(async () => {})) {
   return { plugin: "p", screenId: "s", homeId: "claude", sources, invoke, busy: false };
@@ -56,5 +57,49 @@ describe("data leaves", () => {
     unmount();
     render(ScreenRenderer, { node: { kind: "banner", source: "notice" }, ctx: ctx({ notice: "uncommitted changes" }) });
     expect(screen.getByRole("status")).toHaveTextContent("uncommitted changes");
+  });
+});
+
+describe("data leaves backed by the plugin's own schema", () => {
+  it("does not fall back to every declared or inferred field when none of them match the node's keys", async () => {
+    stubCairn({
+      configSchemas: async () => ({
+        ok: true,
+        data: [{
+          plugin: "p",
+          defaults: { token: "abc", spare: true },
+          current: {},
+          fields: [{ key: "token", type: "secret", label: "Token" }],
+        }],
+      }),
+    });
+    render(ScreenRenderer, { node: { kind: "fields", keys: ["nope"] }, ctx: ctx({}) });
+    await waitFor(() => expect(screen.getByText("No controls.")).toBeInTheDocument());
+    expect(screen.queryByLabelText("p Token")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("p spare")).not.toBeInTheDocument();
+  });
+
+  it("routes a declared confirm through ConfirmDialog and invokes only after confirming", async () => {
+    const invoke = vi.fn(async () => {});
+    stubCairn({
+      configSchemas: async () => ({
+        ok: true,
+        data: [{
+          plugin: "p",
+          defaults: {},
+          current: {},
+          actions: [{ id: "wipe", label: "Wipe", confirm: "Wipe everything?", danger: true }],
+        }],
+      }),
+    });
+    render(ScreenRenderer, { node: { kind: "actions", ids: ["wipe"] }, ctx: ctx({}, invoke) });
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Wipe" })).toBeInTheDocument());
+    await fireEvent.click(screen.getByRole("button", { name: "Wipe" }));
+    expect(screen.getByText("Wipe everything?")).toBeInTheDocument();
+    expect(invoke).not.toHaveBeenCalled();
+
+    await fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(invoke).toHaveBeenCalledWith("wipe", {});
   });
 });

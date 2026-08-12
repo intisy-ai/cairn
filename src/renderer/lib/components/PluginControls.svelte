@@ -13,8 +13,11 @@
   // Values are read from, and actions run in, `homeId`. `writeHomes` exists for a setting
   // a plugin declared as spanning homes: the write lands in each of them, so the homes do
   // not drift apart behind one control.
-  let { homeId, schema, sectionId, hideContributed = false, writeHomes }:
-    { homeId: string; schema: PluginConfigSchema; sectionId?: string; hideContributed?: boolean; writeHomes?: string[] } = $props();
+  //
+  // `busy` is the caller's own in-flight flag (e.g. a screen invoking another action), separate
+  // from `actionBusy` below which tracks a run started by this component's own action buttons.
+  let { homeId, schema, sectionId, hideContributed = false, writeHomes, busy = false }:
+    { homeId: string; schema: PluginConfigSchema; sectionId?: string; hideContributed?: boolean; writeHomes?: string[]; busy?: boolean } = $props();
 
   const section = $derived(sectionId ? (schema.layout?.sections ?? []).find((s) => s.id === sectionId) ?? null : null);
 
@@ -180,30 +183,30 @@
         >
           {#snippet control()}
             {#if field.type === "boolean"}
-              <ToggleSwitch checked={values[field.key] as boolean} label={aria(field)} onchange={(on) => save(field, on)} />
+              <ToggleSwitch checked={values[field.key] as boolean} label={aria(field)} disabled={busy} onchange={(on) => save(field, on)} />
             {:else if field.type === "number"}
-              <input class="control sized" type="number" aria-label={aria(field)} min={field.min} max={field.max} step={field.step}
+              <input class="control sized" type="number" aria-label={aria(field)} disabled={busy} min={field.min} max={field.max} step={field.step}
                 value={values[field.key] as number} onchange={(e) => save(field, Number(e.currentTarget.value))} />
             {:else if field.type === "secret"}
-              <input class="control sized" type="password" aria-label={aria(field)} placeholder={field.placeholder ?? "Set new value"}
+              <input class="control sized" type="password" aria-label={aria(field)} disabled={busy} placeholder={field.placeholder ?? "Set new value"}
                 onchange={(e) => save(field, e.currentTarget.value)} />
             {:else if field.type === "select"}
-              <select class="control sized" aria-label={aria(field)} value={values[field.key] as string} onchange={(e) => save(field, e.currentTarget.value)}>
+              <select class="control sized" aria-label={aria(field)} disabled={busy} value={values[field.key] as string} onchange={(e) => save(field, e.currentTarget.value)}>
                 {#each field.options ?? [] as opt (opt.value)}<option value={opt.value}>{opt.label}</option>{/each}
               </select>
             {:else if field.type === "list"}
               <div class="list">
                 {#each (values[field.key] as unknown[]) ?? [] as item, i}
                   <div class="listrow">
-                    <input class="control sized" type={field.itemType === "number" ? "number" : "text"} aria-label={`${aria(field)} ${i + 1}`}
+                    <input class="control sized" type={field.itemType === "number" ? "number" : "text"} aria-label={`${aria(field)} ${i + 1}`} disabled={busy}
                       value={item as string | number} onchange={(e) => setListItem(field, i, e.currentTarget.value)} />
-                    <button class="rm" title="Remove" aria-label="Remove" onclick={() => removeListItem(field, i)}>×</button>
+                    <button class="rm" title="Remove" aria-label="Remove" disabled={busy} onclick={() => removeListItem(field, i)}>×</button>
                   </div>
                 {/each}
-                <button class="add" onclick={() => addListItem(field)}>+ Add</button>
+                <button class="add" disabled={busy} onclick={() => addListItem(field)}>+ Add</button>
               </div>
             {:else}
-              <textarea class="control sized" aria-label={aria(field)} rows="3" placeholder={field.placeholder}
+              <textarea class="control sized" aria-label={aria(field)} disabled={busy} rows="3" placeholder={field.placeholder}
                 value={values[field.key] as string} onchange={(e) => save(field, e.currentTarget.value)}></textarea>
             {/if}
           {/snippet}
@@ -225,11 +228,11 @@
         {#if confirming === action.id}
           <div class="confirm">
             <span>{action.confirm}</span>
-            <Button onclick={() => (confirming = null)}>Cancel</Button>
-            <Button variant={action.danger ? "danger" : "primary"} onclick={() => runAction(action)}>Confirm</Button>
+            <Button disabled={busy} onclick={() => (confirming = null)}>Cancel</Button>
+            <Button variant={action.danger ? "danger" : "primary"} disabled={busy} onclick={() => runAction(action)}>Confirm</Button>
           </div>
         {:else}
-          <Button variant={action.danger ? "danger" : "default"} disabled={actionBusy[action.id]} onclick={() => onAction(action)}>
+          <Button variant={action.danger ? "danger" : "default"} disabled={actionBusy[action.id] || busy} onclick={() => onAction(action)}>
             {#if actionBusy[action.id]}<Spinner />{/if}
             {action.label}
           </Button>

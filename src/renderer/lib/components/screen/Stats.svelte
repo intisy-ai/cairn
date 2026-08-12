@@ -9,6 +9,10 @@
   let { node, ctx }: { node: ScreenNode; ctx: ScreenContext } = $props();
 
   const stats = $derived(Array.isArray(ctx.sources[node.source as string]) ? (ctx.sources[node.source as string] as Stat[]) : []);
+
+  function display(value: string | number | undefined): string {
+    return value === undefined ? "" : String(value);
+  }
 </script>
 
 {#if stats.length === 0}
@@ -16,7 +20,7 @@
 {:else}
   <div class="stats">
     {#each stats as stat (stat.id)}
-      <StatCard label={stat.label} value={String(stat.value)} unit={stat.unit ?? ""} meta={stat.meta ?? ""} />
+      <StatCard label={stat.label} value={display(stat.value)} unit={stat.unit ?? ""} meta={stat.meta ?? ""} />
     {/each}
   </div>
 {/if}
