@@ -93,10 +93,7 @@ describe("customEndpoints module", () => {
     expect(loadPlugin).toHaveBeenCalledOnce();
   });
 
-  // The owner lookup precedes loading the plugin, so a home nothing was deployed to must be told
-  // apart from a home whose plugin is merely absent: both end in "no plugin", but only the first
-  // is a manifest-scanning question rather than a handler-bundle one.
-  it("says no plugin owns the capability, distinctly from the plugin failing to load", async () => {
+  it("answers that no plugin provides custom endpoints when nothing owns the capability", async () => {
     const result = await customEndpointsList({ dir: "/home", ownerPlugin: () => null });
     expect(result).toEqual({ ok: false, error: "no plugin provides custom endpoints" });
   });
