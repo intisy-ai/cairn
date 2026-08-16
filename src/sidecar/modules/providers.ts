@@ -1,67 +1,119 @@
 import { readDeployedProviders } from "@core-loader/loader-runtime.js";
-import { loadProviderDefsResult, type ProviderDefsResult } from "@core-loader/provider-def.js";
-import { reposDir, listAccounts, getConfigDir } from "@core-auth/index.js";
+import { listAccounts, getConfigDir } from "@core-auth/index.js";
 import { getApps } from "@core/index.js";
+import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS } from "../lib/pluginHost.js";
+import { reposDir } from "../lib/storagePaths.js";
 import { exposureFor, readExposureMap, setExposure } from "../lib/exposure.js";
 import { readPluginManifest, providerIcon } from "../lib/pluginManifest.js";
 import type { ProviderRow, Result } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
 import { emitCairnAction } from "../activity.js";
 
-export function providersList(): Promise<Result<ProviderRow[]>> {
-  return wrap(async () => {
-    const deployed = readDeployedProviders(reposDir());
-    const exposureMap = readExposureMap();
+/** One lane as the deployed inventory describes it, before any capability has spoken for it. */
+interface DeployedLane {
+  provider: string;
+  repo: string;
+  handler: string;
+  handlerPath: string;
+  translator: string | undefined;
+  accountPool: string;
+  models: unknown[];
+}
 
-    // A handler module can back several deployed entries (a shared handler backing
-    // multiple providers); import it once and reuse the resolved defs for all of them.
-    const defsByHandler = new Map<string, Promise<ProviderDefsResult>>();
-    function defsFor(handlerPath: string): Promise<ProviderDefsResult> {
-      let cached = defsByHandler.get(handlerPath);
-      if (!cached) {
-        cached = loadProviderDefsResult(handlerPath);
-        defsByHandler.set(handlerPath, cached);
-      }
-      return cached;
+/** One lane as its plugin's `provider` capability describes it. */
+interface LaneDescriptor {
+  id: string;
+  label: string;
+  hasOAuth?: boolean;
+  accountPool?: string;
+  translator?: string;
+}
+
+interface ProviderCapabilityLike {
+  id: string;
+  providers?: () => LaneDescriptor[] | Promise<LaneDescriptor[]>;
+}
+
+export interface ProvidersDeps {
+  homeDir?: string;
+  appId?: string;
+  deployed?: (homeDir: string) => DeployedLane[];
+  accountsFor?: (pool: string) => unknown[];
+  exposure?: () => Record<string, Record<string, boolean>>;
+  manifestFor?: (plugin: string, homeDir: string) => ReturnType<typeof readPluginManifest>;
+}
+
+// One capability call per providing plugin, not per lane: a plugin backing several lanes off one
+// account pool answers for all of them at once, and calling per lane would import and question the
+// same plugin repeatedly.
+async function describedLanes(
+  homeDir: string,
+  appId: string,
+): Promise<{ byId: Map<string, LaneDescriptor>; errorFor: Map<string, string> }> {
+  const byId = new Map<string, LaneDescriptor>();
+  const errorFor = new Map<string, string>();
+  for (const record of await capabilityProviders(homeDir, appId, "provider")) {
+    const capability = record.implementation as ProviderCapabilityLike;
+    if (typeof capability?.providers !== "function") continue;
+    const answer = await callHostCapability(record.pluginId, "provider.providers", DEFAULT_CALL_TIMEOUT_MS, async () => capability.providers!());
+    if (answer.ok === false) {
+      errorFor.set(record.pluginId, answer.error.detail);
+      continue;
     }
+    for (const lane of Array.isArray(answer.value) ? answer.value : []) {
+      if (lane && typeof lane.id === "string") byId.set(lane.id, lane);
+    }
+  }
+  return { byId, errorFor };
+}
 
-    // One manifest read per deploying plugin, not per provider: a plugin deploying several
-    // providers would otherwise re-read and re-encode the same icons for each of them.
+export function providersList(deps: ProvidersDeps = {}): Promise<Result<ProviderRow[]>> {
+  return wrap(async () => {
+    const homeDir = deps.homeDir ?? getConfigDir();
+    const appId = deps.appId ?? "cairn";
+    const deployed = (deps.deployed ?? ((dir: string) => readDeployedProviders(reposDir(dir), dir) as DeployedLane[]))(homeDir);
+    const exposureMap = (deps.exposure ?? readExposureMap)();
+    const accountsFor = deps.accountsFor ?? ((pool: string) => listAccounts(pool, undefined));
+    const readManifest = deps.manifestFor ?? readPluginManifest;
+    const { byId, errorFor } = await describedLanes(homeDir, appId);
+
+    // One manifest read per deploying plugin, not per lane: a plugin deploying several lanes would
+    // otherwise re-read and re-encode the same icons for each of them.
     const manifests = new Map<string, ReturnType<typeof readPluginManifest>>();
     function manifestFor(plugin: string): ReturnType<typeof readPluginManifest> {
       let cached = manifests.get(plugin);
       if (!cached) {
-        cached = readPluginManifest(plugin, getConfigDir());
+        cached = readManifest(plugin, homeDir);
         manifests.set(plugin, cached);
       }
       return cached;
     }
 
     const rows: ProviderRow[] = [];
-    for (const entry of deployed) {
-      const { defs, error } = await defsFor(entry.handlerPath);
-      const def = defs.find((d) => d.id === entry.provider) ?? defs[0] ?? null;
-      const accountPool = def?.accountPool ?? entry.accountPool;
-      const exposure = exposureFor(exposureMap, entry.provider);
-      rows.push({
-        id: entry.provider,
-        label: def?.label ?? entry.provider,
-        authKind: def?.hasOAuth ? "oauth" : "api-key",
-        accountCount: listAccounts(accountPool, undefined).length,
+    for (const lane of deployed) {
+      const described = byId.get(lane.provider);
+      const accountPool = described?.accountPool ?? lane.accountPool;
+      const exposure = exposureFor(exposureMap, lane.provider);
+      const row: ProviderRow = {
+        id: lane.provider,
+        label: described?.label ?? lane.provider,
+        authKind: described?.hasOAuth ? "oauth" : "api-key",
+        accountCount: accountsFor(accountPool).length,
         enabled: Object.values(exposure).some(Boolean),
         exposure,
-        translator: entry.translator,
+        translator: lane.translator ?? described?.translator,
         accountPool,
         sharedWith: [],
-        pluginName: entry.repo,
-        icon: providerIcon(manifestFor(entry.repo), entry.provider),
-        defsError: error,
-      });
+        pluginName: lane.repo,
+        icon: providerIcon(manifestFor(lane.repo), lane.provider),
+      };
+      const failure = errorFor.get(lane.repo);
+      if (failure) row.defsError = failure;
+      rows.push(row);
     }
 
-    // sharedWith is computed across the full list, not per-entry: two providers
-    // (from the same or different plugins) that declare the same accountPool
-    // cross-link each other here.
+    // sharedWith is computed across the full list, not per lane: two providers (from the same or
+    // different plugins) that declare the same accountPool cross-link each other here.
     const idsByPool = new Map<string, string[]>();
     for (const row of rows) {
       const ids = idsByPool.get(row.accountPool) ?? [];

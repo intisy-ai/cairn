@@ -1,7 +1,7 @@
 import { statSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { readDeployedProviders } from "@core-loader/loader-runtime.js";
-import { reposDir } from "@core-auth/index.js";
+import { reposDir, getConfigDir } from "@core-auth/index.js";
 
 export interface DeployedHandler {
   repo: string;
@@ -45,7 +45,7 @@ export async function importHandlerModule(handlerPath: string, repo: string): Pr
 }
 
 export async function importProviderHandler(provider: string): Promise<DeployedHandler> {
-  const deployed = readDeployedProviders(reposDir()).find((p) => p.provider === provider);
+  const deployed = readDeployedProviders(reposDir(), getConfigDir()).find((p) => p.provider === provider);
   if (!deployed) throw new Error(`no provider deployed with id: ${provider}`);
   return { repo: deployed.repo, module: await importHandlerModule(deployed.handlerPath, deployed.repo) };
 }
