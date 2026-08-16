@@ -27,6 +27,7 @@ import { requirePluginUpdater, withHome } from "./modules/plugins.js";
 import { librariesList, librariesRemove } from "./modules/libraries.js";
 import { appStorageGet, appStorageSet } from "./modules/appPaths.js";
 import { loadPluginUpdaterIndex } from "./lib/optionalEngines.js";
+import { stopAllHosts } from "./lib/pluginHost.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
 import type { ActivityQuery } from "@core/index.js";
 import { setActivityContext, withCause } from "@core/index.js";
@@ -85,6 +86,8 @@ setJobListener((job) => {
     process.parentPort.postMessage({ job });
   } catch { /* a dropped update must never fail the job it describes */ }
 });
+
+process.on("beforeExit", () => { void stopAllHosts(); });
 
 // A value the message channel cannot clone (a promise, a function, a live handle) throws
 // on postMessage, and an unhandled throw here takes the whole sidecar down with every
