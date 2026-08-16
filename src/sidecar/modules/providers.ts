@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { readDeployedProviders } from "@core-loader/loader-runtime.js";
 import { listAccounts, getConfigDir } from "@core-auth/index.js";
 import { getApps } from "@core/index.js";
@@ -41,6 +43,27 @@ export interface ProvidersDeps {
   accountsFor?: (pool: string) => unknown[];
   exposure?: () => Record<string, Record<string, boolean>>;
   manifestFor?: (plugin: string, homeDir: string) => ReturnType<typeof readPluginManifest>;
+  pluginIdFor?: (repo: string, homeDir: string) => string;
+}
+
+/**
+ * The plugin id a clone directory's own `plugin.json` declares, or the directory name when the
+ * sidecar is absent, unreadable, or declares none.
+ *
+ * @remarks
+ * The host's `capabilityProviders` keys errors by the manifest id it activated, which is not
+ * always the clone directory name under `repos/`: a clone's `plugin.json` `id` takes precedence
+ * over its directory name by the same convention the plugin manager itself uses, so a lane's
+ * error must be looked up through this, not through `lane.repo` directly.
+ */
+function pluginIdFromClone(repo: string, homeDir: string): string {
+  try {
+    const declared = JSON.parse(readFileSync(join(reposDir(homeDir), repo, "plugin.json"), "utf-8")) as { id?: unknown };
+    if (typeof declared.id === "string" && declared.id) return declared.id;
+  } catch {
+    // absent or unreadable plugin.json falls back to the repo name below
+  }
+  return repo;
 }
 
 // One capability call per providing plugin, not per lane: a plugin backing several lanes off one
@@ -75,6 +98,7 @@ export function providersList(deps: ProvidersDeps = {}): Promise<Result<Provider
     const exposureMap = (deps.exposure ?? readExposureMap)();
     const accountsFor = deps.accountsFor ?? ((pool: string) => listAccounts(pool, undefined));
     const readManifest = deps.manifestFor ?? readPluginManifest;
+    const resolvePluginId = deps.pluginIdFor ?? pluginIdFromClone;
     const { byId, errorFor } = await describedLanes(homeDir, appId);
 
     // One manifest read per deploying plugin, not per lane: a plugin deploying several lanes would
@@ -85,6 +109,17 @@ export function providersList(deps: ProvidersDeps = {}): Promise<Result<Provider
       if (!cached) {
         cached = readManifest(plugin, homeDir);
         manifests.set(plugin, cached);
+      }
+      return cached;
+    }
+
+    // One plugin.json read per deploying clone, not per lane, for the same reason as manifestFor.
+    const pluginIds = new Map<string, string>();
+    function pluginIdFor(repo: string): string {
+      let cached = pluginIds.get(repo);
+      if (cached === undefined) {
+        cached = resolvePluginId(repo, homeDir);
+        pluginIds.set(repo, cached);
       }
       return cached;
     }
@@ -107,7 +142,7 @@ export function providersList(deps: ProvidersDeps = {}): Promise<Result<Provider
         pluginName: lane.repo,
         icon: providerIcon(manifestFor(lane.repo), lane.provider),
       };
-      const failure = errorFor.get(lane.repo);
+      const failure = errorFor.get(pluginIdFor(lane.repo));
       if (failure) row.defsError = failure;
       rows.push(row);
     }

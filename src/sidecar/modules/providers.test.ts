@@ -42,7 +42,7 @@ describe("providersList", () => {
   it("falls back to the lane id and records defsError when the capability call fails", async () => {
     const { capabilityProviders } = await import("../lib/pluginHost.js");
     (capabilityProviders as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
-      { pluginId: "vendor-auth", implementation: { id: "vendor", providers: async () => { throw new Error("lane resolver died"); } } },
+      { pluginId: "vendor-auth-plugin", implementation: { id: "vendor", providers: async () => { throw new Error("lane resolver died"); } } },
     ]);
     const { providersList } = await import("./providers.js");
     const result = await providersList({
@@ -52,10 +52,31 @@ describe("providersList", () => {
       accountsFor: () => [],
       exposure: () => ({}),
       manifestFor: () => ({}),
+      pluginIdFor: (repo) => (repo === "vendor-auth" ? "vendor-auth-plugin" : repo),
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data[0].label).toBe("vendor");
+    expect(result.data[0].defsError).toBe("lane resolver died");
+  });
+
+  it("keys defsError by the plugin id the host reports, not the clone directory name", async () => {
+    const { capabilityProviders } = await import("../lib/pluginHost.js");
+    (capabilityProviders as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { pluginId: "vendor-host-id", implementation: { id: "vendor", providers: async () => { throw new Error("lane resolver died"); } } },
+    ]);
+    const { providersList } = await import("./providers.js");
+    const result = await providersList({
+      homeDir: "/home",
+      appId: "cairn",
+      deployed: () => [{ provider: "vendor", repo: "vendor-clone-dir", handler: "dist/handler.js", handlerPath: "/x", translator: undefined, accountPool: "vendor", models: [] }],
+      accountsFor: () => [],
+      exposure: () => ({}),
+      manifestFor: () => ({}),
+      pluginIdFor: (repo) => (repo === "vendor-clone-dir" ? "vendor-host-id" : repo),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
     expect(result.data[0].defsError).toBe("lane resolver died");
   });
 
