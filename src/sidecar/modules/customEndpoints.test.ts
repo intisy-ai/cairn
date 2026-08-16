@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { customEndpointsList, customEndpointsUpsert, customEndpointsRemove, customEndpointsSaveKey, customEndpointsFormats } from "./customEndpoints.js";
+import { customEndpointsList, endpointViews, customEndpointsUpsert, customEndpointsRemove, customEndpointsSaveKey, customEndpointsFormats } from "./customEndpoints.js";
 import type { EndpointsApi } from "./customEndpoints.js";
 
 // The provider plugin owns what an endpoint is and where it goes; this module only reaches it
@@ -17,7 +17,6 @@ function fakePlugin(overrides: Partial<EndpointsApi> = {}): { api: EndpointsApi;
     removeEndpoint: (id, repoDir) => { calls.push(`remove:${id}:${repoDir ?? ""}`); },
     endpointViews: () => [{ ...EP, hasKey: true }],
     saveKey: (id, key) => { calls.push(`key:${id}:${key}`); },
-    writeDynamicManifest: () => { calls.push("manifest"); },
     ...overrides,
   };
   return { api, calls };
@@ -29,7 +28,7 @@ const withoutPlugin = { dir: "/home", loadPlugin: async () => null };
 describe("customEndpoints module", () => {
   it("lists what the plugin reports, including whether a key is set", async () => {
     const { api } = fakePlugin();
-    const result = await customEndpointsList(withPlugin(api));
+    const result = await endpointViews(withPlugin(api));
     expect(result).toEqual({ ok: true, data: [{ ...EP, hasKey: true }] });
   });
 
@@ -75,7 +74,7 @@ describe("customEndpoints module", () => {
 
   it("says the plugin is needed rather than pretending to manage endpoints without it", async () => {
     for (const call of [
-      () => customEndpointsList(withoutPlugin),
+      () => endpointViews(withoutPlugin),
       () => customEndpointsFormats(withoutPlugin),
       () => customEndpointsUpsert(EP, withoutPlugin),
       () => customEndpointsRemove("local", withoutPlugin),
@@ -87,7 +86,30 @@ describe("customEndpoints module", () => {
 
   it("loads the plugin from the home it was told to work in", async () => {
     const loadPlugin = vi.fn(async () => fakePlugin().api);
-    await customEndpointsList({ dir: "/somewhere/else", loadPlugin });
+    await endpointViews({ dir: "/somewhere/else", loadPlugin });
     expect(loadPlugin).toHaveBeenCalledOnce();
+  });
+});
+
+describe("customEndpointsList", () => {
+  it("reads the endpoints from the capability, not from the handler bundle", async () => {
+    const result = await customEndpointsList({
+      dir: "/home",
+      appId: "cairn",
+      capability: async () => ({ endpoints: async () => [{ id: "e1", label: "One", baseUrl: "https://one" }] }),
+    });
+    expect(result).toEqual({ ok: true, data: [{ id: "e1", label: "One", baseUrl: "https://one" }] });
+  });
+
+  it("answers an empty list when nothing provides the capability", async () => {
+    const result = await customEndpointsList({ dir: "/home", appId: "cairn", capability: async () => null });
+    expect(result).toEqual({ ok: true, data: [] });
+  });
+
+  // No capability dep here, so this exercises the real capabilityProviders lookup against a home
+  // with no plugins deployed at all, distinct from the fixture above which merely stubs a null answer.
+  it("answers an empty list, not a throw, when the home has no plugin host at all", async () => {
+    const result = await customEndpointsList({ dir: "/no-such-home-for-custom-endpoints-test", appId: "some-other-app" });
+    expect(result).toEqual({ ok: true, data: [] });
   });
 });

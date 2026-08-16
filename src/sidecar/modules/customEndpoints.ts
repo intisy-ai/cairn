@@ -6,6 +6,8 @@ import type { CustomEndpoint, CustomEndpointView, Result } from "../../../packag
 import { wrap } from "../result.js";
 import { importHandlerModule } from "../lib/providerHandler.js";
 import { reposDir } from "../lib/storagePaths.js";
+import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS } from "../lib/pluginHost.js";
+import { ownerOfCapability } from "../lib/capabilityOwner.js";
 
 // Custom endpoints are the provider plugin's own data: what makes one valid, where it is
 // stored, and what has to happen for it to become routable are all decided there. This module
@@ -17,7 +19,9 @@ import { reposDir } from "../lib/storagePaths.js";
 
 export interface CustomEndpointsDeps {
   dir?: string;
+  appId?: string;
   loadPlugin?: () => Promise<EndpointsApi | null>;
+  capability?: () => Promise<EndpointsCapability | null>;
 }
 
 // What the plugin exposes for managing endpoints (see its handler's exports).
@@ -31,7 +35,21 @@ export interface EndpointsApi {
   removeEndpoint: (id: string, repoDir?: string) => void;
   endpointViews: () => CustomEndpointView[];
   saveKey: (endpointId: string, key: string) => void;
-  writeDynamicManifest: (repoDir?: string) => void;
+}
+
+export type CustomEndpointSummary = Pick<CustomEndpointView, "id" | "label" | "baseUrl">;
+
+/** What the read-only `custom-endpoints` capability answers with. */
+export interface EndpointsCapability {
+  endpoints: () => Promise<CustomEndpointSummary[]>;
+}
+
+// The read path is the capability's; the write path stays on the plugin's named handler exports,
+// which is the same seam every loader uses and the one place endpoint validation lives.
+async function realCapability(dir: string, appId: string): Promise<EndpointsCapability | null> {
+  const providers = await capabilityProviders(dir, appId, "custom-endpoints");
+  const found = providers[0];
+  return found ? (found.implementation as EndpointsCapability) : null;
 }
 
 function repoDir(dir: string): string {
@@ -63,7 +81,22 @@ export function customEndpointsFormats(deps: CustomEndpointsDeps = {}): Promise<
   });
 }
 
-export function customEndpointsList(deps: CustomEndpointsDeps = {}): Promise<Result<CustomEndpointView[]>> {
+export function customEndpointsList(deps: CustomEndpointsDeps = {}): Promise<Result<CustomEndpointSummary[]>> {
+  return wrap(async () => {
+    const dir = deps.dir ?? getConfigDir();
+    const appId = deps.appId ?? "cairn";
+    const capability = deps.capability ? await deps.capability() : await realCapability(dir, appId);
+    if (!capability) return [];
+    const owner = ownerOfCapability(dir, "custom-endpoints") ?? "custom-endpoints";
+    const answer = await callHostCapability(owner, "custom-endpoints.endpoints", DEFAULT_CALL_TIMEOUT_MS, async () => capability.endpoints());
+    return answer.ok ? answer.value : [];
+  });
+}
+
+// The capability's endpoints() answers only {id, label, baseUrl}; the dashboard's endpoints
+// dialog also needs format, models and whether a key is set, which only the plugin's own handler
+// bundle carries.
+export function endpointViews(deps: CustomEndpointsDeps = {}): Promise<Result<CustomEndpointView[]>> {
   return wrap(async () => (await api(deps)).plugin.endpointViews());
 }
 
