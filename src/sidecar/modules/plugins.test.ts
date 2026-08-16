@@ -5,6 +5,15 @@ vi.mock("../activity.js", () => ({
   emitCairnAction: async (spec: { action: string }) => { emitted.push(spec.action); },
 }));
 
+// A from-scratch bootstrap installs the manager into a home before anything is deployed there, so
+// the manager's identity has to come from what a marketplace DECLARES, not a real network fetch.
+vi.mock("../lib/capabilityCatalog.js", () => ({
+  repoProvidingCapability: async (_dir: string, capability: string) =>
+    capability === "plugin-management"
+      ? { id: "plugin-updater", npmName: "plugin-updater", url: "https://example/plugin-updater", capabilities: ["plugin-management"], description: "", sourceId: "s" }
+      : null,
+}));
+
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -316,7 +325,7 @@ describe("plugins sidecar module", () => {
     });
     expect(result.ok).toBe(true);
     expect(order).toEqual(["updater:claude", "install:custom-auth"]);
-    expect(steps[0]).toBe("Installing plugin-updater");
+    expect(steps[0]).toBe("Installing the plugin manager");
   });
 
   it("stops at a failed bootstrap instead of installing into a home that cannot manage it", async () => {

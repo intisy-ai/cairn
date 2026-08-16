@@ -1,10 +1,11 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
-import { setConfigValue, isBootstrapPlugin, resolveLayout } from "@core/index.js";
+import { setConfigValue, resolveLayout } from "@core/index.js";
 import type { PluginConfigSchema, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir, homeById } from "../lib/pluginHomes.js";
 import { safeGetPlugins, loadPluginUpdaterConfig, loadPluginUpdaterIndex } from "../lib/optionalEngines.js";
+import { isDeployedPlugin } from "../lib/capabilityOwner.js";
 import { probeDeclarations, readCurrentValues } from "../lib/schemaProbe.js";
 import type { Bundle, Declaration } from "../lib/schemaProbe.js";
 import { wrap } from "../result.js";
@@ -139,9 +140,9 @@ export function configWrite(homeId: string, plugin: string, key: string, value: 
     // safeGetPlugins degrades to [] when plugin-updater is unavailable, which would otherwise
     // read as "plugin not found" even when the named plugin is actually registered.
     if (!(await loadPluginUpdaterConfig())) throw new Error("plugin-updater is not available in this build");
-    // An engine settles into a home without a plugins.json entry of its own, so its own
+    // A plugin can be deployed into a home without a plugins.json entry of its own, so its
     // settings would otherwise be readable and never writable.
-    if (!(await safeGetPlugins(dir)).some((p) => p.name === plugin) && !isBootstrapPlugin(plugin)) {
+    if (!(await safeGetPlugins(dir)).some((p) => p.name === plugin) && !isDeployedPlugin(dir, plugin)) {
       throw new Error(`plugin not found: ${plugin}`);
     }
     if (key === "__proto__" || key === "constructor" || key === "prototype") {

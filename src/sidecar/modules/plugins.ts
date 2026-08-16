@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 import { join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
-import { getConfigValue, isBootstrapPlugin, activityEnv } from "@core/index.js";
+import { getConfigValue, activityEnv } from "@core/index.js";
 import { readPluginManifest } from "../lib/pluginManifest.js";
 import { emitCairnAction } from "../activity.js";
 import type { UpdateCache } from "@intisy-ai/plugin-updater/dist/cache.js";
@@ -24,7 +24,7 @@ import {
   loadPluginUpdaterIndex,
   loadPluginUpdaterInit,
 } from "../lib/optionalEngines.js";
-import { pluginOwningCapability } from "./engines.js";
+import { repoProvidingCapability } from "../lib/capabilityCatalog.js";
 import { pruneUnusedLibraries } from "./libraryPrune.js";
 import { wrap } from "../result.js";
 import { reposDir } from "../lib/storagePaths.js";
@@ -33,10 +33,11 @@ const VERSIONS_NS = "versions";
 const PLUGINS_NS = "plugins";
 const PLUGIN_MANAGEMENT = "plugin-management";
 
-// The plugin manager is identified by capability, never by name, so Cairn keeps no
-// plugin identity of its own.
-function isPluginManager(name: string, homeDir: string): boolean {
-  return pluginOwningCapability(PLUGIN_MANAGEMENT, homeDir) === name;
+// The manager's id comes from what a home's marketplace sources DECLARE for plugin-management,
+// never from deployment state: the bootstrap install of the manager itself runs before anything
+// is deployed anywhere, so a deployed-only lookup would never recognize it.
+async function isPluginManager(name: string, homeDir: string): Promise<boolean> {
+  return (await repoProvidingCapability(homeDir, PLUGIN_MANAGEMENT))?.id === name;
 }
 
 type PluginChannel = "inherit" | "stable" | "experimental";
@@ -413,8 +414,8 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
     const hasUpdater = deps.hasUpdater ?? updaterInstalled;
     // Every home needs the plugin manager before it can manage anything else. The
     // manager itself is exempt: it is what is being installed.
-    if (!isBootstrapPlugin(name) && !(await hasUpdater(dir))) {
-      report?.("Installing plugin-updater", 10);
+    if (!(await isPluginManager(name, dir)) && !(await hasUpdater(dir))) {
+      report?.("Installing the plugin manager", 10);
       // The bootstrap has to act on the very home this install targets, so it gets this
       // call's home list rather than resolving its own.
       const ensureUpdater = deps.ensureUpdater
@@ -436,7 +437,7 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
 
     // An app loads the manager through its own config, so a clone alone would leave a
     // manager that is installed but never runs.
-    if (isPluginManager(name, dir) && homeId !== "cairn") {
+    if ((await isPluginManager(name, dir)) && homeId !== "cairn") {
       report?.("Registering with the app", 93);
       await (deps.registerWithApp ?? realRegisterWithApp)(dir, homeId);
     }

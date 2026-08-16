@@ -332,6 +332,7 @@ describe("engine-contributed settings", () => {
 
   it("writes an engine's setting even though it is not a plugins.json entry", async () => {
     const { dir, home } = makeHome("cairn", "Cairn");
+    writeFileSync(join(dir, "plugin", "plugin-updater.json"), JSON.stringify({ id: "plugin-updater", api: 1, entry: "dist/index.js", capabilities: ["plugin-management"] }));
 
     const { configWrite } = await import("./appConfig.js");
     const result = await configWrite("cairn", "plugin-updater", "auto_update_mode", "check", { homes: [home] });
@@ -345,6 +346,7 @@ describe("engine-contributed settings", () => {
   // without rewriting its siblings.
   it("writes one nested trigger and reads the whole object back", async () => {
     const { dir, home } = makeHome("cairn", "Cairn");
+    writeFileSync(join(dir, "plugin", "plugin-updater.json"), JSON.stringify({ id: "plugin-updater", api: 1, entry: "dist/index.js", capabilities: ["plugin-management"] }));
     writeFileSync(join(dir, "config", "plugin-updater.json"), JSON.stringify({ auto_update_triggers: { loader: true, app: true, cairn: true } }), "utf8");
 
     const { configWrite, configSchemas } = await import("./appConfig.js");
@@ -367,5 +369,26 @@ describe("engine-contributed settings", () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
     expect(result.error).toContain("plugin not found: not-a-thing");
+  });
+});
+
+describe("configWrite accepts a plugin the home deployed but never listed", () => {
+  it("writes for a plugin present as a sidecar and absent from the plugin list", async () => {
+    const home = mkdtempSync(join(tmpdir(), "cairn-cw-"));
+    mkdirSync(join(home, "plugin"), { recursive: true });
+    writeFileSync(join(home, "plugin", "engine.json"), JSON.stringify({ id: "engine", api: 1, entry: "dist/index.js", capabilities: [] }));
+    writeFileSync(join(home, "plugin", "engine.js"), "export default {};");
+    const homes = [{ id: "cairn", label: "Cairn", dir: home, present: true, hasUpdater: true }];
+    const { configWrite } = await import("./appConfig.js");
+    const result = await configWrite("cairn", "engine", "flag", true, { homes });
+    expect(result.ok).toBe(true);
+  });
+
+  it("refuses a plugin that is neither listed nor deployed", async () => {
+    const home = mkdtempSync(join(tmpdir(), "cairn-cw-"));
+    const homes = [{ id: "cairn", label: "Cairn", dir: home, present: true, hasUpdater: true }];
+    const { configWrite } = await import("./appConfig.js");
+    const result = await configWrite("cairn", "ghost", "flag", true, { homes });
+    expect(result).toEqual({ ok: false, error: "plugin not found: ghost" });
   });
 });
