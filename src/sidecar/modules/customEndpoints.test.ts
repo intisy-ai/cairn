@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { customEndpointsList, endpointViews, customEndpointsUpsert, customEndpointsRemove, customEndpointsSaveKey, customEndpointsFormats } from "./customEndpoints.js";
+import { customEndpointsList, customEndpointsUpsert, customEndpointsRemove, customEndpointsSaveKey, customEndpointsFormats } from "./customEndpoints.js";
 import type { EndpointsApi } from "./customEndpoints.js";
 
 // The provider plugin owns what an endpoint is and where it goes; this module only reaches it
@@ -22,13 +22,16 @@ function fakePlugin(overrides: Partial<EndpointsApi> = {}): { api: EndpointsApi;
   return { api, calls };
 }
 
-const withPlugin = (api: EndpointsApi) => ({ dir: "/home", loadPlugin: async () => api });
-const withoutPlugin = { dir: "/home", loadPlugin: async () => null };
+// ownerPlugin stands in for the real deployed-manifest lookup, which has nothing to find for a
+// fixture home that was never deployed. Without this seam, every write-path test below threw
+// "no plugin provides custom endpoints" before its injected loadPlugin was ever consulted.
+const withPlugin = (api: EndpointsApi) => ({ dir: "/home", loadPlugin: async () => api, ownerPlugin: () => "custom-auth" });
+const withoutPlugin = { dir: "/home", loadPlugin: async () => null, ownerPlugin: () => "custom-auth" };
 
 describe("customEndpoints module", () => {
   it("lists what the plugin reports, including whether a key is set", async () => {
     const { api } = fakePlugin();
-    const result = await endpointViews(withPlugin(api));
+    const result = await customEndpointsList(withPlugin(api));
     expect(result).toEqual({ ok: true, data: [{ ...EP, hasKey: true }] });
   });
 
@@ -74,7 +77,7 @@ describe("customEndpoints module", () => {
 
   it("says the plugin is needed rather than pretending to manage endpoints without it", async () => {
     for (const call of [
-      () => endpointViews(withoutPlugin),
+      () => customEndpointsList(withoutPlugin),
       () => customEndpointsFormats(withoutPlugin),
       () => customEndpointsUpsert(EP, withoutPlugin),
       () => customEndpointsRemove("local", withoutPlugin),
@@ -86,30 +89,15 @@ describe("customEndpoints module", () => {
 
   it("loads the plugin from the home it was told to work in", async () => {
     const loadPlugin = vi.fn(async () => fakePlugin().api);
-    await endpointViews({ dir: "/somewhere/else", loadPlugin });
+    await customEndpointsList({ dir: "/somewhere/else", loadPlugin, ownerPlugin: () => null });
     expect(loadPlugin).toHaveBeenCalledOnce();
   });
-});
 
-describe("customEndpointsList", () => {
-  it("reads the endpoints from the capability, not from the handler bundle", async () => {
-    const result = await customEndpointsList({
-      dir: "/home",
-      appId: "cairn",
-      capability: async () => ({ endpoints: async () => [{ id: "e1", label: "One", baseUrl: "https://one" }] }),
-    });
-    expect(result).toEqual({ ok: true, data: [{ id: "e1", label: "One", baseUrl: "https://one" }] });
-  });
-
-  it("answers an empty list when nothing provides the capability", async () => {
-    const result = await customEndpointsList({ dir: "/home", appId: "cairn", capability: async () => null });
-    expect(result).toEqual({ ok: true, data: [] });
-  });
-
-  // No capability dep here, so this exercises the real capabilityProviders lookup against a home
-  // with no plugins deployed at all, distinct from the fixture above which merely stubs a null answer.
-  it("answers an empty list, not a throw, when the home has no plugin host at all", async () => {
-    const result = await customEndpointsList({ dir: "/no-such-home-for-custom-endpoints-test", appId: "some-other-app" });
-    expect(result).toEqual({ ok: true, data: [] });
+  // The owner lookup precedes loading the plugin, so a home nothing was deployed to must be told
+  // apart from a home whose plugin is merely absent: both end in "no plugin", but only the first
+  // is a manifest-scanning question rather than a handler-bundle one.
+  it("says no plugin owns the capability, distinctly from the plugin failing to load", async () => {
+    const result = await customEndpointsList({ dir: "/home", ownerPlugin: () => null });
+    expect(result).toEqual({ ok: false, error: "no plugin provides custom endpoints" });
   });
 });
