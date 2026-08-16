@@ -26,9 +26,14 @@ function stateIn(homeDir: string, capability: string, ownerIn: (dir: string, id:
   return { installed: !!owner, enabled: !!owner };
 }
 
-// One entry per capability any source offers, keyed by capability rather than by repository, so a
-// capability two repositories provide is one row and the first offer wins the install target. The
-// vocabulary comes from the entries present; nothing here enumerates capability ids.
+/**
+ * One entry per capability any source offers, keyed by capability rather than by repository.
+ *
+ * @remarks
+ * A capability two repositories provide is one row, and the first offer in `entries` wins the
+ * install target. The vocabulary comes from the entries present; nothing here enumerates
+ * capability ids.
+ */
 function offersByCapability(entries: CatalogEntry[]): Map<string, CatalogEntry> {
   const offers = new Map<string, CatalogEntry>();
   for (const entry of entries) {
@@ -39,13 +44,20 @@ function offersByCapability(entries: CatalogEntry[]): Map<string, CatalogEntry> 
   return offers;
 }
 
+/**
+ * @remarks
+ * Reads every home's OWN declared marketplace sources rather than seeding from one: a capability
+ * offered only through a non-Cairn home's sources would otherwise never appear as a row, even
+ * though installing it into that home would work. `catalogEntriesFor` caches per home, so this
+ * costs one cached read per home rather than one fetch per home.
+ */
 export function enginesList(deps: EnginesDeps = {}): Promise<Result<EngineView[]>> {
   return wrap(async () => {
     const homes = await resolveHomes(deps);
     const catalog = deps.catalog ?? catalogEntriesFor;
     const ownerIn = deps.ownerIn ?? ownerOfCapability;
-    const seed = homes[0]?.dir ?? "";
-    const offers = offersByCapability(await catalog(seed));
+    const entries = (await Promise.all(homes.map((home) => catalog(home.dir)))).flat();
+    const offers = offersByCapability(entries);
     return [...offers.entries()].map(([capability, entry]) => ({
       id: entry.id,
       capability,
