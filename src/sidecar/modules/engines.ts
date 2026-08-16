@@ -1,83 +1,88 @@
-import { knownPlugins, pluginByCapability } from "@core/index.js";
-import type { PluginRegistration } from "@core/index.js";
-import type { Plugin } from "@intisy-ai/plugin-updater/dist/types.js";
 import { pluginHomes, homeById } from "../lib/pluginHomes.js";
-import { safeGetPlugins } from "../lib/optionalEngines.js";
-import type { EngineView, EngineHomeState, PluginHome, PluginHomeId, Result, CliResult } from "../../../packages/shared/src/domain.js";
+import { ownerOfCapability } from "../lib/capabilityOwner.js";
+import { catalogEntriesFor } from "../lib/capabilityCatalog.js";
+import type { CatalogEntry } from "../lib/capabilityCatalog.js";
+import type { EngineView, EngineHomeState, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
-
-export { pluginByCapability };
 
 export interface EnginesDeps {
   homes?: PluginHome[];
-  getPlugins?: (dir: string) => Plugin[] | Promise<Plugin[]>;
+  catalog?: (homeDir: string) => Promise<CatalogEntry[]>;
+  ownerIn?: (homeDir: string, capability: string) => string | null;
   pluginsInstall?: (homeId: string, name: string, url: string, deps?: { homes?: PluginHome[] }) => Promise<Result<void>>;
 }
 
-const PLUGIN_MANAGEMENT = "plugin-management";
-
-function targetHomes(engine: PluginRegistration, homes: PluginHome[]): PluginHome[] {
-  if (engine.target === "everywhere") return homes;
-  return engine.target === "cairn" ? homes.filter((h) => h.id === "cairn") : homes.filter((h) => h.id !== "cairn");
-}
-
-async function stateIn(engine: PluginRegistration, home: PluginHome, getPlugins: (dir: string) => Plugin[] | Promise<Plugin[]>): Promise<EngineHomeState> {
-  if (engine.capability === PLUGIN_MANAGEMENT) return { installed: home.hasUpdater, enabled: true };
-  const p = (await getPlugins(home.dir)).find((x) => x.name === engine.id);
-  return { installed: !!p, enabled: p ? p.enabled !== false : false };
+/** The plugin providing a capability in one home, or null. Nothing here names a plugin. */
+export function pluginOwningCapability(capability: string, homeDir: string): string | null {
+  return ownerOfCapability(homeDir, capability);
 }
 
 async function resolveHomes(deps: EnginesDeps): Promise<PluginHome[]> {
   return deps.homes ?? (await pluginHomes());
 }
 
-// `homes` is the list the caller resolved: the nested install must land in the very home
-// named here, never in whatever a fresh resolution would pick.
-async function installEngine(engine: PluginRegistration, home: PluginHome, homes: PluginHome[], deps: EnginesDeps): Promise<void> {
-  const install = deps.pluginsInstall ?? (await import("./plugins.js")).pluginsInstall;
-  const res = await install(home.id, engine.id, engine.url, { homes });
-  if (!res.ok) throw new Error(res.error);
+function stateIn(homeDir: string, capability: string, ownerIn: (dir: string, id: string) => string | null): EngineHomeState {
+  const owner = ownerIn(homeDir, capability);
+  return { installed: !!owner, enabled: !!owner };
+}
+
+// One entry per capability any source offers, keyed by capability rather than by repository, so a
+// capability two repositories provide is one row and the first offer wins the install target. The
+// vocabulary comes from the entries present; nothing here enumerates capability ids.
+function offersByCapability(entries: CatalogEntry[]): Map<string, CatalogEntry> {
+  const offers = new Map<string, CatalogEntry>();
+  for (const entry of entries) {
+    for (const capability of entry.capabilities) {
+      if (!offers.has(capability)) offers.set(capability, entry);
+    }
+  }
+  return offers;
 }
 
 export function enginesList(deps: EnginesDeps = {}): Promise<Result<EngineView[]>> {
   return wrap(async () => {
     const homes = await resolveHomes(deps);
-    const getPlugins = deps.getPlugins ?? safeGetPlugins;
-    return Promise.all(
-      knownPlugins().map(async (engine) => ({
-        id: engine.id,
-        capability: engine.capability,
-        url: engine.url,
-        homes: Object.fromEntries(
-          await Promise.all(targetHomes(engine, homes).map(async (h) => [h.id, await stateIn(engine, h, getPlugins)] as const)),
-        ),
-      })),
-    );
+    const catalog = deps.catalog ?? catalogEntriesFor;
+    const ownerIn = deps.ownerIn ?? ownerOfCapability;
+    const seed = homes[0]?.dir ?? "";
+    const offers = offersByCapability(await catalog(seed));
+    return [...offers.entries()].map(([capability, entry]) => ({
+      id: entry.id,
+      capability,
+      url: entry.url,
+      homes: Object.fromEntries(homes.map((home) => [home.id, stateIn(home.dir, capability, ownerIn)])),
+    }));
   });
 }
 
-// Install an engine into ONE named home. The home is resolved from every home Cairn
-// manages, not from the engine's target list: a capability that normally belongs to the
-// app homes is still needed in Cairn's own home once something there has to be managed.
+/**
+ * Installs the plugin providing a capability into ONE named home, when that home has none.
+ *
+ * @remarks
+ * The home is resolved from every home Cairn manages rather than from a target list: a capability
+ * that normally belongs to an app home is still needed in Cairn's own home once something there has
+ * to be managed.
+ */
 export function ensureEngineIn(capability: string, homeId: string, deps: EnginesDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
-    const engine = pluginByCapability(capability);
-    if (!engine) throw new Error(`unknown engine capability: ${capability}`);
     const homes = await resolveHomes(deps);
     const home = homeById(homeId as PluginHomeId, homes);
-    const getPlugins = deps.getPlugins ?? safeGetPlugins;
-    if ((await stateIn(engine, home, getPlugins)).installed) return;
-    await installEngine(engine, home, homes, deps);
+    const ownerIn = deps.ownerIn ?? ownerOfCapability;
+    if (ownerIn(home.dir, capability)) return;
+    const catalog = deps.catalog ?? catalogEntriesFor;
+    const entry = offersByCapability(await catalog(home.dir)).get(capability);
+    if (!entry) throw new Error(`no marketplace source offers a plugin providing ${capability}`);
+    const install = deps.pluginsInstall ?? (await import("./plugins.js")).pluginsInstall;
+    const result = await install(home.id, entry.id, entry.url, { homes });
+    if (!result.ok) throw new Error(result.error);
   });
 }
 
 export function ensureEngine(capability: string, deps: EnginesDeps = {}): Promise<Result<void>> {
   return wrap(async () => {
-    const engine = pluginByCapability(capability);
-    if (!engine) throw new Error(`unknown engine capability: ${capability}`);
     const homes = await resolveHomes(deps);
-    const home = targetHomes(engine, homes)[0];
-    if (!home) throw new Error(`no target home for engine: ${engine.id}`);
+    const home = homes[0];
+    if (!home) throw new Error(`no home to install ${capability} into`);
     const result = await ensureEngineIn(capability, home.id, { ...deps, homes });
     if (!result.ok) throw new Error(result.error);
   });

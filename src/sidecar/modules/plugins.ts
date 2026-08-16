@@ -24,7 +24,7 @@ import {
   loadPluginUpdaterIndex,
   loadPluginUpdaterInit,
 } from "../lib/optionalEngines.js";
-import { pluginByCapability } from "./engines.js";
+import { pluginOwningCapability } from "./engines.js";
 import { pruneUnusedLibraries } from "./libraryPrune.js";
 import { wrap } from "../result.js";
 import { reposDir } from "../lib/storagePaths.js";
@@ -35,8 +35,8 @@ const PLUGIN_MANAGEMENT = "plugin-management";
 
 // The plugin manager is identified by capability, never by name, so Cairn keeps no
 // plugin identity of its own.
-function isPluginManager(name: string): boolean {
-  return pluginByCapability(PLUGIN_MANAGEMENT)?.id === name;
+function isPluginManager(name: string, homeDir: string): boolean {
+  return pluginOwningCapability(PLUGIN_MANAGEMENT, homeDir) === name;
 }
 
 type PluginChannel = "inherit" | "stable" | "experimental";
@@ -436,7 +436,7 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
 
     // An app loads the manager through its own config, so a clone alone would leave a
     // manager that is installed but never runs.
-    if (isPluginManager(name) && homeId !== "cairn") {
+    if (isPluginManager(name, dir) && homeId !== "cairn") {
       report?.("Registering with the app", 93);
       await (deps.registerWithApp ?? realRegisterWithApp)(dir, homeId);
     }

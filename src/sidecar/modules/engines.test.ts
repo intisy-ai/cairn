@@ -1,100 +1,88 @@
-import { describe, it, expect, vi } from "vitest";
-import { enginesList, ensureEngine, ensureEngineIn } from "./engines.js";
+import { describe, it, expect } from "vitest";
+import { enginesList, ensureEngineIn, pluginOwningCapability } from "./engines.js";
+import type { PluginHome } from "../../../packages/shared/src/domain.js";
 
-const homes = [
-  { id: "cairn", label: "Cairn", dir: "/cairn", present: true, hasUpdater: true },
-  { id: "claude", label: "Claude", dir: "/c", present: true, hasUpdater: false },
-  { id: "opencode", label: "OpenCode", dir: "/o", present: false, hasUpdater: false },
+const homes: PluginHome[] = [
+  { id: "cairn", label: "Cairn", dir: "/homes/cairn", present: true, hasUpdater: true },
+  { id: "app-a", label: "App A", dir: "/homes/a", present: true, hasUpdater: true },
+];
+
+const catalog = [
+  { id: "manager", npmName: "manager", url: "https://example/manager", capabilities: ["plugin-management"], description: "", sourceId: "s" },
+  { id: "historian", npmName: "historian", url: "https://example/historian", capabilities: ["config-history", "screens"], description: "", sourceId: "s" },
 ];
 
 describe("enginesList", () => {
-  it("reports per-home installed/enabled state for each engine and target", async () => {
-    const res = await enginesList({ homes, getPlugins: (dir) => (dir === "/cairn" ? [{ name: "custom-auth", url: "u", enabled: true }] : []) } as any);
-    expect(res.ok).toBe(true);
-    if (!res.ok) return;
-    const byId = Object.fromEntries(res.data.map((e) => [e.id, e]));
-    // plugin-updater targets host apps only (not cairn); presence = hasUpdater
-    expect(Object.keys(byId["plugin-updater"].homes).sort()).toEqual(["cairn", "claude", "opencode"]);
-    expect(byId["plugin-updater"].homes.claude.installed).toBe(false);
-    // custom-auth targets cairn; installed because getPlugins on /cairn lists it
-    expect(Object.keys(byId["custom-auth"].homes)).toEqual(["cairn"]);
-    expect(byId["custom-auth"].homes.cairn.installed).toBe(true);
-  });
-});
-
-describe("ensureEngine", () => {
-  it("installs the capability's engine to its target home when absent", async () => {
-    const pluginsInstall = vi.fn(async () => ({ ok: true, data: undefined }));
-    const res = await ensureEngine("custom-endpoints", { homes, getPlugins: () => [], pluginsInstall } as any);
-    expect(res.ok).toBe(true);
-    expect(pluginsInstall).toHaveBeenCalledWith("cairn", "custom-auth", expect.stringContaining("custom-auth"), { homes });
+  it("lists one row per capability the catalog offers, with each home's state", async () => {
+    const result = await enginesList({
+      homes,
+      catalog: async () => catalog,
+      ownerIn: (dir, capability) => (dir === "/homes/a" && capability === "config-history" ? "historian" : null),
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const history = result.data.find((row) => row.capability === "config-history");
+    expect(history?.id).toBe("historian");
+    expect(history?.url).toBe("https://example/historian");
+    expect(history?.homes["app-a"]).toEqual({ installed: true, enabled: true });
+    expect(history?.homes.cairn).toEqual({ installed: false, enabled: false });
   });
 
-  it("is a no-op when the engine is already installed", async () => {
-    const pluginsInstall = vi.fn(async () => ({ ok: true, data: undefined }));
-    const res = await ensureEngine("custom-endpoints", { homes, getPlugins: (dir) => (dir === "/cairn" ? [{ name: "custom-auth", url: "u", enabled: true }] : []), pluginsInstall } as any);
-    expect(res.ok).toBe(true);
-    expect(pluginsInstall).not.toHaveBeenCalled();
+  it("enumerates no capability of its own: an unknown one from the catalog is listed too", async () => {
+    const result = await enginesList({
+      homes,
+      catalog: async () => [{ id: "future", npmName: "future", url: "https://example/future", capabilities: ["not-minted-yet"], description: "", sourceId: "s" }],
+      ownerIn: () => null,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.map((row) => row.capability)).toEqual(["not-minted-yet"]);
   });
 
-  it("errors on an unknown capability", async () => {
-    const res = await ensureEngine("nope", { homes, getPlugins: () => [] } as any);
-    expect(res.ok).toBe(false);
+  it("answers an empty list when no source offers anything", async () => {
+    const result = await enginesList({ homes, catalog: async () => [], ownerIn: () => null });
+    expect(result).toEqual({ ok: true, data: [] });
   });
 });
 
 describe("ensureEngineIn", () => {
-  it("installs into the home it is told about, not the capability's first target", async () => {
-    const calls: unknown[][] = [];
-    const res = await ensureEngineIn("plugin-management", "opencode", {
-      homes, getPlugins: () => [],
-      pluginsInstall: async (...args: unknown[]) => { calls.push(args); return { ok: true, data: undefined }; },
-    } as any);
-    expect(res.ok).toBe(true);
-    expect(calls).toEqual([["opencode", "plugin-updater", expect.stringContaining("plugin-updater"), { homes }]]);
+  it("installs the catalog's repository for a capability the home lacks", async () => {
+    const installs: Array<[string, string, string]> = [];
+    const result = await ensureEngineIn("plugin-management", "app-a", {
+      homes,
+      catalog: async () => catalog,
+      ownerIn: () => null,
+      pluginsInstall: async (homeId, name, url) => { installs.push([homeId, name, url]); return { ok: true, data: undefined }; },
+    });
+    expect(result.ok).toBe(true);
+    expect(installs).toEqual([["app-a", "manager", "https://example/manager"]]);
   });
 
-  // Cairn's own home has no app CLI to run an init through, so the bundled engine
-  // clones the plugin in place like any other install.
-  it("clones directly for Cairn's own home", async () => {
-    const installs: string[] = [];
-    const res = await ensureEngineIn("plugin-management", "cairn", {
-      homes: homes.map((h) => (h.id === "cairn" ? { ...h, hasUpdater: false } : h)),
-      getPlugins: () => [],
-      pluginsInstall: async (homeId: string, name: string) => { installs.push(`${homeId}/${name}`); return { ok: true, data: undefined }; },
-    } as any);
-    expect(res.ok).toBe(true);
-    expect(installs).toEqual(["cairn/plugin-updater"]);
+  it("does nothing when the home already has a plugin declaring the capability", async () => {
+    const installs: unknown[] = [];
+    const result = await ensureEngineIn("plugin-management", "app-a", {
+      homes,
+      catalog: async () => catalog,
+      ownerIn: () => "manager",
+      pluginsInstall: async () => { installs.push(1); return { ok: true, data: undefined }; },
+    });
+    expect(result.ok).toBe(true);
+    expect(installs).toEqual([]);
   });
 
-  // Without this the nested install re-resolves homes and can land in a completely
-  // different home than the one being installed into.
-  it("hands the nested install the same home list it was given", async () => {
-    const seen: unknown[] = [];
-    const targetHomes = homes.map((h) => (h.id === "cairn" ? { ...h, dir: "/tmp/somewhere", hasUpdater: false } : h));
-    const res = await ensureEngineIn("plugin-management", "cairn", {
-      homes: targetHomes,
-      getPlugins: () => [],
-      pluginsInstall: async (_homeId: string, _name: string, _url: string, deps?: { homes?: unknown }) => {
-        seen.push(deps?.homes);
-        return { ok: true, data: undefined };
-      },
-    } as any);
-    expect(res.ok).toBe(true);
-    expect(seen).toEqual([targetHomes]);
+  it("fails with a message naming the capability when no source offers it", async () => {
+    const result = await ensureEngineIn("nothing-offers-this", "app-a", {
+      homes,
+      catalog: async () => catalog,
+      ownerIn: () => null,
+      pluginsInstall: async () => ({ ok: true, data: undefined }),
+    });
+    expect(result).toEqual({ ok: false, error: "no marketplace source offers a plugin providing nothing-offers-this" });
   });
+});
 
-  it("is a no-op when that home already has the engine", async () => {
-    const pluginsInstall = vi.fn(async () => ({ ok: true, data: undefined }));
-    const res = await ensureEngineIn("plugin-management", "cairn", { homes, getPlugins: () => [], pluginsInstall } as any);
-    expect(res.ok).toBe(true);
-    expect(pluginsInstall).not.toHaveBeenCalled();
-  });
-
-  it("errors on a home it does not know", async () => {
-    const res = await ensureEngineIn("plugin-management", "ghost", { homes, getPlugins: () => [] } as any);
-    expect(res.ok).toBe(false);
-    if (res.ok) return;
-    expect(res.error).toContain("ghost");
+describe("pluginOwningCapability", () => {
+  it("names nothing for a home with no plugin declaring the capability", () => {
+    expect(pluginOwningCapability("screens", "/homes/absent")).toBeNull();
   });
 });

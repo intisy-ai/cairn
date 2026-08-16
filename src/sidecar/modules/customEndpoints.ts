@@ -1,7 +1,7 @@
 import { join, basename } from "node:path";
 import { existsSync } from "node:fs";
 import { getConfigDir } from "@core-auth/index.js";
-import { pluginByCapability } from "./engines.js";
+import { pluginOwningCapability } from "./engines.js";
 import type { CustomEndpoint, CustomEndpointView, Result } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
 import { importHandlerModule } from "../lib/providerHandler.js";
@@ -35,9 +35,9 @@ export interface EndpointsApi {
 }
 
 function repoDir(dir: string): string {
-  const plugin = pluginByCapability("custom-endpoints");
+  const plugin = pluginOwningCapability("custom-endpoints", dir);
   if (!plugin) throw new Error("no plugin provides custom endpoints");
-  return join(reposDir(dir), plugin.id);
+  return join(reposDir(dir), plugin);
 }
 
 async function realLoadPlugin(dir: string): Promise<EndpointsApi | null> {

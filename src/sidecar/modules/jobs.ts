@@ -2,7 +2,7 @@ import { getConfigValue } from "@core/index.js";
 import { createRunner } from "../jobs/runner.js";
 import type { Job, JobKind, JobSpec } from "../jobs/model.js";
 import { pluginHomes } from "../lib/pluginHomes.js";
-import { pluginByCapability } from "./engines.js";
+import { pluginOwningCapability } from "./engines.js";
 import type { PluginHome, Result } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
 
@@ -26,7 +26,7 @@ function autoUpdateDefault(): boolean {
 const runner = createRunner({
   onChange: (job) => notify(job),
   resolveHome: (homeId) => ({ dir: homeDirs[homeId] ?? homeId }),
-  isPluginManager: (plugin) => pluginByCapability(PLUGIN_MANAGEMENT)?.id === plugin,
+  isPluginManager: (plugin) => Object.values(homeDirs).some((dir) => pluginOwningCapability(PLUGIN_MANAGEMENT, dir) === plugin),
   autoUpdate: autoUpdateDefault,
 });
 
