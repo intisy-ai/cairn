@@ -109,25 +109,29 @@ export function createSupervisor(opts: SupervisorOptions): Supervisor {
     handleExit();
   }
 
+  function rpc(channel: string, args: unknown[], timeoutMs?: number): Promise<Result<unknown>> {
+    if (failed) return Promise.resolve(err("sidecar failed to stay up"));
+    return new Promise((resolve) => {
+      const id = nextId++;
+      const timer = setTimeout(() => {
+        settle(id, err("sidecar rpc timeout: " + channel));
+      }, timeoutMs ?? rpcTimeoutMs);
+      pending.set(id, { resolve, timer });
+      child.postMessage({ id, channel, args });
+    });
+  }
+
   let child = spawn();
 
   return {
-    rpc(channel, args, timeoutMs) {
-      if (failed) return Promise.resolve(err("sidecar failed to stay up"));
-      return new Promise((resolve) => {
-        const id = nextId++;
-        const timer = setTimeout(() => {
-          settle(id, err("sidecar rpc timeout: " + channel));
-        }, timeoutMs ?? rpcTimeoutMs);
-        pending.set(id, { resolve, timer });
-        child.postMessage({ id, channel, args });
-      });
-    },
+    rpc,
     dispose() {
       disposing = true;
       for (const id of [...pending.keys()]) settle(id, err("sidecar disposed"));
       child.off("exit", onExit);
-      child.kill();
+      // A hung or already-dead sidecar must never keep the app open, so the shutdown
+      // request carries its own short deadline; rpc() always resolves by then, never rejects.
+      void rpc("shutdown", [], 1000).finally(() => { child.kill(); });
     },
   };
 }

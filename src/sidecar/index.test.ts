@@ -44,6 +44,26 @@ describe("dispatch", () => {
   });
 });
 
+describe("shutdown", () => {
+  it("stops every plugin host and acknowledges", async () => {
+    const { hostFor, resetPluginHostsForTests } = await import("./lib/pluginHost.js");
+    resetPluginHostsForTests();
+    let stopped = false;
+    await hostFor("/tmp/cairn-shutdown-home", "cairn", {
+      start: async () => ({
+        started: [],
+        quarantined: [],
+        deployed: [],
+        host: { capability: () => [], ledger: { entries: () => [] }, service: () => undefined },
+        stop: async () => { stopped = true; },
+      }) as never,
+    });
+
+    expect(await dispatch("shutdown", [])).toEqual({ ok: true, data: true });
+    expect(stopped).toBe(true);
+  });
+});
+
 describe("activity home", () => {
   let tempDir: string;
   let savedHubConfigDir: string | undefined;

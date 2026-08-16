@@ -1,7 +1,7 @@
 ﻿import type { Result } from "../../packages/shared/src/domain.js";
 import { isReadOnlyChannel } from "../../packages/shared/src/ipc.js";
 import { initCoreProxy } from "@core-proxy/index.js";
-import { err } from "./result.js";
+import { ok, err } from "./result.js";
 import { configGet, configSet } from "./modules/config.js";
 import { overviewSummary } from "./modules/overview.js";
 import { accountsList, accountsEnable, accountsRemove, accountsRefreshQuota } from "./modules/accounts.js";
@@ -212,6 +212,9 @@ registerHandler("customEndpoints:formats", () => customEndpointsFormats());
 registerHandler("customEndpoints:upsert", (endpoint) => customEndpointsUpsert(endpoint as CustomEndpoint));
 registerHandler("customEndpoints:remove", (id) => customEndpointsRemove(id as string));
 registerHandler("customEndpoints:saveKey", (endpointId, key) => customEndpointsSaveKey(endpointId as string, key as string));
+// A killed child never fires beforeExit, so the supervisor calls this channel before kill(),
+// letting a plugin's deactivate still run on a normal quit.
+registerHandler("shutdown", async () => { await stopAllHosts(); return ok(true); });
 
 if (process.parentPort) {
   // core-proxy eager-loads its TeaVM routing module; the routing/apps/import modules
