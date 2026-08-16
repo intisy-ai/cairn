@@ -1,32 +1,14 @@
-import { describe, it, expect, beforeAll, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createRequire } from "node:module";
+import { deployedManifests, ownerOfCapability, pluginProvidesCapability, isDeployedPlugin } from "./capabilityOwner.js";
 
-const require = createRequire(import.meta.url);
-
-let deployedManifests: typeof import("./capabilityOwner.js").deployedManifests;
-let ownerOfCapability: typeof import("./capabilityOwner.js").ownerOfCapability;
-let pluginProvidesCapability: typeof import("./capabilityOwner.js").pluginProvidesCapability;
-let isDeployedPlugin: typeof import("./capabilityOwner.js").isDeployedPlugin;
-
-// pluginDir() reaches @core's appIdForHome, which reads the real app registry unless pinned.
-// vi.resetModules() only resets Vitest's own module graph; the compiled core-loader CommonJS
-// deps are loaded through Node's native require(), so clearing require.cache too is what
-// actually forces them to re-evaluate against the pin instead of serving a stale import.
-beforeAll(async () => {
-  const registryHome = mkdtempSync(join(tmpdir(), "cairn-caps-registry-"));
-  process.env.HUB_CONFIG_DIR = registryHome;
-  process.env.HUB_APPS_FILE = join(registryHome, "apps.json");
-
-  vi.resetModules();
-  for (const key of Object.keys(require.cache)) {
-    if (/[\\/](core|core-loader)[\\/]dist[\\/]/.test(key)) delete require.cache[key];
-  }
-
-  ({ deployedManifests, ownerOfCapability, pluginProvidesCapability, isDeployedPlugin } = await import("./capabilityOwner.js"));
-});
+// Pinned so the registry lookup behind pluginDir() cannot read the developer's real apps.json.
+// HUB_APPS_FILE is the one that matters here; it is read live per call, so no reimport is needed.
+const registryHome = mkdtempSync(join(tmpdir(), "cairn-caps-registry-"));
+process.env.HUB_CONFIG_DIR = registryHome;
+process.env.HUB_APPS_FILE = join(registryHome, "apps.json");
 
 function homeWith(sidecars: Record<string, unknown>): string {
   const home = mkdtempSync(join(tmpdir(), "cairn-caps-"));
@@ -66,6 +48,9 @@ describe("capability ownership from the deployed sidecars", () => {
 
   it("does not treat the deploy directory's own package.json as a plugin", () => {
     const home = homeWith({ alpha: { id: "alpha", api: 1, entry: "dist/index.js", capabilities: ["screens"] } });
+    // A valid manifest at that filename, so only the by-name skip can exclude it: the id schema
+    // permits an id of "package", and the marker owns that filename.
+    writeFileSync(join(home, "plugin", "package.json"), JSON.stringify({ id: "package", api: 1, entry: "dist/index.js", capabilities: [] }));
     expect(deployedManifests(home).map((m) => m.id)).toEqual(["alpha"]);
     expect(isDeployedPlugin(home, "package")).toBe(false);
     expect(isDeployedPlugin(home, "alpha")).toBe(true);
