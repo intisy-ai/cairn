@@ -12,6 +12,7 @@
     // An alias exists only for a sibling repo Cairn imports CODE from. custom-auth has none
     // on purpose: Cairn reads that plugin's config, located by capability, never its code.
     "paths": {
+      "@intisy-ai/api": ["./core/node_modules/@intisy-ai/api/dist/index.d.ts"],
       "@core/*": ["./core/dist/*"],
       "@core-auth/*": ["./core-auth/dist/*"],
       "@core-loader/*": ["./core-loader/dist/*"],

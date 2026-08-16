@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { describe, it, expect, beforeEach } from "vitest";
 import { hostFor, capabilityProviders, ledgerFor, quarantinedIn, resetPluginHostsForTests, stopAllHosts } from "./pluginHost.js";
 
@@ -24,7 +25,7 @@ describe("the per-home plugin host", () => {
     await hostFor("/home/a", "app-a", { start });
     await hostFor("/home/a", "app-a", { start });
     await hostFor("/home/b", "app-b", { start });
-    expect(calls).toEqual(["/home/a/plugin", "/home/b/plugin"]);
+    expect(calls).toEqual([join("/home/a", "plugin"), join("/home/b", "plugin")]);
   });
 
   it("answers empty for a home whose host failed to start, and never throws", async () => {
