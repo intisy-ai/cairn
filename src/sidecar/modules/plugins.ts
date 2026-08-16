@@ -25,6 +25,7 @@ import {
   loadPluginUpdaterInit,
 } from "../lib/optionalEngines.js";
 import { repoProvidingCapability } from "../lib/capabilityCatalog.js";
+import { pluginOwningCapability } from "./engines.js";
 import { pruneUnusedLibraries } from "./libraryPrune.js";
 import { wrap } from "../result.js";
 import { reposDir } from "../lib/storagePaths.js";
@@ -33,11 +34,19 @@ const VERSIONS_NS = "versions";
 const PLUGINS_NS = "plugins";
 const PLUGIN_MANAGEMENT = "plugin-management";
 
-// The manager's id comes from what a home's marketplace sources DECLARE for plugin-management,
-// never from deployment state: the bootstrap install of the manager itself runs before anything
-// is deployed anywhere, so a deployed-only lookup would never recognize it.
+// The catalog answers first (what a home's marketplace sources DECLARE), which is what
+// recognizes the manager during its own from-scratch bootstrap, before anything is
+// deployed anywhere. The deployed-manifest lookup is the fallback: it is what still
+// recognizes an already-deployed manager when the catalog cannot be reached. A catalog
+// failure degrades to that fallback, and then to false; it never aborts the check.
 async function isPluginManager(name: string, homeDir: string): Promise<boolean> {
-  return (await repoProvidingCapability(homeDir, PLUGIN_MANAGEMENT))?.id === name;
+  let catalogId: string | null = null;
+  try {
+    catalogId = (await repoProvidingCapability(homeDir, PLUGIN_MANAGEMENT))?.id ?? null;
+  } catch {
+    catalogId = null;
+  }
+  return catalogId === name || pluginOwningCapability(PLUGIN_MANAGEMENT, homeDir) === name;
 }
 
 type PluginChannel = "inherit" | "stable" | "experimental";

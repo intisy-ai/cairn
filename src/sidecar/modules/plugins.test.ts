@@ -1,17 +1,27 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-const { emitted } = vi.hoisted(() => ({ emitted: [] as string[] }));
+const { emitted, repoProvidingCapabilityMock, defaultRepoProvidingCapability } = vi.hoisted(() => {
+  const defaultRepoProvidingCapability = async (_dir: string, capability: string) =>
+    capability === "plugin-management"
+      ? { id: "plugin-updater", npmName: "plugin-updater", url: "https://example/plugin-updater", capabilities: ["plugin-management"], description: "", sourceId: "s" }
+      : null;
+  return {
+    emitted: [] as string[],
+    repoProvidingCapabilityMock: { current: defaultRepoProvidingCapability },
+    defaultRepoProvidingCapability,
+  };
+});
 vi.mock("../activity.js", () => ({
   emitCairnAction: async (spec: { action: string }) => { emitted.push(spec.action); },
 }));
 
 // A from-scratch bootstrap installs the manager into a home before anything is deployed there, so
 // the manager's identity has to come from what a marketplace DECLARES, not a real network fetch.
+// Reassignable per test (see repoProvidingCapabilityMock) so a test can simulate an unreachable
+// catalog without a real network dependency.
 vi.mock("../lib/capabilityCatalog.js", () => ({
-  repoProvidingCapability: async (_dir: string, capability: string) =>
-    capability === "plugin-management"
-      ? { id: "plugin-updater", npmName: "plugin-updater", url: "https://example/plugin-updater", capabilities: ["plugin-management"], description: "", sourceId: "s" }
-      : null,
+  repoProvidingCapability: (dir: string, capability: string) => repoProvidingCapabilityMock.current(dir, capability),
+  catalogEntriesFor: async () => [],
 }));
 
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
@@ -40,6 +50,10 @@ beforeEach(() => {
     { id: "claude", label: "Claude Code", dir: claudeDir, present: true, hasUpdater: true },
     { id: "opencode", label: "OpenCode", dir: opencodeDir, present: true, hasUpdater: false },
   ];
+});
+
+afterEach(() => {
+  repoProvidingCapabilityMock.current = defaultRepoProvidingCapability;
 });
 
 function seedPlugins(dir: string, entries: Plugin[]): void {
@@ -795,6 +809,40 @@ describe("pluginsInstall for the plugin manager", () => {
       ensureUpdater,
     } as never);
     expect(ensureUpdater).not.toHaveBeenCalled();
+  });
+});
+
+describe("pluginsInstall when the marketplace catalog is unreachable", () => {
+  it("still recognizes an already-deployed manager as the manager, via its manifest", async () => {
+    mkdirSync(join(cairnDir, "plugin"), { recursive: true });
+    writeFileSync(join(cairnDir, "plugin", "plugin-updater.json"), JSON.stringify({ id: "plugin-updater", api: 1, entry: "dist/index.js", capabilities: ["plugin-management"] }));
+    repoProvidingCapabilityMock.current = async () => { throw new Error("catalog unreachable"); };
+
+    const ensureUpdater = vi.fn(async () => ({ ok: true, data: undefined }));
+    const { pluginsInstall } = await import("./plugins.js");
+    const result = await pluginsInstall("cairn", "plugin-updater", "https://example/plugin-updater", {
+      homes: fakeHomes,
+      hasUpdater: () => false,
+      updatePluginPublic: async () => {},
+      ensureUpdater,
+    } as never);
+
+    expect(result.ok).toBe(true);
+    expect(ensureUpdater).not.toHaveBeenCalled();
+  });
+
+  it("does not abort an ordinary plugin install; it simply proceeds as a non-manager install", async () => {
+    repoProvidingCapabilityMock.current = async () => { throw new Error("catalog unreachable"); };
+
+    const { pluginsInstall } = await import("./plugins.js");
+    const result = await pluginsInstall("claude", "custom-auth", "https://github.com/intisy-ai/custom-auth", {
+      homes: fakeHomes,
+      hasUpdater: () => true,
+      updatePluginPublic: async () => {},
+      syncPluginsAcrossApps: async () => {},
+    });
+
+    expect(result.ok).toBe(true);
   });
 });
 
