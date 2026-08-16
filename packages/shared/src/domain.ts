@@ -1,5 +1,5 @@
 export type { AccountView, AccountQuota, AccountStatus } from "@core-auth/index.js";
-export type { Impact, ActivityRecord, ActivityQuery, ActivityStats, ActivityHomeStats, FieldType, FieldSpec, ActionSpec, MenuSpec, SectionSpec, ResolvedSection, DataSpec } from "@core/index.js";
+export type { Impact, ActivityRecord, ActivityQuery, ActivityStats, ActivityHomeStats, FieldType, FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec } from "@core/index.js";
 import type { FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec } from "@core/index.js";
 
 // What an update run did, as the dashboard reports it back to the renderer.
