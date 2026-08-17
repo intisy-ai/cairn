@@ -1,8 +1,8 @@
 <script lang="ts">
-  import type { HomeLedger, LedgerRowView, PluginHome } from "@cairn/shared";
+  import type { HomeLedger, LedgerRowView, PluginHome, QuarantineView } from "@cairn/shared";
   import Chip from "./Chip.svelte";
 
-  let { groups, plugin }: { groups: HomeLedger[]; plugin: string } = $props();
+  let { groups, plugin, quarantine = [] }: { groups: HomeLedger[]; plugin: string; quarantine?: QuarantineView[] } = $props();
 
   type MatchedGroup = { home: PluginHome; row: LedgerRowView };
 
@@ -13,9 +13,16 @@
       return acc;
     }, []),
   );
+
+  // A home never has both a ledger row and a quarantine record for the same plugin, but the
+  // filter keeps the ledger row authoritative if it ever did.
+  const matchedHomeIds = $derived(new Set(matched.map((entry) => entry.home.id)));
+  const quarantined = $derived(
+    quarantine.filter((record) => record.pluginId === plugin && !matchedHomeIds.has(record.homeId)),
+  );
 </script>
 
-{#if matched.length === 0}
+{#if matched.length === 0 && quarantined.length === 0}
   <p class="muted">Not loaded in any home.</p>
 {:else}
   <div class="groups">
@@ -96,6 +103,16 @@
           {:else}
             <p class="muted">No permissions requested.</p>
           {/if}
+        </div>
+      </section>
+    {/each}
+    {#each quarantined as record (record.homeId)}
+      <section class="group">
+        <h3 class="home">{record.homeLabel}</h3>
+        <div class="error">
+          <p class="label">Not loaded</p>
+          <p class="errdetail">{record.detail}</p>
+          <p class="errfix">{record.fix}</p>
         </div>
       </section>
     {/each}

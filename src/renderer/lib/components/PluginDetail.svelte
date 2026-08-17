@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { UnifiedPlugin, PluginConfigSchema, PluginVersion, HomeLedger } from "@cairn/shared";
+  import type { UnifiedPlugin, PluginConfigSchema, PluginVersion, HomeLedger, QuarantineView } from "@cairn/shared";
   import PluginControls from "./PluginControls.svelte";
   import RepoDetail from "./RepoDetail.svelte";
   import ToggleSwitch from "./ToggleSwitch.svelte";
@@ -62,6 +62,7 @@
 
   let versions = $state<Record<string, PluginVersion>>({});
   let ledgerGroups = $state<HomeLedger[]>([]);
+  let quarantine = $state<QuarantineView[]>([]);
   const representativeVersion = $derived(
     installedHomes.map((h) => versions[h.id]?.label).find((v): v is string => !!v) ?? "",
   );
@@ -99,6 +100,13 @@
     if (result.ok) ledgerGroups = result.data;
   }
 
+  // Same live-read reasoning as loadLedger: a home's inability to load this plugin is only
+  // known by asking, and it changes the moment the plugin is repaired.
+  async function loadQuarantine(): Promise<void> {
+    const result = await cairn.pluginQuarantine();
+    if (result.ok) quarantine = result.data;
+  }
+
   async function updateHome(homeId: string): Promise<void> {
     await onUpdateHome(homeId);
     await loadVersions();
@@ -133,6 +141,7 @@
   onMount(() => {
     loadVersions();
     loadLedger();
+    loadQuarantine();
   });
 
   const tabs = $derived([
@@ -291,7 +300,7 @@
       {/if}
     </div>
   {:else if active === "developer"}
-    <PluginLedgerSection groups={ledgerGroups} plugin={plugin.pluginId ?? plugin.name} />
+    <PluginLedgerSection groups={ledgerGroups} plugin={plugin.pluginId ?? plugin.name} {quarantine} />
   {/if}
 {/snippet}
 

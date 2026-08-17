@@ -45,4 +45,35 @@ describe("PluginLedgerSection", () => {
     render(PluginLedgerSection, { groups: [], plugin: "historian" });
     expect(screen.getByText(/not loaded in any home/i)).toBeInTheDocument();
   });
+
+  it("renders a quarantined home alongside a healthy one, each under its own label and reason", () => {
+    render(PluginLedgerSection, {
+      groups: [{ home: { id: "opencode-runtime", label: "OpenCode", dir: "/o", present: true, hasUpdater: true }, rows: [row] }],
+      plugin: "historian",
+      quarantine: [{
+        homeId: "cairn-desktop", homeLabel: "Cairn",
+        pluginId: "historian", detail: "historian is installed but carries no manifest",
+        fix: "update the plugin so its manifest is deployed",
+      }],
+    });
+    expect(screen.getByText("OpenCode")).toBeInTheDocument();
+    expect(screen.getByText("historian:history")).toBeInTheDocument();
+    expect(screen.getByText("Cairn")).toBeInTheDocument();
+    expect(screen.getByText("historian is installed but carries no manifest")).toBeInTheDocument();
+    expect(screen.getByText("update the plugin so its manifest is deployed")).toBeInTheDocument();
+    expect(screen.queryByText(/not loaded in any home/i)).toBeNull();
+  });
+
+  it("does not duplicate a home that is quarantined for a different plugin", () => {
+    render(PluginLedgerSection, {
+      groups: [],
+      plugin: "historian",
+      quarantine: [{
+        homeId: "cairn-desktop", homeLabel: "Cairn",
+        pluginId: "some-other-plugin", detail: "irrelevant", fix: "irrelevant",
+      }],
+    });
+    expect(screen.getByText(/not loaded in any home/i)).toBeInTheDocument();
+    expect(screen.queryByText("Cairn")).toBeNull();
+  });
 });
