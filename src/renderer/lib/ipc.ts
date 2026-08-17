@@ -60,6 +60,8 @@ const LIVE_READS = new Set([
   "favoritesList",
   "marketplaceSourcesList",
   "customEndpointsFormats",
+  "pluginLedger",
+  "pluginQuarantine",
 ]);
 
 // Methods that return synchronously: the window controls return nothing, and a push

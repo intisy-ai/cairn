@@ -250,6 +250,20 @@ export type PluginHome = {
   loaderInstalled?: boolean;
 };
 export type HomePlugins = { home: PluginHome; rows: PluginRow[] };
+export type LedgerRowView = {
+  pluginId: string;
+  status: string;
+  capabilitiesDeclared: string[];
+  capabilities: string[];
+  provides: string[];
+  consumes: string[];
+  unresolved: string[];
+  topics: string[];
+  permissions: string[];
+  error?: { detail: string; fix: string };
+};
+export type HomeLedger = { home: PluginHome; rows: LedgerRowView[] };
+export type QuarantineView = { homeId: string; homeLabel: string; pluginId: string; detail: string; fix: string };
 // The four storage subdirectory names an app home carries, and where they land.
 export type AppPathNames = { repos: string; plugin: string; cache: string; config: string };
 export type AppStorage = { app: string; home: string; names: AppPathNames; defaults: AppPathNames; resolved: AppPathNames };
