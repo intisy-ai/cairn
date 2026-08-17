@@ -127,6 +127,10 @@ export type CliResult = {
 };
 export type PluginRow = {
   name: string;
+  // The manifest id its own plugin.json declares, when the row is a git clone with one; absent
+  // otherwise. This is the ledger's identity space, which is not always `name` (the plugins.json
+  // entry / clone directory name).
+  pluginId?: string;
   kind: "git" | "npm";
   enabled: boolean;
   url?: string;
@@ -264,8 +268,6 @@ export type LedgerRowView = {
 };
 export type HomeLedger = { home: PluginHome; rows: LedgerRowView[] };
 export type QuarantineView = { homeId: string; homeLabel: string; pluginId: string; detail: string; fix: string };
-/** One recorded configuration snapshot, and which plugin recorded it. */
-export type HistoryEntryView = { id: string; ts: number; summary: string; files: string[]; plugin: string };
 // The four storage subdirectory names an app home carries, and where they land.
 export type AppPathNames = { repos: string; plugin: string; cache: string; config: string };
 export type AppStorage = { app: string; home: string; names: AppPathNames; defaults: AppPathNames; resolved: AppPathNames };
@@ -306,6 +308,10 @@ export type EngineView = { id: string; capability: string; url: string; homes: R
 export type UnifiedHomeState = { installed: boolean; version?: string | null };
 export type UnifiedPlugin = {
   name: string;
+  // The ledger's own identity for this plugin (see PluginRow.pluginId), resolved from whichever
+  // home has it installed. Absent when nothing installed has ever resolved one, in which case
+  // `name` is the only identity there is.
+  pluginId?: string;
   kind: CatalogKind;
   description: string;
   url?: string;
@@ -342,7 +348,6 @@ export type PluginConfigSchema = {
   actions?: ActionSpec[];
   sections?: SectionSpec[];
   data?: DataSpec;
-  screens?: PluginScreen[];
   // How the declaration splits into contributed sections and what no section claimed.
   // Resolved in the sidecar by core, so every surface splits a declaration the same way
   // and the renderer never has to know the rule.
