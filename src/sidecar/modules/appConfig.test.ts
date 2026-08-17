@@ -171,6 +171,31 @@ describe("appConfig sidecar module", () => {
     expect(result.data[0].defaults).toEqual({});
   });
 
+  // callHostCapability never throws, so a rejecting schema() surfaces as answer.ok === false;
+  // that one plugin must degrade to an empty declaration rather than sinking every other
+  // plugin's schemas for the home.
+  it("degrades a plugin whose schema() rejects, without sinking the rest of the list", async () => {
+    const { home } = makeHome("claude", "Claude Code");
+
+    const { configSchemas } = await import("./appConfig.js");
+    const result = await configSchemas("claude", {
+      homes: [home],
+      engineSchemas: async () => [],
+      declarations: async () => new Map([["broken", { defaults: { x: 1 } }]]),
+      settingsProviders: async () => [
+        { pluginId: "broken", implementation: { schema: async () => { throw new Error("boom"); }, run: vi.fn() } },
+        { pluginId: "fine", implementation: { schema: async () => ({ fields: [{ key: "y", type: "boolean" as const }] }), run: vi.fn() } },
+      ],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data.map((s) => s.plugin)).toEqual(["broken", "fine"]);
+    expect(result.data[0].defaults).toEqual({ x: 1 });
+    expect(result.data[0].fields).toBeUndefined();
+    expect(result.data[1].fields).toEqual([{ key: "y", type: "boolean" }]);
+  });
+
   it("configWrite creates config/<plugin>.json when it does not exist yet", async () => {
     const { dir, home } = makeHome("claude", "Claude Code");
     seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
@@ -284,7 +309,12 @@ describe("appConfig sidecar module", () => {
     expect(run).toHaveBeenCalledWith("snapshot");
   });
 
-  it("maps a failed action's message onto stderr rather than stdout", async () => {
+  // A refusal is business data at the capability boundary ({ok:false, message}), but it must
+  // still fail the Result: the old spawn path rejected on a non-zero exit and the renderer only
+  // ever reads result.error on the failure branch, never result.data.stderr on the success one.
+  // Regression: an earlier version of this mapping put the message in `stderr` while leaving
+  // the outer Result `ok: true`, which made a refused action render as "Done."
+  it("fails the whole action rather than reporting a refusal as data", async () => {
     const { home } = makeHome("claude", "Claude Code");
     const run = vi.fn(async () => ({ ok: false, message: "conflict with a concurrent sync" }));
     const settingsProviders = async () => [{
@@ -295,7 +325,45 @@ describe("appConfig sidecar module", () => {
     const { configAction } = await import("./appConfig.js");
     const result = await configAction("claude", "historian", "snapshot", { homes: [home], settingsProviders });
 
-    expect(result).toEqual({ ok: true, data: { stdout: "", stderr: "conflict with a concurrent sync" } });
+    expect(result).toEqual({ ok: false, error: "conflict with a concurrent sync" });
+  });
+
+  // createSettingsCapability already converts a thrown error into {ok:false, message}, and
+  // callHostCapability never throws either, so a provider that throws directly (an older
+  // capability not built on createSettingsCapability, or a bug in callHostCapability's own
+  // wrapping) must land on the exact same failed-Result path, not crash the sidecar handler.
+  it("fails the action the same way when run throws instead of resolving ok:false", async () => {
+    const { home } = makeHome("claude", "Claude Code");
+    const run = vi.fn(async () => { throw new Error("disk full"); });
+    const settingsProviders = async () => [{
+      pluginId: "historian",
+      implementation: { schema: async () => ({ actions: [{ id: "snapshot", label: "Snapshot" }] }), run },
+    }];
+
+    const { configAction } = await import("./appConfig.js");
+    const result = await configAction("claude", "historian", "snapshot", { homes: [home], settingsProviders });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.error).toContain("disk full");
+  });
+
+  // If a failing schema() let an unvalidated action id through to run, the validation would be
+  // decorative: `declared` must default closed (false), not open, when the capability that is
+  // supposed to answer for it cannot be reached.
+  it("refuses the action rather than running it unvalidated when schema() rejects", async () => {
+    const { home } = makeHome("claude", "Claude Code");
+    const run = vi.fn();
+    const settingsProviders = async () => [{
+      pluginId: "historian",
+      implementation: { schema: async () => { throw new Error("capability wedged"); }, run },
+    }];
+
+    const { configAction } = await import("./appConfig.js");
+    const result = await configAction("claude", "historian", "snapshot", { homes: [home], settingsProviders });
+
+    expect(result).toEqual({ ok: false, error: "unknown action: snapshot" });
+    expect(run).not.toHaveBeenCalled();
   });
 
   it("configAction rejects an action id the plugin never declared, without running it", async () => {

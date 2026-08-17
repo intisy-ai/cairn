@@ -147,7 +147,12 @@ export function configAction(homeId: string, plugin: string, actionId: string, d
     const runAnswer = await callHostCapability(plugin, "settings.run", DEFAULT_INVOKE_TIMEOUT_MS, async () => provider.implementation.run(actionId));
     if (runAnswer.ok === false) throw new Error(runAnswer.error.detail);
     const outcome = runAnswer.value;
-    return outcome.ok ? { stdout: outcome.message ?? "", stderr: "" } : { stdout: "", stderr: outcome.message ?? "" };
+    // A refusal is business data to the capability (createSettingsCapability turns a throw
+    // into the same {ok:false, message} shape), but it must still fail the Result: the old
+    // spawn path rejected on a non-zero exit, and a plugin action that quietly reports
+    // success while doing nothing is the exact silent-failure class this seam exists to catch.
+    if (!outcome.ok) throw new Error(outcome.message ?? `action failed: ${actionId}`);
+    return { stdout: outcome.message ?? "", stderr: "" };
   });
 }
 
