@@ -15,22 +15,21 @@ export interface AppDiscoveryDeps {
   registerAppFn?: (desc: AppDescriptor) => void;
 }
 
+// Normalisation exists only so two descriptors carrying the same data compare equal, so it fills
+// the fields that have defaults and passes everything else through untouched. Enumerating the
+// fields made a descriptor differing only in a trait this function had not heard of compare equal,
+// which is the one thing a comparison must never do.
 function normalizeDescriptor(desc: AppDescriptor): AppDescriptor {
   return {
-    id: desc.id,
-    label: desc.label,
-    icon: desc.icon,
-    home: desc.home,
+    ...desc,
     detect: { binary: desc.detect?.binary ?? desc.id, pkg: desc.detect?.pkg ?? "" },
-    loader: desc.loader,
     commandsSubdir: desc.commandsSubdir ?? "commands",
     paths: { ...DEFAULT_PATH_NAMES, ...desc.paths },
     proxyPort: desc.proxyPort ?? 0,
     integration: desc.integration ?? "env-baseurl",
-    // Not core's actual wireFormat default (an arbitrary wire-format id, never
-    // hardcoded here): only used so two descriptors missing the field compare equal.
+    // Not core's actual wireFormat default (an arbitrary wire-format id, never hardcoded here):
+    // only used so two descriptors missing the field compare equal.
     wireFormat: desc.wireFormat ?? "",
-    usage: desc.usage,
   };
 }
 

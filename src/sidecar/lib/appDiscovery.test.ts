@@ -127,4 +127,30 @@ describe("discoverApps", () => {
     ).resolves.toBeUndefined();
     expect(getApps().find((a) => a.id === "gamma")?.label).toBe("Gamma CLI");
   });
+
+  it("re-registers when only a declared trait changed", async () => {
+    const registered: AppDescriptor[] = [];
+    const existing = { id: "app-a", label: "App A", home: "~/.app-a", loader: { id: "app-a-loader", url: "https://example/l" } } as AppDescriptor;
+    await discoverApps({
+      scanOrgFn: async () => ({ entries: [{ kind: "loader", app: { ...existing, accent: "#5fafaf" } }] } as never),
+      getAppsFn: () => [existing],
+      registerAppFn: (desc) => { registered.push(desc); },
+      exists: () => false,
+      readFile: () => "",
+    });
+    expect(registered.map((d) => (d as { accent?: string }).accent)).toEqual(["#5fafaf"]);
+  });
+
+  it("still touches nothing when the descriptor is unchanged, traits included", async () => {
+    const registered: AppDescriptor[] = [];
+    const existing = { id: "app-a", label: "App A", home: "~/.app-a", accent: "#5fafaf", loader: { id: "app-a-loader", url: "https://example/l" } } as AppDescriptor;
+    await discoverApps({
+      scanOrgFn: async () => ({ entries: [{ kind: "loader", app: { ...existing } }] } as never),
+      getAppsFn: () => [existing],
+      registerAppFn: (desc) => { registered.push(desc); },
+      exists: () => false,
+      readFile: () => "",
+    });
+    expect(registered).toEqual([]);
+  });
 });
