@@ -43,6 +43,23 @@ describe("enginesList", () => {
     const result = await enginesList({ homes, catalog: async () => [], ownerIn: () => null });
     expect(result).toEqual({ ok: true, data: [] });
   });
+
+  // A fixture that ignores its homeDir argument cannot distinguish reading every home from
+  // reading only one, since every home would then answer with the same catalog either way.
+  it("unions catalog entries across homes rather than reading only one", async () => {
+    const perHome: Record<string, typeof catalog> = {
+      "/homes/cairn": [catalog[0]],
+      "/homes/a": [catalog[1]],
+    };
+    const result = await enginesList({
+      homes,
+      catalog: async (homeDir) => perHome[homeDir] ?? [],
+      ownerIn: () => null,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.map((row) => row.capability).sort()).toEqual(["config-history", "plugin-management", "screens"]);
+  });
 });
 
 describe("ensureEngineIn", () => {
