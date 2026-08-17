@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { render, waitFor } from "@testing-library/svelte";
+import { INVOKE_CHANNELS } from "@cairn/shared";
 import { stubCairn, defaultCairn } from "./testing.js";
-import { cairn, classify, type IpcKind } from "./ipc.js";
+import { cairn, classify, classifiedReadNames, type IpcKind } from "./ipc.js";
 import Overview from "./routes/Overview.svelte";
 
 // Every CairnAPI method, by how the proxy must treat it. A method absent here, or
@@ -15,13 +16,14 @@ const EXPECTED: Record<string, IpcKind> = {
   pluginsData: "cached", librariesList: "cached", configSchemas: "cached", getConfig: "cached",
   usageSnapshot: "cached", importApps: "cached", importPreview: "cached", catalogList: "cached",
   customEndpointsList: "cached", screensList: "cached", settingsSections: "cached",
-  githubStatus: "cached", activityRead: "cached",
+  githubStatus: "cached", activityRead: "cached", configHistoryList: "cached",
 
   proxiesList: "live", jobsList: "live", appsConnection: "live", repoMeta: "live",
   repoMetaCached: "live", pluginVersions: "live", pluginVersionsAll: "live",
   pluginVersionsCached: "live", enginesList: "live", screenData: "live",
   activityStats: "live", globalSettingsRead: "live", catalogListCached: "live",
   favoritesList: "live", marketplaceSourcesList: "live", customEndpointsFormats: "live",
+  pluginLedger: "live", pluginQuarantine: "live",
 
   minimize: "passthrough", maximize: "passthrough", close: "passthrough",
   onServerStatus: "passthrough", onDownloadProgress: "passthrough",
@@ -100,6 +102,11 @@ describe("method classification", () => {
     expect(unclassified).toEqual([]);
     expect(Object.keys(EXPECTED).filter((name) => !methods.includes(name))).toEqual([]);
     for (const name of methods) expect([name, classify(name)]).toEqual([name, EXPECTED[name]]);
+  });
+
+  it("maps every cached or live read to a real invoke channel, so window.cairn[name] is never silently undefined", () => {
+    const orphaned = classifiedReadNames().filter((name) => !(name in INVOKE_CHANNELS));
+    expect(orphaned).toEqual([]);
   });
 
   it("keeps another screen's cached read across a live read", async () => {

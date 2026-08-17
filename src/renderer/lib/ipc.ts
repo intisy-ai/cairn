@@ -88,6 +88,13 @@ export function classify(name: string): IpcKind {
   return "mutation";
 }
 
+// Exported so a test can check the opposite drift: a name placed in either table with
+// no matching INVOKE_CHANNELS entry resolves window.cairn[name] to undefined at runtime,
+// silently, since the proxy's own guard only skips non-functions rather than reporting them.
+export function classifiedReadNames(): string[] {
+  return [...Object.keys(READ_TTL), ...LIVE_READS];
+}
+
 export const cairn: CairnAPI = new Proxy({} as CairnAPI, {
   get(_target, property) {
     const name = property as string;

@@ -13,4 +13,9 @@ describe("isReadOnlyChannel", () => {
   it("treats a screen list as read-only", () => {
     expect(isReadOnlyChannel("screens:list")).toBe(true);
   });
+
+  it("treats the plugin ledger and quarantine reads as read-only", () => {
+    expect(isReadOnlyChannel("plugins:ledger")).toBe(true);
+    expect(isReadOnlyChannel("plugins:quarantine")).toBe(true);
+  });
 });

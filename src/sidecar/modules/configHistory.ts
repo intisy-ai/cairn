@@ -1,16 +1,9 @@
 import { pluginHomes, homeById } from "../lib/pluginHomes.js";
 import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS } from "../lib/pluginHost.js";
-import type { PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
+import type { HistoryEntryView, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
 
-/** One recorded configuration snapshot, and which plugin recorded it. */
-export interface HistoryEntryView {
-  id: string;
-  ts: number;
-  summary: string;
-  files: string[];
-  plugin: string;
-}
+export type { HistoryEntryView };
 
 interface ConfigHistoryLike {
   history: (query?: { home?: string; limit?: number; cursor?: string }) => Promise<Array<{ id: string; ts: number; summary: string; files: string[] }>>;
