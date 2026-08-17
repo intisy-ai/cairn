@@ -53,11 +53,24 @@ describe("pluginQuarantine", () => {
       ? [{ pluginId: "bad", detail: "is in a dependency cycle: bad -> bad", fix: "break the cycle" }]
       : []));
     const { pluginQuarantine } = await import("./diagnostics.js");
-    const result = await pluginQuarantine({ homes });
+    const result = await pluginQuarantine({ homes, installedNamesFor: async () => [], unmanifested: () => [] });
     expect(result).toEqual({ ok: true, data: [
       { homeId: "app-a", homeLabel: "App A", pluginId: "bad", detail: "is in a dependency cycle: bad -> bad", fix: "break the cycle" },
     ] });
     expect(quarantinedIn).toHaveBeenCalledWith("/homes/cairn", "cairn");
     expect(quarantinedIn).toHaveBeenCalledWith("/homes/a", "app-a");
+  });
+
+  it("names a plugin with a deployed bundle but no manifest from either source", async () => {
+    quarantinedIn.mockResolvedValue([]);
+    const { pluginQuarantine } = await import("./diagnostics.js");
+    const result = await pluginQuarantine({
+      homes: [homes[1]],
+      installedNamesFor: async (dir) => (dir === "/homes/a" ? ["gateway"] : []),
+      unmanifested: (dir, names) => (dir === "/homes/a" ? names.filter((n) => n === "gateway") : []),
+    });
+    expect(result).toEqual({ ok: true, data: [
+      { homeId: "app-a", homeLabel: "App A", pluginId: "gateway", detail: "gateway is installed but carries no manifest", fix: "update the plugin so its manifest is deployed" },
+    ] });
   });
 });

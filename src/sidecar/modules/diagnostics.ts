@@ -1,10 +1,14 @@
 import { pluginHomes } from "../lib/pluginHomes.js";
 import { ledgerFor, quarantinedIn } from "../lib/pluginHost.js";
+import { unmanifestedPlugins } from "../lib/capabilityOwner.js";
+import { safeGetPlugins } from "../lib/optionalEngines.js";
 import type { HomeLedger, LedgerRowView, PluginHome, QuarantineView, Result } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
 
 export interface DiagnosticsDeps {
   homes?: PluginHome[];
+  installedNamesFor?: (homeDir: string) => Promise<string[]>;
+  unmanifested?: (homeDir: string, installedNames: string[]) => string[];
 }
 
 /**
@@ -39,14 +43,33 @@ export function pluginLedger(deps: DiagnosticsDeps = {}): Promise<Result<HomeLed
   });
 }
 
-/** Every plugin a home refused to load, with the reason and the fix, across all homes. */
+/**
+ * Every plugin a home refused to load, with the reason and the fix, across all homes.
+ *
+ * @remarks
+ * The host's own refusals are one source; a deployed bundle with no manifest anywhere (a home
+ * stuck on a pre-sidecar deploy) is a second, since the host never sees that plugin at all and so
+ * never refuses it either.
+ */
 export function pluginQuarantine(deps: DiagnosticsDeps = {}): Promise<Result<QuarantineView[]>> {
   return wrap(async () => {
     const homes = deps.homes ?? (await pluginHomes());
+    const installedNamesFor = deps.installedNamesFor ?? (async (dir: string) => (await safeGetPlugins(dir)).map((p) => p.name));
+    const unmanifested = deps.unmanifested ?? unmanifestedPlugins;
     const out: QuarantineView[] = [];
     for (const home of homes) {
       for (const record of await quarantinedIn(home.dir, home.id)) {
         out.push({ homeId: home.id, homeLabel: home.label, pluginId: record.pluginId, detail: record.detail, fix: record.fix });
+      }
+      const installed = await installedNamesFor(home.dir);
+      for (const name of unmanifested(home.dir, installed)) {
+        out.push({
+          homeId: home.id,
+          homeLabel: home.label,
+          pluginId: name,
+          detail: `${name} is installed but carries no manifest`,
+          fix: "update the plugin so its manifest is deployed",
+        });
       }
     }
     return out;
