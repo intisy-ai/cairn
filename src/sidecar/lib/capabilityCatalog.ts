@@ -7,7 +7,7 @@ import { pathsForHome } from "./storagePaths.js";
 export type { CatalogEntry };
 
 /** How long a home's fetched catalog stands before it is read again. */
-export const CATALOG_WINDOW_MS = 3_600_000;
+const CATALOG_WINDOW_MS = 3_600_000;
 
 // core-loader's own homePaths derives its subdirectory names from the ACTIVE home's environment
 // overrides, which is wrong for a dashboard reading three foreign homes at once. pathsForHome looks
@@ -25,8 +25,9 @@ function pathsOf(homeDir: string) {
 
 function sourcesOf(homeDir: string): MarketplaceSource[] {
   try {
-    const declared = readMarketplaceSources(pathsOf(homeDir));
-    return declared.length > 0 ? declared : [builtInSource()];
+    // readMarketplaceSources already falls back to [builtInSource()] when a home declares
+    // none, so its result is never empty; only an unreadable home reaches the catch below.
+    return readMarketplaceSources(pathsOf(homeDir));
   } catch {
     return [builtInSource()];
   }

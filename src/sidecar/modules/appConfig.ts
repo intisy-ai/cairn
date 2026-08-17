@@ -54,7 +54,6 @@ export interface ConfigSchemasDeps {
   values?: (dir: string, plugin: string) => Record<string, unknown>;
   engineSchemas?: (home: PluginHome) => Promise<PluginConfigSchema[]>;
   settingsProviders?: (homeDir: string, appId: string) => Promise<SettingsProvider[]>;
-  bundles?: (homeDir: string) => Bundle[];
 }
 
 /**
@@ -78,7 +77,7 @@ export function configSchemas(homeId: string, deps: ConfigSchemasDeps = {}): Pro
     const values = deps.values ?? readCurrentValues;
     const settingsProviders = deps.settingsProviders ?? realSettingsProviders;
 
-    const bundles: Bundle[] = deps.bundles ? deps.bundles(home.dir) : await realBundles(home);
+    const bundles: Bundle[] = await realBundles(home);
     const declared = await declare(bundles);
     const capabilities = await settingsProviders(home.dir, home.id);
 
