@@ -292,15 +292,21 @@ describe("appConfig sidecar module", () => {
   });
 
   it("configAction runs a declared action through the settings capability and returns its output", async () => {
-    const { home } = makeHome("claude", "Claude Code");
+    const { dir, home } = makeHome("claude", "Claude Code");
     const run = vi.fn(async (actionId: string) => {
       expect(actionId).toBe("snapshot");
       return { ok: true, message: "ran" };
     });
-    const settingsProviders = async () => [{
-      pluginId: "historian",
-      implementation: { schema: async () => ({ actions: [{ id: "snapshot", label: "Snapshot" }] }), run },
-    }];
+    // home.dir and home.id are two distinct strings, so a positional swap in the
+    // settingsProviders(homeDir, appId) call cannot pass unnoticed.
+    const settingsProviders = async (homeDir: string, appId: string) => {
+      expect(homeDir).toBe(dir);
+      expect(appId).toBe("claude");
+      return [{
+        pluginId: "historian",
+        implementation: { schema: async () => ({ actions: [{ id: "snapshot", label: "Snapshot" }] }), run },
+      }];
+    };
 
     const { configAction } = await import("./appConfig.js");
     const result = await configAction("claude", "historian", "snapshot", { homes: [home], settingsProviders });
@@ -309,11 +315,6 @@ describe("appConfig sidecar module", () => {
     expect(run).toHaveBeenCalledWith("snapshot");
   });
 
-  // A refusal is business data at the capability boundary ({ok:false, message}), but it must
-  // still fail the Result: the old spawn path rejected on a non-zero exit and the renderer only
-  // ever reads result.error on the failure branch, never result.data.stderr on the success one.
-  // Regression: an earlier version of this mapping put the message in `stderr` while leaving
-  // the outer Result `ok: true`, which made a refused action render as "Done."
   it("fails the whole action rather than reporting a refusal as data", async () => {
     const { home } = makeHome("claude", "Claude Code");
     const run = vi.fn(async () => ({ ok: false, message: "conflict with a concurrent sync" }));

@@ -71,7 +71,7 @@ describe("probeDeclarations", () => {
     });
   });
 
-  it("drops a screens field the probe still prints, since screens no longer travel through it", async () => {
+  it("drops a screens field the probe still prints, since screens travel through the screens capability", async () => {
     const b = bundle("plugin-a");
     const spawn = vi.fn(async () => ({
       name: "plugin-a",
