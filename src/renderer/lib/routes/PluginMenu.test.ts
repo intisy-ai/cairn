@@ -21,15 +21,19 @@ describe("PluginMenu", () => {
 
   it("re-reads after an action that asks for a refresh", async () => {
     const screenData = vi.fn(async () => ({ ok: true, data: { sources: { line: "v1" } } }));
+    const screenInvoke = vi.fn(async () => ({ ok: true, data: { ok: true, refresh: true } }));
     stubCairn({
       screensList: async () => ({ ok: true, data: [SCREEN] }),
       screenData,
-      screenInvoke: async () => ({ ok: true, data: { ok: true, refresh: true } }),
+      screenInvoke,
     });
     render(PluginMenu, { plugin: "demo", screenId: "config" });
     await waitFor(() => expect(screen.getByRole("button", { name: "go" })).toBeInTheDocument());
     await fireEvent.click(screen.getByRole("button", { name: "go" }));
     await waitFor(() => expect(screenData).toHaveBeenCalledTimes(2));
+    // Guards the positional order (plugin, screenId, actionId, homeId, args): a swap among the
+    // four adjacent strings would call the wrong plugin, screen, action, or home unnoticed.
+    expect(screenInvoke).toHaveBeenCalledWith("demo", "config", "go", "claude", {});
   });
 
   it("shows the plugin's own error rather than a blank screen", async () => {
