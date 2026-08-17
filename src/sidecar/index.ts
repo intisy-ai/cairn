@@ -16,6 +16,7 @@ import { repoMeta, repoMetaCached } from "./modules/repo.js";
 import { configSchemas, configWrite, configAction } from "./modules/appConfig.js";
 import { screensList, settingsSections } from "./modules/contributions.js";
 import { screenData, screenInvoke } from "./modules/screens.js";
+import { configHistoryList } from "./modules/configHistory.js";
 import { busDrain } from "./modules/bus.js";
 import { pluginsData, pluginsRemoveData } from "./modules/pluginData.js";
 import { jobsList, jobsEnqueue, jobsCancel, jobsClearFinished, setJobListener } from "./modules/jobs.js";
@@ -181,6 +182,7 @@ registerHandler("config:write", (home, plugin, key, value) => configWrite(home a
 registerHandler("config:action", (home, plugin, actionId) => configAction(home as string, plugin as string, actionId as string));
 registerHandler("screens:data", (plugin, screen, home) => screenData(plugin as string, screen as string, home as string));
 registerHandler("screens:invoke", (plugin, screenId, action, home, args) => screenInvoke(plugin as string, screenId as string, action as string, home as string, args as Record<string, unknown>));
+registerHandler("configHistory:list", (homeId) => configHistoryList(homeId as string));
 registerHandler("bus:drain", () => busDrain());
 registerHandler("updates:check", (homeId) => updatesCheck(homeId as string));
 registerHandler("updates:one", (homeId, name) => updatesOne(homeId as string, name as string));

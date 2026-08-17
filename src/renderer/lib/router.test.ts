@@ -21,7 +21,7 @@ describe("router", () => {
 
   it("lists every screen exactly once, in a stable order", () => {
     const ids = SCREENS.map((screen) => screen.id);
-    expect(ids).toEqual(["overview", "providers", "accounts", "routing", "usage", "activity", "localApi", "apps", "plugins", "libraries", "downloads", "config", "settings"]);
+    expect(ids).toEqual(["overview", "providers", "accounts", "routing", "usage", "activity", "localApi", "apps", "plugins", "libraries", "downloads", "settings"]);
   });
 
   it("navigate with params stores them and consumeParams exposes them once", () => {

@@ -16,8 +16,7 @@
       "@core/*": ["./core/dist/*"],
       "@core-auth/*": ["./core-auth/dist/*"],
       "@core-loader/*": ["./core-loader/dist/*"],
-      "@core-proxy/*": ["./core-proxy/dist/*"],
-      "@config-ledger/*": ["../../plugins/config-ledger/dist/*"]
+      "@core-proxy/*": ["./core-proxy/dist/*"]
     }
   }
 }

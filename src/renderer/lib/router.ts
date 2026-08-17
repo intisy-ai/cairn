@@ -1,7 +1,7 @@
 import { writable } from "svelte/store";
 import type { PluginScreen } from "@cairn/shared";
 
-export type CairnScreenId = "overview" | "providers" | "accounts" | "routing" | "usage" | "activity" | "localApi" | "apps" | "plugins" | "libraries" | "downloads" | "config" | "settings";
+export type CairnScreenId = "overview" | "providers" | "accounts" | "routing" | "usage" | "activity" | "localApi" | "apps" | "plugins" | "libraries" | "downloads" | "settings";
 // A plugin can declare more than one screen, so a contributed screen is addressed by the
 // plugin AND the screen id, not the plugin alone. Cairn's own screens stay a closed set;
 // anything a plugin contributes lives behind this prefix.
@@ -46,7 +46,6 @@ export const SCREENS: readonly ScreenDef[] = [
   { id: "plugins", label: "Plugins", glyph: "⊞", section: "network" },
   { id: "libraries", label: "Libraries", glyph: "◫", section: "network" },
   { id: "downloads", label: "Downloads", glyph: "⤓", section: "network" },
-  { id: "config", label: "Config", glyph: "❋", section: "network" },
   { id: "settings", label: "Settings", glyph: "⚙", section: "network" },
 ];
 

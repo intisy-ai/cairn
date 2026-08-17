@@ -1,9 +1,3 @@
-// config-ledger is an OPTIONAL engine plugin: Cairn must build and run with its sibling repo
-// absent, degrading the dependent feature instead of crashing. Its value-level uses go through
-// the presence-probed loader below, so a missing engine surfaces as "feature unavailable" rather
-// than a module-resolution crash. A miss is cached like a hit: it resolves through a fixed path,
-// not something that can appear mid-run.
-//
 // plugin-updater is a hard dependency (Cairn's install engine), but its imports stay DYNAMIC:
 // ESM hoists static imports, so PLUGIN_UPDATER_LIBRARY_MODE below would be set after its module
 // body had already activated it against whatever home is ambient.
@@ -21,7 +15,6 @@ type PluginUpdaterEnv = typeof import("@intisy-ai/plugin-updater/dist/env.js");
 type PluginUpdaterNpm = typeof import("@intisy-ai/plugin-updater/dist/npm.js");
 type PluginUpdaterIndex = typeof import("@intisy-ai/plugin-updater/dist/index.js");
 type PluginUpdaterInit = typeof import("@intisy-ai/plugin-updater/dist/init.js");
-type ConfigLedgerLib = typeof import("@config-ledger/lib.js");
 
 const cache = new Map<string, Promise<unknown>>();
 const loggedFailures = new Set<string>();
@@ -58,7 +51,6 @@ export const loadPluginUpdaterEnv = loadOnce<PluginUpdaterEnv>("@intisy-ai/plugi
 export const loadPluginUpdaterNpm = loadOnce<PluginUpdaterNpm>("@intisy-ai/plugin-updater/dist/npm.js", () => import("@intisy-ai/plugin-updater/dist/npm.js"));
 export const loadPluginUpdaterIndex = loadOnce<PluginUpdaterIndex>("@intisy-ai/plugin-updater/dist/index.js", () => import("@intisy-ai/plugin-updater/dist/index.js"));
 export const loadPluginUpdaterInit = loadOnce<PluginUpdaterInit>("@intisy-ai/plugin-updater/dist/init.js", () => import("@intisy-ai/plugin-updater/dist/init.js"));
-export const loadConfigLedger = loadOnce<ConfigLedgerLib>("@config-ledger/lib.js", () => import("@config-ledger/lib.js"));
 
 export function resetOptionalEngineCacheForTests(): void {
   cache.clear();

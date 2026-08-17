@@ -34,6 +34,7 @@ const READ_TTL: Record<string, number> = {
   customEndpointsList: 30000,
   screensList: 30000,
   settingsSections: 30000,
+  configHistoryList: 30000,
   githubStatus: 15000,
   activityRead: 10000,
 };

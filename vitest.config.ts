@@ -13,7 +13,6 @@ export default defineConfig({
       "@core-auth": fileURLToPath(new URL("./core-auth/dist", import.meta.url)),
       "@core-loader": fileURLToPath(new URL("./core-loader/dist", import.meta.url)),
       "@core-proxy": fileURLToPath(new URL("./core-proxy/dist", import.meta.url)),
-      "@config-ledger": fileURLToPath(new URL("../../plugins/config-ledger/dist", import.meta.url)),
     },
   },
   test: {

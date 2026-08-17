@@ -20,7 +20,6 @@
     plugins: () => import("./lib/routes/Plugins.svelte"),
     libraries: () => import("./lib/routes/Libraries.svelte"),
     downloads: () => import("./lib/routes/Downloads.svelte"),
-    config: () => import("./lib/routes/Config.svelte"),
     settings: () => import("./lib/routes/Settings.svelte"),
   };
 

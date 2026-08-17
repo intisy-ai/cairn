@@ -1,11 +1,6 @@
 import { defineConfig } from "electron-vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
-import { fileURLToPath, pathToFileURL } from "node:url";
-
-// Externalizing config-ledger's alias-resolved dist path (below) leaves its absolute Windows path
-// as the literal dynamic-import() specifier; Node's ESM loader parses the drive letter as a URL
-// scheme and rejects it, so `output.paths` rewrites the id to a real file:// URL instead.
-const OPTIONAL_ENGINE_EXTERNAL = [/[\\/]plugins[\\/]config-ledger[\\/]dist[\\/]/];
+import { fileURLToPath } from "node:url";
 
 export default defineConfig({
   main: {
@@ -16,7 +11,6 @@ export default defineConfig({
         "@core-auth": fileURLToPath(new URL("./core-auth/dist", import.meta.url)),
         "@core-loader": fileURLToPath(new URL("./core-loader/dist", import.meta.url)),
         "@core-proxy": fileURLToPath(new URL("./core-proxy/dist", import.meta.url)),
-        "@config-ledger": fileURLToPath(new URL("../../plugins/config-ledger/dist", import.meta.url)),
       },
     },
     build: {
@@ -35,21 +29,13 @@ export default defineConfig({
         // core-loader's loadUpdater() dynamically imports plugin-updater, a package the
         // dashboard never installs (readDeployedProviders, the only export it uses, does
         // not reach that path); externalizing lets Rollup leave the unreached import as-is.
-        //
-        // plugin-updater and config-ledger are OPTIONAL engine plugins (see optionalEngines.ts):
-        // Cairn must build even when their sibling repos are not checked out. Externalizing the
-        // aliased dist paths stops Rollup from reading their files at build time (it would
-        // otherwise ENOENT on a missing repo); the sidecar resolves the alias-substituted path
-        // itself at runtime through a presence-probed dynamic import(), so a build with both
-        // engines present behaves exactly as before.
-        external: ["plugin-updater", ...OPTIONAL_ENGINE_EXTERNAL],
+        external: ["plugin-updater"],
         // Stable (unhashed) chunk names for the main-process bundles: a rebuild's chunk hash
         // changing orphaned a file a still-running app pointed at ("Cannot find module") for
         // locally-bundled dynamic imports like ./plugins.js. A fixed name means a rebuilt chunk
         // keeps the same path.
         output: {
           chunkFileNames: "chunks/[name].js",
-          paths: (id) => (OPTIONAL_ENGINE_EXTERNAL.some((re) => re.test(id)) ? pathToFileURL(id).href : id),
         },
       },
     },
