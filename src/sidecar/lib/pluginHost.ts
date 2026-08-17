@@ -21,7 +21,9 @@ process.env.PLUGIN_UPDATER_LIBRARY_MODE = "1";
 process.env.INTISY_PLUGIN_ACTIVATION = "0";
 process.env.PLUGIN_UPDATER_ACTIVATION = "0";
 
-// The sidecar's stdout is the IPC channel, so api's ignored-unknown reports must never reach it.
+// The supervisor merely logs a forked child's stdout rather than treating it as a channel, so an
+// ignored-unknown report written there would be silent noise; stderr is where the supervisor's own
+// log actually surfaces it.
 setDiagnosticSink((message: string) => { process.stderr.write("[plugin-api] " + message + "\n"); });
 
 export interface PluginHostDeps {
