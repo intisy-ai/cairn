@@ -128,8 +128,8 @@ void _invokeChannelsMatchApi;
 // something a person did. Anything not listed here is treated as a change.
 const READ_ONLY_ACTIONS: readonly string[] = [
   "apps", "check", "connection", "data", "detect", "drain", "device-poll", "formats", "get",
-  "ledger", "list", "meta", "metaCached", "preview", "quarantine", "read", "schemas",
-  "snapshot", "stats", "status", "summary", "versions", "versionsAll", "versionsCached",
+  "ledger", "list", "listCached", "meta", "metaCached", "preview", "quarantine", "read", "schemas",
+  "sections", "snapshot", "stats", "status", "storageGet", "summary", "versions", "versionsAll", "versionsCached",
 ];
 
 export function isReadOnlyChannel(channel: string): boolean {

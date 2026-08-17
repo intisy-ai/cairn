@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { render, waitFor } from "@testing-library/svelte";
-import { INVOKE_CHANNELS } from "@cairn/shared";
+import { INVOKE_CHANNELS, isReadOnlyChannel } from "@cairn/shared";
 import { stubCairn, defaultCairn } from "./testing.js";
 import { cairn, classify, classifiedReadNames, type IpcKind } from "./ipc.js";
 import Overview from "./routes/Overview.svelte";
@@ -107,6 +107,12 @@ describe("method classification", () => {
   it("maps every cached or live read to a real invoke channel, so window.cairn[name] is never silently undefined", () => {
     const orphaned = classifiedReadNames().filter((name) => !(name in INVOKE_CHANNELS));
     expect(orphaned).toEqual([]);
+  });
+
+  it("keeps every cached or live read's channel out of the activity log's user-action bucket", () => {
+    const channels = INVOKE_CHANNELS as Record<string, string>;
+    const misattributed = classifiedReadNames().filter((name) => !isReadOnlyChannel(channels[name]));
+    expect(misattributed).toEqual([]);
   });
 
   it("keeps another screen's cached read across a live read", async () => {
