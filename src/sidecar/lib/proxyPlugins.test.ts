@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadInstalledProxyDefs, resetProxyDefCacheForTests } from "./proxyPlugins.js";
+import { listInstalledProxies, loadInstalledProxyDefs, resetProxyDefCacheForTests } from "./proxyPlugins.js";
 import type { AppDescriptor } from "@core/index.js";
 
 // isProxyDef (see proxyPlugins.ts) validates a loaded proxyDef's `app` id against
@@ -59,12 +59,13 @@ describe("loadInstalledProxyDefs", () => {
     if (tempDir) rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("loads duck-typed proxyDef from installed *-proxy repos only", async () => {
+  it("loads duck-typed proxyDef from plugins declaring the front-door capability only", async () => {
     tempDir = mkdtempSync(join(tmpdir(), "proxy-plugins-"));
     seedStore(tempDir, ["fake-proxy", "stub-auth"]);
     const defs = await loadInstalledProxyDefs(tempDir, {
       importFn: async (url) =>
         url.includes("fake-proxy") ? { proxyDef: { app: "claude", label: "Claude Code", profile: () => ({}) } } : {},
+      providesFrontDoor: (_dir, name) => name === "fake-proxy",
     });
     expect(defs).toHaveLength(1);
     expect(defs[0].app).toBe("claude");
@@ -73,7 +74,10 @@ describe("loadInstalledProxyDefs", () => {
   it("skips repos whose export is missing or malformed", async () => {
     tempDir = mkdtempSync(join(tmpdir(), "proxy-plugins-"));
     seedStore(tempDir, ["bad-proxy"]);
-    const defs = await loadInstalledProxyDefs(tempDir, { importFn: async () => ({ proxyDef: { app: "claude" } }) });
+    const defs = await loadInstalledProxyDefs(tempDir, {
+      importFn: async () => ({ proxyDef: { app: "claude" } }),
+      providesFrontDoor: (_dir, name) => name === "bad-proxy",
+    });
     expect(defs).toEqual([]);
   });
 
@@ -87,13 +91,27 @@ describe("loadInstalledProxyDefs", () => {
       hits++;
       return { proxyDef: { app: "claude", label: "C", profile: () => ({}) } };
     };
-    await loadInstalledProxyDefs(tempDir, { importFn });
-    await loadInstalledProxyDefs(tempDir, { importFn });
+    const providesFrontDoor = (_dir: string, name: string) => name === "fake-proxy";
+    await loadInstalledProxyDefs(tempDir, { importFn, providesFrontDoor });
+    await loadInstalledProxyDefs(tempDir, { importFn, providesFrontDoor });
     expect(hits).toBe(1);
 
     bumpMtime(join(tempDir, "repos", "fake-proxy", "dist", "index.js"));
-    await loadInstalledProxyDefs(tempDir, { importFn });
+    await loadInstalledProxyDefs(tempDir, { importFn, providesFrontDoor });
     expect(hits).toBe(2);
     expect(urls[1]).not.toBe(urls[0]);
+  });
+
+  it("selects a proxy by its declared front-door capability, not by its name", async () => {
+    const declared = new Set(["gateway"]);
+    const proxies = await listInstalledProxies("/nonexistent/proxy-plugins-home", {
+      listPlugins: async () => [
+        { name: "gateway", enabled: true },
+        { name: "looks-like-a-proxy", enabled: true },
+      ],
+      providesFrontDoor: (_dir, name) => declared.has(name),
+    });
+    expect(proxies.map((p) => p.name)).toEqual(["gateway"]);
+    expect(proxies[0].def).toBeNull();
   });
 });

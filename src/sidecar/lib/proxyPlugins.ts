@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { getConfigDir } from "@core-auth/index.js";
 import { getAppDescriptor } from "@core/index.js";
 import type { RoutingProfile } from "@core-proxy/index.js";
+import { pluginProvidesCapability } from "./capabilityOwner.js";
 import { safeGetPlugins } from "./optionalEngines.js";
 import { reposDir } from "./storagePaths.js";
 
@@ -22,6 +23,8 @@ export function resetProxyDefCacheForTests(): void {
 
 export interface ProxyPluginsDeps {
   importFn?: (url: string) => Promise<unknown>;
+  listPlugins?: (storeDir: string) => Promise<{ name: string; enabled?: boolean }[]>;
+  providesFrontDoor?: (storeDir: string, pluginName: string) => boolean;
 }
 
 export type InstalledProxy = { name: string; enabled: boolean; def: LoadedProxyDef | null };
@@ -49,9 +52,11 @@ async function loadProxyDef(storeDir: string, name: string, importFn: (url: stri
 
 export async function listInstalledProxies(storeDir: string = getConfigDir(), deps: ProxyPluginsDeps = {}): Promise<InstalledProxy[]> {
   const importFn = deps.importFn ?? ((url: string) => import(/* @vite-ignore */ url));
+  const listPlugins = deps.listPlugins ?? safeGetPlugins;
+  const providesFrontDoor = deps.providesFrontDoor ?? ((dir: string, pluginName: string) => pluginProvidesCapability(dir, pluginName, "front-door"));
   const proxies: InstalledProxy[] = [];
-  for (const plugin of await safeGetPlugins(storeDir)) {
-    if (!plugin.name.endsWith("-proxy")) continue;
+  for (const plugin of await listPlugins(storeDir)) {
+    if (!providesFrontDoor(storeDir, plugin.name)) continue;
     const def = await loadProxyDef(storeDir, plugin.name, importFn);
     proxies.push({ name: plugin.name, enabled: plugin.enabled !== false, def });
   }
