@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { UnifiedPlugin, PluginConfigSchema, PluginVersion } from "@cairn/shared";
+  import type { UnifiedPlugin, PluginConfigSchema, PluginVersion, HomeLedger } from "@cairn/shared";
   import PluginControls from "./PluginControls.svelte";
   import RepoDetail from "./RepoDetail.svelte";
   import ToggleSwitch from "./ToggleSwitch.svelte";
   import SplitButton from "./SplitButton.svelte";
   import PluginIcon, { LOGO_SIZE } from "./PluginIcon.svelte";
   import PluginInstallControl from "./PluginInstallControl.svelte";
+  import PluginLedgerSection from "./PluginLedgerSection.svelte";
   import { cairn } from "../ipc.js";
   import { activeByPluginHome, jobKey, cancelRow, type DownloadRow } from "../downloads.js";
 
@@ -60,6 +61,7 @@
   const updatesEnabled = $derived(homes.some((h) => h.hasUpdater));
 
   let versions = $state<Record<string, PluginVersion>>({});
+  let ledgerGroups = $state<HomeLedger[]>([]);
   const representativeVersion = $derived(
     installedHomes.map((h) => versions[h.id]?.label).find((v): v is string => !!v) ?? "",
   );
@@ -88,6 +90,13 @@
   async function loadVersions(): Promise<void> {
     const result = await cairn.pluginVersions(plugin.name);
     if (result.ok) versions = result.data;
+  }
+
+  // A live read: what a plugin provides changes the moment it is installed, enabled,
+  // disabled or repaired, so this must never come from a cached list.
+  async function loadLedger(): Promise<void> {
+    const result = await cairn.pluginLedger();
+    if (result.ok) ledgerGroups = result.data;
   }
 
   async function updateHome(homeId: string): Promise<void> {
@@ -121,11 +130,15 @@
     }
   }
 
-  onMount(loadVersions);
+  onMount(() => {
+    loadVersions();
+    loadLedger();
+  });
 
   const tabs = $derived([
     { id: "availability", label: "Availability" },
     ...(installedHomes.length > 0 ? [{ id: "configure", label: "Configure" }] : []),
+    { id: "developer", label: "Developer" },
   ]);
 
   let activeTab = $state("readme");
@@ -277,6 +290,8 @@
         <p class="cmuted">This plugin has no configurable settings.</p>
       {/if}
     </div>
+  {:else if active === "developer"}
+    <PluginLedgerSection groups={ledgerGroups} plugin={plugin.name} />
   {/if}
 {/snippet}
 

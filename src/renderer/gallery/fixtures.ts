@@ -220,6 +220,7 @@ export function screenFixtures(): Partial<CairnAPI> {
     accountsList: async (id: string) => ({ ok: true, data: id === "antigravity" ? ACCOUNTS : [] }),
     pluginsList: async () => ({ ok: true, data: SECTIONS }),
     pluginsListCached: async () => ({ ok: true, data: SECTIONS }),
+    pluginLedger: async () => ({ ok: true, data: [] }),
     catalogList: async () => ({ ok: true, data: { entries: CATALOG, source: "anonymous", org: "intisy-ai", rateLimited: false, sources: CATALOG_SOURCES, contributions: CONTRIBUTIONS } }),
     // The Settings screen applies the stored theme on mount; without this it would answer
     // "system" and repaint the gallery in whatever the host prefers, ruining the light shot.
