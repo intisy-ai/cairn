@@ -43,7 +43,6 @@
   "src/renderer/lib/routes/Accounts.svelte": 28,
   "src/renderer/lib/routes/Activity.svelte": 11,
   "src/renderer/lib/routes/Apps.svelte": 9,
-  "src/renderer/lib/routes/Config.svelte": 57,
   "src/renderer/lib/routes/Downloads.svelte": 61,
   "src/renderer/lib/routes/Libraries.svelte": 1,
   "src/renderer/lib/routes/LocalApi.svelte": 43,
