@@ -1,9 +1,8 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { readDeployedProviders } from "@core-loader/loader-runtime.js";
 import { listAccounts, getConfigDir } from "@core-auth/index.js";
 import { getApps } from "@core/index.js";
 import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS } from "../lib/pluginHost.js";
+import { pluginIdFromClone } from "../lib/capabilityOwner.js";
 import { reposDir } from "../lib/storagePaths.js";
 import { exposureFor, readExposureMap, setExposure } from "../lib/exposure.js";
 import { readPluginManifest, providerIcon } from "../lib/pluginManifest.js";
@@ -44,26 +43,6 @@ export interface ProvidersDeps {
   exposure?: () => Record<string, Record<string, boolean>>;
   manifestFor?: (plugin: string, homeDir: string) => ReturnType<typeof readPluginManifest>;
   pluginIdFor?: (repo: string, homeDir: string) => string;
-}
-
-/**
- * The plugin id a clone directory's own `plugin.json` declares, or the directory name when the
- * sidecar is absent, unreadable, or declares none.
- *
- * @remarks
- * The host's `capabilityProviders` keys errors by the manifest id it activated, which is not
- * always the clone directory name under `repos/`: a clone's `plugin.json` `id` takes precedence
- * over its directory name by the same convention the plugin manager itself uses, so a lane's
- * error must be looked up through this, not through `lane.repo` directly.
- */
-function pluginIdFromClone(repo: string, homeDir: string): string {
-  try {
-    const declared = JSON.parse(readFileSync(join(reposDir(homeDir), repo, "plugin.json"), "utf-8")) as { id?: unknown };
-    if (typeof declared.id === "string" && declared.id) return declared.id;
-  } catch {
-    // absent or unreadable plugin.json falls back to the repo name below
-  }
-  return repo;
 }
 
 // One capability call per providing plugin, not per lane: a plugin backing several lanes off one

@@ -2,7 +2,14 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { deployedManifests, ownerOfCapability, pluginProvidesCapability, isDeployedPlugin } from "./capabilityOwner.js";
+import {
+  deployedManifests,
+  ownerOfCapability,
+  pluginProvidesCapability,
+  isDeployedPlugin,
+  pluginIdFromClone,
+  unmanifestedPlugins,
+} from "./capabilityOwner.js";
 
 // Pinned so the registry lookup behind pluginDir() cannot read the developer's real apps.json.
 // HUB_APPS_FILE is the one that matters here; it is read live per call, so no reimport is needed.
@@ -19,6 +26,21 @@ function homeWith(sidecars: Record<string, unknown>): string {
     writeFileSync(join(dir, `${id}.js`), "export default {};");
   }
   writeFileSync(join(dir, "package.json"), JSON.stringify({ type: "module" }));
+  return home;
+}
+
+// A bundle deployed with no sidecar beside it, the shape a pre-sidecar deploy left behind.
+function homeWithBundleOnly(name: string): string {
+  const home = mkdtempSync(join(tmpdir(), "cairn-caps-bundle-"));
+  mkdirSync(join(home, "plugin"), { recursive: true });
+  writeFileSync(join(home, "plugin", `${name}.js`), "export default {};");
+  return home;
+}
+
+function withClone(home: string, repo: string, manifest: unknown): string {
+  const dir = join(home, "repos", repo);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "plugin.json"), JSON.stringify(manifest));
   return home;
 }
 
@@ -54,5 +76,41 @@ describe("capability ownership from the deployed sidecars", () => {
     expect(deployedManifests(home).map((m) => m.id)).toEqual(["alpha"]);
     expect(isDeployedPlugin(home, "package")).toBe(false);
     expect(isDeployedPlugin(home, "alpha")).toBe(true);
+  });
+});
+
+describe("capability ownership falls back to a clone's own plugin.json", () => {
+  it("resolves a capability from the clone when the bundle has no sidecar", () => {
+    const home = withClone(homeWithBundleOnly("gateway"), "gateway", { id: "gateway", capabilities: ["front-door"] });
+    expect(ownerOfCapability(home, "front-door")).toBe("gateway");
+    expect(pluginProvidesCapability(home, "gateway", "front-door")).toBe(true);
+  });
+
+  it("does not resolve a capability neither the sidecar nor the clone declares", () => {
+    const home = homeWithBundleOnly("gateway");
+    expect(ownerOfCapability(home, "front-door")).toBeNull();
+    expect(pluginProvidesCapability(home, "gateway", "front-door")).toBe(false);
+  });
+
+  it("reads pluginIdFromClone's own id over the directory name", () => {
+    const home = withClone(mkdtempSync(join(tmpdir(), "cairn-caps-clone-")), "gateway-clone-dir", { id: "gateway" });
+    expect(pluginIdFromClone("gateway-clone-dir", home)).toBe("gateway");
+    expect(pluginIdFromClone("nothing-here", home)).toBe("nothing-here");
+  });
+});
+
+describe("unmanifestedPlugins", () => {
+  it("names an installed plugin whose bundle has no manifest from either source", () => {
+    const home = homeWithBundleOnly("gateway");
+    expect(unmanifestedPlugins(home, ["gateway", "other"])).toEqual(["gateway"]);
+  });
+
+  it("clears once the clone's own plugin.json is readable", () => {
+    const home = withClone(homeWithBundleOnly("gateway"), "gateway", { id: "gateway", capabilities: [] });
+    expect(unmanifestedPlugins(home, ["gateway"])).toEqual([]);
+  });
+
+  it("names nothing for a name with no deployed bundle", () => {
+    expect(unmanifestedPlugins(homeWithBundleOnly("gateway"), ["never-deployed"])).toEqual([]);
   });
 });
