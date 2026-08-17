@@ -16,9 +16,8 @@ export interface AppDiscoveryDeps {
 }
 
 // Normalisation exists only so two descriptors carrying the same data compare equal, so it fills
-// the fields that have defaults and passes everything else through untouched. Enumerating the
-// fields made a descriptor differing only in a trait this function had not heard of compare equal,
-// which is the one thing a comparison must never do.
+// the fields that have defaults and passes everything else through untouched. A descriptor
+// differing only in a trait this function has not heard of must never compare equal.
 function normalizeDescriptor(desc: AppDescriptor): AppDescriptor {
   return {
     ...desc,
