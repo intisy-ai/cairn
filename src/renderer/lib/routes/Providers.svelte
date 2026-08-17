@@ -302,7 +302,7 @@
     onOpen={() => (selectedProvider = row)}
   >
     {#snippet icon()}
-      <PluginIcon name={row.label} kind="provider" size={LOGO_SIZE.list} />
+      <PluginIcon icon={row.icon ?? ""} name={row.label} kind="provider" size={LOGO_SIZE.list} />
     {/snippet}
     {#snippet badges()}
       {#if row.id !== row.label}<span class="pid">{row.id}</span>{/if}

@@ -374,6 +374,46 @@ describe("Providers screen", () => {
     expect(grid.getByRole("switch", { name: /Stub enabled/i })).toBeInTheDocument();
   });
 
+  it("grid mode renders a provider's real icon instead of a lettermark", async () => {
+    stubCairn({
+      providersList: async () => ({
+        ok: true,
+        data: [
+          { id: "stub", label: "Stub", accountPool: "stub", sharedWith: [], pluginName: "stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false }, icon: "data:image/svg+xml;base64,abc" },
+        ],
+      }),
+      getConfig: async () => ({ ok: true, data: "grid" }),
+    });
+
+    render(Providers);
+
+    const card = await waitFor(() => screen.getByTestId("provider-stub"));
+    const icon = card.querySelector("img.icon") as HTMLImageElement | null;
+    expect(icon).not.toBeNull();
+    expect(icon?.getAttribute("src")).toBe("data:image/svg+xml;base64,abc");
+    expect(card.querySelector(".lettermark")).toBeNull();
+  });
+
+  it("grid mode falls back to a lettermark when a provider carries no icon", async () => {
+    stubCairn({
+      providersList: async () => ({
+        ok: true,
+        data: [
+          { id: "stub", label: "Stub", accountPool: "stub", sharedWith: [], pluginName: "stub", authKind: "oauth", accountCount: 2, enabled: true, exposure: { claude: true, opencode: false } },
+        ],
+      }),
+      getConfig: async () => ({ ok: true, data: "grid" }),
+    });
+
+    render(Providers);
+
+    const card = await waitFor(() => screen.getByTestId("provider-stub"));
+    expect(card.querySelector("img.icon")).toBeNull();
+    const mark = card.querySelector(".lettermark");
+    expect(mark).not.toBeNull();
+    expect(mark?.textContent).toBe("S");
+  });
+
   it("switches back to list view and persists the choice", async () => {
     const setConfig = vi.fn(async () => ({ ok: true, data: undefined }) as const);
     stubCairn({
