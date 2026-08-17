@@ -60,7 +60,7 @@ export interface CairnAPI {
   configAction(home: string, plugin: string, actionId: string): Promise<Result<{ stdout: string; stderr: string }>>;
   screensList(opts?: { wait?: boolean }): Promise<Result<PluginScreen[]>>;
   screenData(plugin: string, screenId: string, home: string): Promise<Result<ScreenData>>;
-  screenInvoke(plugin: string, actionId: string, home: string, args: Record<string, unknown>): Promise<Result<InvokeResult>>;
+  screenInvoke(plugin: string, screenId: string, actionId: string, home: string, args: Record<string, unknown>): Promise<Result<InvokeResult>>;
   busDrain(): Promise<Result<BusEvent[]>>;
   activityRead(query: ActivityQuery): Promise<Result<{ records: ActivityRecord[]; nextCursor?: string }>>;
   activityStats(): Promise<Result<ActivityStats>>;

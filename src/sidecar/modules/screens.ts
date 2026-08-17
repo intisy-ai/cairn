@@ -1,54 +1,58 @@
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import type { PluginHome, PluginHomeId, Result, ScreenData, InvokeResult } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeById } from "../lib/pluginHomes.js";
-import { pluginDir } from "../lib/storagePaths.js";
-import { safeGetPlugins } from "../lib/optionalEngines.js";
-import { runUi, UI_DATA_TIMEOUT_MS, UI_INVOKE_TIMEOUT_MS } from "../lib/uiProbe.js";
+import { capabilityOfPlugin, callHostCapability, DEFAULT_CALL_TIMEOUT_MS, DEFAULT_INVOKE_TIMEOUT_MS } from "../lib/pluginHost.js";
 import { wrap } from "../result.js";
+
+/** What a plugin providing `screens` answers with. */
+interface ScreensCapabilityLike {
+  read: (request: { screenId: string; home: string }) => Promise<ScreenData>;
+  invoke: (request: { screenId: string; actionId: string; home: string; input: Record<string, unknown> }) => Promise<InvokeResult>;
+}
 
 export interface ScreensDeps {
   homes?: PluginHome[];
-  run?: (bundlePath: string, argv: string[], timeoutMs: number) => Promise<unknown>;
-  listPlugins?: (dir: string) => Promise<{ name: string }[]>;
-  bundleExists?: (bundlePath: string) => boolean;
 }
 
-interface Target {
-  dir: string;
-  bundle: string;
-}
-
-// The same guards configAction runs before spawning: an unregistered plugin or a missing
-// bundle would otherwise surface as a raw "module not found" from node rather than a clear
-// answer naming what went wrong.
-async function targetFor(plugin: string, homeId: string, deps: ScreensDeps): Promise<Target> {
+async function screensOf(plugin: string, homeId: string, deps: ScreensDeps): Promise<{ capability: ScreensCapabilityLike; home: PluginHome }> {
   const homes = deps.homes ?? (await pluginHomes());
-  const { dir } = homeById(homeId as PluginHomeId, homes);
-  const listPlugins = deps.listPlugins ?? safeGetPlugins;
-  if (!(await listPlugins(dir)).some((p) => p.name === plugin)) {
-    throw new Error(`plugin not found: ${plugin}`);
-  }
-  const bundle = join(pluginDir(dir), `${plugin}.js`);
-  const bundleExists = deps.bundleExists ?? existsSync;
-  if (!bundleExists(bundle)) throw new Error(`plugin bundle not found: ${plugin}`);
-  return { dir, bundle };
+  const home = homeById(homeId as PluginHomeId, homes);
+  const capability = (await capabilityOfPlugin(home.dir, home.id, plugin, "screens")) as ScreensCapabilityLike | undefined;
+  if (!capability) throw new Error(`${plugin} contributes no screens in ${home.label}`);
+  return { capability, home };
 }
 
 export function screenData(plugin: string, screenId: string, homeId: string, deps: ScreensDeps = {}): Promise<Result<ScreenData>> {
   return wrap(async () => {
-    const run = deps.run ?? runUi;
-    const { dir, bundle } = await targetFor(plugin, homeId, deps);
-    const answer = (await run(bundle, ["ui", "data", screenId, "--home", dir], UI_DATA_TIMEOUT_MS)) as ScreenData | null;
-    return { sources: answer?.sources ?? {} };
+    const { capability, home } = await screensOf(plugin, homeId, deps);
+    const answer = await callHostCapability(plugin, "screens.read", DEFAULT_CALL_TIMEOUT_MS, async () =>
+      capability.read({ screenId, home: home.dir }));
+    if (answer.ok === false) throw new Error(answer.error.detail);
+    return { sources: answer.value?.sources ?? {} };
   });
 }
 
-export function screenInvoke(plugin: string, actionId: string, homeId: string, args: Record<string, unknown>, deps: ScreensDeps = {}): Promise<Result<InvokeResult>> {
+/**
+ * Runs one of a screen's actions.
+ *
+ * @remarks
+ * The invoke budget, not the read one: an action may do real work such as a multi-file restore, and
+ * a read-length deadline would abandon it mid-write. The screen id travels with the action id
+ * because a capability's `invoke` is per screen, and an action that reaches its plugin without the
+ * value its surface was meant to collect is how a restore once ran against the git index.
+ */
+export function screenInvoke(
+  plugin: string,
+  screenId: string,
+  actionId: string,
+  homeId: string,
+  args: Record<string, unknown>,
+  deps: ScreensDeps = {},
+): Promise<Result<InvokeResult>> {
   return wrap(async () => {
-    const run = deps.run ?? runUi;
-    const { dir, bundle } = await targetFor(plugin, homeId, deps);
-    const answer = (await run(bundle, ["ui", "invoke", actionId, "--home", dir, "--args", JSON.stringify(args)], UI_INVOKE_TIMEOUT_MS)) as InvokeResult | null;
-    return answer ?? { ok: false, message: "the plugin returned no result" };
+    const { capability, home } = await screensOf(plugin, homeId, deps);
+    const answer = await callHostCapability(plugin, "screens.invoke", DEFAULT_INVOKE_TIMEOUT_MS, async () =>
+      capability.invoke({ screenId, actionId, home: home.dir, input: args }));
+    if (answer.ok === false) return { ok: false, message: answer.error.detail };
+    return answer.value ?? { ok: false, message: "the plugin returned no result" };
   });
 }

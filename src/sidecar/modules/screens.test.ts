@@ -1,82 +1,52 @@
 import { describe, it, expect, vi } from "vitest";
-import { screenData, screenInvoke } from "./screens.js";
 
-const HOMES = [{ id: "claude", label: "Claude", dir: "/homes/claude", present: true, hasUpdater: true }] as never;
-const REGISTERED = { listPlugins: async () => [{ name: "demo-plugin" }], bundleExists: () => true };
+const capabilityOfPlugin = vi.fn();
+vi.mock("../lib/pluginHost.js", () => ({
+  DEFAULT_CALL_TIMEOUT_MS: 10000,
+  DEFAULT_INVOKE_TIMEOUT_MS: 600000,
+  capabilityOfPlugin,
+  callHostCapability: async (_id: string, _label: string, _ms: number, call: () => Promise<unknown>) => {
+    try { return { ok: true as const, value: await call() }; }
+    catch (error) { return { ok: false as const, error: { detail: (error as Error).message, fix: "fix it" } }; }
+  },
+}));
+
+const homes = [{ id: "app-a", label: "App A", dir: "/homes/a", present: true, hasUpdater: true }];
 
 describe("screenData", () => {
-  it("passes the screen id and the home's directory to the bundle", async () => {
-    const run = vi.fn(async () => ({ sources: { history: [] } }));
-    await screenData("demo-plugin", "config", "claude", { homes: HOMES, run, ...REGISTERED });
-    expect(run).toHaveBeenCalledWith(expect.stringContaining("demo-plugin"), ["ui", "data", "config", "--home", "/homes/claude"], 10000);
+  it("reads through the screens capability, naming the screen and the home", async () => {
+    const read = vi.fn(async () => ({ sources: { history: [1, 2] } }));
+    capabilityOfPlugin.mockResolvedValue({ read, invoke: vi.fn(), screens: vi.fn() });
+    const { screenData } = await import("./screens.js");
+    const result = await screenData("historian", "config", "app-a", { homes });
+    expect(result).toEqual({ ok: true, data: { sources: { history: [1, 2] } } });
+    expect(read).toHaveBeenCalledWith({ screenId: "config", home: "/homes/a" });
   });
 
-  it("returns the bundle's sources", async () => {
-    const run = async () => ({ sources: { history: [{ id: "a1" }] } });
-    const result = await screenData("demo-plugin", "config", "claude", { homes: HOMES, run, ...REGISTERED });
-    expect(result).toEqual({ ok: true, data: { sources: { history: [{ id: "a1" }] } } });
-  });
-
-  it("reports a bundle that answers with nothing as empty sources, not as a crash", async () => {
-    const run = async () => null;
-    expect(await screenData("demo-plugin", "config", "claude", { homes: HOMES, run, ...REGISTERED })).toEqual({ ok: true, data: { sources: {} } });
-  });
-
-  it("carries the bundle's own stderr into the error", async () => {
-    const run = async () => { throw new Error("Error: not a git repository"); };
-    const result = await screenData("demo-plugin", "config", "claude", { homes: HOMES, run, ...REGISTERED });
-    expect(result).toEqual({ ok: false, error: "Error: not a git repository" });
-  });
-
-  it("rejects an unknown home instead of spawning", async () => {
-    const run = vi.fn();
-    const result = await screenData("demo-plugin", "config", "nope", { homes: HOMES, run, ...REGISTERED });
-    expect(result.ok).toBe(false);
-    expect(run).not.toHaveBeenCalled();
-  });
-
-  it("rejects a plugin not registered in that home instead of spawning", async () => {
-    const run = vi.fn();
-    const result = await screenData("ghost", "config", "claude", { homes: HOMES, run, listPlugins: async () => [{ name: "demo-plugin" }], bundleExists: () => true });
-    expect(result).toEqual({ ok: false, error: "plugin not found: ghost" });
-    expect(run).not.toHaveBeenCalled();
-  });
-
-  it("rejects a registered plugin with no deployed bundle instead of spawning", async () => {
-    const run = vi.fn();
-    const result = await screenData("demo-plugin", "config", "claude", { homes: HOMES, run, listPlugins: async () => [{ name: "demo-plugin" }], bundleExists: () => false });
-    expect(result).toEqual({ ok: false, error: "plugin bundle not found: demo-plugin" });
-    expect(run).not.toHaveBeenCalled();
+  it("reports a plugin that provides no screens rather than pretending it is empty", async () => {
+    capabilityOfPlugin.mockResolvedValue(undefined);
+    const { screenData } = await import("./screens.js");
+    expect(await screenData("historian", "config", "app-a", { homes })).toEqual({
+      ok: false, error: "historian contributes no screens in App A",
+    });
   });
 });
 
 describe("screenInvoke", () => {
-  it("passes the action id and the arguments as one JSON string", async () => {
-    const run = vi.fn(async () => ({ ok: true }));
-    await screenInvoke("demo-plugin", "commit", "claude", { reason: "note" }, { homes: HOMES, run, ...REGISTERED });
-    expect(run).toHaveBeenCalledWith(
-      expect.stringContaining("demo-plugin"),
-      ["ui", "invoke", "commit", "--home", "/homes/claude", "--args", '{"reason":"note"}'],
-      600000,
-    );
+  it("passes the screen id, the action id, the home and the input", async () => {
+    const invoke = vi.fn(async () => ({ ok: true, message: "done" }));
+    capabilityOfPlugin.mockResolvedValue({ read: vi.fn(), invoke, screens: vi.fn() });
+    const { screenInvoke } = await import("./screens.js");
+    const result = await screenInvoke("historian", "config", "commit", "app-a", { reason: "note" }, { homes });
+    expect(result).toEqual({ ok: true, data: { ok: true, message: "done" } });
+    expect(invoke).toHaveBeenCalledWith({ screenId: "config", actionId: "commit", home: "/homes/a", input: { reason: "note" } });
   });
 
-  it("returns the bundle's verdict, including a refusal", async () => {
-    const run = async () => ({ ok: false, message: "uncommitted config changes", refresh: true });
-    const result = await screenInvoke("demo-plugin", "profileSwitch", "claude", { id: "work" }, { homes: HOMES, run, ...REGISTERED });
-    expect(result).toEqual({ ok: true, data: { ok: false, message: "uncommitted config changes", refresh: true } });
-  });
-
-  it("treats an unparseable answer as a failed action", async () => {
-    const run = async () => null;
-    const result = await screenInvoke("demo-plugin", "commit", "claude", {}, { homes: HOMES, run, ...REGISTERED });
-    expect(result).toEqual({ ok: true, data: { ok: false, message: "the plugin returned no result" } });
-  });
-
-  it("rejects a plugin not registered in that home instead of spawning", async () => {
-    const run = vi.fn();
-    const result = await screenInvoke("ghost", "commit", "claude", {}, { homes: HOMES, run, listPlugins: async () => [{ name: "demo-plugin" }], bundleExists: () => true });
-    expect(result).toEqual({ ok: false, error: "plugin not found: ghost" });
-    expect(run).not.toHaveBeenCalled();
+  it("returns the plugin's own failure message when the call fails", async () => {
+    capabilityOfPlugin.mockResolvedValue({ read: vi.fn(), invoke: async () => { throw new Error("git said no"); }, screens: vi.fn() });
+    const { screenInvoke } = await import("./screens.js");
+    expect(await screenInvoke("historian", "config", "commit", "app-a", {}, { homes })).toEqual({
+      ok: true, data: { ok: false, message: "git said no" },
+    });
   });
 });
