@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../lib/pluginHost.js", () => ({
   DEFAULT_CALL_TIMEOUT_MS: 10000,
@@ -8,6 +8,22 @@ vi.mock("../lib/pluginHost.js", () => ({
     catch (error) { return { ok: false as const, error: { detail: (error as Error).message, fix: "fix it" } }; }
   },
 }));
+
+// The exposure map is provider-and-app-id-keyed config state; these tests pin the app
+// registry and the config store to the same in-memory fake exposure.ts itself reads through,
+// so providersSetEnabled/providersSetExposure can be asserted without touching real config files.
+const exposureState: { apps: { id: string }[]; store: Record<string, unknown> } = { apps: [], store: {} };
+vi.mock("@core/index.js", () => ({
+  getApps: () => exposureState.apps,
+  getConfigValue: (name: string, key: string) => exposureState.store[name + ":" + key],
+  setConfigValue: (name: string, key: string, value: unknown) => { exposureState.store[name + ":" + key] = value; },
+  emitEvent: () => {},
+}));
+
+beforeEach(() => {
+  exposureState.apps = [{ id: "claude" }, { id: "opencode" }];
+  exposureState.store = {};
+});
 
 describe("providersList", () => {
   it("labels a lane from the provider capability and keeps the deployed lane's routing data", async () => {
@@ -96,5 +112,30 @@ describe("providersList", () => {
     if (!result.ok) return;
     expect(result.data.map((row) => row.id)).toEqual(["orphan"]);
     expect(result.data[0].authKind).toBe("api-key");
+  });
+});
+
+describe("providersSetExposure", () => {
+  it("writes an app-id-keyed exposure entry for the provider", async () => {
+    const { providersSetExposure } = await import("./providers.js");
+    const { readExposureMap } = await import("../lib/exposure.js");
+    const result = await providersSetExposure("vendor", "opencode", false);
+    expect(result.ok).toBe(true);
+    expect(readExposureMap()).toEqual({ vendor: { claude: true, opencode: false } });
+  });
+});
+
+describe("providersSetEnabled", () => {
+  it("does not affect an unrelated provider's exposure", async () => {
+    const { providersSetExposure, providersSetEnabled } = await import("./providers.js");
+    const { readExposureMap } = await import("../lib/exposure.js");
+    await providersSetExposure("other-vendor", "claude", false);
+
+    const result = await providersSetEnabled("vendor", false);
+
+    expect(result.ok).toBe(true);
+    const map = readExposureMap();
+    expect(map["other-vendor"]).toEqual({ claude: false, opencode: true });
+    expect(map.vendor).toEqual({ claude: false, opencode: false });
   });
 });
