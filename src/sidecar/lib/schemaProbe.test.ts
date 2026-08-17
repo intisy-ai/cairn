@@ -52,7 +52,7 @@ describe("probeDeclarations", () => {
     expect(result.get("plugin-a")).toEqual({ defaults: { logging: false } });
   });
 
-  it("carries the declared fields, actions and screens through", async () => {
+  it("carries the declared fields and actions through", async () => {
     const b = bundle("plugin-a");
     const spawn = vi.fn(async () => ({
       name: "plugin-a",
@@ -60,7 +60,6 @@ describe("probeDeclarations", () => {
       current: { x: 2 },
       fields: [{ key: "x", type: "number" }],
       actions: [{ id: "go", label: "Go" }],
-      screens: [{ id: "s", label: "A", layout: { kind: "stack" } }],
     }));
 
     const result = await probeDeclarations([b], { spawn, cacheDir: dir });
@@ -69,8 +68,20 @@ describe("probeDeclarations", () => {
       defaults: { x: 1 },
       fields: [{ key: "x", type: "number" }],
       actions: [{ id: "go", label: "Go" }],
-      screens: [{ id: "s", label: "A", layout: { kind: "stack" } }],
     });
+  });
+
+  it("drops a screens field the probe still prints, since screens no longer travel through it", async () => {
+    const b = bundle("plugin-a");
+    const spawn = vi.fn(async () => ({
+      name: "plugin-a",
+      defaults: {},
+      screens: [{ id: "s", label: "A", layout: { kind: "stack" } }],
+    }));
+
+    const result = await probeDeclarations([b], { spawn, cacheDir: dir });
+
+    expect(result.get("plugin-a")).toEqual({ defaults: {} });
   });
 
   it("caches the declaration only, never the values a probe happened to print", async () => {

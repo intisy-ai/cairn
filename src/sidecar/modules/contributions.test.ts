@@ -22,20 +22,18 @@ beforeEach(() => {
   cacheDir = mkdtempSync(join(tmpdir(), "cairn-contributions-"));
 });
 
-function screenSpec(id: string, extra: Partial<PluginScreen> = {}): PluginScreen {
-  return { plugin: "", id, label: id, layout: { kind: "stack" }, homes: [], ...extra };
+// What the `screens` capability answers with, already tagged the way `realScreensOf` tags it:
+// the providing plugin and the home it was read from.
+function screen(plugin: string, id: string, homeId: string, extra: Partial<Omit<PluginScreen, "plugin" | "id" | "homes">> = {}): PluginScreen {
+  return { plugin, id, label: id, layout: { kind: "stack" }, homes: [homeId], ...extra };
 }
 
-function schema(plugin: string, screen?: PluginScreen): PluginConfigSchema {
-  return { plugin, defaults: {}, current: {}, ...(screen ? { screens: [screen] } : {}) };
+function schema(plugin: string): PluginConfigSchema {
+  return { plugin, defaults: {}, current: {} };
 }
 
 function withSections(plugin: string, sections: NonNullable<PluginConfigSchema["sections"]>): PluginConfigSchema {
   return { plugin, defaults: {}, current: {}, sections };
-}
-
-function withScreens(plugin: string, screens: PluginScreen[]): PluginConfigSchema {
-  return { plugin, defaults: {}, current: {}, screens };
 }
 
 describe("screensList", () => {
@@ -43,10 +41,11 @@ describe("screensList", () => {
     const result = await screensList({ wait: true }, {
       cacheDir,
       homes: HOMES,
-      schemas: async (homeId) =>
+      schemas: async () => [],
+      screensOf: async (_dir, homeId) =>
         homeId === "claude"
-          ? [schema("ledger", screenSpec("ledger", { label: "Ledger" }))]
-          : [schema("ledger", screenSpec("ledger", { label: "Ledger" })), schema("updater", screenSpec("updater", { label: "Aa", order: 1 }))],
+          ? [screen("ledger", "ledger", homeId, { label: "Ledger" })]
+          : [screen("ledger", "ledger", homeId, { label: "Ledger" }), screen("updater", "updater", homeId, { label: "Aa", order: 1 })],
     });
 
     expect(result.ok).toBe(true);
@@ -58,12 +57,17 @@ describe("screensList", () => {
   });
 
   it("ignores a plugin that declares no screen", async () => {
-    const result = await screensList({ wait: true }, { cacheDir, homes: HOMES, schemas: async () => [schema("quiet")] });
+    const result = await screensList({ wait: true }, { cacheDir, homes: HOMES, schemas: async () => [schema("quiet")], screensOf: async () => [] });
     expect(result.ok && result.data).toEqual([]);
   });
 
   it("carries the declared glyph through", async () => {
-    const result = await screensList({ wait: true }, { cacheDir, homes: [HOMES[0]], schemas: async () => [schema("p", screenSpec("s", { label: "P", glyph: "@" }))] });
+    const result = await screensList({ wait: true }, {
+      cacheDir,
+      homes: [HOMES[0]],
+      schemas: async () => [],
+      screensOf: async (_dir, homeId) => [screen("p", "s", homeId, { label: "P", glyph: "@" })],
+    });
     expect(result.ok && result.data[0].glyph).toBe("@");
   });
 
@@ -72,22 +76,24 @@ describe("screensList", () => {
     const result = await screensList({ wait: true }, {
       cacheDir,
       homes: [HOMES[0]],
-      schemas: async () => [
-        schema("a", screenSpec("a", { label: "Zulu", order: 1 })),
-        schema("b", screenSpec("b", { label: "Alpha" })),
-        schema("c", screenSpec("c", { label: "Bravo", order: 2 })),
+      schemas: async () => [],
+      screensOf: async (_dir, homeId) => [
+        screen("a", "a", homeId, { label: "Zulu", order: 1 }),
+        screen("b", "b", homeId, { label: "Alpha" }),
+        screen("c", "c", homeId, { label: "Bravo", order: 2 }),
       ],
     });
     expect(result.ok && result.data.map((s) => s.label)).toEqual(["Zulu", "Bravo", "Alpha"]);
   });
 
-  it("skips a home whose schemas cannot be read rather than failing the whole list", async () => {
+  it("skips a home whose screens capability cannot be read rather than failing the whole list", async () => {
     const result = await screensList({ wait: true }, {
       cacheDir,
       homes: HOMES,
-      schemas: async (homeId) => {
-        if (homeId === "claude") throw new Error("probe exploded");
-        return [schema("p", screenSpec("s", { label: "P" }))];
+      schemas: async () => [],
+      screensOf: async (_dir, homeId) => {
+        if (homeId === "claude") throw new Error("capability exploded");
+        return [screen("p", "s", homeId, { label: "P" })];
       },
     });
     expect(result.ok).toBe(true);
@@ -100,7 +106,8 @@ describe("screensList", () => {
     await screensList({ wait: true }, {
       cacheDir,
       homes: [home("cairn", "Cairn"), home("claude", "Claude Code", { present: false })],
-      schemas: async (homeId) => { asked.push(homeId); return []; },
+      schemas: async () => [],
+      screensOf: async (_dir, homeId) => { asked.push(homeId); return []; },
     });
     expect(asked).toEqual(["cairn"]);
   });
@@ -109,7 +116,8 @@ describe("screensList", () => {
     const result = await screensList({ wait: true }, {
       cacheDir,
       homes: [HOMES[0], HOMES[1]],
-      schemas: async (homeId) => [schema("p", screenSpec("s", homeId === "cairn" ? { label: "First" } : { label: "Second" }))],
+      schemas: async () => [],
+      screensOf: async (_dir, homeId) => [screen("p", "s", homeId, homeId === "cairn" ? { label: "First" } : { label: "Second" })],
     });
     expect(result.ok && result.data).toEqual([{ plugin: "p", id: "s", label: "First", layout: { kind: "stack" }, homes: ["cairn", "claude"] }]);
   });
@@ -118,19 +126,21 @@ describe("screensList", () => {
     const result = await screensList({ wait: true }, {
       cacheDir,
       homes: [HOMES[0]],
-      schemas: async () => [
-        withScreens("a", [screenSpec("one", { label: "One", order: 1 }), screenSpec("two", { label: "Two", order: 2 })]),
-        withScreens("b", [screenSpec("one", { label: "B One", order: 3 })]),
+      schemas: async () => [],
+      screensOf: async (_dir, homeId) => [
+        screen("a", "one", homeId, { label: "One", order: 1 }),
+        screen("a", "two", homeId, { label: "Two", order: 2 }),
+        screen("b", "one", homeId, { label: "B One", order: 3 }),
       ],
     });
     expect(result.ok && result.data.map((s) => `${s.plugin}:${s.id}`)).toEqual(["a:one", "a:two", "b:one"]);
   });
 
   it("lists a screen declared in two homes once, naming both", async () => {
-    const schema = { plugin: "p", defaults: {}, current: {}, screens: [{ id: "s", label: "S", layout: { kind: "stack" } }] };
     const result = await screensList({ wait: true }, {
       homes: [home("claude", "Claude Code"), home("opencode", "OpenCode")] as never,
-      schemas: async () => [schema] as never,
+      schemas: async () => [],
+      screensOf: async (_dir, homeId) => [screen("p", "s", homeId, { label: "S" })],
       cacheDir,
     });
     expect(result.ok && result.data).toHaveLength(1);
@@ -146,6 +156,7 @@ describe("settingsSections", () => {
       cacheDir,
       homes: [HOMES[1], HOMES[2]],
       schemas: async () => [withSections("sync-bridge", [SYNC])],
+      screensOf: async () => [],
     });
 
     expect(result.ok && result.data).toEqual([
@@ -154,7 +165,7 @@ describe("settingsSections", () => {
   });
 
   it("leaves the control lists out, since the schema already carries them", async () => {
-    const result = await settingsSections({ wait: true }, { cacheDir, homes: [HOMES[0]], schemas: async () => [withSections("p", [SYNC])] });
+    const result = await settingsSections({ wait: true }, { cacheDir, homes: [HOMES[0]], schemas: async () => [withSections("p", [SYNC])], screensOf: async () => [] });
     if (!result.ok) throw new Error("unreachable");
     expect(result.data[0]).not.toHaveProperty("fields");
     expect(result.data[0]).not.toHaveProperty("actions");
@@ -168,6 +179,7 @@ describe("settingsSections", () => {
         withSections("a", [{ id: "one", label: "One", order: 1 }, { id: "two", label: "Two", order: 2 }]),
         withSections("b", [{ id: "one", label: "B One", order: 3 }]),
       ],
+      screensOf: async () => [],
     });
     expect(result.ok && result.data.map((s) => `${s.plugin}:${s.id}`)).toEqual(["a:one", "a:two", "b:one"]);
   });
@@ -177,12 +189,13 @@ describe("settingsSections", () => {
       cacheDir,
       homes: [HOMES[0]],
       schemas: async () => [withSections("p", [{ id: "z", label: "Zulu", order: 1 }, { id: "a", label: "Alpha" }, { id: "b", label: "Bravo", order: 2 }])],
+      screensOf: async () => [],
     });
     expect(result.ok && result.data.map((s) => s.label)).toEqual(["Zulu", "Bravo", "Alpha"]);
   });
 
   it("ignores a plugin that contributes no section", async () => {
-    const result = await settingsSections({ wait: true }, { cacheDir, homes: HOMES, schemas: async () => [schema("quiet", screenSpec("s", { label: "Quiet" }))] });
+    const result = await settingsSections({ wait: true }, { cacheDir, homes: HOMES, schemas: async () => [schema("quiet")], screensOf: async () => [] });
     expect(result.ok && result.data).toEqual([]);
   });
 });
@@ -199,33 +212,43 @@ describe("contributions cache", () => {
       sections: [{ plugin: "s", id: "x", label: "X", homes: ["claude"] }],
     });
     const schemas = vi.fn(async () => []);
+    const screensOf = vi.fn(async () => []);
 
-    const screens = await screensList({}, { cacheDir, homes: HOMES, schemas });
-    const sections = await settingsSections({}, { cacheDir, homes: HOMES, schemas });
+    const screens = await screensList({}, { cacheDir, homes: HOMES, schemas, screensOf });
+    const sections = await settingsSections({}, { cacheDir, homes: HOMES, schemas, screensOf });
 
     expect(schemas).not.toHaveBeenCalled();
+    expect(screensOf).not.toHaveBeenCalled();
     expect(screens.ok && screens.data.map((s) => s.plugin)).toEqual(["p"]);
     expect(sections.ok && sections.data.map((s) => s.id)).toEqual(["x"]);
   });
 
   it("returns nothing on a cold cache rather than making the sidebar wait", async () => {
-    const schemas = vi.fn(async () => [schema("p", screenSpec("s", { label: "P" }))]);
+    const schemas = vi.fn(async () => [schema("p")]);
+    const screensOf = vi.fn(async (_dir: string, homeId: string) => [screen("p", "s", homeId, { label: "P" })]);
 
-    const result = await screensList({}, { cacheDir, homes: HOMES, schemas });
+    const result = await screensList({}, { cacheDir, homes: HOMES, schemas, screensOf });
 
     expect(result.ok && result.data).toEqual([]);
     expect(schemas).not.toHaveBeenCalled();
+    expect(screensOf).not.toHaveBeenCalled();
   });
 
   it("stores what a waiting refresh learned, so the next launch paints immediately", async () => {
-    await screensList({ wait: true }, { cacheDir, homes: [HOMES[0]], schemas: async () => [schema("p", screenSpec("s", { label: "P" }))] });
+    await screensList({ wait: true }, {
+      cacheDir,
+      homes: [HOMES[0]],
+      schemas: async () => [],
+      screensOf: async (_dir, homeId) => [screen("p", "s", homeId, { label: "P" })],
+    });
 
     expect(readCache<Contributions>(CONTRIBUTIONS_NS, "contributions", cacheDir)?.value).toEqual({
       screens: [{ plugin: "p", id: "s", label: "P", layout: { kind: "stack" }, homes: ["cairn"] }],
       sections: [],
     });
     const schemas = vi.fn(async () => []);
-    const cachedScreens = await screensList({}, { cacheDir, homes: [HOMES[0]], schemas });
+    const screensOf = vi.fn(async () => []);
+    const cachedScreens = await screensList({}, { cacheDir, homes: [HOMES[0]], schemas, screensOf });
     expect(cachedScreens.ok && cachedScreens.data.map((s) => s.plugin)).toEqual(["p"]);
     expect(schemas).not.toHaveBeenCalled();
   });
@@ -236,12 +259,13 @@ describe("contributions cache", () => {
     const schemas = async (): Promise<PluginConfigSchema[]> => {
       passes += 1;
       await new Promise((r) => setTimeout(r, 10));
-      return [schema("p", screenSpec("s", { label: "P" })), withSections("q", [{ id: "s", label: "S" }])];
+      return [withSections("q", [{ id: "s", label: "S" }])];
     };
+    const screensOf = async (_dir: string, homeId: string): Promise<PluginScreen[]> => [screen("p", "s", homeId, { label: "P" })];
 
     const [screens, sections] = await Promise.all([
-      screensList({ wait: true }, { cacheDir, homes: [HOMES[0]], schemas }),
-      settingsSections({ wait: true }, { cacheDir, homes: [HOMES[0]], schemas }),
+      screensList({ wait: true }, { cacheDir, homes: [HOMES[0]], schemas, screensOf }),
+      settingsSections({ wait: true }, { cacheDir, homes: [HOMES[0]], schemas, screensOf }),
     ]);
 
     expect(passes).toBe(1);
@@ -265,7 +289,7 @@ describe("contributions cache", () => {
       sections: [{ plugin: "gone", id: "g", label: "G", homes: ["cairn"] }],
     });
 
-    const result = await screensList({ wait: true }, { cacheDir, homes: [HOMES[0]], schemas: async () => [] });
+    const result = await screensList({ wait: true }, { cacheDir, homes: [HOMES[0]], schemas: async () => [], screensOf: async () => [] });
 
     expect(result.ok && result.data).toEqual([]);
     expect(readCache<Contributions>(CONTRIBUTIONS_NS, "contributions", cacheDir)?.value).toEqual({ screens: [], sections: [] });

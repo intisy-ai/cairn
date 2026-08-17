@@ -3,6 +3,7 @@ import { pluginHomes } from "../lib/pluginHomes.js";
 import { readCache, writeCache } from "../lib/cache.js";
 import { getConfigDir } from "@core-auth/index.js";
 import { configSchemas } from "./appConfig.js";
+import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS } from "../lib/pluginHost.js";
 import { wrap } from "../result.js";
 
 export const CONTRIBUTIONS_NS = "contributions";
@@ -16,6 +17,7 @@ export interface Contributions {
 export interface ContributionsDeps {
   homes?: PluginHome[];
   schemas?: (homeId: string) => Promise<PluginConfigSchema[]>;
+  screensOf?: (homeDir: string, appId: string) => Promise<PluginScreen[]>;
   cacheDir?: string;
 }
 
@@ -34,26 +36,60 @@ async function realSchemas(homeId: string): Promise<PluginConfigSchema[]> {
   return result.data;
 }
 
+/** What a plugin providing `screens` answers with, for the fields a screen list needs. */
+interface ScreensCapabilityLike {
+  screens?: () => Array<Omit<PluginScreen, "plugin" | "homes">> | Promise<Array<Omit<PluginScreen, "plugin" | "homes">>>;
+}
+
+// A ScreenSpec carries no plugin or home of its own (a plugin declares it once, for itself);
+// this is the one place that stamps both on, from the provider record and the home being read.
+async function realScreensOf(homeDir: string, appId: string): Promise<PluginScreen[]> {
+  const screens: PluginScreen[] = [];
+  for (const record of await capabilityProviders(homeDir, appId, "screens")) {
+    const capability = record.implementation as ScreensCapabilityLike;
+    if (typeof capability?.screens !== "function") continue;
+    const answer = await callHostCapability(record.pluginId, "screens.screens", DEFAULT_CALL_TIMEOUT_MS, async () => capability.screens!());
+    if (!answer.ok) continue;
+    for (const spec of Array.isArray(answer.value) ? answer.value : []) {
+      if (spec && typeof spec.id === "string") screens.push({ ...spec, plugin: record.pluginId, homes: [appId] });
+    }
+  }
+  return screens;
+}
+
 function byOrderThenLabel(a: { order?: number; label: string }, b: { order?: number; label: string }): number {
   return (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) || a.label.localeCompare(b.label);
 }
 
-// A plugin asks for UI of its own in its capability declaration: a screen (a nav entry plus
-// a nested layout tree) and sections placed inside the dashboard's own settings screen. This
-// collects both across every home the dashboard manages, so one pass over the declarations
-// serves both.
+// A plugin asks for UI of its own through two capabilities: `screens` (a nav entry plus a
+// nested layout tree) and its `settings` declaration's sections, placed inside the dashboard's
+// own settings screen. This collects both across every home the dashboard manages.
 // (Not to be confused with a MarketplaceContribution, which is a catalog entry a plugin
 // publishes rather than a piece of the dashboard's own UI.)
 // A home that cannot be read contributes nothing rather than sinking the whole list: one
-// broken bundle must not cost the user every other plugin's contribution.
+// broken bundle must not cost the user every other plugin's contribution, and a failure
+// reading one of the two capabilities must not cost the other.
 async function collect(deps: ContributionsDeps): Promise<Contributions> {
   const homes = deps.homes ?? (await pluginHomes());
   const schemas = deps.schemas ?? realSchemas;
+  const screensOf = deps.screensOf ?? realScreensOf;
   const screens = new Map<string, PluginScreen>();
   const sections = new Map<string, PluginSettingsSection>();
 
   for (const home of homes) {
     if (home.id !== "cairn" && !home.present) continue;
+
+    try {
+      for (const spec of await screensOf(home.dir, home.id)) {
+        const key = `${spec.plugin}:${spec.id}`;
+        const existing = screens.get(key);
+        if (existing) { existing.homes.push(home.id); continue; }
+        screens.set(key, { ...spec, homes: [...spec.homes] });
+      }
+    } catch {
+      // one broken screens capability must not cost this home's settings sections
+    }
+
     let found: PluginConfigSchema[];
     try {
       found = await schemas(home.id);
@@ -61,12 +97,6 @@ async function collect(deps: ContributionsDeps): Promise<Contributions> {
       continue;
     }
     for (const schema of found) {
-      for (const spec of schema.screens ?? []) {
-        const key = `${schema.plugin}:${spec.id}`;
-        const existing = screens.get(key);
-        if (existing) { existing.homes.push(home.id); continue; }
-        screens.set(key, { ...spec, plugin: schema.plugin, homes: [home.id] });
-      }
       for (const spec of schema.sections ?? []) {
         const key = `${schema.plugin}:${spec.id}`;
         const existing = sections.get(key);
