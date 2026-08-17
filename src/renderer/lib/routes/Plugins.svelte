@@ -1,6 +1,6 @@
 ﻿<script lang="ts">
   import { onMount } from "svelte";
-  import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin, PluginVersion, Result, InstallManyResult, InstallOutcome, RepoRef, EngineView, GithubStatus, MarketplaceSourceStatus, MarketplaceContribution, HomePluginData } from "@cairn/shared";
+  import type { HomePlugins, CatalogEntry, PluginHome, UnifiedPlugin, PluginVersion, Result, InstallManyResult, InstallOutcome, RepoRef, EngineView, GithubStatus, MarketplaceSourceStatus, MarketplaceContribution, HomePluginData, QuarantineView } from "@cairn/shared";
   import { classifyRepoName, matchesContribution, LIBRARY_KINDS, formatBytes } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { consumeParams } from "../router.js";
@@ -41,6 +41,7 @@
   let sourceFilter = $state<string>("all");
   let catalogOrg = $state("");
   let engines = $state<EngineView[]>([]);
+  let quarantine = $state<QuarantineView[]>([]);
   let versions = $state<Record<string, Record<string, PluginVersion>>>({});
   let favorites = $state<string[]>([]);
   let pluginsError = $state("");
@@ -245,6 +246,13 @@
     if (result.ok) favorites = result.data;
   }
 
+  // A failed read degrades to showing nothing: the quarantine notice is a bonus warning,
+  // never a reason the rest of the Plugins tab fails to render.
+  async function loadQuarantine(): Promise<void> {
+    const result = await cairn.pluginQuarantine();
+    quarantine = result.ok ? result.data : [];
+  }
+
   // Starring is a real GitHub star, so require a connected account before adding
   // one rather than leaving a local-only favorite that never reaches GitHub.
   // Removing a favorite stays purely local and needs no account.
@@ -306,6 +314,7 @@
       cairn.enginesList(),
       loadFavorites(),
       loadGithubStatus(),
+      loadQuarantine(),
     ]);
     await painting;
     applyPlugins(plugins);
@@ -726,6 +735,18 @@
     </div>
   {/if}
 
+  {#if quarantine.length > 0}
+    <div class="quarantine">
+      {#each quarantine as record (record.homeId + record.pluginId)}
+        <div class="quarantine-item">
+          <p class="quarantine-title">{record.pluginId} is not running in {record.homeLabel}</p>
+          <p class="quarantine-detail">{record.detail}</p>
+          <p class="quarantine-fix">{record.fix}</p>
+        </div>
+      {/each}
+    </div>
+  {/if}
+
   {#snippet favoriteButton(p: UnifiedPlugin)}
     <button
       type="button"
@@ -939,6 +960,37 @@
     margin: 0 0 var(--space-md);
     color: var(--warn);
     font-size: var(--fs-sm);
+  }
+  .quarantine {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    margin: 0 var(--space-3xs) var(--space-xl);
+  }
+  .quarantine-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3xs);
+    padding: var(--space-md) var(--space-lg);
+    border: 1px solid var(--crit);
+    border-radius: var(--radius-sm);
+    background: var(--crit-weak);
+  }
+  .quarantine-title {
+    margin: 0;
+    font-size: var(--fs-sm);
+    font-weight: 650;
+    color: var(--text);
+  }
+  .quarantine-detail {
+    margin: 0;
+    font-size: var(--fs-sm);
+    color: var(--text);
+  }
+  .quarantine-fix {
+    margin: 0;
+    font-size: var(--fs-xs);
+    color: var(--muted);
   }
   .src {
     font-size: var(--fs-xs);

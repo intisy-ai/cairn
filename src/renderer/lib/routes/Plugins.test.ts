@@ -1057,4 +1057,32 @@ describe("Plugins screen", () => {
     await screen.findByTestId("source-filters");
     expect(screen.queryByTestId("source-shadowed")).toBeNull();
   });
+
+  it("warns about a quarantined plugin, naming the home, the reason and the fix", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      pluginQuarantine: async () => ({
+        ok: true,
+        data: [{ homeId: "app-a-id", homeLabel: "App A", pluginId: "historian", detail: "activate threw", fix: "fix the error activate threw, or disable the plugin" }],
+      }),
+    });
+    render(Plugins);
+
+    expect(await screen.findByText("historian is not running in App A")).toBeInTheDocument();
+    expect(screen.getByText("activate threw")).toBeInTheDocument();
+    expect(screen.getByText("fix the error activate threw, or disable the plugin")).toBeInTheDocument();
+  });
+
+  it("shows no quarantine notice when every plugin loaded", async () => {
+    stubCairn({
+      pluginsList: async () => ({ ok: true, data: baseSections() }),
+      catalogList: async () => ({ ok: true, data: baseCatalog() }),
+      pluginQuarantine: async () => ({ ok: true, data: [] }),
+    });
+    render(Plugins);
+
+    await screen.findByText("wakatime-sync");
+    expect(screen.queryByText(/is not running in/i)).toBeNull();
+  });
 });
