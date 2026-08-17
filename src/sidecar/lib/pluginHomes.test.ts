@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { join, dirname } from "node:path";
-import { appRealHome, pluginHomes, loaderInstalled } from "./pluginHomes.js";
+import { appRealHome, pluginHomes, loaderInstalled, homeById } from "./pluginHomes.js";
 import { resolveStoreDir } from "../../main/lib/storeDir.js";
 import type { AppDescriptor } from "@core/index.js";
 
@@ -146,6 +146,15 @@ describe("pluginHomes", () => {
     expect(homes.find((h) => h.id === "opencode")?.loaderInstalled).toBe(false);
     // Cairn has no loader to install, so it never claims one.
     expect(homes.find((h) => h.id === "cairn")?.loaderInstalled).toBeUndefined();
+  });
+});
+
+describe("homeById", () => {
+  // A shared lookup every module resolving a home id (screens, config, providers) relies
+  // on to reject an id nothing carries rather than silently proceeding with `undefined`.
+  it("throws for a home id nothing in the list carries", () => {
+    const homes = [{ id: "app-a", label: "App A", dir: "/homes/a", present: true, hasUpdater: true }];
+    expect(() => homeById("nope", homes)).toThrow("unknown plugin home: nope");
   });
 });
 

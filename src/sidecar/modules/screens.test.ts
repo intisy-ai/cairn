@@ -21,6 +21,9 @@ describe("screenData", () => {
     const result = await screenData("historian", "config", "app-a", { homes });
     expect(result).toEqual({ ok: true, data: { sources: { history: [1, 2] } } });
     expect(read).toHaveBeenCalledWith({ screenId: "config", home: "/homes/a" });
+    // home.dir, home.id and plugin are three distinct strings, so a positional swap in the
+    // capabilityOfPlugin(homeDir, appId, pluginId, capabilityId) call cannot pass unnoticed.
+    expect(capabilityOfPlugin).toHaveBeenCalledWith("/homes/a", "app-a", "historian", "screens");
   });
 
   it("reports a plugin that provides no screens rather than pretending it is empty", async () => {
@@ -28,6 +31,24 @@ describe("screenData", () => {
     const { screenData } = await import("./screens.js");
     expect(await screenData("historian", "config", "app-a", { homes })).toEqual({
       ok: false, error: "historian contributes no screens in App A",
+    });
+  });
+
+  it("carries the capability's own error message into the result", async () => {
+    const read = async () => { throw new Error("not a git repository"); };
+    capabilityOfPlugin.mockResolvedValue({ read, invoke: vi.fn(), screens: vi.fn() });
+    const { screenData } = await import("./screens.js");
+    expect(await screenData("historian", "config", "app-a", { homes })).toEqual({
+      ok: false, error: "not a git repository",
+    });
+  });
+
+  it("treats a capability answer with no sources as empty, not a crash", async () => {
+    const read = async () => undefined as never;
+    capabilityOfPlugin.mockResolvedValue({ read, invoke: vi.fn(), screens: vi.fn() });
+    const { screenData } = await import("./screens.js");
+    expect(await screenData("historian", "config", "app-a", { homes })).toEqual({
+      ok: true, data: { sources: {} },
     });
   });
 });
@@ -47,6 +68,15 @@ describe("screenInvoke", () => {
     const { screenInvoke } = await import("./screens.js");
     expect(await screenInvoke("historian", "config", "commit", "app-a", {}, { homes })).toEqual({
       ok: true, data: { ok: false, message: "git said no" },
+    });
+  });
+
+  it("treats an invoke with no result as a failed action, not a crash", async () => {
+    const invoke = async () => undefined as never;
+    capabilityOfPlugin.mockResolvedValue({ read: vi.fn(), invoke, screens: vi.fn() });
+    const { screenInvoke } = await import("./screens.js");
+    expect(await screenInvoke("historian", "config", "commit", "app-a", {}, { homes })).toEqual({
+      ok: true, data: { ok: false, message: "the plugin returned no result" },
     });
   });
 });
