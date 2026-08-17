@@ -3,7 +3,7 @@ import { startLoaderProxy } from "@core-loader/proxy-runner.js";
 import type { StartLoaderProxyOptions, StartedLoaderProxy } from "@core-loader/proxy-runner.js";
 import { createProxyServer, makeDynamicResolver } from "@core-proxy/index.js";
 import type { RoutingProfile } from "@core-proxy/index.js";
-import { loadInstalledProxyDefs } from "../../sidecar/lib/proxyPlugins.js";
+import { loadInstalledProxyDefs, unresolvedProxyPlugins } from "../../sidecar/lib/proxyPlugins.js";
 import type { LoadedProxyDef } from "../../sidecar/lib/proxyPlugins.js";
 import type { ProxyStatus } from "../../../packages/shared/src/domain.js";
 import { resolveLocalApiPort } from "../../sidecar/lib/localApiPort.js";
@@ -47,11 +47,15 @@ function dashboardStoreDir(): string {
 // App-agnostic: the local API serves whichever proxy plugin is installed. It
 // never names a specific app; the first installed proxy def wins (behaviour
 // parity with a single-proxy setup).
-export async function resolveProxyProfile(deps: { defs?: () => Promise<LoadedProxyDef[]> } = {}): Promise<RoutingProfile> {
+export async function resolveProxyProfile(
+  deps: { defs?: () => Promise<LoadedProxyDef[]>; unresolved?: () => Promise<string[]> } = {},
+): Promise<RoutingProfile> {
   const defs = await (deps.defs ?? (() => loadInstalledProxyDefs(dashboardStoreDir())))();
   const def = defs[0];
-  if (!def) throw new Error("no proxy plugin installed");
-  return def.profile();
+  if (def) return def.profile();
+  const unresolved = await (deps.unresolved ?? (() => unresolvedProxyPlugins(dashboardStoreDir())))();
+  if (unresolved.length > 0) throw new Error(`${unresolved[0]} is installed but carries no manifest; update the plugin so its capabilities can be read`);
+  throw new Error("no proxy plugin installed");
 }
 
 export function buildStartOptions(configDir: string, profile: RoutingProfile): StartLoaderProxyOptions<RoutingProfile> {

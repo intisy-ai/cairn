@@ -19,13 +19,18 @@ describe("buildStartOptions", () => {
 
 describe("resolveProxyProfile", () => {
   it("throws a generic install hint when no proxy plugin is installed", async () => {
-    await expect(resolveProxyProfile({ defs: async () => [] })).rejects.toThrow("no proxy plugin installed");
+    await expect(resolveProxyProfile({ defs: async () => [], unresolved: async () => [] })).rejects.toThrow("no proxy plugin installed");
   });
 
   it("returns the first installed def's profile, whatever app it targets", async () => {
     const profile = { marker: 1 } as unknown as RoutingProfile;
     const defs: LoadedProxyDef[] = [{ app: "some-app", label: "S", profile: () => profile }];
     await expect(resolveProxyProfile({ defs: async () => defs })).resolves.toBe(profile);
+  });
+
+  it("names the plugin and points at an update when one is installed but its manifest cannot be read", async () => {
+    await expect(resolveProxyProfile({ defs: async () => [], unresolved: async () => ["gateway"] }))
+      .rejects.toThrow("gateway is installed but carries no manifest");
   });
 });
 

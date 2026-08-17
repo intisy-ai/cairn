@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { getConfigDir } from "@core-auth/index.js";
 import { getAppDescriptor } from "@core/index.js";
 import type { RoutingProfile } from "@core-proxy/index.js";
-import { pluginProvidesCapability } from "./capabilityOwner.js";
+import { pluginProvidesCapability, unmanifestedPlugins } from "./capabilityOwner.js";
 import { safeGetPlugins } from "./optionalEngines.js";
 import { reposDir } from "./storagePaths.js";
 
@@ -70,4 +70,14 @@ export async function loadInstalledProxyDefs(storeDir: string = getConfigDir(), 
     if (proxy.def) defs.push(proxy.def);
   }
   return defs;
+}
+
+/**
+ * Installed plugin names with a deployed bundle but no manifest anywhere, so a caller that found
+ * no proxy can tell "nothing installed" from "something is installed but unreadable".
+ */
+export async function unresolvedProxyPlugins(storeDir: string = getConfigDir(), deps: ProxyPluginsDeps = {}): Promise<string[]> {
+  const listPlugins = deps.listPlugins ?? safeGetPlugins;
+  const names = (await listPlugins(storeDir)).map((plugin) => plugin.name);
+  return unmanifestedPlugins(storeDir, names);
 }

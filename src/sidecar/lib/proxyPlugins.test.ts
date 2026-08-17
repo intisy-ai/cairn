@@ -114,4 +114,15 @@ describe("loadInstalledProxyDefs", () => {
     expect(proxies.map((p) => p.name)).toEqual(["gateway"]);
     expect(proxies[0].def).toBeNull();
   });
+
+  it("selects a proxy whose front-door capability comes only from the clone's own manifest, with no deployed sidecar", async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "proxy-plugins-"));
+    seedStore(tempDir, ["gateway"]);
+    writeFileSync(join(tempDir, "repos", "gateway", "plugin.json"), JSON.stringify({ id: "gateway", capabilities: ["front-door"] }));
+    const defs = await loadInstalledProxyDefs(tempDir, {
+      importFn: async () => ({ proxyDef: { app: "claude", label: "Claude Code", profile: () => ({}) } }),
+    });
+    expect(defs).toHaveLength(1);
+    expect(defs[0].app).toBe("claude");
+  });
 });
