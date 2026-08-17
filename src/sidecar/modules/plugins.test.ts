@@ -127,17 +127,32 @@ describe("plugins sidecar module", () => {
     const claudeSection = result.data.find((s) => s.home.id === "claude")!;
     const byName = new Map(claudeSection.rows.map((row) => [row.name, row]));
     expect(byName.get("plugin-a")).toEqual({
-      name: "plugin-a", kind: "git", enabled: true, url: "https://github.com/intisy-ai/plugin-a",
+      name: "plugin-a", pluginId: "plugin-a", kind: "git", enabled: true, url: "https://github.com/intisy-ai/plugin-a",
       installedVersion: null, updateAvailable: true, description: "", missingArtifacts: [], present: false,
     });
     expect(byName.get("plugin-b")).toEqual({
-      name: "plugin-b", kind: "git", enabled: false, url: "https://github.com/intisy-ai/plugin-b",
+      name: "plugin-b", pluginId: "plugin-b", kind: "git", enabled: false, url: "https://github.com/intisy-ai/plugin-b",
       installedVersion: null, updateAvailable: false, description: "", missingArtifacts: [], present: false,
     });
     expect(byName.get("npm-plugin-x")).toEqual({
       name: "npm-plugin-x", kind: "npm", enabled: true, url: undefined,
       installedVersion: "1.2.3", updateAvailable: true, description: "", present: true,
     });
+  });
+
+  // A row's pluginId is the clone's own declared identity, which can differ from the plugins.json
+  // entry / clone directory name (see providers.ts's pluginIdFromClone). The developer tab joins
+  // on this, not on the row's `name`.
+  it("carries the clone's own declared plugin id when it differs from the entry name", async () => {
+    seedPlugins(claudeDir, [{ name: "vendor-clone-dir", url: "https://github.com/intisy-ai/vendor-clone-dir", enabled: true }]);
+    mkdirSync(join(claudeDir, "repos", "vendor-clone-dir"), { recursive: true });
+    writeFileSync(join(claudeDir, "repos", "vendor-clone-dir", "plugin.json"), JSON.stringify({ id: "vendor-host-id" }));
+
+    const { pluginsList } = await import("./plugins.js");
+    const result = await pluginsList({ homes: fakeHomes });
+    if (!result.ok) throw new Error("unreachable");
+    const row = result.data.find((s) => s.home.id === "claude")!.rows.find((r) => r.name === "vendor-clone-dir");
+    expect(row?.pluginId).toBe("vendor-host-id");
   });
 
   // A clone whose build half-landed loads with pieces of itself missing, which is what the

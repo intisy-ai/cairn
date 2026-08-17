@@ -291,7 +291,7 @@
       {/if}
     </div>
   {:else if active === "developer"}
-    <PluginLedgerSection groups={ledgerGroups} plugin={plugin.name} />
+    <PluginLedgerSection groups={ledgerGroups} plugin={plugin.pluginId ?? plugin.name} />
   {/if}
 {/snippet}
 

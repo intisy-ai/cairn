@@ -65,6 +65,7 @@ export function buildUnifiedPlugins(
     // clone URL from the engine registry when the catalog has none.
     const homeIds = engineUrl !== undefined ? homes.map((h) => h.id) : applicableHomeIds(kind, homes, name, catEntry?.apps);
     const rows = sections.flatMap((s) => s.rows.filter((r) => r.name === name).map((r) => ({ home: s.home.id, r })));
+    const installedPluginId = rows.map((x) => x.r.pluginId).find((id): id is string => !!id && id.length > 0);
     const installedDesc = rows.map((x) => x.r.description).find((d) => d && d.length > 0) ?? "";
     const installedName = rows.map((x) => x.r.displayName).find((d) => d && d.length > 0);
     const installedIcon = rows.map((x) => x.r.icon).find((i) => i && i.length > 0);
@@ -83,6 +84,7 @@ export function buildUnifiedPlugins(
     }
     out.push({
       name,
+      pluginId: installedPluginId,
       kind,
       description: installedDesc || (catEntry?.description ?? ""),
       url,

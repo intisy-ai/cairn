@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
 import { getConfigValue, activityEnv } from "@core/index.js";
 import { readPluginManifest } from "../lib/pluginManifest.js";
+import { pluginIdFromClone } from "../lib/capabilityOwner.js";
 import { emitCairnAction } from "../activity.js";
 import type { UpdateCache } from "@intisy-ai/plugin-updater/dist/cache.js";
 import type { Plugin, NpmPlugin } from "@intisy-ai/plugin-updater/dist/types.js";
@@ -168,6 +169,8 @@ function rowFor(name: string, kind: "git" | "npm", enabled: boolean, url: string
   const manifest = readPluginManifest(name, homeDirPath);
   return {
     name,
+    // Only a git clone has its own plugin.json to declare one; an npm plugin has no clone.
+    pluginId: kind === "git" ? pluginIdFromClone(name, homeDirPath) : undefined,
     kind,
     // An npm plugin is present by virtue of being listed; a git one needs its clone. A config
     // entry with nothing behind it is an install the manager has not carried out yet.

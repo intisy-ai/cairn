@@ -109,6 +109,54 @@ describe("PluginDetail availability", () => {
   });
 });
 
+// The ledger keys a row by the plugin's manifest id, which is not always the entry name
+// (PLUGIN.name) the plugins.json row and the catalog use. A join on the wrong space renders
+// "Not loaded in any home" for a plugin that is actually loaded and healthy.
+describe("PluginDetail developer tab", () => {
+  it("matches the ledger by the plugin's resolved id rather than its entry name", async () => {
+    stubCairn({
+      pluginVersions: async () => ({ ok: true, data: { claude: version() } }),
+      pluginLedger: async () => ({
+        ok: true,
+        data: [{
+          home: { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true },
+          rows: [{
+            pluginId: "wakatime-sync-host-id", status: "active",
+            capabilitiesDeclared: [], capabilities: [], provides: [], consumes: [], unresolved: [], topics: [], permissions: [],
+          }],
+        }],
+      }),
+    });
+    render(PluginDetail, {
+      props: { ...props([{ id: "claude", label: "Claude Code", hasUpdater: true }]), plugin: { ...PLUGIN, pluginId: "wakatime-sync-host-id" } },
+    });
+    await fireEvent.click(await screen.findByRole("button", { name: "Developer" }));
+    expect(await screen.findByText("No capabilities declared.")).toBeInTheDocument();
+    expect(screen.queryByText(/not loaded in any home/i)).toBeNull();
+  });
+
+  it("says not loaded when no ledger row matches the resolved id", async () => {
+    stubCairn({
+      pluginVersions: async () => ({ ok: true, data: { claude: version() } }),
+      pluginLedger: async () => ({
+        ok: true,
+        data: [{
+          home: { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true },
+          rows: [{
+            pluginId: "some-other-plugin", status: "active",
+            capabilitiesDeclared: [], capabilities: [], provides: [], consumes: [], unresolved: [], topics: [], permissions: [],
+          }],
+        }],
+      }),
+    });
+    render(PluginDetail, {
+      props: { ...props([{ id: "claude", label: "Claude Code", hasUpdater: true }]), plugin: { ...PLUGIN, pluginId: "wakatime-sync-host-id" } },
+    });
+    await fireEvent.click(await screen.findByRole("button", { name: "Developer" }));
+    expect(await screen.findByText(/not loaded in any home/i)).toBeInTheDocument();
+  });
+});
+
 describe("PluginDetail settings loading", () => {
   it("fetches no schema while the Configure tab is closed", async () => {
     const configSchemas = vi.fn(async () => ({ ok: true as const, data: [] }));

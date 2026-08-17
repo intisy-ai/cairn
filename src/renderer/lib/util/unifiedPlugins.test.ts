@@ -105,6 +105,20 @@ describe("buildUnifiedPlugins", () => {
     const out = buildUnifiedPlugins([{ home: homes[1], rows: [row("x")] }], [], homes);
     expect(out.find((p) => p.name === "x")!.favorite).toBe(false);
   });
+
+  // The entry name (the plugins.json row / catalog name) and the manifest id a clone's own
+  // plugin.json declares live in different spaces; a fixture that reuses one string for both
+  // could not catch a join that silently falls back to `name`.
+  it("carries the installed row's own pluginId, distinct from the entry name", () => {
+    const sections: HomePlugins[] = [{ home: homes[1], rows: [row("vendor-clone-dir", { pluginId: "vendor-host-id" })] }];
+    const out = buildUnifiedPlugins(sections, [], homes);
+    expect(out.find((p) => p.name === "vendor-clone-dir")!.pluginId).toBe("vendor-host-id");
+  });
+
+  it("has no pluginId when nothing installed ever resolved one", () => {
+    const out = buildUnifiedPlugins([{ home: homes[1], rows: [row("x")] }], [], homes);
+    expect(out.find((p) => p.name === "x")!.pluginId).toBeUndefined();
+  });
 });
 
 // A loader is the one plugin that is not portable: it connects a single app, the one whose
