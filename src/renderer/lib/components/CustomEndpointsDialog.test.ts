@@ -45,6 +45,16 @@ describe("CustomEndpointsDialog", () => {
     await waitFor(() => expect(customEndpointsSaveKey).toHaveBeenCalledWith("local", "sk-xyz"));
   });
 
+  it("shows an empty state rather than an error when this home has no provider for the capability", async () => {
+    stubCairn({
+      enginesList: async () => ({ ok: true, data: [INSTALLED_ENGINE] }),
+      customEndpointsList: async () => ({ ok: true, data: [] }),
+    });
+    const { findByText, queryByText } = render(TestWrapper);
+    expect(await findByText(/no endpoints yet/i)).toBeInTheDocument();
+    expect(queryByText(/no plugin provides custom endpoints/i)).not.toBeInTheDocument();
+  });
+
   it("offers to install the engine when it is not installed", async () => {
     const enginesEnsure = vi.fn(async () => ({ ok: true, data: undefined }) as const);
     stubCairn({ enginesList: async () => ({ ok: true, data: [UNINSTALLED_ENGINE] }), enginesEnsure });

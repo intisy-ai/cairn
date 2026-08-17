@@ -93,8 +93,15 @@ describe("customEndpoints module", () => {
     expect(loadPlugin).toHaveBeenCalledOnce();
   });
 
-  it("answers that no plugin provides custom endpoints when nothing owns the capability", async () => {
+  it("answers an empty list, not an error, when nothing owns the capability", async () => {
     const result = await customEndpointsList({ dir: "/home", ownerPlugin: () => null });
+    expect(result).toEqual({ ok: true, data: [] });
+  });
+
+  // customEndpointsFormats hits the same "nothing owns the capability" path but is not a list,
+  // so it still reports the absence as a failure rather than an empty array.
+  it("still reports the plugin as needed for a non-list call when nothing owns the capability", async () => {
+    const result = await customEndpointsFormats({ dir: "/home", ownerPlugin: () => null });
     expect(result).toEqual({ ok: false, error: "no plugin provides custom endpoints" });
   });
 });

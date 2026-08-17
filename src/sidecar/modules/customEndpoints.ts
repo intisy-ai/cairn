@@ -67,8 +67,17 @@ export function customEndpointsFormats(deps: CustomEndpointsDeps = {}): Promise<
   });
 }
 
+// A home with no plugin declaring the capability has none configured, not a failure: every
+// sibling list answers `{ok:true, data:[]}` for absence, and a list is what "none" looks like.
 export function customEndpointsList(deps: CustomEndpointsDeps = {}): Promise<Result<CustomEndpointView[]>> {
-  return wrap(async () => (await api(deps)).plugin.endpointViews());
+  return wrap(async () => {
+    try {
+      return (await api(deps)).plugin.endpointViews();
+    } catch (error) {
+      if (error instanceof Error && error.message === "no plugin provides custom endpoints") return [];
+      throw error;
+    }
+  });
 }
 
 export function customEndpointsUpsert(endpoint: CustomEndpoint, deps: CustomEndpointsDeps = {}): Promise<Result<void>> {
