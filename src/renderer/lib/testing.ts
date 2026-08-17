@@ -130,7 +130,6 @@ export function defaultCairn(): CairnAPI {
     customEndpointsUpsert: async () => ({ ok: true, data: undefined }),
     customEndpointsRemove: async () => ({ ok: true, data: undefined }),
     customEndpointsSaveKey: async () => ({ ok: true, data: undefined }),
-    configHistoryList: async () => ({ ok: true, data: [] }),
     pluginLedger: async () => ({ ok: true, data: [] }),
     pluginQuarantine: async () => ({ ok: true, data: [] }),
     minimize: () => {},

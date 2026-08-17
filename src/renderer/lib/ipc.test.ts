@@ -16,7 +16,7 @@ const EXPECTED: Record<string, IpcKind> = {
   pluginsData: "cached", librariesList: "cached", configSchemas: "cached", getConfig: "cached",
   usageSnapshot: "cached", importApps: "cached", importPreview: "cached", catalogList: "cached",
   customEndpointsList: "cached", screensList: "cached", settingsSections: "cached",
-  githubStatus: "cached", activityRead: "cached", configHistoryList: "cached",
+  githubStatus: "cached", activityRead: "cached",
 
   proxiesList: "live", jobsList: "live", appsConnection: "live", repoMeta: "live",
   repoMetaCached: "live", pluginVersions: "live", pluginVersionsAll: "live",

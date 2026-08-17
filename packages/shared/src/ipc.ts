@@ -98,7 +98,6 @@ export const INVOKE_CHANNELS = {
   customEndpointsUpsert: "customEndpoints:upsert",
   customEndpointsRemove: "customEndpoints:remove",
   customEndpointsSaveKey: "customEndpoints:saveKey",
-  configHistoryList: "configHistory:list",
   pluginLedger: "plugins:ledger",
   pluginQuarantine: "plugins:quarantine",
 } as const;

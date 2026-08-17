@@ -1,4 +1,4 @@
-﻿import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, HomeLibraries, HomePluginData, AppStorage, AppStorageResult, AppPathNames, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, MarketplaceSource, AppSummary, PluginConfigSchema, PluginScreen, ScreenData, InvokeResult, PluginSettingsSection, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec, UpdateSummary, Job, JobKind, HistoryEntryView, HomeLedger, QuarantineView } from "./domain.js";
+﻿import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, HomeLibraries, HomePluginData, AppStorage, AppStorageResult, AppPathNames, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, MarketplaceSource, AppSummary, PluginConfigSchema, PluginScreen, ScreenData, InvokeResult, PluginSettingsSection, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec, UpdateSummary, Job, JobKind, HomeLedger, QuarantineView } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -94,7 +94,6 @@ export interface CairnAPI {
   customEndpointsUpsert(endpoint: CustomEndpoint): Promise<Result<void>>;
   customEndpointsRemove(id: string): Promise<Result<void>>;
   customEndpointsSaveKey(endpointId: string, key: string): Promise<Result<void>>;
-  configHistoryList(homeId: string): Promise<Result<HistoryEntryView[]>>;
   pluginLedger(): Promise<Result<HomeLedger[]>>;
   pluginQuarantine(): Promise<Result<QuarantineView[]>>;
   minimize(): void;
