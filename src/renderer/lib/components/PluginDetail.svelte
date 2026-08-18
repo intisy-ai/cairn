@@ -147,11 +147,30 @@
     }
   }
 
-  function channelOptions(homeLabel: string): { value: PluginChannel; label: string; ariaLabel: string }[] {
+  // false means the plugin has no experimental branch to switch to; null/undefined means it has
+  // not been checked yet. Only a definite false blocks the option: an unanswered check must not
+  // read the same as a confirmed absence.
+  function experimentalUnavailableReason(available: boolean | null): string | undefined {
+    if (available === false) return "This plugin publishes no experimental branch.";
+    if (available !== true) return "This plugin has not been checked for an experimental branch yet.";
+    return undefined;
+  }
+
+  function channelOptions(
+    available: boolean | null,
+    homeLabel: string,
+  ): { value: PluginChannel; label: string; ariaLabel: string; disabled?: boolean; title?: string }[] {
+    const reason = experimentalUnavailableReason(available);
     return [
-      { value: "inherit", label: "Default", ariaLabel: `Default channel for ${homeLabel}` },
-      { value: "stable", label: "Stable", ariaLabel: `Stable channel for ${homeLabel}` },
-      { value: "experimental", label: "Experimental", ariaLabel: `Experimental channel for ${homeLabel}` },
+      { value: "inherit" as const, label: "Default", ariaLabel: `Default channel for ${homeLabel}` },
+      { value: "stable" as const, label: "Stable", ariaLabel: `Stable channel for ${homeLabel}` },
+      {
+        value: "experimental" as const,
+        label: "Experimental",
+        ariaLabel: `Experimental channel for ${homeLabel}`,
+        disabled: reason !== undefined,
+        title: reason,
+      },
     ];
   }
 
@@ -247,13 +266,16 @@
                 <label class="auto" title="Auto-update on launch">
                   <ToggleSwitch checked={v.autoUpdate} label={`Auto-update ${h.label}`} onchange={(o) => setAutoUpdate(h.id, o)} />
                 </label>
-                {#if v.experimentalAvailable === true}
-                  <SegmentedControl
-                    label={`Update channel for ${h.label}`}
-                    value={selectedChannel(h.id)}
-                    onChange={(channel) => setChannel(h.id, channel)}
-                    options={channelOptions(h.label)}
-                  />
+                <SegmentedControl
+                  label={`Update channel for ${h.label}`}
+                  value={selectedChannel(h.id)}
+                  onChange={(channel) => setChannel(h.id, channel)}
+                  options={channelOptions(v.experimentalAvailable, h.label)}
+                />
+                {#if experimentalUnavailableReason(v.experimentalAvailable)}
+                  <span class="unknown" title={experimentalUnavailableReason(v.experimentalAvailable)}>
+                    {v.experimentalAvailable === false ? "no experimental branch" : "not checked yet"}
+                  </span>
                 {/if}
               {/if}
             {:else}

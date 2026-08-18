@@ -53,8 +53,14 @@ function stubVersions(onExperimental: boolean, experimentalAvailable: boolean | 
 }
 
 describe("PluginDetail channel control", () => {
-  it("offers the control only when a channel branch was confirmed", async () => {
-    stubVersions(false, true);
+  it("always renders the channel control, even before experimental has been confirmed", async () => {
+    stubVersions(false, null);
+    const { findByRole } = await openAvailability();
+    expect(await findByRole("group", { name: /update channel/i })).toBeTruthy();
+  });
+
+  it("always renders the channel control, even when no experimental branch exists", async () => {
+    stubVersions(false, false);
     const { findByRole } = await openAvailability();
     expect(await findByRole("group", { name: /update channel/i })).toBeTruthy();
   });
@@ -68,16 +74,29 @@ describe("PluginDetail channel control", () => {
     expect(await findByTitle("Auto-update on launch")).toBeTruthy();
   });
 
-  it("hides it when detection said no", async () => {
+  it("disables Experimental and states the reason when the plugin publishes no experimental branch", async () => {
     stubVersions(false, false);
-    const { queryByRole } = await openAvailability();
-    await waitFor(() => expect(queryByRole("group", { name: /update channel/i })).toBeNull());
+    const { findByRole, findByText } = await openAvailability();
+    const option = await findByRole("button", { name: /experimental channel for claude code/i });
+    expect(option).toBeDisabled();
+    expect(option.getAttribute("title")).toMatch(/publishes no experimental branch/i);
+    expect(await findByText("no experimental branch")).toBeTruthy();
   });
 
-  it("hides it while detection is still unknown", async () => {
+  it("disables Experimental and states it has not been checked yet when detection is unknown", async () => {
     stubVersions(false, null);
-    const { queryByRole } = await openAvailability();
-    await waitFor(() => expect(queryByRole("group", { name: /update channel/i })).toBeNull());
+    const { findByRole, findByText } = await openAvailability();
+    const option = await findByRole("button", { name: /experimental channel for claude code/i });
+    expect(option).toBeDisabled();
+    expect(option.getAttribute("title")).toMatch(/has not been checked/i);
+    expect(await findByText("not checked yet")).toBeTruthy();
+  });
+
+  it("leaves Default and Stable enabled when Experimental is unavailable", async () => {
+    stubVersions(false, false);
+    const { findByRole } = await openAvailability();
+    expect(await findByRole("button", { name: /default channel for claude code/i })).not.toBeDisabled();
+    expect(await findByRole("button", { name: /stable channel for claude code/i })).not.toBeDisabled();
   });
 
   it("renders Stable pressed for a plugin resolved off the experimental channel", async () => {
