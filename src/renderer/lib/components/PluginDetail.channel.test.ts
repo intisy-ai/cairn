@@ -33,7 +33,7 @@ function baseProps(extra: Partial<Record<string, unknown>> = {}) {
   };
 }
 
-// The switch only lives on the Availability tab, which the detail view does not open by
+// The control only lives on the Availability tab, which the detail view does not open by
 // default (it opens on the readme).
 async function openAvailability(extra: Partial<Record<string, unknown>> = {}) {
   const utils = render(PluginDetail, { props: baseProps(extra) });
@@ -41,153 +41,106 @@ async function openAvailability(extra: Partial<Record<string, unknown>> = {}) {
   return utils;
 }
 
-describe("PluginDetail channel control", () => {
-  it("offers the switch only when a channel branch was confirmed", async () => {
-    stubCairn({
-      pluginVersions: async () => ({
-        ok: true,
-        data: {
-          claude: { kind: "git", label: "v1", updateState: "current", autoUpdate: true, onExperimental: false, experimentalAvailable: true },
-        },
-      }),
-    });
+function stubVersions(onExperimental: boolean, experimentalAvailable: boolean | null) {
+  stubCairn({
+    pluginVersions: async () => ({
+      ok: true,
+      data: {
+        claude: { kind: "git", label: "v1", updateState: "current", autoUpdate: true, onExperimental, experimentalAvailable },
+      },
+    }),
+  });
+}
 
-    const { findByLabelText } = await openAvailability();
-    expect(await findByLabelText(/experimental/i)).toBeTruthy();
+describe("PluginDetail channel control", () => {
+  it("offers the control only when a channel branch was confirmed", async () => {
+    stubVersions(false, true);
+    const { findByRole } = await openAvailability();
+    expect(await findByRole("group", { name: /update channel/i })).toBeTruthy();
   });
 
-  // The auto-update switch beside it is a bare pill too, distinguished only by its own
-  // title, so the channel switch must carry a title of its own or the two are indistinguishable.
-  it("carries its own title, distinct from the neighbouring auto-update switch", async () => {
-    stubCairn({
-      pluginVersions: async () => ({
-        ok: true,
-        data: {
-          claude: { kind: "git", label: "v1", updateState: "current", autoUpdate: true, onExperimental: false, experimentalAvailable: true },
-        },
-      }),
-    });
-
-    const { findByTitle } = await openAvailability();
-    expect(await findByTitle("Track the experimental channel")).toBeTruthy();
+  // The group carries its own accessible name, distinct from the neighbouring auto-update
+  // switch, which is a bare pill distinguished only by its own title.
+  it("carries an accessible name distinct from the neighbouring auto-update switch", async () => {
+    stubVersions(false, true);
+    const { findByRole, findByTitle } = await openAvailability();
+    expect(await findByRole("group", { name: /update channel/i })).toBeTruthy();
     expect(await findByTitle("Auto-update on launch")).toBeTruthy();
   });
 
   it("hides it when detection said no", async () => {
-    stubCairn({
-      pluginVersions: async () => ({
-        ok: true,
-        data: {
-          claude: { kind: "git", label: "v1", updateState: "current", autoUpdate: true, onExperimental: false, experimentalAvailable: false },
-        },
-      }),
-    });
-
-    const { queryByLabelText } = await openAvailability();
-    await waitFor(() => expect(queryByLabelText(/experimental/i)).toBeNull());
+    stubVersions(false, false);
+    const { queryByRole } = await openAvailability();
+    await waitFor(() => expect(queryByRole("group", { name: /update channel/i })).toBeNull());
   });
 
   it("hides it while detection is still unknown", async () => {
-    stubCairn({
-      pluginVersions: async () => ({
-        ok: true,
-        data: {
-          claude: { kind: "git", label: "v1", updateState: "current", autoUpdate: true, onExperimental: false, experimentalAvailable: null },
-        },
-      }),
-    });
-
-    const { queryByLabelText } = await openAvailability();
-    await waitFor(() => expect(queryByLabelText(/experimental/i)).toBeNull());
+    stubVersions(false, null);
+    const { queryByRole } = await openAvailability();
+    await waitFor(() => expect(queryByRole("group", { name: /update channel/i })).toBeNull());
   });
 
-  // A plugin riding the home's global yes must render checked, or the control lies and
-  // switching it off writes a value that changes nothing.
-  it("renders checked for a plugin on the channel by inheritance", async () => {
-    stubCairn({
-      pluginVersions: async () => ({
-        ok: true,
-        data: {
-          claude: { kind: "git", label: "v1", updateState: "current", autoUpdate: true, onExperimental: true, experimentalAvailable: true },
-        },
-      }),
-    });
-
-    const { findByLabelText } = await openAvailability();
-    const control = await findByLabelText(/experimental/i);
-    expect(control.getAttribute("aria-checked")).toBe("true");
+  it("renders Stable pressed for a plugin resolved off the experimental channel", async () => {
+    stubVersions(false, true);
+    const { findByRole } = await openAvailability();
+    const stable = await findByRole("button", { name: /stable channel for claude code/i });
+    expect(stable.getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("writes an explicit stable channel when switched off, never inherit", async () => {
+  // A plugin riding the home's global yes must render Experimental pressed, or the control lies
+  // and picking Stable writes a value that looks unchanged.
+  it("renders Experimental pressed for a plugin on the channel, whether by inheritance or explicitly", async () => {
+    stubVersions(true, true);
+    const { findByRole } = await openAvailability();
+    const experimental = await findByRole("button", { name: /experimental channel for claude code/i });
+    expect(experimental.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("writes an explicit stable channel when Stable is picked", async () => {
     const onSetChannel = vi.fn(async () => true);
-    stubCairn({
-      pluginVersions: async () => ({
-        ok: true,
-        data: {
-          claude: { kind: "git", label: "v1", updateState: "current", autoUpdate: true, onExperimental: true, experimentalAvailable: true },
-        },
-      }),
-    });
-
-    const { findByLabelText } = await openAvailability({ onSetChannel });
-    await fireEvent.click(await findByLabelText(/experimental/i));
-
+    stubVersions(true, true);
+    const { findByRole } = await openAvailability({ onSetChannel });
+    await fireEvent.click(await findByRole("button", { name: /stable channel for claude code/i }));
     expect(onSetChannel).toHaveBeenCalledWith("claude", "stable");
   });
 
-  it("writes an explicit experimental channel when switched on", async () => {
+  it("writes an explicit experimental channel when Experimental is picked", async () => {
     const onSetChannel = vi.fn(async () => true);
-    stubCairn({
-      pluginVersions: async () => ({
-        ok: true,
-        data: {
-          claude: { kind: "git", label: "v1", updateState: "current", autoUpdate: true, onExperimental: false, experimentalAvailable: true },
-        },
-      }),
-    });
-
-    const { findByLabelText } = await openAvailability({ onSetChannel });
-    await fireEvent.click(await findByLabelText(/experimental/i));
-
+    stubVersions(false, true);
+    const { findByRole } = await openAvailability({ onSetChannel });
+    await fireEvent.click(await findByRole("button", { name: /experimental channel for claude code/i }));
     expect(onSetChannel).toHaveBeenCalledWith("claude", "experimental");
   });
 
-  it("stays switched on once the write reports success", async () => {
+  it("sends inherit, never a resolved value, when Default is picked", async () => {
     const onSetChannel = vi.fn(async () => true);
-    stubCairn({
-      pluginVersions: async () => ({
-        ok: true,
-        data: {
-          claude: { kind: "git", label: "v1", updateState: "current", autoUpdate: true, onExperimental: false, experimentalAvailable: true },
-        },
-      }),
-    });
-
-    const { findByLabelText } = await openAvailability({ onSetChannel });
-    const control = await findByLabelText(/experimental/i);
-    await fireEvent.click(control);
-
-    await waitFor(() => expect(control.getAttribute("aria-checked")).toBe("true"));
+    stubVersions(false, true);
+    const { findByRole } = await openAvailability({ onSetChannel });
+    await fireEvent.click(await findByRole("button", { name: /default channel for claude code/i }));
+    expect(onSetChannel).toHaveBeenCalledWith("claude", "inherit");
   });
 
-  // This is the case the optimistic flip must undo: without a revert, a failed write left the
-  // switch showing a channel the disk was never moved to.
-  it("reverts to its original position when the write fails", async () => {
-    const onSetChannel = vi.fn(async () => false);
-    stubCairn({
-      pluginVersions: async () => ({
-        ok: true,
-        data: {
-          claude: { kind: "git", label: "v1", updateState: "current", autoUpdate: true, onExperimental: false, experimentalAvailable: true },
-        },
-      }),
-    });
+  it("stays on the picked option once the write reports success", async () => {
+    const onSetChannel = vi.fn(async () => true);
+    stubVersions(false, true);
+    const { findByRole } = await openAvailability({ onSetChannel });
+    const experimental = await findByRole("button", { name: /experimental channel for claude code/i });
+    await fireEvent.click(experimental);
+    await waitFor(() => expect(experimental.getAttribute("aria-pressed")).toBe("true"));
+  });
 
-    const { findByLabelText } = await openAvailability({ onSetChannel });
-    const control = await findByLabelText(/experimental/i);
-    await fireEvent.click(control);
+  // This is the case the optimistic switch must undo: without a revert, a failed write left the
+  // control showing a channel the disk was never moved to.
+  it("reverts to the previous selection when the write fails", async () => {
+    const onSetChannel = vi.fn(async () => false);
+    stubVersions(false, true);
+    const { findByRole } = await openAvailability({ onSetChannel });
+    const stable = await findByRole("button", { name: /stable channel for claude code/i });
+    const experimental = await findByRole("button", { name: /experimental channel for claude code/i });
+    await fireEvent.click(experimental);
 
     await waitFor(() => expect(onSetChannel).toHaveBeenCalledWith("claude", "experimental"));
-    await waitFor(() => expect(control.getAttribute("aria-checked")).toBe("false"));
+    await waitFor(() => expect(stable.getAttribute("aria-pressed")).toBe("true"));
+    expect(experimental.getAttribute("aria-pressed")).toBe("false");
   });
 });

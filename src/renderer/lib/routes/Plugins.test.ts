@@ -571,7 +571,7 @@ describe("Plugins screen", () => {
     const dialog = within(await screen.findByRole("dialog"));
     await fireEvent.click(dialog.getByRole("button", { name: "Availability" }));
 
-    await fireEvent.click(dialog.getByRole("switch", { name: "Experimental build Claude Code" }));
+    await fireEvent.click(dialog.getByRole("button", { name: "Experimental channel for Claude Code" }));
     await waitFor(() => expect(pluginsSetChannel).toHaveBeenCalledWith("claude", "wakatime-sync", "experimental"));
     expect(jobsEnqueue).not.toHaveBeenCalled();
   });

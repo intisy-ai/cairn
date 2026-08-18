@@ -458,7 +458,7 @@
   }
   // The toggle is only true once the clone matches it, so the switch runs the update that
   // makes it so. Returns whether the write succeeded, so the switch can revert itself on failure.
-  async function setChannel(p: UnifiedPlugin, homeId: string, channel: "experimental" | "stable"): Promise<boolean> {
+  async function setChannel(p: UnifiedPlugin, homeId: string, channel: "inherit" | "stable" | "experimental"): Promise<boolean> {
     const result = await cairn.pluginsSetChannel(homeId, p.name, channel);
     if (!result.ok) {
       toast.error(result.error);

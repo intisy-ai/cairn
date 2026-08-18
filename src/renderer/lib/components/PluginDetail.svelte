@@ -4,12 +4,15 @@
   import PluginControls from "./PluginControls.svelte";
   import RepoDetail from "./RepoDetail.svelte";
   import ToggleSwitch from "./ToggleSwitch.svelte";
+  import SegmentedControl from "./SegmentedControl.svelte";
   import SplitButton from "./SplitButton.svelte";
   import PluginIcon, { LOGO_SIZE } from "./PluginIcon.svelte";
   import PluginInstallControl from "./PluginInstallControl.svelte";
   import PluginLedgerSection from "./PluginLedgerSection.svelte";
   import { cairn } from "../ipc.js";
   import { activeByPluginHome, jobKey, cancelRow, type DownloadRow } from "../downloads.js";
+
+  type PluginChannel = "inherit" | "stable" | "experimental";
 
   let {
     plugin,
@@ -41,7 +44,7 @@
     onToggleHome: (homeId: string, on: boolean) => void;
     onToggleFavorite?: () => void;
     onChanged?: () => void;
-    onSetChannel?: (homeId: string, channel: "experimental" | "stable") => Promise<boolean>;
+    onSetChannel?: (homeId: string, channel: PluginChannel) => Promise<boolean>;
   } = $props();
 
   const repo = $derived({
@@ -119,23 +122,37 @@
     onChanged?.();
   }
 
-  // Both directions write an explicit channel: "inherit" would leave a plugin riding the
-  // home's global flag exactly where it was.
-  async function setChannel(homeId: string, on: boolean): Promise<void> {
-    const current = versions[homeId];
-    const previous = current?.onExperimental;
-    if (current) versions = { ...versions, [homeId]: { ...current, onExperimental: on } };
+  // The version model only ever reports the RESOLVED boolean (onExperimental), never the raw
+  // channel a home's plugins.json entry carries, so "inherit" and an explicit "stable" render
+  // identically until a selection is made here. This map holds what was actually picked in this
+  // session, which is the only place "inherit" is representable.
+  let channelSelection = $state<Record<string, PluginChannel>>({});
+
+  function selectedChannel(homeId: string): PluginChannel {
+    return channelSelection[homeId] ?? (versions[homeId]?.onExperimental ? "experimental" : "stable");
+  }
+
+  async function setChannel(homeId: string, channel: PluginChannel): Promise<void> {
+    const previous = selectedChannel(homeId);
+    channelSelection = { ...channelSelection, [homeId]: channel };
     let succeeded = false;
     try {
-      succeeded = (await onSetChannel?.(homeId, on ? "experimental" : "stable")) ?? false;
+      succeeded = (await onSetChannel?.(homeId, channel)) ?? false;
     } catch {
       succeeded = false;
     }
-    // A failed write must not leave the switch showing a channel the disk never moved to.
-    if (!succeeded && current) {
-      const latest = versions[homeId];
-      if (latest) versions = { ...versions, [homeId]: { ...latest, onExperimental: previous! } };
+    // A failed write must not leave the control showing a channel the disk never moved to.
+    if (!succeeded) {
+      channelSelection = { ...channelSelection, [homeId]: previous };
     }
+  }
+
+  function channelOptions(homeLabel: string): { value: PluginChannel; label: string; ariaLabel: string }[] {
+    return [
+      { value: "inherit", label: "Default", ariaLabel: `Default channel for ${homeLabel}` },
+      { value: "stable", label: "Stable", ariaLabel: `Stable channel for ${homeLabel}` },
+      { value: "experimental", label: "Experimental", ariaLabel: `Experimental channel for ${homeLabel}` },
+    ];
   }
 
   onMount(() => {
@@ -231,13 +248,12 @@
                   <ToggleSwitch checked={v.autoUpdate} label={`Auto-update ${h.label}`} onchange={(o) => setAutoUpdate(h.id, o)} />
                 </label>
                 {#if v.experimentalAvailable === true}
-                  <label class="auto" title="Track the experimental channel">
-                    <ToggleSwitch
-                      checked={v.onExperimental}
-                      label={`Experimental build ${h.label}`}
-                      onchange={(o) => setChannel(h.id, o)}
-                    />
-                  </label>
+                  <SegmentedControl
+                    label={`Update channel for ${h.label}`}
+                    value={selectedChannel(h.id)}
+                    onChange={(channel) => setChannel(h.id, channel)}
+                    options={channelOptions(h.label)}
+                  />
                 {/if}
               {/if}
             {:else}
