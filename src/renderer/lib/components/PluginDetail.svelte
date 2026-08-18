@@ -3,7 +3,6 @@
   import type { UnifiedPlugin, PluginConfigSchema, PluginVersion, HomeLedger, QuarantineView } from "@cairn/shared";
   import PluginControls from "./PluginControls.svelte";
   import RepoDetail from "./RepoDetail.svelte";
-  import ToggleSwitch from "./ToggleSwitch.svelte";
   import SegmentedControl from "./SegmentedControl.svelte";
   import SplitButton from "./SplitButton.svelte";
   import PluginIcon, { LOGO_SIZE } from "./PluginIcon.svelte";
@@ -13,6 +12,7 @@
   import { activeByPluginHome, jobKey, cancelRow, type DownloadRow } from "../downloads.js";
 
   type PluginChannel = "inherit" | "stable" | "experimental";
+  type AutoUpdateState = "on" | "off";
 
   let {
     plugin,
@@ -117,9 +117,27 @@
 
   async function setAutoUpdate(homeId: string, on: boolean): Promise<void> {
     const current = versions[homeId];
+    const previous = current?.autoUpdate ?? false;
     if (current) versions = { ...versions, [homeId]: { ...current, autoUpdate: on } };
-    await cairn.pluginsSetAutoUpdate(homeId, plugin.name, on);
+    const result = await cairn.pluginsSetAutoUpdate(homeId, plugin.name, on);
+    // A failed write must not leave the control showing a state the disk never moved to.
+    if (!result.ok) {
+      const latest = versions[homeId];
+      if (latest) versions = { ...versions, [homeId]: { ...latest, autoUpdate: previous } };
+      return;
+    }
     onChanged?.();
+  }
+
+  function autoUpdateState(homeId: string): AutoUpdateState {
+    return versions[homeId]?.autoUpdate ? "on" : "off";
+  }
+
+  function autoUpdateOptions(homeLabel: string): { value: AutoUpdateState; label: string; ariaLabel: string }[] {
+    return [
+      { value: "on", label: "On", ariaLabel: `Auto-update ${homeLabel} on` },
+      { value: "off", label: "Off", ariaLabel: `Auto-update ${homeLabel} off` },
+    ];
   }
 
   // versions[homeId].channel is the plugins.json entry's own declared value ("inherit" is a real,
@@ -263,9 +281,12 @@
                 {#if v?.label}<span class="num">{v.label}</span>{:else}<span class="num unknown">unknown</span>{/if}
               </span>
               {#if v?.kind === "git" && h.hasUpdater}
-                <label class="auto" title="Auto-update on launch">
-                  <ToggleSwitch checked={v.autoUpdate} label={`Auto-update ${h.label}`} onchange={(o) => setAutoUpdate(h.id, o)} />
-                </label>
+                <SegmentedControl
+                  label={`Auto-update ${h.label}`}
+                  value={autoUpdateState(h.id)}
+                  onChange={(state) => setAutoUpdate(h.id, state === "on")}
+                  options={autoUpdateOptions(h.label)}
+                />
                 <SegmentedControl
                   label={`Update channel for ${h.label}`}
                   value={selectedChannel(h.id)}
@@ -460,10 +481,6 @@
   .ver .num.unknown {
     font-style: italic;
     color: var(--faint);
-  }
-  .auto {
-    display: inline-flex;
-    align-items: center;
   }
   .controls {
     display: flex;

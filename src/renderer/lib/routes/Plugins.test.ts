@@ -536,7 +536,7 @@ describe("Plugins screen", () => {
     await fireEvent.click(dialog.getByRole("button", { name: "Update" }));
     await waitFor(() => expect(jobsEnqueue).toHaveBeenCalledWith("update", "wakatime-sync", expect.any(String), "claude"));
 
-    await fireEvent.click(dialog.getByRole("switch", { name: "Auto-update Claude Code" }));
+    await fireEvent.click(dialog.getByRole("button", { name: "Auto-update Claude Code off" }));
     await waitFor(() => expect(pluginsSetAutoUpdate).toHaveBeenCalledWith("claude", "wakatime-sync", false));
   });
 

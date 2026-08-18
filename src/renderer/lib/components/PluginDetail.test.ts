@@ -98,14 +98,16 @@ describe("PluginDetail availability", () => {
 
     await waitFor(() => expect(within(row("Claude Code")).getByRole("button", { name: "Remove" })).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Update" })).toBeNull();
-    expect(screen.queryByRole("switch", { name: /Auto-update/ })).toBeNull();
+    expect(screen.queryByRole("group", { name: /Auto-update/ })).toBeNull();
   });
 
-  it("offers the auto-update toggle where an updater manages the plugin", async () => {
+  it("offers the auto-update control where an updater manages the plugin", async () => {
     stubCairn({ pluginVersions: async () => ({ ok: true, data: { claude: version() } }) });
     await openAvailability([{ id: "claude", label: "Claude Code", hasUpdater: true }]);
 
-    expect(await screen.findByRole("switch", { name: "Auto-update Claude Code" })).toBeInTheDocument();
+    const group = await screen.findByRole("group", { name: "Auto-update Claude Code" });
+    expect(within(group).getByRole("button", { name: "Auto-update Claude Code on" })).toBeInTheDocument();
+    expect(within(group).getByRole("button", { name: "Auto-update Claude Code off" })).toBeInTheDocument();
   });
 });
 

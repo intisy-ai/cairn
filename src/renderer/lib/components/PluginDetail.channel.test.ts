@@ -70,12 +70,12 @@ describe("PluginDetail channel control", () => {
   });
 
   // The group carries its own accessible name, distinct from the neighbouring auto-update
-  // switch, which is a bare pill distinguished only by its own title.
-  it("carries an accessible name distinct from the neighbouring auto-update switch", async () => {
+  // control, which is a second segmented control with its own group name.
+  it("carries an accessible name distinct from the neighbouring auto-update control", async () => {
     stubVersions(false, true);
-    const { findByRole, findByTitle } = await openAvailability();
+    const { findByRole } = await openAvailability();
     expect(await findByRole("group", { name: /update channel/i })).toBeTruthy();
-    expect(await findByTitle("Auto-update on launch")).toBeTruthy();
+    expect(await findByRole("group", { name: "Auto-update Claude Code" })).toBeTruthy();
   });
 
   it("disables Experimental and states the reason when the plugin publishes no experimental branch", async () => {
