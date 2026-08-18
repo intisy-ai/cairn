@@ -67,8 +67,8 @@ export function pluginQuarantine(deps: DiagnosticsDeps = {}): Promise<Result<Qua
           homeId: home.id,
           homeLabel: home.label,
           pluginId: name,
-          detail: `${name} is installed but carries no manifest`,
-          fix: "update the plugin so its manifest is deployed",
+          detail: `${name} is installed but the version in this home declares no plugin manifest`,
+          fix: "reinstall it from a channel that provides one, or wait for a release that does",
         });
       }
     }

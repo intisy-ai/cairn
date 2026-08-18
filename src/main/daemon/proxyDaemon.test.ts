@@ -28,9 +28,9 @@ describe("resolveProxyProfile", () => {
     await expect(resolveProxyProfile({ defs: async () => defs })).resolves.toBe(profile);
   });
 
-  it("names the plugin and points at an update when one is installed but its manifest cannot be read", async () => {
+  it("names the plugin and points at a reinstall when one is installed but its manifest cannot be read", async () => {
     await expect(resolveProxyProfile({ defs: async () => [], unresolved: async () => ["gateway"] }))
-      .rejects.toThrow("gateway is installed but carries no manifest");
+      .rejects.toThrow("gateway is installed but the version in this home declares no plugin manifest");
   });
 });
 

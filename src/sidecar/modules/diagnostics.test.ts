@@ -70,7 +70,7 @@ describe("pluginQuarantine", () => {
       unmanifested: (dir, names) => (dir === "/homes/a" ? names.filter((n) => n === "gateway") : []),
     });
     expect(result).toEqual({ ok: true, data: [
-      { homeId: "app-a", homeLabel: "App A", pluginId: "gateway", detail: "gateway is installed but carries no manifest", fix: "update the plugin so its manifest is deployed" },
+      { homeId: "app-a", homeLabel: "App A", pluginId: "gateway", detail: "gateway is installed but the version in this home declares no plugin manifest", fix: "reinstall it from a channel that provides one, or wait for a release that does" },
     ] });
   });
 });

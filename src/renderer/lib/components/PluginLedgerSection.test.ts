@@ -52,15 +52,15 @@ describe("PluginLedgerSection", () => {
       plugin: "historian",
       quarantine: [{
         homeId: "cairn-desktop", homeLabel: "Cairn",
-        pluginId: "historian", detail: "historian is installed but carries no manifest",
-        fix: "update the plugin so its manifest is deployed",
+        pluginId: "historian", detail: "historian is installed but the version in this home declares no plugin manifest",
+        fix: "reinstall it from a channel that provides one, or wait for a release that does",
       }],
     });
     expect(screen.getByText("OpenCode")).toBeInTheDocument();
     expect(screen.getByText("historian:history")).toBeInTheDocument();
     expect(screen.getByText("Cairn")).toBeInTheDocument();
-    expect(screen.getByText("historian is installed but carries no manifest")).toBeInTheDocument();
-    expect(screen.getByText("update the plugin so its manifest is deployed")).toBeInTheDocument();
+    expect(screen.getByText("historian is installed but the version in this home declares no plugin manifest")).toBeInTheDocument();
+    expect(screen.getByText("reinstall it from a channel that provides one, or wait for a release that does")).toBeInTheDocument();
     expect(screen.queryByText(/not loaded in any home/i)).toBeNull();
   });
 

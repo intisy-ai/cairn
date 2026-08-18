@@ -54,7 +54,7 @@ export async function resolveProxyProfile(
   const def = defs[0];
   if (def) return def.profile();
   const unresolved = await (deps.unresolved ?? (() => unresolvedProxyPlugins(dashboardStoreDir())))();
-  if (unresolved.length > 0) throw new Error(`${unresolved[0]} is installed but carries no manifest; update the plugin so its capabilities can be read`);
+  if (unresolved.length > 0) throw new Error(`${unresolved[0]} is installed but the version in this home declares no plugin manifest; reinstall it from a channel that provides one, or wait for a release that does`);
   throw new Error("no proxy plugin installed");
 }
 
