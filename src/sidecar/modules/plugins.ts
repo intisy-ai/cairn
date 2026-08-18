@@ -303,6 +303,7 @@ async function gitVersionFor(
   autoUpdate: boolean,
   checkedAt: string | null,
   channel: { onExperimental: boolean; experimentalAvailable: boolean | null },
+  declaredChannel: PluginChannel | undefined,
 ): Promise<PluginVersion> {
   const label = formatGitVersion(await describe(repoDir)) ?? (entry?.localHead ? entry.localHead.slice(0, 7) : null);
   return {
@@ -313,6 +314,7 @@ async function gitVersionFor(
     checkedAt,
     onExperimental: channel.onExperimental,
     experimentalAvailable: channel.experimentalAvailable,
+    channel: declaredChannel,
   };
 }
 
@@ -320,12 +322,20 @@ async function gitVersionFor(
 async function markUnknown(
   perHome: Record<string, PluginVersion>,
   name: string,
-  homes: { id: string; dir: string; autoUpdate: boolean }[],
+  homes: { id: string; dir: string; autoUpdate: boolean; channel?: PluginChannel }[],
   channelState: (dir: string, name: string) => { onExperimental: boolean; experimentalAvailable: boolean | null } | Promise<{ onExperimental: boolean; experimentalAvailable: boolean | null }>,
 ): Promise<void> {
   for (const h of homes) {
     const channel = await channelState(h.dir, name);
-    perHome[h.id] = { kind: "git", label: null, updateState: "unknown", autoUpdate: h.autoUpdate, onExperimental: channel.onExperimental, experimentalAvailable: channel.experimentalAvailable };
+    perHome[h.id] = {
+      kind: "git",
+      label: null,
+      updateState: "unknown",
+      autoUpdate: h.autoUpdate,
+      onExperimental: channel.onExperimental,
+      experimentalAvailable: channel.experimentalAvailable,
+      channel: h.channel,
+    };
   }
 }
 
@@ -337,7 +347,7 @@ export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Pro
     const exists = deps.exists ?? existsSync;
     const listGit = deps.getPlugins ?? safeGetPlugins;
     const out: Record<string, PluginVersion> = {};
-    const registeredWithoutClone: { id: string; dir: string; autoUpdate: boolean }[] = [];
+    const registeredWithoutClone: { id: string; dir: string; autoUpdate: boolean; channel?: PluginChannel }[] = [];
     const channelState = deps.channelState ?? realChannelState;
     for (const home of homes) {
       if (!home.present) continue;
@@ -348,11 +358,11 @@ export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Pro
       const repoDir = join(reposDir(home.dir), name);
       if (exists(repoDir)) {
         const channel = await channelState(home.dir, name);
-        out[home.id] = await gitVersionFor(repoDir, entry, describe, autoUpdate, cache.checkedAt ?? null, channel);
+        out[home.id] = await gitVersionFor(repoDir, entry, describe, autoUpdate, cache.checkedAt ?? null, channel, gitEntry?.channel);
       } else if (entry?.kind === "npm") {
         out[home.id] = { kind: "npm", label: entry.installedVersion, updateState: entry.updateAvailable ? "behind" : "current", autoUpdate: true, onExperimental: false, experimentalAvailable: null };
       } else if (gitEntry) {
-        registeredWithoutClone.push({ id: home.id, dir: home.dir, autoUpdate });
+        registeredWithoutClone.push({ id: home.id, dir: home.dir, autoUpdate, channel: gitEntry.channel });
       }
     }
     await markUnknown(out, name, registeredWithoutClone, channelState);
@@ -371,7 +381,7 @@ export function pluginVersionsAll(deps: PluginVersionsDeps = {}): Promise<Result
     const listGit = deps.getPlugins ?? safeGetPlugins;
     const listNpm = deps.npmPlugins ?? getNpmPlugins;
     const out: Record<string, Record<string, PluginVersion>> = {};
-    const missing: Array<{ name: string; homeId: string; dir: string; autoUpdate: boolean }> = [];
+    const missing: Array<{ name: string; homeId: string; dir: string; autoUpdate: boolean; channel?: PluginChannel }> = [];
     const channelState = deps.channelState ?? realChannelState;
     for (const home of homes) {
       if (!home.present) continue;
@@ -384,21 +394,21 @@ export function pluginVersionsAll(deps: PluginVersionsDeps = {}): Promise<Result
           const repoDir = join(reposDir(home.dir), p.name);
           if (!exists(repoDir)) return { p, version: null };
           const channel = await channelState(home.dir, p.name);
-          return { p, version: await gitVersionFor(repoDir, cache.plugins[p.name], describe, p.autoUpdate !== false, cache.checkedAt ?? null, channel) };
+          return { p, version: await gitVersionFor(repoDir, cache.plugins[p.name], describe, p.autoUpdate !== false, cache.checkedAt ?? null, channel, p.channel) };
         }),
       );
       for (const { p, version } of described) {
         out[p.name] ??= {};
         if (version) out[p.name][home.id] = version;
-        else missing.push({ name: p.name, homeId: home.id, dir: home.dir, autoUpdate: p.autoUpdate !== false });
+        else missing.push({ name: p.name, homeId: home.id, dir: home.dir, autoUpdate: p.autoUpdate !== false, channel: p.channel });
       }
       for (const p of await listNpm(home.dir)) {
         const entry = cache.plugins[p.name];
         (out[p.name] ??= {})[home.id] = { kind: "npm", label: entry?.installedVersion ?? null, updateState: entry?.updateAvailable ? "behind" : "current", autoUpdate: true, onExperimental: false, experimentalAvailable: null };
       }
     }
-    for (const { name, homeId, dir, autoUpdate } of missing) {
-      if (!out[name][homeId]) await markUnknown(out[name], name, [{ id: homeId, dir, autoUpdate }], channelState);
+    for (const { name, homeId, dir, autoUpdate, channel } of missing) {
+      if (!out[name][homeId]) await markUnknown(out[name], name, [{ id: homeId, dir, autoUpdate, channel }], channelState);
     }
     // Persist all plugins' versions in a single cache write so the next load
     // renders instantly and only rows that actually changed update.

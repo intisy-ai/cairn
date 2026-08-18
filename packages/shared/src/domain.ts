@@ -302,6 +302,10 @@ export type PluginVersion = {
   onExperimental: boolean;
   // null means the channel branch has not been confirmed either way, and the switch is not offered.
   experimentalAvailable: boolean | null;
+  // The plugins.json entry's own declared channel, straight from disk. Absent for an npm-kind
+  // plugin or an entry that names none, which is not the same as "inherit": only a declared
+  // value belongs here, so the renderer can tell inherit apart from an explicit stable.
+  channel?: "inherit" | "stable" | "experimental";
 };
 export type EngineHomeState = { installed: boolean; enabled: boolean };
 export type EngineView = { id: string; capability: string; url: string; homes: Record<string, EngineHomeState> };

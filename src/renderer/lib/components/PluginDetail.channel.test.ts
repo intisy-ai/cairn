@@ -41,12 +41,16 @@ async function openAvailability(extra: Partial<Record<string, unknown>> = {}) {
   return utils;
 }
 
-function stubVersions(onExperimental: boolean, experimentalAvailable: boolean | null) {
+function stubVersions(
+  onExperimental: boolean,
+  experimentalAvailable: boolean | null,
+  channel?: "inherit" | "stable" | "experimental",
+) {
   stubCairn({
     pluginVersions: async () => ({
       ok: true,
       data: {
-        claude: { kind: "git", label: "v1", updateState: "current", autoUpdate: true, onExperimental, experimentalAvailable },
+        claude: { kind: "git", label: "v1", updateState: "current", autoUpdate: true, onExperimental, experimentalAvailable, channel },
       },
     }),
   });
@@ -113,6 +117,15 @@ describe("PluginDetail channel control", () => {
     const { findByRole } = await openAvailability();
     const experimental = await findByRole("button", { name: /experimental channel for claude code/i });
     expect(experimental.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  // The whole point of this round: the entry's own declared channel, not the resolved boolean,
+  // decides first paint. A plugin on "inherit" must render Default selected without any click.
+  it("renders Default pressed on first paint for a plugin whose entry declares inherit", async () => {
+    stubVersions(false, true, "inherit");
+    const { findByRole } = await openAvailability();
+    const defaultOption = await findByRole("button", { name: /default channel for claude code/i });
+    expect(defaultOption.getAttribute("aria-pressed")).toBe("true");
   });
 
   it("writes an explicit stable channel when Stable is picked", async () => {

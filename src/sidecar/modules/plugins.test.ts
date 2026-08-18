@@ -623,6 +623,22 @@ describe("pluginVersions channel reporting", () => {
     });
     expect(asked).toEqual([["/homes/claude", "demo"]]);
   });
+
+  // The declared channel is the plugins.json entry's own field, distinct from the resolved
+  // onExperimental boolean: it is what lets the renderer tell "inherit" apart from "stable".
+  it("passes the entry's declared channel through, unresolved", async () => {
+    const { pluginVersions } = await import("./plugins.js");
+    const result = await pluginVersions("demo", {
+      homes: [HOME],
+      getPlugins: () => [{ name: "demo", url: "u", channel: "inherit" }],
+      readCache: cacheWith(true),
+      channelState: () => ({ onExperimental: false, experimentalAvailable: true }),
+      exists: () => true,
+      describe: () => "v1.0.0",
+    });
+
+    expect(result.ok && result.data.claude.channel).toBe("inherit");
+  });
 });
 
 describe("plugin versions", () => {

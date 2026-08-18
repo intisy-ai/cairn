@@ -122,19 +122,18 @@
     onChanged?.();
   }
 
-  // The version model only ever reports the RESOLVED boolean (onExperimental), never the raw
-  // channel a home's plugins.json entry carries, so "inherit" and an explicit "stable" render
-  // identically until a selection is made here. This map holds what was actually picked in this
-  // session, which is the only place "inherit" is representable.
-  let channelSelection = $state<Record<string, PluginChannel>>({});
-
+  // versions[homeId].channel is the plugins.json entry's own declared value ("inherit" is a real,
+  // distinct answer there). Only a plugin whose entry never populated it (e.g. read before this
+  // field existed) falls back to the resolved boolean, which cannot tell inherit from stable.
   function selectedChannel(homeId: string): PluginChannel {
-    return channelSelection[homeId] ?? (versions[homeId]?.onExperimental ? "experimental" : "stable");
+    const v = versions[homeId];
+    return v?.channel ?? (v?.onExperimental ? "experimental" : "stable");
   }
 
   async function setChannel(homeId: string, channel: PluginChannel): Promise<void> {
+    const current = versions[homeId];
     const previous = selectedChannel(homeId);
-    channelSelection = { ...channelSelection, [homeId]: channel };
+    if (current) versions = { ...versions, [homeId]: { ...current, channel } };
     let succeeded = false;
     try {
       succeeded = (await onSetChannel?.(homeId, channel)) ?? false;
@@ -143,7 +142,8 @@
     }
     // A failed write must not leave the control showing a channel the disk never moved to.
     if (!succeeded) {
-      channelSelection = { ...channelSelection, [homeId]: previous };
+      const latest = versions[homeId];
+      if (latest) versions = { ...versions, [homeId]: { ...latest, channel: previous } };
     }
   }
 
