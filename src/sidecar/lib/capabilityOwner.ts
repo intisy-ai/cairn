@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { readDeployedManifests } from "@core-loader/plugin-manifests.js";
+import { readDeployedManifests } from "@intisy-ai/plugin-host";
 import { pluginDir, reposDir } from "./storagePaths.js";
 
 /** One plugin deployed in a home, as its manifest sidecar describes it. */

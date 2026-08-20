@@ -6,8 +6,8 @@ import {
   startPlugins,
   DEFAULT_CALL_TIMEOUT_MS,
   DEFAULT_INVOKE_TIMEOUT_MS,
-} from "@core-loader/plugin-host.js";
-import type { LoadedHost, LoaderHostOptions, PluginLedgerRow } from "@core-loader/plugin-host.js";
+} from "@intisy-ai/plugin-host";
+import type { LoadedHost, PluginHostOptions, PluginLedgerRow } from "@intisy-ai/plugin-host";
 import { pluginDir } from "./storagePaths.js";
 
 export { DEFAULT_CALL_TIMEOUT_MS, DEFAULT_INVOKE_TIMEOUT_MS };
@@ -27,7 +27,7 @@ process.env.PLUGIN_UPDATER_ACTIVATION = "0";
 setDiagnosticSink((message: string) => { process.stderr.write("[plugin-api] " + message + "\n"); });
 
 export interface PluginHostDeps {
-  start?: (options: LoaderHostOptions) => Promise<LoadedHost>;
+  start?: (options: PluginHostOptions) => Promise<LoadedHost>;
 }
 
 export interface CapabilityRecord {

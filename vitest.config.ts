@@ -9,6 +9,7 @@ export default defineConfig({
     conditions: process.env.VITEST ? ["browser"] : [],
     alias: {
       "@intisy-ai/api": fileURLToPath(new URL("./core/node_modules/@intisy-ai/api/dist/index.js", import.meta.url)),
+      "@intisy-ai/plugin-host": fileURLToPath(new URL("./plugin-host/dist/index.js", import.meta.url)),
       "@core": fileURLToPath(new URL("./core/dist", import.meta.url)),
       "@core-auth": fileURLToPath(new URL("./core-auth/dist", import.meta.url)),
       "@core-loader": fileURLToPath(new URL("./core-loader/dist", import.meta.url)),
