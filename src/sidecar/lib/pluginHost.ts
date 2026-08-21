@@ -1,4 +1,4 @@
-import { setDiagnosticSink } from "@intisy-ai/api";
+import { setDiagnosticSink } from "@intisy-ai/api/engine";
 import { createPluginRuntime } from "@core/index.js";
 import {
   callCapability,

@@ -8,6 +8,9 @@ export default defineConfig({
   resolve: {
     conditions: process.env.VITEST ? ["browser"] : [],
     alias: {
+      // First, because a string alias is a prefix match: without this, "@intisy-ai/api/engine"
+      // rewrites to ".../dist/index.js/engine".
+      "@intisy-ai/api/engine": fileURLToPath(new URL("./core/node_modules/@intisy-ai/api/generated/engine.js", import.meta.url)),
       "@intisy-ai/api": fileURLToPath(new URL("./core/node_modules/@intisy-ai/api/dist/index.js", import.meta.url)),
       "@intisy-ai/plugin-host": fileURLToPath(new URL("./plugin-host/dist/index.js", import.meta.url)),
       "@core": fileURLToPath(new URL("./core/dist", import.meta.url)),
