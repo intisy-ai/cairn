@@ -45,11 +45,26 @@ export function attachLogCollector(app: SandboxedElectronApp, page: SandboxedPag
   return events;
 }
 
+// Playwright's Electron support attaches a Node debugger to the main process (so
+// `electronApp.evaluate()` can run there); these two exact lines are Node's own
+// diagnostics when that inspector session ends, not anything Cairn's code prints.
+// Anchored start-to-end on the literal message shape so a real error cannot hide
+// behind a loose match (see logCollector.test.ts for the adversarial proof).
+const PLAYWRIGHT_INSPECTOR_DETACH_LINES: readonly RegExp[] = [
+  /^Debugger ending on ws:\/\/[^\s]+$/,
+  /^For help, see: https:\/\/nodejs\.org\/en\/docs\/inspector$/,
+];
+
+export function isPlaywrightInspectorArtifact(text: string): boolean {
+  return PLAYWRIGHT_INSPECTOR_DETACH_LINES.some((pattern) => pattern.test(text));
+}
+
 /**
  * Every renderer console error, every uncaught page error, every main-process stderr
- * line, and every "[sidecar]" line at all (not just its error-level ones) count as a
- * failure: the harness must stay honest about anything unexpected, per how quiet the
- * sidecar is expected to be in normal operation.
+ * line (other than Playwright's own inspector-detach diagnostics), and every
+ * "[sidecar]" line at all (not just its error-level ones) count as a failure: the
+ * harness must stay honest about anything unexpected, per how quiet the sidecar is
+ * expected to be in normal operation.
  */
 export function failuresIn(events: LogEvent[]): LogEvent[] {
   return events.filter(
@@ -57,6 +72,6 @@ export function failuresIn(events: LogEvent[]): LogEvent[] {
       event.source === "pageerror"
       || event.source === "sidecar"
       || (event.source === "console" && event.level === "error")
-      || (event.source === "main" && event.level === "error"),
+      || (event.source === "main" && event.level === "error" && !isPlaywrightInspectorArtifact(event.text)),
   );
 }
