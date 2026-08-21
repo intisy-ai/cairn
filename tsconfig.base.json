@@ -13,7 +13,7 @@
     // on purpose: Cairn reads that plugin's config, located by capability, never its code.
     "paths": {
       "@intisy-ai/api/engine": ["./core/node_modules/@intisy-ai/api/generated/engine.d.ts"],
-      "@intisy-ai/api": ["./core/node_modules/@intisy-ai/api/dist/index.d.ts"],
+      "@intisy-ai/api": ["./core/node_modules/@intisy-ai/api/generated/api.keys.d.ts"],
       "@intisy-ai/plugin-host": ["./plugin-host/dist/index.d.ts"],
       "@core/*": ["./core/dist/*"],
       "@core-auth/*": ["./core-auth/dist/*"],
