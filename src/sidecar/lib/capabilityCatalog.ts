@@ -3,6 +3,7 @@ import type { CatalogDeps, CatalogEntry } from "@core-loader/capability-catalog.
 import { readMarketplaceSources, builtInSource } from "@core-loader/catalog-sources.js";
 import type { MarketplaceSource } from "@core-loader/catalog-sources.js";
 import { pathsForHome } from "./storagePaths.js";
+import { resolveToken } from "./orgScan.js";
 
 export type { CatalogEntry };
 
@@ -23,6 +24,38 @@ function pathsOf(homeDir: string) {
   };
 }
 
+/**
+ * A GitHub read carrying whatever credential this machine has connected.
+ *
+ * @remarks
+ * core-loader's own default sends a User-Agent and nothing else, so every catalog build queried
+ * GitHub anonymously against its 60-per-hour budget while the marketplace list beside it used a
+ * token. One catalog build fans a manifest read out across every repository in the org, so the
+ * anonymous budget is exhausted by a single build and the capability lookup then answers "no plugin
+ * provides this" instead of "GitHub refused me". Credential resolution belongs here rather than in
+ * core-loader, which owns no accounts.
+ */
+function authenticatedFetchJson(): (url: string) => Promise<unknown> {
+  return async (url: string) => {
+    const { token } = await resolveToken(process.env, async () => "");
+    try {
+      const response = await fetch(url, {
+        headers: token
+          ? { "User-Agent": "cairn", Authorization: `Bearer ${token}` }
+          : { "User-Agent": "cairn" },
+      });
+      if (!response.ok) return null;
+      return await response.json();
+    } catch {
+      return null;
+    }
+  };
+}
+
+function withCredential(deps: CatalogDeps): CatalogDeps {
+  return deps.fetchJson ? deps : { ...deps, fetchJson: authenticatedFetchJson() };
+}
+
 function sourcesOf(homeDir: string): MarketplaceSource[] {
   try {
     // readMarketplaceSources already falls back to [builtInSource()] when a home declares
@@ -36,7 +69,7 @@ function sourcesOf(homeDir: string): MarketplaceSource[] {
 /** Every repository the home's declared marketplace sources offer, from its cache while fresh. */
 export async function catalogEntriesFor(homeDir: string, deps: CatalogDeps = {}): Promise<CatalogEntry[]> {
   try {
-    return await catalogFor(sourcesOf(homeDir), pathsOf(homeDir), CATALOG_WINDOW_MS, deps);
+    return await catalogFor(sourcesOf(homeDir), pathsOf(homeDir), CATALOG_WINDOW_MS, withCredential(deps));
   } catch {
     return [];
   }
@@ -56,7 +89,7 @@ export async function repoProvidingCapability(
   deps: CatalogDeps = {},
 ): Promise<CatalogEntry | null> {
   try {
-    const found = await queryCapability(capabilityId, sourcesOf(homeDir), pathsOf(homeDir), CATALOG_WINDOW_MS, deps);
+    const found = await queryCapability(capabilityId, sourcesOf(homeDir), pathsOf(homeDir), CATALOG_WINDOW_MS, withCredential(deps));
     return found[0] ?? null;
   } catch {
     return null;
