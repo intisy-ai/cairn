@@ -55,10 +55,8 @@ describe("Cairn end-to-end", () => {
     }
   });
 
-  it("renders the 11 always-visible sidebar screens with a matching heading, no thrown errors", async () => {
-    // Routing is excluded here and pinned separately below: it is the only one of the
-    // twelve screens with a conditional sidebar gate (Sidebar.svelte's hasRouting check).
-    for (const screen of SCREENS.filter((candidate) => candidate.id !== "routing")) {
+  it("renders the 12 always-visible sidebar screens with a matching heading, no thrown errors", async () => {
+    for (const screen of SCREENS) {
       const button = page.locator(`button[title="${screen.label}"]`);
       try {
         await button.waitFor({ state: "visible", timeout: 5000 });
@@ -88,24 +86,19 @@ describe("Cairn end-to-end", () => {
     expect(failed, JSON.stringify(failed, null, 2)).toEqual([]);
   });
 
-  /**
-   * @implNote Pins current behaviour deliberately: Routing is the only one of the
-   * twelve screens gated on hasRouting, which stays false when routingApps() resolves
-   * empty (no proxy plugin installed). If Routing is ever made unconditional, this test
-   * must fail so whoever changes the gate sees it, rather than the gap silently closing
-   * with no signal either way.
-   */
-  it("pins the routing screen's conditional sidebar gate: hidden with no proxy plugin installed", async () => {
-    const routingButtonCount = await page.locator('button[title="Routing"]').count();
-    expect(routingButtonCount).toBe(0);
+  it("shows the routing screen's empty state when no proxy plugin is installed", async () => {
+    await page.locator('button[title="Routing"]').click();
+    await page.waitForFunction(
+      () => document.querySelector("h1")?.textContent?.trim() === "Routing",
+      { timeout: 15000 },
+    );
 
-    const routingAppsResult = await page.evaluate(() => {
-      const bridge = (window as unknown as { cairn: { routingApps: () => Promise<{ ok: boolean; data?: unknown[] }> } }).cairn;
-      return bridge.routingApps();
-    });
-    console.log("[cairn-e2e] routingApps() while the sidebar hides Routing:", JSON.stringify(routingAppsResult));
-    expect(routingAppsResult.ok).toBe(true);
-    expect(routingAppsResult.data).toEqual([]);
+    const message = (await page.locator(".empty .msg").textContent())?.trim();
+    expect(message).toBe("Install a proxy in Plugins to configure routing.");
+
+    const browseProxiesButton = page.locator(".empty button", { hasText: "Browse proxies" });
+    expect(await browseProxiesButton.count()).toBe(1);
+    expect(await browseProxiesButton.isVisible()).toBe(true);
   });
 
   it("writes into the sandboxed store dir rather than merely having it configured", async () => {

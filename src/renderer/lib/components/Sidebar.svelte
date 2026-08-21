@@ -13,12 +13,9 @@
     brandName = "Cairn",
     brandTag = "AI control plane",
     apiPort = PROXY_PORT,
-    hasRouting = true,
-  }: { brandName?: string; brandTag?: string; apiPort?: number; hasRouting?: boolean } = $props();
+  }: { brandName?: string; brandTag?: string; apiPort?: number } = $props();
 
-  const mainScreens = $derived(
-    SCREENS.filter((screen) => screen.section === "main" && (hasRouting || screen.id !== "routing")),
-  );
+  const mainScreens = $derived(SCREENS.filter((screen) => screen.section === "main"));
   const networkScreens = SCREENS.filter((screen) => screen.section === "network");
 
   // Three states, because "not yet known" must not read as running.

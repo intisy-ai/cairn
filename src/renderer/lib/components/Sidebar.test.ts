@@ -8,15 +8,9 @@ import Sidebar from "./Sidebar.svelte";
 import { serverStatus } from "../serverStatus.js";
 
 describe("Sidebar", () => {
-  it("hides the Routing nav item when hasRouting is false", () => {
+  it("always shows the Routing nav item", () => {
     stubCairn();
-    const { queryByText } = render(Sidebar, { props: { hasRouting: false } });
-    expect(queryByText("Routing")).toBeNull();
-  });
-
-  it("shows the Routing nav item when hasRouting is true", () => {
-    stubCairn();
-    const { getByText } = render(Sidebar, { props: { hasRouting: true } });
+    const { getByText } = render(Sidebar);
     expect(getByText("Routing")).toBeTruthy();
   });
 });
@@ -24,7 +18,7 @@ describe("Sidebar", () => {
 describe("contributed screens", () => {
   it("renders a nav item per contributed screen, with its declared label and glyph", async () => {
     stubCairn({ screensList: async () => ({ ok: true, data: [{ plugin: "config-ledger", id: "main", label: "Ledger", glyph: "@", homes: ["claude"], layout: { kind: "text" } }] }) });
-    render(Sidebar, { props: { hasRouting: true } });
+    render(Sidebar);
 
     const button = await screen.findByRole("button", { name: /Ledger/ });
     expect(button.textContent).toContain("@");
@@ -32,7 +26,7 @@ describe("contributed screens", () => {
 
   it("navigates to that plugin's own screen when the item is pressed", async () => {
     stubCairn({ screensList: async () => ({ ok: true, data: [{ plugin: "config-ledger", id: "main", label: "Ledger", homes: ["claude"], layout: { kind: "text" } }] }) });
-    render(Sidebar, { props: { hasRouting: true } });
+    render(Sidebar);
 
     await fireEvent.click(await screen.findByRole("button", { name: /Ledger/ }));
     expect(get(router).screen).toBe("plugin:config-ledger:main");
@@ -41,7 +35,7 @@ describe("contributed screens", () => {
 
   it("shows no plugin section at all when nothing contributes a screen", async () => {
     stubCairn({ screensList: async () => ({ ok: true, data: [] }) });
-    render(Sidebar, { props: { hasRouting: true } });
+    render(Sidebar);
 
     await waitFor(() => expect(screen.getByText("Network")).toBeInTheDocument());
     expect(screen.queryByText("Plugins", { selector: "p" })).toBeNull();
@@ -59,7 +53,7 @@ describe("screen painting", () => {
           : { ok: true as const, data: [{ plugin: "ledger", id: "main", label: "Cached", homes: ["claude"], layout: { kind: "text" } }] };
       },
     });
-    render(Sidebar, { props: { hasRouting: true } });
+    render(Sidebar);
 
     expect(await screen.findByRole("button", { name: /Cached/ })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /Fresh/ })).toBeInTheDocument();
@@ -73,7 +67,7 @@ describe("screen painting", () => {
         ? { ok: true as const, data: [{ plugin: "ledger", id: "main", label: "Ledger", homes: ["claude"], layout: { kind: "text" } }] }
         : { ok: true as const, data: undefined as never }),
     });
-    render(Sidebar, { props: { hasRouting: true } });
+    render(Sidebar);
 
     expect(await screen.findByRole("button", { name: /Ledger/ })).toBeInTheDocument();
   });
@@ -84,7 +78,7 @@ describe("screen painting", () => {
         ? { ok: true as const, data: [{ plugin: "ledger", id: "main", label: "Ledger", homes: ["claude"], layout: { kind: "text" } }] }
         : { ok: true as const, data: [] }),
     });
-    render(Sidebar, { props: { hasRouting: true } });
+    render(Sidebar);
 
     expect(await screen.findByRole("button", { name: /Ledger/ })).toBeInTheDocument();
   });
