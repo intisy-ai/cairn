@@ -94,7 +94,7 @@ describe.each(["claude", "opencode"])("installing the plugin manager into the %s
     expect(typeof sidecar.api, "sidecar declares an api floor").toBe("number");
 
     // The whole chain, not just the file: a host scanning this home must actually see the plugin.
-    const { readDeployedManifests } = await import("@intisy-ai/plugin-host");
+    const { readDeployedManifests } = await import("@intisy-ai/api/host");
     const scan = readDeployedManifests(pluginDir(home.dir));
     expect(scan.failed.map((f) => f.detail), "no sidecar failed to validate").toEqual([]);
     expect(scan.loaded.map((p) => p.manifest.id), "the scan finds the manager").toContain(manager.id);

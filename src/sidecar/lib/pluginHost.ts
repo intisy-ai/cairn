@@ -7,8 +7,8 @@ import {
   startPlugins,
   DEFAULT_CALL_TIMEOUT_MS,
   DEFAULT_INVOKE_TIMEOUT_MS,
-} from "@intisy-ai/plugin-host";
-import type { LoadedHost, PluginHostOptions, PluginLedgerRow } from "@intisy-ai/plugin-host";
+} from "@intisy-ai/api/host";
+import type { LoadedHost, PluginHostOptions, PluginLedgerRow } from "@intisy-ai/api/host";
 import { pluginDir } from "./storagePaths.js";
 
 export { DEFAULT_CALL_TIMEOUT_MS, DEFAULT_INVOKE_TIMEOUT_MS };

@@ -10,8 +10,8 @@ export default defineConfig({
         // bare "@intisy-ai/api" entry, an import of "@intisy-ai/api/engine" rewrites to
         // ".../dist/index.js/engine" and fails to load.
         "@intisy-ai/api/engine": fileURLToPath(new URL("./core/node_modules/@intisy-ai/api/generated/engine.js", import.meta.url)),
+        "@intisy-ai/api/host": fileURLToPath(new URL("./core/node_modules/@intisy-ai/api/dist/host/index.js", import.meta.url)),
         "@intisy-ai/api": fileURLToPath(new URL("./core/node_modules/@intisy-ai/api/generated/api.keys.js", import.meta.url)),
-        "@intisy-ai/plugin-host": fileURLToPath(new URL("./plugin-host/dist/index.js", import.meta.url)),
         "@core": fileURLToPath(new URL("./core/dist", import.meta.url)),
         "@core-auth": fileURLToPath(new URL("./core-auth/dist", import.meta.url)),
         "@core-loader": fileURLToPath(new URL("./core-loader/dist", import.meta.url)),
