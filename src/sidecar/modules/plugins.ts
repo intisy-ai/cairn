@@ -6,6 +6,7 @@ const execFileAsync = promisify(execFile);
 import { join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
 import { getConfigValue, activityEnv } from "@core/index.js";
+import type { ActionResult, ManagedNpmPlugin, ManagedPlugin, PluginManagementCapability } from "@core/index.js";
 import { readPluginManifest } from "../lib/pluginManifest.js";
 import { pluginIdFromClone } from "../lib/capabilityOwner.js";
 import { emitCairnAction } from "../activity.js";
@@ -15,19 +16,14 @@ import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, PluginVersion, U
 import { pluginHomes, homeDir, homeById, updaterInstalled } from "../lib/pluginHomes.js";
 import { readNamespace, writeCacheMany } from "../lib/cache.js";
 import {
-  safeGetPlugins,
-  safeMissingArtifacts,
-  loadPluginUpdaterConfig,
-  loadPluginUpdaterCache,
   loadPluginUpdaterEnv,
-  loadPluginUpdaterNpm,
   loadPluginUpdaterIndex,
   loadPluginUpdaterInit,
 } from "../lib/optionalEngines.js";
 import { repoProvidingCapability } from "../lib/capabilityCatalog.js";
 import { pluginOwningCapability } from "./engines.js";
 import { pruneUnusedLibraries } from "./libraryPrune.js";
-import { invokeCrossAppSync } from "../lib/pluginManager.js";
+import { invokeCrossAppSync, invokePluginManagement, listedPlugins, readPluginManagement } from "../lib/pluginManager.js";
 import { wrap } from "../result.js";
 import { reposDir } from "../lib/storagePaths.js";
 
@@ -53,8 +49,8 @@ async function isPluginManager(name: string, homeDir: string): Promise<boolean> 
 type PluginChannel = "inherit" | "stable" | "experimental";
 type UpdatePluginPublicFn = (name: string, url: string, branch?: string, commitHash?: string) => Promise<void | object>;
 type SyncPluginsAcrossAppsFn = (configDir: string, appId: string) => Promise<void>;
-type DowngradeFn = (plugin: { name: string; url?: string; branch?: string }, commitHash: string) => string;
-type HasUpdaterFn = (dir: string) => boolean | Promise<boolean>;
+type DowngradeFn = (name: string, commitHash: string, appId: string) => Promise<ActionResult | null>;
+type HasUpdaterFn = (dir: string, appId: string) => boolean | Promise<boolean>;
 type RegisterWithAppFn = (dir: string, app: string) => void | Promise<void>;
 
 const EMPTY_UPDATE_CACHE: UpdateCache = { checkedAt: new Date(0).toISOString(), plugins: {} };
@@ -63,41 +59,48 @@ const EMPTY_UPDATE_CACHE: UpdateCache = { checkedAt: new Date(0).toISOString(), 
 // this build, reads degrade to empty results and writes fail with a clear, catchable error
 // (via wrap()) instead of an unhandled module-resolution crash.
 export function requirePluginUpdater<T>(mod: T | null): T {
-  if (!mod) throw new Error("plugin-updater is not available in this build");
+  if (!mod) throw new Error("the plugin manager is not part of this build");
   return mod;
 }
 
-async function realRegisterPlugin(dir: string, name: string, url: string, autoUpdate?: boolean): Promise<void> {
-  requirePluginUpdater(await loadPluginUpdaterConfig()).registerPlugin(dir, name, url, autoUpdate);
+async function realRegisterPlugin(dir: string, name: string, url: string, appId: string): Promise<void> {
+  const registered = await invokePluginManagement(dir, appId, "register", null, (capability) => capability.register(url));
+  if (!registered) throw new Error(`nothing manages the plugins of ${appId}`);
 }
 
-// null means the engine itself is unavailable, distinct from boolean false (engine present,
-// plugin not found) so callers can report the real cause instead of a misleading "not found".
-async function realSetPluginEnabled(dir: string, name: string, on: boolean): Promise<boolean | null> {
-  const mod = await loadPluginUpdaterConfig();
-  return mod ? mod.setPluginEnabled(dir, name, on) : null;
+// null means no manager answered at all, distinct from a refusal (a manager answered and said the
+// plugin is not there), so callers report the real cause instead of a misleading "not found".
+async function wrote(
+  dir: string,
+  appId: string,
+  operation: string,
+  work: (capability: PluginManagementCapability) => Promise<ActionResult>,
+): Promise<boolean | null> {
+  const answer = await invokePluginManagement(dir, appId, operation, null, work);
+  return answer === null ? null : answer.ok;
 }
 
-async function realSetPluginAutoUpdate(dir: string, name: string, on: boolean): Promise<boolean | null> {
-  const mod = await loadPluginUpdaterConfig();
-  return mod ? mod.setPluginAutoUpdate(dir, name, on) : null;
+function realSetPluginEnabled(dir: string, name: string, on: boolean, appId: string): Promise<boolean | null> {
+  return wrote(dir, appId, "setEnabled", (capability) => capability.setEnabled(name, on));
 }
 
-async function realSetPluginChannel(dir: string, name: string, channel: PluginChannel): Promise<boolean | null> {
-  const mod = await loadPluginUpdaterConfig();
-  return mod ? mod.setPluginChannel(dir, name, channel) : null;
+function realSetPluginAutoUpdate(dir: string, name: string, on: boolean, appId: string): Promise<boolean | null> {
+  return wrote(dir, appId, "setAutoUpdate", (capability) => capability.setAutoUpdate(name, on));
 }
 
-async function realReadUpdateCache(dir: string): Promise<UpdateCache> {
-  const mod = await loadPluginUpdaterCache();
-  return mod ? mod.readUpdateCache(dir) : EMPTY_UPDATE_CACHE;
+function realSetPluginChannel(dir: string, name: string, channel: PluginChannel, appId: string): Promise<boolean | null> {
+  return wrote(dir, appId, "setChannel", (capability) => capability.setChannel(name, channel));
 }
 
-// The single question both the dashboard and the loader TUI ask; without the engine there is
-// no channel to report, so a missing plugin-updater reads the same as "never opted in".
-async function realChannelState(dir: string, name: string): Promise<{ onExperimental: boolean; experimentalAvailable: boolean | null }> {
-  const mod = await loadPluginUpdaterIndex();
-  return mod ? mod.pluginChannelState(dir, name) : { onExperimental: false, experimentalAvailable: null };
+function realReadUpdateCache(dir: string, appId: string): Promise<UpdateCache> {
+  return readPluginManagement(dir, appId, "updateCache", EMPTY_UPDATE_CACHE, (capability) => capability.updateCache());
+}
+
+// The single question both the dashboard and the loader TUI ask; a home with no manager has no
+// channel to report, which reads the same as "never opted in".
+function realChannelState(dir: string, name: string, appId: string): Promise<{ onExperimental: boolean; experimentalAvailable: boolean | null }> {
+  return readPluginManagement(dir, appId, "channelState", { onExperimental: false, experimentalAvailable: null },
+    (capability) => capability.channelState(name));
 }
 
 // Reconciling across homes belongs to whichever plugin provides it, so this asks the home rather
@@ -115,11 +118,8 @@ async function realRegisterWithApp(dir: string, app: string): Promise<void> {
   requirePluginUpdater(await loadPluginUpdaterInit()).registerUpdaterWithApp(dir, app);
 }
 
-// Loaded dynamically (not statically bundled) because npm.js's require.resolve
-// fallback trips a Rollup CommonJS-interop bug when inlined into this chunk.
-async function getNpmPlugins(configDir: string): Promise<NpmPlugin[]> {
-  const mod = await loadPluginUpdaterNpm();
-  return mod ? mod.getNpmPlugins(configDir) : [];
+function getNpmPlugins(configDir: string, appId: string): Promise<ManagedNpmPlugin[]> {
+  return readPluginManagement(configDir, appId, "listNpm", [], (capability) => capability.listNpm());
 }
 
 // Sidecar RPCs run concurrently, but plugin-updater resolves its write target
@@ -190,18 +190,25 @@ function rowFor(name: string, kind: "git" | "npm", enabled: boolean, url: string
 export interface PluginsDeps {
   homes?: PluginHome[];
   cacheDir?: string;
-  missingArtifacts?: (dir: string, name: string) => Promise<string[]>;
+  missingArtifacts?: (dir: string, name: string, appId: string) => Promise<string[]>;
   updatePluginPublic?: UpdatePluginPublicFn;
   syncPluginsAcrossApps?: SyncPluginsAcrossAppsFn;
   downgrade?: DowngradeFn;
-  npmPlugins?: (dir: string) => Promise<NpmPlugin[]>;
-  uninstallPlugin?: (dir: string, name: string) => void;
-  uninstallNpmPlugin?: (name: string, dir: string) => string;
+  npmPlugins?: (dir: string, appId: string) => Promise<ManagedNpmPlugin[]>;
+  uninstallPlugin?: (name: string, appId: string) => Promise<ActionResult | null>;
+  uninstallNpmPlugin?: (name: string, appId: string) => Promise<ActionResult | null>;
   hasUpdater?: HasUpdaterFn;
   registerWithApp?: RegisterWithAppFn;
   ensureUpdater?: (homeId: string) => Promise<Result<void>>;
-  setPluginChannel?: (dir: string, name: string, channel: PluginChannel) => boolean | null | Promise<boolean | null>;
-  getPlugins?: (dir: string) => Plugin[] | Promise<Plugin[]>;
+  // Symmetric with setPluginChannel: the write itself belongs to the home's manager, so these are
+  // the seam a test observes the delegation through rather than by reading a file this no longer
+  // writes.
+  readCache?: (dir: string, appId: string) => UpdateCache | Promise<UpdateCache>;
+  registerPlugin?: (dir: string, name: string, url: string, appId: string) => Promise<void>;
+  setPluginEnabled?: (dir: string, name: string, on: boolean, appId: string) => boolean | null | Promise<boolean | null>;
+  setPluginAutoUpdate?: (dir: string, name: string, on: boolean, appId: string) => boolean | null | Promise<boolean | null>;
+  setPluginChannel?: (dir: string, name: string, channel: PluginChannel, appId: string) => boolean | null | Promise<boolean | null>;
+  getPlugins?: (dir: string, appId: string) => ManagedPlugin[] | Promise<ManagedPlugin[]>;
   // Called at each phase boundary so a download row can show live progress;
   // percent is coarse phase-based progress 0..100.
   report?: (step: string, percent: number) => void;
@@ -215,19 +222,20 @@ async function resolveHomes(deps: PluginsDeps): Promise<PluginHome[]> {
 export function pluginsList(deps: PluginsDeps = {}): Promise<Result<HomePlugins[]>> {
   return wrap(async () => {
     const homes = await resolveHomes(deps);
-    const listGit = deps.getPlugins ?? safeGetPlugins;
-    const missingArtifacts = deps.missingArtifacts ?? safeMissingArtifacts;
+    const listGit = deps.getPlugins ?? listedPlugins;
+    const missingArtifacts = deps.missingArtifacts ?? ((dir: string, name: string, appId: string) =>
+      readPluginManagement(dir, appId, "missingArtifacts", [] as string[], (capability) => capability.missingArtifacts(name)));
     // Homes are independent, so they are read concurrently rather than one after
     // another: the list is what the user waits on before any plugin screen paints.
     const sections = await Promise.all(homes.map(async (home): Promise<HomePlugins> => {
       if (!home.present) return { home, rows: [] };
-      const cache = await realReadUpdateCache(home.dir);
-      const gitRows = await Promise.all((await listGit(home.dir)).map(async (p) => ({
-        ...rowFor(p.name, "git", p.enabled !== false, p.url, cache, home.dir),
+      const cache = await (deps.readCache ?? realReadUpdateCache)(home.dir, home.id);
+      const gitRows = await Promise.all((await listGit(home.dir, home.id)).map(async (p) => ({
+        ...rowFor(p.id, "git", p.enabled, p.url, cache, home.dir),
         // Only a git clone has a build to be incomplete; an npm install either resolved or did not.
-        missingArtifacts: await missingArtifacts(home.dir, p.name),
+        missingArtifacts: await missingArtifacts(home.dir, p.id, home.id),
       })));
-      const npmRows = (await getNpmPlugins(home.dir)).map((p) => rowFor(p.name, "npm", true, undefined, cache, home.dir));
+      const npmRows = (await (deps.npmPlugins ?? getNpmPlugins)(home.dir, home.id)).map((p) => rowFor(p.name, "npm", true, undefined, cache, home.dir));
       return { home, rows: [...gitRows, ...npmRows] };
     }));
     writeCacheMany(PLUGINS_NS, Object.fromEntries(sections.map((s) => [s.home.id, s])), deps.cacheDir ?? getConfigDir());
@@ -271,9 +279,9 @@ export interface PluginVersionsDeps {
   readCache?: (dir: string) => UpdateCache | Promise<UpdateCache>;
   describe?: (dir: string) => string | null | Promise<string | null>;
   exists?: (path: string) => boolean;
-  getPlugins?: (dir: string) => Plugin[] | Promise<Plugin[]>;
-  npmPlugins?: (dir: string) => Promise<NpmPlugin[]>;
-  channelState?: (dir: string, name: string) => { onExperimental: boolean; experimentalAvailable: boolean | null } | Promise<{ onExperimental: boolean; experimentalAvailable: boolean | null }>;
+  getPlugins?: (dir: string, appId: string) => ManagedPlugin[] | Promise<ManagedPlugin[]>;
+  npmPlugins?: (dir: string, appId: string) => Promise<ManagedNpmPlugin[]>;
+  channelState?: (dir: string, name: string, appId: string) => { onExperimental: boolean; experimentalAvailable: boolean | null } | Promise<{ onExperimental: boolean; experimentalAvailable: boolean | null }>;
   // Where the persistent version cache lives; "" disables it (used in tests).
   cacheDir?: string;
 }
@@ -324,11 +332,11 @@ async function gitVersionFor(
 async function markUnknown(
   perHome: Record<string, PluginVersion>,
   name: string,
-  homes: { id: string; dir: string; autoUpdate: boolean; channel?: PluginChannel }[],
-  channelState: (dir: string, name: string) => { onExperimental: boolean; experimentalAvailable: boolean | null } | Promise<{ onExperimental: boolean; experimentalAvailable: boolean | null }>,
+  homes: { id: string; appId: string; dir: string; autoUpdate: boolean; channel?: PluginChannel }[],
+  channelState: (dir: string, name: string, appId: string) => { onExperimental: boolean; experimentalAvailable: boolean | null } | Promise<{ onExperimental: boolean; experimentalAvailable: boolean | null }>,
 ): Promise<void> {
   for (const h of homes) {
-    const channel = await channelState(h.dir, name);
+    const channel = await channelState(h.dir, name, h.appId);
     perHome[h.id] = {
       kind: "git",
       label: null,
@@ -347,24 +355,24 @@ export function pluginVersions(name: string, deps: PluginVersionsDeps = {}): Pro
     const readCache = deps.readCache ?? realReadUpdateCache;
     const describe = deps.describe ?? realDescribe;
     const exists = deps.exists ?? existsSync;
-    const listGit = deps.getPlugins ?? safeGetPlugins;
+    const listGit = deps.getPlugins ?? listedPlugins;
     const out: Record<string, PluginVersion> = {};
-    const registeredWithoutClone: { id: string; dir: string; autoUpdate: boolean; channel?: PluginChannel }[] = [];
+    const registeredWithoutClone: { id: string; appId: string; dir: string; autoUpdate: boolean; channel?: PluginChannel }[] = [];
     const channelState = deps.channelState ?? realChannelState;
     for (const home of homes) {
       if (!home.present) continue;
-      const cache = await readCache(home.dir);
+      const cache = await readCache(home.dir, home.id);
       const entry = cache.plugins[name];
-      const gitEntry = (await listGit(home.dir)).find((p) => p.name === name);
+      const gitEntry = (await listGit(home.dir, home.id)).find((p) => p.id === name);
       const autoUpdate = gitEntry ? gitEntry.autoUpdate !== false : true;
       const repoDir = join(reposDir(home.dir), name);
       if (exists(repoDir)) {
-        const channel = await channelState(home.dir, name);
+        const channel = await channelState(home.dir, name, home.id);
         out[home.id] = await gitVersionFor(repoDir, entry, describe, autoUpdate, cache.checkedAt ?? null, channel, gitEntry?.channel);
       } else if (entry?.kind === "npm") {
         out[home.id] = { kind: "npm", label: entry.installedVersion, updateState: entry.updateAvailable ? "behind" : "current", autoUpdate: true, onExperimental: false, experimentalAvailable: null };
       } else if (gitEntry) {
-        registeredWithoutClone.push({ id: home.id, dir: home.dir, autoUpdate, channel: gitEntry.channel });
+        registeredWithoutClone.push({ id: home.id, appId: home.id, dir: home.dir, autoUpdate, channel: gitEntry.channel });
       }
     }
     await markUnknown(out, name, registeredWithoutClone, channelState);
@@ -380,37 +388,37 @@ export function pluginVersionsAll(deps: PluginVersionsDeps = {}): Promise<Result
     const readCache = deps.readCache ?? realReadUpdateCache;
     const describe = deps.describe ?? realDescribe;
     const exists = deps.exists ?? existsSync;
-    const listGit = deps.getPlugins ?? safeGetPlugins;
+    const listGit = deps.getPlugins ?? listedPlugins;
     const listNpm = deps.npmPlugins ?? getNpmPlugins;
     const out: Record<string, Record<string, PluginVersion>> = {};
-    const missing: Array<{ name: string; homeId: string; dir: string; autoUpdate: boolean; channel?: PluginChannel }> = [];
+    const missing: Array<{ name: string; homeId: string; appId: string; dir: string; autoUpdate: boolean; channel?: PluginChannel }> = [];
     const channelState = deps.channelState ?? realChannelState;
     for (const home of homes) {
       if (!home.present) continue;
-      const cache = await readCache(home.dir);
+      const cache = await readCache(home.dir, home.id);
       // Describe every cloned git plugin in this home in parallel so the whole
       // home is one batch of concurrent git subprocesses, not a serial chain.
-      const gitEntries = await listGit(home.dir);
+      const gitEntries = await listGit(home.dir, home.id);
       const described = await Promise.all(
         gitEntries.map(async (p) => {
-          const repoDir = join(reposDir(home.dir), p.name);
+          const repoDir = join(reposDir(home.dir), p.id);
           if (!exists(repoDir)) return { p, version: null };
-          const channel = await channelState(home.dir, p.name);
-          return { p, version: await gitVersionFor(repoDir, cache.plugins[p.name], describe, p.autoUpdate !== false, cache.checkedAt ?? null, channel, p.channel) };
+          const channel = await channelState(home.dir, p.id, home.id);
+          return { p, version: await gitVersionFor(repoDir, cache.plugins[p.id], describe, p.autoUpdate !== false, cache.checkedAt ?? null, channel, p.channel) };
         }),
       );
       for (const { p, version } of described) {
-        out[p.name] ??= {};
-        if (version) out[p.name][home.id] = version;
-        else missing.push({ name: p.name, homeId: home.id, dir: home.dir, autoUpdate: p.autoUpdate !== false, channel: p.channel });
+        out[p.id] ??= {};
+        if (version) out[p.id][home.id] = version;
+        else missing.push({ name: p.id, homeId: home.id, appId: home.id, dir: home.dir, autoUpdate: p.autoUpdate !== false, channel: p.channel });
       }
-      for (const p of await listNpm(home.dir)) {
+      for (const p of await listNpm(home.dir, home.id)) {
         const entry = cache.plugins[p.name];
         (out[p.name] ??= {})[home.id] = { kind: "npm", label: entry?.installedVersion ?? null, updateState: entry?.updateAvailable ? "behind" : "current", autoUpdate: true, onExperimental: false, experimentalAvailable: null };
       }
     }
-    for (const { name, homeId, dir, autoUpdate, channel } of missing) {
-      if (!out[name][homeId]) await markUnknown(out[name], name, [{ id: homeId, dir, autoUpdate, channel }], channelState);
+    for (const { name, homeId, appId, dir, autoUpdate, channel } of missing) {
+      if (!out[name][homeId]) await markUnknown(out[name], name, [{ id: homeId, appId, dir, autoUpdate, channel }], channelState);
     }
     // Persist all plugins' versions in a single cache write so the next load
     // renders instantly and only rows that actually changed update.
@@ -456,7 +464,10 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
     await withHome(dir, async () => {
       await updatePluginPublic(name, url);
       report?.("Registering", 90);
-      await realRegisterPlugin(dir, name, url, autoUpdateDefault);
+      await (deps.registerPlugin ?? realRegisterPlugin)(dir, name, url, homeId);
+      // register records the entry; the home's default for auto-updates is Cairn's own setting, so
+      // it is applied as a second call rather than smuggled into the contract's register.
+      if (!autoUpdateDefault) await (deps.setPluginAutoUpdate ?? realSetPluginAutoUpdate)(dir, name, false, homeId);
     }, homeId);
 
     // An app loads the manager through its own config, so a clone alone would leave a
@@ -479,7 +490,7 @@ export function pluginsRemoveEverywhere(name: string, deps: PluginsDeps = {}): P
     const homes = await resolveHomes(deps);
     const outcomes: InstallOutcome[] = [];
     for (const home of homes) {
-      const installed = (await (deps.getPlugins ?? safeGetPlugins)(home.dir)).some((p) => p.name === name);
+      const installed = (await (deps.getPlugins ?? listedPlugins)(home.dir, home.id)).some((entry) => entry.id === name);
       if (!installed) continue;
       const res = await pluginsUninstall(home.id, name, deps);
       outcomes.push(res.ok ? { home: home.id, ok: true } : { home: home.id, ok: false, error: res.error });
@@ -492,8 +503,8 @@ export function pluginsSetEnabled(homeId: PluginHomeId, name: string, on: boolea
   return wrap(async () => {
     const homes = await resolveHomes(deps);
     const dir = homeDir(homeId, homes);
-    const result = await realSetPluginEnabled(dir, name, on);
-    if (result === null) throw new Error("plugin-updater is not available in this build");
+    const result = await (deps.setPluginEnabled ?? realSetPluginEnabled)(dir, name, on, homeId);
+    if (result === null) throw new Error(`nothing manages the plugins of ${homeId}`);
     if (!result) throw new Error(`plugin not found: ${name}`);
     await emitCairnAction({
       action: on ? "plugin_enabled" : "plugin_disabled",
@@ -508,8 +519,8 @@ export function pluginsSetAutoUpdate(homeId: PluginHomeId, name: string, on: boo
   return wrap(async () => {
     const homes = await resolveHomes(deps);
     const dir = homeDir(homeId, homes);
-    const result = await realSetPluginAutoUpdate(dir, name, on);
-    if (result === null) throw new Error("plugin-updater is not available in this build");
+    const result = await (deps.setPluginAutoUpdate ?? realSetPluginAutoUpdate)(dir, name, on, homeId);
+    if (result === null) throw new Error(`nothing manages the plugins of ${homeId}`);
     if (!result) throw new Error(`plugin not found: ${name}`);
     await emitCairnAction({
       action: "plugin_autoupdate_changed",
@@ -525,8 +536,8 @@ export function pluginsSetChannel(homeId: PluginHomeId, name: string, channel: P
     const homes = await resolveHomes(deps);
     const dir = homeDir(homeId, homes);
     const setChannel = deps.setPluginChannel ?? realSetPluginChannel;
-    const result = await setChannel(dir, name, channel);
-    if (result === null) throw new Error("plugin-updater is not available in this build");
+    const result = await setChannel(dir, name, channel, homeId);
+    if (result === null) throw new Error(`nothing manages the plugins of ${homeId}`);
     if (!result) throw new Error(`plugin not found: ${name}`);
     await emitCairnAction({
       action: "plugin_channel_changed",
@@ -541,11 +552,13 @@ export function pluginsDowngrade(homeId: PluginHomeId, name: string, hash: strin
   return wrap(async () => {
     const homes = await resolveHomes(deps);
     const dir = homeDir(homeId, homes);
-    const plugin = (await safeGetPlugins(dir)).find((p) => p.name === name);
+    const plugin = (await (deps.getPlugins ?? listedPlugins)(dir, homeId)).find((entry) => entry.id === name);
     if (!plugin) throw new Error(`plugin not found: ${name}`);
-    const downgrade = deps.downgrade ?? requirePluginUpdater(await loadPluginUpdaterIndex()).downgrade;
-    const result = await withHome(dir, async () => downgrade({ name: plugin.name, url: plugin.url, branch: plugin.branch }, hash), homeId);
-    if (result) throw new Error(result);
+    const downgrade = deps.downgrade ?? ((target: string, version: string, appId: string) =>
+      invokePluginManagement(dir, appId, "downgrade", null, (capability) => capability.downgrade(target, version)));
+    const outcome = await downgrade(name, hash, homeId);
+    if (!outcome) throw new Error(`nothing manages the plugins of ${homeId}`);
+    if (!outcome.ok) throw new Error(outcome.message ?? `could not move ${name} to ${hash}`);
   });
 }
 
@@ -553,18 +566,23 @@ export function pluginsUninstall(homeId: string, name: string, deps: PluginsDeps
   return wrap(async () => {
     const homes = await resolveHomes(deps);
     const dir = homeDir(homeId as PluginHomeId, homes);
-    if ((await safeGetPlugins(dir)).some((p) => p.name === name)) {
-      const uninstall = deps.uninstallPlugin ?? requirePluginUpdater(await loadPluginUpdaterIndex()).uninstallPlugin;
-      await withHome(dir, async () => uninstall(dir, name), homeId);
+    if ((await (deps.getPlugins ?? listedPlugins)(dir, homeId)).some((entry) => entry.id === name)) {
+      const uninstall = deps.uninstallPlugin ?? ((target: string, appId: string) =>
+        invokePluginManagement(dir, appId, "remove", null, (capability) => capability.remove(target)));
+      const removed = await uninstall(name, homeId);
+      if (!removed) throw new Error(`nothing manages the plugins of ${homeId}`);
+      if (!removed.ok) throw new Error(removed.message ?? `could not remove ${name}`);
       // The plugin is gone, so anything only it declared is now dead weight in the shared store.
       await (deps.prune ?? pruneUnusedLibraries)(dir, homeId);
       return;
     }
     const npmList = deps.npmPlugins ?? getNpmPlugins;
-    if ((await npmList(dir)).some((p) => p.name === name)) {
-      const uninstallNpm = deps.uninstallNpmPlugin ?? requirePluginUpdater(await loadPluginUpdaterNpm()).uninstallNpmPlugin;
-      const message = await withHome(dir, async () => uninstallNpm(name, dir), homeId);
-      if (message) throw new Error(message);
+    if ((await npmList(dir, homeId)).some((p) => p.name === name)) {
+      const uninstallNpm = deps.uninstallNpmPlugin ?? ((target: string, appId: string) =>
+        invokePluginManagement(dir, appId, "removeNpm", null, (capability) => capability.removeNpm(target)));
+      const removed = await uninstallNpm(name, homeId);
+      if (!removed) throw new Error(`nothing manages the plugins of ${homeId}`);
+      if (!removed.ok) throw new Error(removed.message ?? `could not remove ${name}`);
       return;
     }
     throw new Error(`plugin not found: ${name}`);

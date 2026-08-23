@@ -42,12 +42,12 @@ describe("optionalEngines: plugin-updater absent", () => {
     expect(res.data[0].rows).toEqual([]);
   });
 
-  it("pluginsSetEnabled fails with a message naming the engine, not a misleading 'plugin not found'", async () => {
+  it("pluginsSetEnabled says the home has no manager, not a misleading 'plugin not found'", async () => {
     const { pluginsSetEnabled } = await import("../modules/plugins.js");
     const res = await pluginsSetEnabled("claude", "some-plugin", true, { homes: [fakeHome("claude", dir)] });
     expect(res.ok).toBe(false);
     if (res.ok) return;
-    expect(res.error).toMatch(/plugin-updater is not available/);
+    expect(res.error).toMatch(/nothing manages the plugins of claude/);
     expect(res.error).not.toMatch(/plugin not found/);
   });
 

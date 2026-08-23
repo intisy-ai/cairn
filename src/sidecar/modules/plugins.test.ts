@@ -69,13 +69,71 @@ function seedCache(dir: string, cache: UpdateCache): void {
   writeFileSync(join(dir, "cache", "plugin-updates.json"), JSON.stringify(cache, null, 2), "utf8");
 }
 
+// Every read of a home's plugins, npm plugins and update cache goes through that home's manager
+// now, so these stand in for its answers. They read the same seeds the fixtures already write,
+// which keeps each test stating its plugins in one place rather than two.
+function readSeed<T>(file: string, fallback: T): T {
+  try {
+    return JSON.parse(readFileSync(file, "utf8")) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeSeedField(dir: string, name: string, mutate: (entry: Plugin) => void): boolean {
+  const file = join(dir, "config", "plugins.json");
+  const entries = readSeed<Plugin[]>(file, []);
+  const entry = entries.find((candidate) => candidate.name === name);
+  if (!entry) return false;
+  mutate(entry);
+  writeFileSync(file, JSON.stringify(entries, null, 2), "utf8");
+  return true;
+}
+
+const fromSeed = {
+  getPlugins: async (dir: string) =>
+    readSeed<Plugin[]>(join(dir, "config", "plugins.json"), []).map((entry) => ({
+      id: entry.name,
+      url: entry.url,
+      enabled: entry.enabled !== false,
+      version: "",
+      autoUpdate: entry.autoUpdate === undefined ? undefined : entry.autoUpdate !== false,
+      channel: entry.channel,
+    })),
+  npmPlugins: async (dir: string) =>
+    (readSeed<{ plugin?: string[] }>(join(dir, "opencode.json"), {}).plugin ?? [])
+      .map((raw) => ({ name: raw.split("@")[0] || raw, version: "", installed: true })),
+  readCache: async (dir: string) =>
+    readSeed<UpdateCache>(join(dir, "cache", "plugin-updates.json"), { checkedAt: "", plugins: {} }),
+  // The writes a manager performs on its own home, so a test can still assert WHICH home changed.
+  registerPlugin: async (dir: string, name: string, url: string) => {
+    const file = join(dir, "config", "plugins.json");
+    const entries = readSeed<Plugin[]>(file, []);
+    const existing = entries.find((entry) => entry.name === name);
+    // A manager repoints an entry re-registered from a different repository, so this does too.
+    if (existing) existing.url = url;
+    else entries.push({ name, url, enabled: true, autoUpdate: true });
+    writeFileSync(file, JSON.stringify(entries, null, 2), "utf8");
+  },
+  setPluginEnabled: async (dir: string, name: string, on: boolean) => writeSeedField(dir, name, (e) => { e.enabled = on; }),
+  setPluginAutoUpdate: async (dir: string, name: string, on: boolean) => writeSeedField(dir, name, (e) => { e.autoUpdate = on; }),
+  uninstallPlugin: async (name: string, appId: string) => {
+    const dir = fakeHomes.find((home) => home.id === appId)!.dir;
+    const file = join(dir, "config", "plugins.json");
+    writeFileSync(file, JSON.stringify(readSeed<Plugin[]>(file, []).filter((entry) => entry.name !== name), null, 2), "utf8");
+    return { ok: true };
+  },
+  setPluginChannel: async (dir: string, name: string, channel: PluginChannel) =>
+    writeSeedField(dir, name, (e) => { if (channel === "inherit") delete e.channel; else e.channel = channel; }),
+};
+
 describe("plugins sidecar module", () => {
   it("lists plugins per home, tagging each section with its home", async () => {
     seedPlugins(cairnDir, [{ name: "claude-code-proxy", url: "https://github.com/intisy-ai/claude-code-proxy", enabled: true }]);
     seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
 
     const { pluginsList } = await import("./plugins.js");
-    const result = await pluginsList({ homes: fakeHomes });
+    const result = await pluginsList({ ...fromSeed, homes: fakeHomes });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
 
@@ -93,7 +151,7 @@ describe("plugins sidecar module", () => {
       { id: "opencode", label: "OpenCode", dir: join(opencodeDir, "does-not-exist"), present: false, hasUpdater: false },
     ];
     const { pluginsList } = await import("./plugins.js");
-    const result = await pluginsList({ homes: homesWithAbsentOpencode });
+    const result = await pluginsList({ ...fromSeed, homes: homesWithAbsentOpencode });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data[2]).toEqual({ home: homesWithAbsentOpencode[2], rows: [] });
@@ -120,7 +178,7 @@ describe("plugins sidecar module", () => {
     });
 
     const { pluginsList } = await import("./plugins.js");
-    const result = await pluginsList({ homes: fakeHomes });
+    const result = await pluginsList({ ...fromSeed, homes: fakeHomes });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
 
@@ -149,7 +207,7 @@ describe("plugins sidecar module", () => {
     writeFileSync(join(claudeDir, "repos", "vendor-clone-dir", "plugin.json"), JSON.stringify({ id: "vendor-host-id" }));
 
     const { pluginsList } = await import("./plugins.js");
-    const result = await pluginsList({ homes: fakeHomes });
+    const result = await pluginsList({ ...fromSeed, homes: fakeHomes });
     if (!result.ok) throw new Error("unreachable");
     const row = result.data.find((s) => s.home.id === "claude")!.rows.find((r) => r.name === "vendor-clone-dir");
     expect(row?.pluginId).toBe("vendor-host-id");
@@ -162,6 +220,7 @@ describe("plugins sidecar module", () => {
     seedNpmPlugins(claudeDir, ["npm-plugin-x"]);
     const { pluginsList } = await import("./plugins.js");
     const result = await pluginsList({
+      ...fromSeed,
       homes: fakeHomes,
       missingArtifacts: async (_dir, name) => (name === "plugin-a" ? ["dist/handler.js"] : []),
     });
@@ -180,6 +239,7 @@ describe("plugins sidecar module", () => {
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("claude", "plugin-b", "https://github.com/intisy-ai/plugin-b", {
       updatePluginPublic: fakeUpdate,
+      ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
       hasUpdater: () => true,
@@ -195,6 +255,7 @@ describe("plugins sidecar module", () => {
 
     await pluginsInstall("claude", "plugin-b", "https://github.com/intisy-ai/plugin-b", {
       updatePluginPublic: async () => {},
+      ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps,
       hasUpdater: () => true,
@@ -204,6 +265,7 @@ describe("plugins sidecar module", () => {
     syncPluginsAcrossApps.mockClear();
     await pluginsInstall("cairn", "plugin-c", "https://github.com/intisy-ai/plugin-c", {
       updatePluginPublic: async () => {},
+      ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps,
       hasUpdater: () => true,
@@ -216,7 +278,7 @@ describe("plugins sidecar module", () => {
     seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
 
     const { pluginsSetEnabled } = await import("./plugins.js");
-    const result = await pluginsSetEnabled("claude", "plugin-a", false, { homes: fakeHomes });
+    const result = await pluginsSetEnabled("claude", "plugin-a", false, { ...fromSeed, homes: fakeHomes });
     expect(result.ok).toBe(true);
 
     const claudeOnDisk = JSON.parse(readFileSync(join(claudeDir, "config", "plugins.json"), "utf8")) as Plugin[];
@@ -229,7 +291,7 @@ describe("plugins sidecar module", () => {
   it("setAutoUpdate writes the target home's plugins.json entry", async () => {
     seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true, autoUpdate: true }]);
     const { pluginsSetAutoUpdate } = await import("./plugins.js");
-    const result = await pluginsSetAutoUpdate("claude", "plugin-a", false, { homes: fakeHomes });
+    const result = await pluginsSetAutoUpdate("claude", "plugin-a", false, { ...fromSeed, homes: fakeHomes });
     expect(result.ok).toBe(true);
     const onDisk = JSON.parse(readFileSync(join(claudeDir, "config", "plugins.json"), "utf8")) as Plugin[];
     expect(onDisk.find((p) => p.name === "plugin-a")?.autoUpdate).toBe(false);
@@ -240,6 +302,7 @@ describe("plugins sidecar module", () => {
       const calls: Array<[string, string, string]> = [];
       const { pluginsSetChannel } = await import("./plugins.js");
       const result = await pluginsSetChannel("claude", "demo", "experimental", {
+        ...fromSeed,
         homes: [{ id: "claude", label: "Claude", dir: "/homes/claude", present: true, hasUpdater: true }],
         setPluginChannel: (dir, name, channel) => { calls.push([dir, name, channel]); return true; },
       });
@@ -251,6 +314,7 @@ describe("plugins sidecar module", () => {
     it("reports a plugin that is not registered in that home", async () => {
       const { pluginsSetChannel } = await import("./plugins.js");
       const result = await pluginsSetChannel("claude", "nope", "experimental", {
+        ...fromSeed,
         homes: [{ id: "claude", label: "Claude", dir: "/homes/claude", present: true, hasUpdater: true }],
         setPluginChannel: () => false,
       });
@@ -262,22 +326,21 @@ describe("plugins sidecar module", () => {
   it("setEnabled returns ok:false for an unknown plugin", async () => {
     seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
     const { pluginsSetEnabled } = await import("./plugins.js");
-    const result = await pluginsSetEnabled("claude", "nonexistent", true, { homes: fakeHomes });
+    const result = await pluginsSetEnabled("claude", "nonexistent", true, { ...fromSeed, homes: fakeHomes });
     expect(result.ok).toBe(false);
   });
 
   it("downgrade looks up the plugin in the requested home and calls the injected downgrade fn, no network", async () => {
     seedPlugins(claudeDir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", branch: "main", enabled: true }]);
-    const downgrade = vi.fn().mockReturnValue("");
+    const downgrade = vi.fn().mockResolvedValue({ ok: true });
 
     const { pluginsDowngrade } = await import("./plugins.js");
-    const result = await pluginsDowngrade("claude", "plugin-a", "deadbeef", { downgrade, homes: fakeHomes });
+    const result = await pluginsDowngrade("claude", "plugin-a", "deadbeef", { ...fromSeed, downgrade, homes: fakeHomes });
 
     expect(result.ok).toBe(true);
-    expect(downgrade).toHaveBeenCalledWith(
-      { name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", branch: "main" },
-      "deadbeef",
-    );
+    // The manager owns the entry, so it is named rather than described: the url and branch it needs
+    // are the ones it already holds, not ones this dashboard reads and hands back.
+    expect(downgrade).toHaveBeenCalledWith("plugin-a", "deadbeef", "claude");
   });
 
   it("downgrade returns ok:false for an unknown plugin without calling downgrade", async () => {
@@ -300,6 +363,7 @@ describe("plugins sidecar module", () => {
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("claude", "plugin-new", "https://github.com/intisy-ai/plugin-new", {
       updatePluginPublic: async () => {},
+      ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
       hasUpdater: () => true,
@@ -317,6 +381,7 @@ describe("plugins sidecar module", () => {
     const { pluginsInstall } = await import("./plugins.js");
     await pluginsInstall("claude", "plugin-p", "https://github.com/intisy-ai/plugin-p", {
       updatePluginPublic: async () => {},
+      ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
       hasUpdater: () => true,
@@ -330,6 +395,7 @@ describe("plugins sidecar module", () => {
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("claude", "plugin-updater", "https://github.com/intisy-ai/plugin-updater", {
       updatePluginPublic: async () => {},
+      ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
       hasUpdater: () => false,
@@ -346,6 +412,7 @@ describe("plugins sidecar module", () => {
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("claude", "custom-auth", "https://github.com/intisy-ai/custom-auth", {
       updatePluginPublic: async (name) => { order.push("install:" + name); },
+      ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
       hasUpdater: () => false,
@@ -361,6 +428,7 @@ describe("plugins sidecar module", () => {
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("claude", "custom-auth", "https://github.com/intisy-ai/custom-auth", {
       updatePluginPublic: async () => { throw new Error("must not run"); },
+      ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
       hasUpdater: () => false,
@@ -375,6 +443,7 @@ describe("plugins sidecar module", () => {
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("cairn", "plugin-updater", "https://github.com/intisy-ai/plugin-updater", {
       updatePluginPublic: async () => {},
+      ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => false,
       ensureUpdater: async () => { bootstraps++; return { ok: true, data: undefined }; },
@@ -389,6 +458,7 @@ describe("plugins sidecar module", () => {
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("claude", "plugin-a", "https://github.com/intisy-ai/plugin-a-fork", {
       updatePluginPublic: async () => {},
+      ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
       hasUpdater: () => true,
@@ -404,6 +474,7 @@ describe("plugins sidecar module", () => {
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("claude", "plugin-fail", "https://github.com/intisy-ai/plugin-fail", {
       updatePluginPublic: async () => { throw new Error("clone failed"); },
+      ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
       hasUpdater: () => true,
@@ -415,13 +486,13 @@ describe("plugins sidecar module", () => {
   it("rejects an unknown home id on install, setEnabled, and downgrade", async () => {
     const { pluginsInstall, pluginsSetEnabled, pluginsDowngrade } = await import("./plugins.js");
 
-    const installResult = await pluginsInstall("nope" as never, "x", "y", { homes: fakeHomes });
+    const installResult = await pluginsInstall("nope" as never, "x", "y", { ...fromSeed, homes: fakeHomes });
     expect(installResult.ok).toBe(false);
 
-    const setEnabledResult = await pluginsSetEnabled("nope" as never, "x", true, { homes: fakeHomes });
+    const setEnabledResult = await pluginsSetEnabled("nope" as never, "x", true, { ...fromSeed, homes: fakeHomes });
     expect(setEnabledResult.ok).toBe(false);
 
-    const downgradeResult = await pluginsDowngrade("nope" as never, "x", "deadbeef", { homes: fakeHomes });
+    const downgradeResult = await pluginsDowngrade("nope" as never, "x", "deadbeef", { ...fromSeed, homes: fakeHomes });
     expect(downgradeResult.ok).toBe(false);
   });
 
@@ -430,19 +501,21 @@ describe("plugins sidecar module", () => {
     seedPlugins(claudeDir, [{ name: "plugin-a", url: "u", enabled: true }]);
     const { pluginsUninstall } = await import("./plugins.js");
     const result = await pluginsUninstall("claude", "plugin-a", {
+      ...fromSeed,
       homes: fakeHomes,
-      uninstallPlugin: (dir, name) => calls.push([dir, name]),
+      uninstallPlugin: async (name, appId) => { calls.push([name, appId]); return { ok: true }; },
     });
     expect(result.ok).toBe(true);
-    expect(calls).toEqual([[fakeHomes[1].dir, "plugin-a"]]);
+    expect(calls).toEqual([["plugin-a", "claude"]]);
   });
 
   it("routes an npm row to uninstallNpmPlugin and surfaces its error string", async () => {
     const { pluginsUninstall } = await import("./plugins.js");
     const result = await pluginsUninstall("opencode", "some-npm-plugin", {
+      ...fromSeed,
       homes: fakeHomes,
       npmPlugins: async () => [{ name: "some-npm-plugin", version: "1.0.0", installed: true, raw: "some-npm-plugin" }],
-      uninstallNpmPlugin: () => "npm exploded",
+      uninstallNpmPlugin: async () => ({ ok: false, message: "npm exploded" }),
     });
     expect(result.ok).toBe(false);
     expect(result.error).toBe("npm exploded");
@@ -454,14 +527,14 @@ describe("plugins sidecar module", () => {
       { name: "plugin-updater", url: "https://github.com/intisy-ai/plugin-updater", enabled: true },
     ]);
     const { pluginsSetEnabled, pluginsUninstall } = await import("./plugins.js");
-    expect((await pluginsSetEnabled("claude", "wakatime-sync", false, { homes: fakeHomes })).ok).toBe(true);
-    expect((await pluginsSetEnabled("claude", "plugin-updater", false, { homes: fakeHomes })).ok).toBe(true);
-    expect((await pluginsUninstall("claude", "plugin-updater", { homes: fakeHomes })).ok).toBe(true);
+    expect((await pluginsSetEnabled("claude", "wakatime-sync", false, { ...fromSeed, homes: fakeHomes })).ok).toBe(true);
+    expect((await pluginsSetEnabled("claude", "plugin-updater", false, { ...fromSeed, homes: fakeHomes })).ok).toBe(true);
+    expect((await pluginsUninstall("claude", "plugin-updater", { ...fromSeed, homes: fakeHomes })).ok).toBe(true);
   });
 
   it("rejects an unknown home id on uninstall", async () => {
     const { pluginsUninstall } = await import("./plugins.js");
-    const result = await pluginsUninstall("nope", "plugin-a", { homes: fakeHomes });
+    const result = await pluginsUninstall("nope", "plugin-a", { ...fromSeed, homes: fakeHomes });
     expect(result.ok).toBe(false);
   });
 
@@ -470,6 +543,7 @@ describe("plugins sidecar module", () => {
     const installed: string[] = [];
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("cairn", "plugin-updater", "https://github.com/intisy-ai/plugin-updater", {
+      ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => false,
       registerWithApp: (_dir: string, app: string) => { registrations.push(app); },
@@ -485,6 +559,7 @@ describe("plugins sidecar module", () => {
     const order: string[] = [];
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("cairn", "some-provider", "u", {
+      ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => false,
       ensureUpdater: async (homeId) => { order.push("updater:" + homeId); return { ok: true, data: undefined }; },
@@ -504,6 +579,7 @@ describe("plugins sidecar module", () => {
 
     const result = await pluginsInstall("claude", "plugin-new", "https://github.com/intisy-ai/plugin-new", {
       updatePluginPublic: async () => {},
+      ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
       hasUpdater: () => true,
@@ -525,12 +601,13 @@ describe("plugins sidecar module", () => {
     const calls: Array<[string, string]> = [];
     const { pluginsRemoveEverywhere } = await import("./plugins.js");
     const res = await pluginsRemoveEverywhere("shared-plugin", {
+      ...fromSeed,
       homes: fakeHomes,
-      uninstallPlugin: (dir, name) => calls.push([dir, name]),
+      uninstallPlugin: async (name, appId) => { calls.push([name, appId]); return { ok: true }; },
     });
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.data.outcomes.map((o) => o.home)).toEqual(["claude"]);
-    expect(calls).toEqual([[claudeDir, "shared-plugin"]]);
+    expect(calls).toEqual([["shared-plugin", "claude"]]);
   });
 
   it("pluginsList surfaces a description from the deployed clone package.json", async () => {
@@ -540,7 +617,7 @@ describe("plugins sidecar module", () => {
     writeFileSync(join(repo, "package.json"), JSON.stringify({ name: "demo", description: "A demo plugin" }));
     const homes = [{ id: "claude", label: "Claude", dir, present: true, hasUpdater: true }];
     const { pluginsList } = await import("./plugins.js");
-    const res = await pluginsList({ homes, getPlugins: () => [{ name: "demo", url: "u", enabled: true }] } as any);
+    const res = await pluginsList({ homes, getPlugins: async () => [{ id: "demo", url: "u", enabled: true, version: "" }] } as never);
     expect(res.ok).toBe(true);
     if (res.ok) {
       const row = res.data[0].rows.find((r) => r.name === "demo");
@@ -563,8 +640,9 @@ describe("pluginVersions channel reporting", () => {
   it("passes the updater's answer through to the home's row", async () => {
     const { pluginVersions } = await import("./plugins.js");
     const result = await pluginVersions("demo", {
+      ...fromSeed,
       homes: [HOME],
-      getPlugins: () => [{ name: "demo", url: "u" }],
+      getPlugins: async () => [{ id: "demo", url: "u", enabled: true, version: "" }],
       readCache: cacheWith(true),
       channelState: () => ({ onExperimental: true, experimentalAvailable: true }),
       exists: () => true,
@@ -578,8 +656,9 @@ describe("pluginVersions channel reporting", () => {
   it("reports off and unknown when no updater answers", async () => {
     const { pluginVersions } = await import("./plugins.js");
     const result = await pluginVersions("demo", {
+      ...fromSeed,
       homes: [HOME],
-      getPlugins: () => [{ name: "demo", url: "u" }],
+      getPlugins: async () => [{ id: "demo", url: "u", enabled: true, version: "" }],
       readCache: () => ({ checkedAt: "", plugins: {} }),
       channelState: () => ({ onExperimental: false, experimentalAvailable: null }),
       exists: () => true,
@@ -594,8 +673,9 @@ describe("pluginVersions channel reporting", () => {
     const asked: Array<[string, string]> = [];
     const { pluginVersions } = await import("./plugins.js");
     await pluginVersions("demo", {
+      ...fromSeed,
       homes: [HOME],
-      getPlugins: () => [{ name: "demo", url: "u" }],
+      getPlugins: async () => [{ id: "demo", url: "u", enabled: true, version: "" }],
       readCache: cacheWith(true),
       channelState: (dir, name) => { asked.push([dir, name]); return { onExperimental: false, experimentalAvailable: null }; },
       exists: () => true,
@@ -610,8 +690,9 @@ describe("pluginVersions channel reporting", () => {
     const asked: Array<[string, string]> = [];
     const { pluginVersions } = await import("./plugins.js");
     const result = await pluginVersions("demo", {
+      ...fromSeed,
       homes: [HOME],
-      getPlugins: () => [{ name: "demo", url: "u" }],
+      getPlugins: async () => [{ id: "demo", url: "u", enabled: true, version: "" }],
       readCache: () => ({ checkedAt: "", plugins: {} }),
       channelState: (dir, name) => { asked.push([dir, name]); return { onExperimental: true, experimentalAvailable: true }; },
       exists: () => false,
@@ -629,8 +710,9 @@ describe("pluginVersions channel reporting", () => {
   it("passes the entry's declared channel through, unresolved", async () => {
     const { pluginVersions } = await import("./plugins.js");
     const result = await pluginVersions("demo", {
+      ...fromSeed,
       homes: [HOME],
-      getPlugins: () => [{ name: "demo", url: "u", channel: "inherit" }],
+      getPlugins: async () => [{ id: "demo", url: "u", enabled: true, version: "", channel: "inherit" as const }],
       readCache: cacheWith(true),
       channelState: () => ({ onExperimental: false, experimentalAvailable: true }),
       exists: () => true,
@@ -657,6 +739,7 @@ describe("plugin versions", () => {
     });
     const { pluginVersions } = await import("./plugins.js");
     const result = await pluginVersions("plugin-a", {
+      ...fromSeed,
       homes: fakeHomes,
       describe: (dir) => (dir.includes("claude") ? "v1.2.3-5-gabc1234" : null),
       exists: (p) => p.includes("claude") && p.endsWith(join("repos", "plugin-a")),
@@ -673,7 +756,7 @@ describe("plugin versions", () => {
       plugins: { "npm-x": { kind: "npm", installedVersion: "2.0.1", localHead: null, remoteHead: null, latestVersion: "2.1.0", updateAvailable: true, updatedAt: null } },
     });
     const { pluginVersions } = await import("./plugins.js");
-    const result = await pluginVersions("npm-x", { homes: fakeHomes, describe: () => null, exists: () => false });
+    const result = await pluginVersions("npm-x", { ...fromSeed, homes: fakeHomes, describe: () => null, exists: () => false });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data.claude).toEqual({ kind: "npm", label: "2.0.1", updateState: "behind", autoUpdate: true, onExperimental: false, experimentalAvailable: null });
@@ -685,7 +768,7 @@ describe("plugin versions", () => {
       plugins: { "plugin-a": { kind: "git", installedVersion: null, localHead: "abcdef1234567890", remoteHead: "abcdef1234567890", latestVersion: null, updateAvailable: false, updatedAt: null } },
     });
     const { pluginVersions } = await import("./plugins.js");
-    const result = await pluginVersions("plugin-a", { homes: fakeHomes, describe: () => null, exists: (p) => p.includes("claude") });
+    const result = await pluginVersions("plugin-a", { ...fromSeed, homes: fakeHomes, describe: () => null, exists: (p) => p.includes("claude") });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data.claude).toEqual({ kind: "git", label: "abcdef1", updateState: "current", autoUpdate: true, checkedAt: "", onExperimental: false, experimentalAvailable: null });
@@ -699,6 +782,7 @@ describe("plugin versions", () => {
     });
     const { pluginVersions } = await import("./plugins.js");
     const result = await pluginVersions("plugin-a", {
+      ...fromSeed,
       homes: fakeHomes,
       describe: (dir) => (dir.includes("claude") ? "v0.2.0-5-g7c588d8" : null),
       exists: (p) => p.includes("claude") && p.endsWith(join("repos", "plugin-a")),
@@ -716,8 +800,9 @@ describe("plugin versions", () => {
     resetCacheForTests();
     const { pluginsList, pluginsListCached } = await import("./plugins.js");
     const deps = {
+      ...fromSeed,
       homes: fakeHomes,
-      getPlugins: (dir: string) => (dir === claudeDir ? [{ name: "plugin-a", url: "u", enabled: true }] : []),
+      getPlugins: async (dir: string) => (dir === claudeDir ? [{ id: "plugin-a", url: "u", enabled: true, version: "" }] : []),
       npmPlugins: async () => [],
       missingArtifacts: async () => [],
       cacheDir: cairnDir,
@@ -748,8 +833,9 @@ describe("plugin versions", () => {
     resetCacheForTests();
     const { pluginVersionsAll, pluginVersionsCached } = await import("./plugins.js");
     const deps = {
+      ...fromSeed,
       homes: fakeHomes,
-      getPlugins: (dir: string) => (dir === claudeDir ? [{ name: "plugin-a", url: "u", enabled: true }] : []),
+      getPlugins: async (dir: string) => (dir === claudeDir ? [{ id: "plugin-a", url: "u", enabled: true, version: "" }] : []),
       npmPlugins: async () => [],
       describe: () => "v3.1.0",
       exists: () => true,
@@ -772,8 +858,9 @@ describe("plugin versions", () => {
     });
     const { pluginVersionsAll } = await import("./plugins.js");
     const result = await pluginVersionsAll({
+      ...fromSeed,
       homes: fakeHomes,
-      getPlugins: (dir) => (dir === claudeDir ? [{ name: "plugin-a", url: "u", enabled: true }] : []),
+      getPlugins: async (dir: string) => (dir === claudeDir ? [{ id: "plugin-a", url: "u", enabled: true, version: "" }] : []),
       npmPlugins: async () => [],
       describe: () => "v2.0.0",
       exists: () => true,
@@ -789,6 +876,7 @@ describe("pluginsInstall for the plugin manager", () => {
     const order: string[] = [];
     const { pluginsInstall } = await import("./plugins.js");
     const res = await pluginsInstall("claude", "plugin-updater", "https://example/plugin-updater", {
+      ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => false,
       updatePluginPublic: async () => { order.push("clone"); },
@@ -805,6 +893,7 @@ describe("pluginsInstall for the plugin manager", () => {
     const calls: string[] = [];
     const { pluginsInstall } = await import("./plugins.js");
     const res = await pluginsInstall("cairn", "plugin-updater", "https://example/plugin-updater", {
+      ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => false,
       updatePluginPublic: async () => {},
@@ -817,6 +906,7 @@ describe("pluginsInstall for the plugin manager", () => {
   it("fails the install when app registration fails", async () => {
     const { pluginsInstall } = await import("./plugins.js");
     const res = await pluginsInstall("claude", "plugin-updater", "https://example/plugin-updater", {
+      ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => false,
       updatePluginPublic: async () => {},
@@ -832,6 +922,7 @@ describe("pluginsInstall for the plugin manager", () => {
     const ensureUpdater = vi.fn(async () => ({ ok: true, data: undefined }));
     const { pluginsInstall } = await import("./plugins.js");
     await pluginsInstall("claude", "plugin-updater", "https://example/plugin-updater", {
+      ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => false,
       updatePluginPublic: async () => {},
@@ -852,6 +943,7 @@ describe("pluginsInstall when the marketplace catalog is unreachable", () => {
     const ensureUpdater = vi.fn(async () => ({ ok: true, data: undefined }));
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("cairn", "plugin-updater", "https://example/plugin-updater", {
+      ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => false,
       updatePluginPublic: async () => {},
@@ -867,6 +959,7 @@ describe("pluginsInstall when the marketplace catalog is unreachable", () => {
 
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("claude", "custom-auth", "https://github.com/intisy-ai/custom-auth", {
+      ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => true,
       updatePluginPublic: async () => {},
@@ -883,6 +976,7 @@ describe("the record that starts an install", () => {
     const order: string[] = [];
     const { pluginsInstall } = await import("./plugins.js");
     const res = await pluginsInstall("claude", "wakatime-sync", "https://example/wakatime-sync", {
+      ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => true,
       updatePluginPublic: async () => { order.push("clone"); },
@@ -897,6 +991,7 @@ describe("the record that starts an install", () => {
     emitted.length = 0;
     const { pluginsInstall } = await import("./plugins.js");
     const res = await pluginsInstall("claude", "wakatime-sync", "https://example/wakatime-sync", {
+      ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => true,
       updatePluginPublic: async () => { throw new Error("clone refused"); },
