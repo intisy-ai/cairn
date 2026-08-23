@@ -1,6 +1,8 @@
 // Runs ONE plugin job, in its own process, then exits. plugin-updater does its git, npm and
 // deploy work with execSync, so running it anywhere else would stop the sidecar answering.
-// Must be set before plugin-updater is imported: its entry activates itself otherwise.
+import { getAppDescriptor, registerPluginWithApp } from "@core/index.js";
+
+// Set before the dynamic import below, because plugin-updater's entry activates itself otherwise.
 process.env.PLUGIN_UPDATER_LIBRARY_MODE = "1";
 
 export interface JobMessage {
@@ -19,11 +21,10 @@ function report(jobId: string, phase: string, percent: number): void {
 }
 
 async function run(job: JobMessage): Promise<void> {
-  const [env, index, config, init] = await Promise.all([
+  const [env, index, config] = await Promise.all([
     import("@intisy-ai/plugin-updater/dist/env.js"),
     import("@intisy-ai/plugin-updater/dist/index.js"),
     import("@intisy-ai/plugin-updater/dist/config.js"),
-    import("@intisy-ai/plugin-updater/dist/init.js"),
   ]);
   env.setEarlyLaunchConfigDir(job.homeDir);
 
@@ -54,7 +55,7 @@ async function run(job: JobMessage): Promise<void> {
   // that is installed but never runs.
   if (job.isPluginManager && job.home !== "cairn") {
     report(job.jobId, "registering with the app", 90);
-    init.registerUpdaterWithApp(job.homeDir, job.home);
+    registerPluginWithApp(job.homeDir, getAppDescriptor(job.home) ?? null, job.plugin);
   }
 
   await recordInstalledVersion(job);

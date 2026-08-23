@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 import { join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
-import { getConfigValue, activityEnv } from "@core/index.js";
+import { getConfigValue, activityEnv, getAppDescriptor, registerPluginWithApp } from "@core/index.js";
 import type { ActionResult, ManagedNpmPlugin, ManagedPlugin, PluginManagementCapability } from "@core/index.js";
 import { readPluginManifest } from "../lib/pluginManifest.js";
 import { pluginIdFromClone } from "../lib/capabilityOwner.js";
@@ -18,7 +18,6 @@ import { readNamespace, writeCacheMany } from "../lib/cache.js";
 import {
   loadPluginUpdaterEnv,
   loadPluginUpdaterIndex,
-  loadPluginUpdaterInit,
 } from "../lib/optionalEngines.js";
 import { repoProvidingCapability } from "../lib/capabilityCatalog.js";
 import { pluginOwningCapability } from "./engines.js";
@@ -51,7 +50,7 @@ type UpdatePluginPublicFn = (name: string, url: string, branch?: string, commitH
 type SyncPluginsAcrossAppsFn = (configDir: string, appId: string) => Promise<void>;
 type DowngradeFn = (name: string, commitHash: string, appId: string) => Promise<ActionResult | null>;
 type HasUpdaterFn = (dir: string, appId: string) => boolean | Promise<boolean>;
-type RegisterWithAppFn = (dir: string, app: string) => void | Promise<void>;
+type RegisterWithAppFn = (dir: string, app: string, plugin: string) => void | Promise<void>;
 
 const EMPTY_UPDATE_CACHE: UpdateCache = { checkedAt: new Date(0).toISOString(), plugins: {} };
 
@@ -114,8 +113,10 @@ async function realSetEarlyLaunchConfigDir(dir: string): Promise<void> {
   (await loadPluginUpdaterEnv())?.setEarlyLaunchConfigDir(dir);
 }
 
-async function realRegisterWithApp(dir: string, app: string): Promise<void> {
-  requirePluginUpdater(await loadPluginUpdaterInit()).registerUpdaterWithApp(dir, app);
+// The app declares how it auto-loads a plugin, so this asks the registry rather than a plugin.
+// An app that declares no mechanism auto-loads nothing, which is not an install failure.
+function realRegisterWithApp(dir: string, app: string, plugin: string): void {
+  registerPluginWithApp(dir, getAppDescriptor(app) ?? null, plugin);
 }
 
 function getNpmPlugins(configDir: string, appId: string): Promise<ManagedNpmPlugin[]> {
@@ -474,7 +475,7 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
     // manager that is installed but never runs.
     if ((await isPluginManager(name, dir)) && homeId !== "cairn") {
       report?.("Registering with the app", 93);
-      await (deps.registerWithApp ?? realRegisterWithApp)(dir, homeId);
+      await (deps.registerWithApp ?? realRegisterWithApp)(dir, homeId, name);
     }
 
     if (homeId !== "cairn") {

@@ -14,7 +14,6 @@ type PluginUpdaterSyncbridge = typeof import("@intisy-ai/plugin-updater/dist/syn
 type PluginUpdaterEnv = typeof import("@intisy-ai/plugin-updater/dist/env.js");
 type PluginUpdaterNpm = typeof import("@intisy-ai/plugin-updater/dist/npm.js");
 type PluginUpdaterIndex = typeof import("@intisy-ai/plugin-updater/dist/index.js");
-type PluginUpdaterInit = typeof import("@intisy-ai/plugin-updater/dist/init.js");
 
 const cache = new Map<string, Promise<unknown>>();
 const loggedFailures = new Set<string>();
@@ -50,7 +49,6 @@ export const loadPluginUpdaterSyncbridge = loadOnce<PluginUpdaterSyncbridge>("@i
 export const loadPluginUpdaterEnv = loadOnce<PluginUpdaterEnv>("@intisy-ai/plugin-updater/dist/env.js", () => import("@intisy-ai/plugin-updater/dist/env.js"));
 export const loadPluginUpdaterNpm = loadOnce<PluginUpdaterNpm>("@intisy-ai/plugin-updater/dist/npm.js", () => import("@intisy-ai/plugin-updater/dist/npm.js"));
 export const loadPluginUpdaterIndex = loadOnce<PluginUpdaterIndex>("@intisy-ai/plugin-updater/dist/index.js", () => import("@intisy-ai/plugin-updater/dist/index.js"));
-export const loadPluginUpdaterInit = loadOnce<PluginUpdaterInit>("@intisy-ai/plugin-updater/dist/init.js", () => import("@intisy-ai/plugin-updater/dist/init.js"));
 
 export function resetOptionalEngineCacheForTests(): void {
   cache.clear();
