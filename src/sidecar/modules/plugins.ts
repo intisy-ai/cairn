@@ -19,7 +19,6 @@ import {
   safeMissingArtifacts,
   loadPluginUpdaterConfig,
   loadPluginUpdaterCache,
-  loadPluginUpdaterSyncbridge,
   loadPluginUpdaterEnv,
   loadPluginUpdaterNpm,
   loadPluginUpdaterIndex,
@@ -28,6 +27,7 @@ import {
 import { repoProvidingCapability } from "../lib/capabilityCatalog.js";
 import { pluginOwningCapability } from "./engines.js";
 import { pruneUnusedLibraries } from "./libraryPrune.js";
+import { invokeCrossAppSync } from "../lib/pluginManager.js";
 import { wrap } from "../result.js";
 import { reposDir } from "../lib/storagePaths.js";
 
@@ -52,7 +52,7 @@ async function isPluginManager(name: string, homeDir: string): Promise<boolean> 
 
 type PluginChannel = "inherit" | "stable" | "experimental";
 type UpdatePluginPublicFn = (name: string, url: string, branch?: string, commitHash?: string) => Promise<void | object>;
-type SyncPluginsAcrossAppsFn = (configDir: string) => Promise<void>;
+type SyncPluginsAcrossAppsFn = (configDir: string, appId: string) => Promise<void>;
 type DowngradeFn = (plugin: { name: string; url?: string; branch?: string }, commitHash: string) => string;
 type HasUpdaterFn = (dir: string) => boolean | Promise<boolean>;
 type RegisterWithAppFn = (dir: string, app: string) => void | Promise<void>;
@@ -100,9 +100,11 @@ async function realChannelState(dir: string, name: string): Promise<{ onExperime
   return mod ? mod.pluginChannelState(dir, name) : { onExperimental: false, experimentalAvailable: null };
 }
 
-async function realSyncPluginsAcrossApps(dir: string): Promise<void> {
-  const mod = await loadPluginUpdaterSyncbridge();
-  if (mod) await mod.syncPluginsAcrossApps(dir);
+// Reconciling across homes belongs to whichever plugin provides it, so this asks the home rather
+// than loading one. A home with no provider reconciles nothing, which is what installing into a
+// home that never had cross-app sync already did.
+async function realSyncPluginsAcrossApps(dir: string, appId: string): Promise<void> {
+  await invokeCrossAppSync(dir, appId, null, (capability) => capability.sync());
 }
 
 async function realSetEarlyLaunchConfigDir(dir: string): Promise<void> {
@@ -467,7 +469,7 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
     if (homeId !== "cairn") {
       report?.("Syncing to other apps", 95);
       const syncPluginsAcrossApps = deps.syncPluginsAcrossApps ?? realSyncPluginsAcrossApps;
-      await syncPluginsAcrossApps(dir);
+      await syncPluginsAcrossApps(dir, homeId);
     }
   });
 }

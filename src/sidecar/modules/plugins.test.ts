@@ -199,7 +199,7 @@ describe("plugins sidecar module", () => {
       syncPluginsAcrossApps,
       hasUpdater: () => true,
     });
-    expect(syncPluginsAcrossApps).toHaveBeenCalledWith(claudeDir);
+    expect(syncPluginsAcrossApps).toHaveBeenCalledWith(claudeDir, "claude");
 
     syncPluginsAcrossApps.mockClear();
     await pluginsInstall("cairn", "plugin-c", "https://github.com/intisy-ai/plugin-c", {
