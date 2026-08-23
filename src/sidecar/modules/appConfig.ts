@@ -1,10 +1,10 @@
 import { existsSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { setConfigValue, resolveLayout } from "@core/index.js";
+import type { ManagedNpmPlugin } from "@core/index.js";
 import type { PluginConfigSchema, PluginHome, PluginHomeId, Result, FieldSpec, ActionSpec, SectionSpec, DataSpec } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir, homeById } from "../lib/pluginHomes.js";
-import { loadPluginUpdaterIndex } from "../lib/optionalEngines.js";
-import { hasCapability, listedPlugins, PLUGIN_MANAGEMENT } from "../lib/pluginManager.js";
+import { hasCapability, listedPlugins, readPluginManagement, PLUGIN_MANAGEMENT } from "../lib/pluginManager.js";
 import { isDeployedPlugin } from "../lib/capabilityOwner.js";
 import { probeDeclarations, readCurrentValues } from "../lib/schemaProbe.js";
 import type { Bundle, Declaration } from "../lib/schemaProbe.js";
@@ -33,22 +33,22 @@ async function realSettingsProviders(homeDir: string, appId: string): Promise<Se
   return records.map((record) => ({ pluginId: record.pluginId, implementation: record.implementation as SettingsCapabilityLike }));
 }
 
+/**
+ * Every file in a home that can be asked to declare itself.
+ *
+ * @remarks
+ * A cloned plugin deploys a bundle; an npm one has only the package it resolves to, which the
+ * home's manager is the one thing that knows how to find. Deployed bundles come first so a plugin
+ * present both ways is probed as the copy this home actually deploys.
+ */
 async function realBundles(home: PluginHome): Promise<Bundle[]> {
-  return (await listedPlugins(home.dir, home.id))
+  const deployed = (await listedPlugins(home.dir, home.id))
     .map((plugin) => ({ plugin: plugin.id, path: join(pluginDir(home.dir), `${plugin.id}.js`) }))
     .filter((bundle) => existsSync(bundle.path));
-}
-
-// The one call here that a capability cannot replace. A manager registered as an app's npm plugin
-// has no deployed bundle in that home, so nothing is host-loadable there and no capability answers,
-// yet its settings still have to be reachable. Its declaration also carries defaults and current
-// values, which a settings capability does not: `CapabilitySchema` has no field for either, and the
-// defaults live in the plugin's own process where they were registered.
-async function realEngineSchemas(home: PluginHome): Promise<PluginConfigSchema[]> {
-  if (!home.hasUpdater) return [];
-  const mod = await loadPluginUpdaterIndex();
-  if (!mod?.updaterSchema) return [];
-  return [mod.updaterSchema(home.dir) as PluginConfigSchema];
+  const fromNpm = (await readPluginManagement(home.dir, home.id, "listNpm", [] as ManagedNpmPlugin[],
+    (capability) => capability.listNpm()))
+    .flatMap((plugin) => (plugin.entryPath ? [{ plugin: plugin.name, path: plugin.entryPath }] : []));
+  return [...deployed, ...fromNpm];
 }
 
 export interface ConfigSchemasDeps {
@@ -56,7 +56,6 @@ export interface ConfigSchemasDeps {
   bundles?: (home: PluginHome) => Promise<Bundle[]>;
   declarations?: (bundles: Bundle[]) => Promise<Map<string, Declaration>>;
   values?: (dir: string, plugin: string) => Record<string, unknown>;
-  engineSchemas?: (home: PluginHome) => Promise<PluginConfigSchema[]>;
   settingsProviders?: (homeDir: string, appId: string) => Promise<SettingsProvider[]>;
 }
 
@@ -115,12 +114,6 @@ export function configSchemas(homeId: string, deps: ConfigSchemasDeps = {}): Pro
       schemas.push({ plugin: bundle.plugin, ...declaration, current: values(home.dir, bundle.plugin) });
     }
 
-    const engineSchemas = deps.engineSchemas ?? realEngineSchemas;
-    for (const schema of await engineSchemas(home)) {
-      if (resolved.has(schema.plugin)) continue;
-      resolved.add(schema.plugin);
-      schemas.push(schema);
-    }
     // Split every declaration here, once, so the renderer receives sections and leftovers
     // already separated rather than reimplementing core's rule in the browser.
     return schemas.map((schema) => ({ ...schema, layout: resolveLayout(schema.plugin, schema) }));
