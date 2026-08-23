@@ -1,6 +1,5 @@
+import { PLUGIN_MANAGEMENT } from "@cairn/shared";
 import type { EngineView, PluginHome } from "@cairn/shared";
-
-const PLUGIN_MANAGEMENT = "plugin-management";
 
 export interface PrerequisiteInstall {
   homeId: string;

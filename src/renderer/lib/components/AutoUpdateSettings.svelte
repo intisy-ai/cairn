@@ -39,9 +39,12 @@
   const mode = $derived(modeOverride ?? storedMode);
   const triggers = $derived(triggersOverride ?? storedTriggers);
 
+  // The schema names the plugin these settings belong to, so the write goes back to whichever
+  // plugin declared them rather than to one this component knows about.
   async function write(key: string, value: unknown): Promise<void> {
+    if (!schema) return;
     try {
-      const result = await cairn.configWrite(homeId, "plugin-updater", key, value);
+      const result = await cairn.configWrite(homeId, schema.plugin, key, value);
       if (!result.ok) loadError = result.error;
     } catch (e) {
       loadError = (e as { message?: string }).message ?? String(e);

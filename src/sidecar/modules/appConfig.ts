@@ -5,7 +5,7 @@ import type { ManagedNpmPlugin } from "@core/index.js";
 import type { PluginConfigSchema, PluginHome, PluginHomeId, Result, FieldSpec, ActionSpec, SectionSpec, DataSpec } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir, homeById } from "../lib/pluginHomes.js";
 import { hasCapability, listedPlugins, readPluginManagement, PLUGIN_MANAGEMENT } from "../lib/pluginManager.js";
-import { isDeployedPlugin } from "../lib/capabilityOwner.js";
+import { deployedManifests, isDeployedPlugin } from "../lib/capabilityOwner.js";
 import { probeDeclarations, readCurrentValues } from "../lib/schemaProbe.js";
 import type { Bundle, Declaration } from "../lib/schemaProbe.js";
 import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS, DEFAULT_INVOKE_TIMEOUT_MS } from "../lib/pluginHost.js";
@@ -86,6 +86,9 @@ export function configSchemas(homeId: string, deps: ConfigSchemasDeps = {}): Pro
 
     const schemas: PluginConfigSchema[] = [];
     const resolved = new Set<string>();
+    // What each plugin declares it provides, so a surface with a screen for a capability finds the
+    // plugin behind it without knowing its name.
+    const declaredBy = new Map(deployedManifests(home.dir).map((plugin) => [plugin.id, plugin.capabilities]));
 
     for (const { pluginId, implementation } of capabilities) {
       if (resolved.has(pluginId)) continue;
@@ -116,7 +119,11 @@ export function configSchemas(homeId: string, deps: ConfigSchemasDeps = {}): Pro
 
     // Split every declaration here, once, so the renderer receives sections and leftovers
     // already separated rather than reimplementing core's rule in the browser.
-    return schemas.map((schema) => ({ ...schema, layout: resolveLayout(schema.plugin, schema) }));
+    return schemas.map((schema) => ({
+      ...schema,
+      capabilities: declaredBy.get(schema.plugin) ?? [],
+      layout: resolveLayout(schema.plugin, schema),
+    }));
   });
 }
 

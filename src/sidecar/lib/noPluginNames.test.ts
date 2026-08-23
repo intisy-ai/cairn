@@ -12,14 +12,6 @@ const PLUGIN_NAMES = [
   "claude-code-proxy", "opencode-proxy", "claude-code-loader", "opencode-loader",
 ];
 
-// The auto-update settings screen, which still finds the manager's own settings row by name rather
-// than by asking which plugin provides plugin-management. Nothing else may be listed here: the
-// sidecar reaches every plugin through a capability.
-const INSTALL_ENGINE = [
-  "src/renderer/lib/routes/Settings.svelte",
-  "src/renderer/lib/components/AutoUpdateSettings.svelte",
-];
-
 // Classifying a repository nobody has fetched yet. A user typing a URL into the add-plugin dialog
 // has no manifest to read, so a name heuristic is the only synchronous answer available, and it
 // stays legitimate however the plugin system evolves. The INSTALLED case prefers the catalog's
@@ -51,22 +43,12 @@ describe("Cairn names no plugin", () => {
     const offenders: string[] = [];
     for (const file of [...sources(join(ROOT, "src")), ...sources(join(ROOT, "packages", "shared", "src"))]) {
       const rel = relative(ROOT, file).replace(/\\/g, "/");
-      if (INSTALL_ENGINE.includes(rel)) continue;
       const body = code(readFileSync(file, "utf8"));
       for (const name of PLUGIN_NAMES) {
         if (body.includes(name)) offenders.push(`${rel}: ${name}`);
       }
     }
     expect(offenders).toEqual([]);
-  });
-
-  it("keeps the allowlist honest: every listed file still names a plugin", () => {
-    const inert: string[] = [];
-    for (const rel of INSTALL_ENGINE) {
-      const body = code(readFileSync(join(ROOT, rel), "utf8"));
-      if (!PLUGIN_NAMES.some((name) => body.includes(name))) inert.push(rel);
-    }
-    expect(inert).toEqual([]);
   });
 
   it("does not select a plugin by a naming convention", () => {

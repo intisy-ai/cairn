@@ -59,7 +59,7 @@ describe("appConfig sidecar module", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data).toEqual([
-      { plugin: "plugin-a", defaults: { logging: true }, current: {}, layout: { sections: [], fields: [], actions: [] } },
+      { plugin: "plugin-a", defaults: { logging: true }, current: {}, capabilities: [], layout: { sections: [], fields: [], actions: [] } },
     ]);
     expect(declarations).toHaveBeenCalledTimes(1);
   });
@@ -422,6 +422,31 @@ describe("appConfig sidecar module", () => {
 
 // An engine can be installed in a home without a bundle to probe there: an npm-registered
 // updater, or a home with nothing deployed yet. Its settings have to be reachable anyway,
+describe("what each schema declares it provides", () => {
+  it("carries the deployed manifest's capabilities, so a surface finds a plugin by what it does", async () => {
+    const { dir, home } = makeHome("claude", "Claude Code");
+    writeFileSync(join(dir, "plugin", "manager.js"), "// bundle placeholder", "utf8");
+    writeFileSync(join(dir, "plugin", "manager.json"), JSON.stringify({ id: "manager", api: 1, entry: "dist/plugin.js", capabilities: ["plugin-management", "settings"] }));
+    writeFileSync(join(dir, "plugin", "other.js"), "// bundle placeholder", "utf8");
+    seedPlugins(dir, [
+      { name: "manager", url: "https://github.com/intisy-ai/manager", enabled: true },
+      { name: "other", url: "https://github.com/intisy-ai/other", enabled: true },
+    ]);
+
+    const { configSchemas } = await import("./appConfig.js");
+    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir),
+      declarations: async () => new Map([["manager", { defaults: {} }], ["other", { defaults: {} }]]),
+      settingsProviders: async () => [] });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data.find((s) => s.plugin === "manager")!.capabilities).toEqual(["plugin-management", "settings"]);
+    // A plugin with no deployed manifest declares nothing, which reads as providing nothing rather
+    // than as unknown: a surface selecting by capability must not match it.
+    expect(result.data.find((s) => s.plugin === "other")!.capabilities).toEqual([]);
+  });
+});
+
 // which is what makes the update controls configurable per app.
 describe("engine-contributed settings", () => {
   it("reads the values that home has on disk, not another home's", async () => {

@@ -2,6 +2,16 @@ export type { AccountView, AccountQuota, AccountStatus } from "@core-auth/index.
 export type { Impact, ActivityRecord, ActivityQuery, ActivityStats, ActivityHomeStats, FieldType, FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec } from "@core/index.js";
 import type { FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec } from "@core/index.js";
 
+/**
+ * The capability whose provider manages a home's plugins.
+ *
+ * @remarks
+ * A plain id rather than the typed key core mints, because a browser surface selects by it and must
+ * not link the library that mints it. Every surface that renders a screen for plugin management
+ * finds its plugin through this, never by name.
+ */
+export const PLUGIN_MANAGEMENT = "plugin-management";
+
 // What an update run did, as the dashboard reports it back to the renderer.
 export interface UpdateSummary {
   updated: string[];
@@ -356,6 +366,9 @@ export type PluginConfigSchema = {
   // Resolved in the sidecar by core, so every surface splits a declaration the same way
   // and the renderer never has to know the rule.
   layout?: PluginLayout;
+  // What this plugin declares it provides in this home. A surface with a screen for a
+  // capability finds the plugin behind it here, rather than by knowing its name.
+  capabilities?: string[];
 };
 // One thing a plugin left behind in a home, relative to that home. `declared` marks a path
 // the plugin named itself rather than one core's naming found.

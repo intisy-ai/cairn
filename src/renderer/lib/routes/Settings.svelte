@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { PLUGIN_MANAGEMENT } from "@cairn/shared";
   import type { HomePlugins, PluginConfigSchema, PluginSettingsSection } from "@cairn/shared";
   import { cairn } from "../ipc.js";
   import { applyThemeSetting } from "../theme.js";
@@ -76,8 +77,10 @@
     }
   });
 
-  function updaterSchemaFor(homeId: string): PluginConfigSchema | null {
-    return (schemasByHome[homeId] ?? []).find((s) => s.plugin === "plugin-updater") ?? null;
+  // Whichever plugin manages this home's plugins owns the automatic-update settings, so the row
+  // is found by what it PROVIDES. Cairn renders a screen for a capability, never for a plugin.
+  function managerSchemaFor(homeId: string): PluginConfigSchema | null {
+    return (schemasByHome[homeId] ?? []).find((s) => s.capabilities?.includes(PLUGIN_MANAGEMENT)) ?? null;
   }
 
   async function handleThemeChange(next: ThemeSetting): Promise<void> {
@@ -224,7 +227,7 @@
           <Card>
             {#if group.home.managesPlugins}
               <div class="updates">
-                <AutoUpdateSettings homeId={group.home.id} schema={updaterSchemaFor(group.home.id)} />
+                <AutoUpdateSettings homeId={group.home.id} schema={managerSchemaFor(group.home.id)} />
               </div>
             {/if}
             {#each schemasByHome[group.home.id] ?? [] as schema (schema.plugin)}
