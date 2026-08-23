@@ -24,7 +24,6 @@ import type { JobKind } from "./jobs/model.js";
 import { activityRead, activityStatsRead } from "./modules/activity.js";
 import { globalSettingsRead } from "./modules/globalSettings.js";
 import { updatesCheck, updatesOne, updatesAll } from "./modules/updates.js";
-import { requirePluginUpdater, withHome } from "./modules/plugins.js";
 import { librariesList, librariesRemove } from "./modules/libraries.js";
 import { appStorageGet, appStorageSet } from "./modules/appPaths.js";
 import { invokePluginManagement } from "./lib/pluginManager.js";
