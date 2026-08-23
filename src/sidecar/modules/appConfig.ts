@@ -83,6 +83,10 @@ export function configSchemas(homeId: string, deps: ConfigSchemasDeps = {}): Pro
 
     const manifests = (deps.manifests ?? deployedManifests)(home.dir);
     const declaredDefaults = new Map(manifests.flatMap((plugin) => (plugin.configDefaults ? [[plugin.id, plugin.configDefaults] as const] : [])));
+    // A plugin whose settings file predates its repository name reads a file its id does not
+    // spell, and a surface that guesses the id writes where that plugin never looks.
+    const configNames = new Map(manifests.map((plugin) => [plugin.id, plugin.configName]));
+    const valuesOf = (plugin: string): Record<string, unknown> => values(home.dir, configNames.get(plugin) ?? plugin);
 
     const bundles: Bundle[] = await (deps.bundles ?? realBundles)(home);
     const declared = await declare(bundles.filter((bundle) => !declaredDefaults.has(bundle.plugin)));
@@ -103,7 +107,7 @@ export function configSchemas(homeId: string, deps: ConfigSchemasDeps = {}): Pro
       const schema: PluginConfigSchema = {
         plugin: pluginId,
         defaults: defaultsFor(pluginId),
-        current: values(home.dir, pluginId),
+        current: valuesOf(pluginId),
       };
       if (capabilitySchema.fields) schema.fields = capabilitySchema.fields;
       if (capabilitySchema.actions) schema.actions = capabilitySchema.actions;
@@ -122,7 +126,7 @@ export function configSchemas(homeId: string, deps: ConfigSchemasDeps = {}): Pro
       const declaration: Declaration | undefined = manifestDefaults ? { defaults: manifestDefaults } : declared.get(plugin);
       if (!declaration) continue;
       resolved.add(plugin);
-      schemas.push({ plugin, ...declaration, current: values(home.dir, plugin) });
+      schemas.push({ plugin, ...declaration, current: valuesOf(plugin) });
     }
 
     // Split every declaration here, once, so the renderer receives sections and leftovers
@@ -167,6 +171,7 @@ export function configAction(homeId: string, plugin: string, actionId: string, d
 
 export interface ConfigWriteDeps {
   homes?: PluginHome[];
+  manifests?: (homeDir: string) => DeployedManifest[];
   listPlugins?: (dir: string, appId: string) => Promise<Array<{ id: string }>>;
   managed?: (dir: string, appId: string) => Promise<boolean>;
 }
@@ -191,14 +196,17 @@ export function configWrite(homeId: string, plugin: string, key: string, value: 
     if (key === "__proto__" || key === "constructor" || key === "prototype") {
       throw new Error(`invalid config key: ${key}`);
     }
-    const file = join(dir, "config", `${plugin}.json`);
+    // The file the plugin itself reads, which its manifest names when that is not its id. Writing
+    // to the id instead leaves the plugin reading a file nothing ever changed.
+    const target = (deps.manifests ?? deployedManifests)(dir).find((deployed) => deployed.id === plugin)?.configName ?? plugin;
+    const file = join(dir, "config", `${target}.json`);
     const base = resolve(dir, "config");
     if (!resolve(file).startsWith(base + sep)) {
       throw new Error(`invalid config target: ${plugin}`);
     }
     // core owns config writing (it is the only writer, and it records the change with
     // the before/after values redacted); the guards above still describe the target it
-    // computes, which is this same <dir>/config/<plugin>.json.
-    setConfigValue(plugin, key, value, dir);
+    // computes, which is this same <dir>/config/<target>.json.
+    setConfigValue(target, key, value, dir);
   });
 }

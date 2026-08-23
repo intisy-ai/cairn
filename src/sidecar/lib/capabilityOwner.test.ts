@@ -58,7 +58,7 @@ describe("capability ownership from the deployed sidecars", () => {
   it("carries each manifest's declared permissions", () => {
     const home = homeWith({ beta: { id: "beta", api: 1, entry: "dist/index.js", capabilities: ["custom-endpoints"], permissions: ["network"] } });
     expect(deployedManifests(home)).toEqual([
-      { id: "beta", capabilities: ["custom-endpoints"], permissions: ["network"], configDefaults: null, dataPaths: [], entryPath: join(home, "plugin", "beta.js") },
+      { id: "beta", capabilities: ["custom-endpoints"], permissions: ["network"], configName: "beta", configDefaults: null, dataPaths: [], entryPath: join(home, "plugin", "beta.js") },
     ]);
   });
 
@@ -129,5 +129,17 @@ describe("unmanifestedPlugins", () => {
 
   it("names nothing for a name with no deployed bundle", () => {
     expect(unmanifestedPlugins(homeWithBundleOnly("gateway"), ["never-deployed"])).toEqual([]);
+  });
+});
+
+describe("the file a plugin's settings live in", () => {
+  it("is the name the manifest gives when that is not the id, and the id otherwise", () => {
+    const home = homeWith({
+      renamed: { id: "renamed", api: 1, entry: "dist/index.js", config: { name: "legacy-name", defaults: { a: 1 } } },
+      plain: { id: "plain", api: 1, entry: "dist/index.js", config: { defaults: { b: 2 } } },
+    });
+    const byId = new Map(deployedManifests(home).map((plugin) => [plugin.id, plugin.configName]));
+    expect(byId.get("renamed")).toBe("legacy-name");
+    expect(byId.get("plain")).toBe("plain");
   });
 });

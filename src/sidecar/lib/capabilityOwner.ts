@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { readDeployedManifests } from "@intisy-ai/plugin-host";
+import { configNameFor } from "@core/index.js";
 import { pluginDir, reposDir } from "./storagePaths.js";
 
 /** One plugin deployed in a home, as its manifest sidecar describes it. */
@@ -11,6 +12,8 @@ export interface DeployedManifest {
   capabilities: string[];
   /** Permissions the manifest declares. */
   permissions: string[];
+  /** The file this plugin's settings live in, `config/<configName>.json`, which is the id unless the manifest renames it. */
+  configName: string;
   /** Every setting the manifest declares and what it is worth until a home changes it, or null when it declares none. */
   configDefaults: Record<string, unknown> | null;
   /** Paths the manifest declares this plugin writes to, beyond the ones named after it. */
@@ -33,6 +36,7 @@ export function deployedManifests(homeDir: string): DeployedManifest[] {
       id: plugin.manifest.id,
       capabilities: plugin.manifest.capabilities ?? [],
       permissions: plugin.manifest.permissions ?? [],
+      configName: configNameFor(plugin.manifest),
       configDefaults: plugin.manifest.config?.defaults ?? null,
       dataPaths: plugin.manifest.data?.paths ?? [],
       entryPath: plugin.entryPath,

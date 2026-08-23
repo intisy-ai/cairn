@@ -30,8 +30,8 @@ function listedFromSeed(dir: string) {
   };
 }
 
-function manifestOf(id: string, configDefaults: Record<string, unknown> | null) {
-  return { id, capabilities: [], permissions: [], configDefaults, entryPath: null };
+function manifestOf(id: string, configDefaults: Record<string, unknown> | null, configName = id) {
+  return { id, capabilities: [], permissions: [], configName, configDefaults, dataPaths: [], entryPath: null };
 }
 
 function bundlesFromSeed(dir: string) {
@@ -240,6 +240,26 @@ describe("appConfig sidecar module", () => {
     if (!result.ok) throw new Error("unreachable");
     expect(result.data).toHaveLength(1);
     expect(result.data[0]).toMatchObject({ plugin: "unlisted", defaults: { interval: 60 }, current: { interval: 30 } });
+  });
+
+  // A provider whose settings file predates its repository name reads config/<name>.json, which its
+  // id does not spell. Reading or writing the id instead edits a file the plugin never looks at.
+  it("reads and writes the settings file the manifest names, not the plugin id", async () => {
+    const { dir, home } = makeHome("claude", "Claude Code");
+    writeFileSync(join(dir, "config", "legacy-name.json"), JSON.stringify({ interval: 30 }), "utf8");
+    const manifests = () => [manifestOf("renamed", { interval: 60 }, "legacy-name")];
+
+    const { configSchemas, configWrite } = await import("./appConfig.js");
+    const read = await configSchemas("claude", { homes: [home], bundles: async () => [], manifests,
+      declarations: async () => new Map(), settingsProviders: async () => [] });
+
+    if (!read.ok) throw new Error("unreachable");
+    expect(read.data[0]).toMatchObject({ plugin: "renamed", defaults: { interval: 60 }, current: { interval: 30 } });
+
+    const written = await configWrite("claude", "renamed", "interval", 90, { homes: [home], manifests, listPlugins: async () => [{ id: "renamed" }] });
+    expect(written.ok).toBe(true);
+    expect(JSON.parse(readFileSync(join(dir, "config", "legacy-name.json"), "utf8"))).toEqual({ interval: 90 });
+    expect(existsSync(join(dir, "config", "renamed.json"))).toBe(false);
   });
 
   it("defaults to an empty object when the probe has no declaration for a capability-only plugin", async () => {
