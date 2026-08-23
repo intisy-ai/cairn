@@ -2,7 +2,7 @@ import { readDeployedProviders } from "@core-loader/loader-runtime.js";
 import { reposDir } from "@core-auth/index.js";
 import { getAccountsData } from "../../../vendor/usage/snapshot.js";
 import { pluginHomes } from "../lib/pluginHomes.js";
-import { safeGetPlugins } from "../lib/optionalEngines.js";
+import { listedPlugins } from "../lib/pluginManager.js";
 import { appsDetect } from "./apps.js";
 import type { AccountSummary } from "../../../vendor/usage/types.js";
 import type { AppPresence, OverviewSummary, ProviderHealth, PluginHome, Result } from "../../../packages/shared/src/domain.js";
@@ -33,7 +33,7 @@ export interface OverviewDeps {
   probe?: () => Promise<boolean>;
   accounts?: () => AccountSummary[];
   homes?: () => Promise<PluginHome[]>;
-  pluginsIn?: (dir: string) => unknown[] | Promise<unknown[]>;
+  pluginsIn?: (dir: string, appId: string) => unknown[] | Promise<unknown[]>;
   detect?: () => Promise<AppPresence>;
   providers?: () => { provider: string }[];
 }
@@ -43,7 +43,7 @@ export function overviewSummary(deps: OverviewDeps = {}): Promise<Result<Overvie
   const probe = deps.probe ?? (() => probeProxyHealth(localApiPort));
   const accountsOf = deps.accounts ?? getAccountsData;
   const homesOf = deps.homes ?? pluginHomes;
-  const pluginsIn = deps.pluginsIn ?? safeGetPlugins;
+  const pluginsIn = deps.pluginsIn ?? listedPlugins;
   const detect = deps.detect ?? (async () => {
     const result = await appsDetect();
     return result.ok ? result.data : {};
@@ -53,7 +53,7 @@ export function overviewSummary(deps: OverviewDeps = {}): Promise<Result<Overvie
     const providers = providersOf();
     const accounts = accountsOf();
     const homes = await homesOf();
-    const pluginCounts = await Promise.all(homes.filter((h) => h.present).map((h) => pluginsIn(h.dir)));
+    const pluginCounts = await Promise.all(homes.filter((h) => h.present).map((h) => pluginsIn(h.dir, h.id)));
     const pluginsInstalled = pluginCounts.reduce((sum, plugins) => sum + plugins.length, 0);
     const presence = await detect();
     const serverRunning = await probe();

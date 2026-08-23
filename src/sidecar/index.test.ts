@@ -109,10 +109,9 @@ describe("background updates on launch", () => {
       runUpdates: async (dir: string, trigger: string) => { calls.push({ dir, trigger }); return {}; },
     });
 
-    // fire and forget: boot never awaits it, and nothing has run yet at this point
+    // Fire and forget: boot never awaits the run. The capability is resolved against one home, so
+    // there is no queue to serialize ambient-home mutation through and the run starts at once.
     expect(returned).toBeUndefined();
-    expect(calls).toEqual([]);
-    // the run goes through the serialized withHome queue, so it lands a few ticks later
     for (let i = 0; i < 50 && calls.length === 0; i++) await new Promise((r) => setTimeout(r, 10));
     expect(calls).toEqual([{ dir: "/tmp/cairn-home", trigger: "cairn" }]);
   });

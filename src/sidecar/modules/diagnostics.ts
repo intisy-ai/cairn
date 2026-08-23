@@ -1,13 +1,13 @@
 import { pluginHomes } from "../lib/pluginHomes.js";
 import { ledgerFor, quarantinedIn } from "../lib/pluginHost.js";
 import { unmanifestedPlugins } from "../lib/capabilityOwner.js";
-import { safeGetPlugins } from "../lib/optionalEngines.js";
+import { listedPlugins } from "../lib/pluginManager.js";
 import type { HomeLedger, LedgerRowView, PluginHome, QuarantineView, Result } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
 
 export interface DiagnosticsDeps {
   homes?: PluginHome[];
-  installedNamesFor?: (homeDir: string) => Promise<string[]>;
+  installedNamesFor?: (homeDir: string, appId: string) => Promise<string[]>;
   unmanifested?: (homeDir: string, installedNames: string[]) => string[];
 }
 
@@ -54,14 +54,14 @@ export function pluginLedger(deps: DiagnosticsDeps = {}): Promise<Result<HomeLed
 export function pluginQuarantine(deps: DiagnosticsDeps = {}): Promise<Result<QuarantineView[]>> {
   return wrap(async () => {
     const homes = deps.homes ?? (await pluginHomes());
-    const installedNamesFor = deps.installedNamesFor ?? (async (dir: string) => (await safeGetPlugins(dir)).map((p) => p.name));
+    const installedNamesFor = deps.installedNamesFor ?? (async (dir: string, appId: string) => (await listedPlugins(dir, appId)).map((plugin) => plugin.id));
     const unmanifested = deps.unmanifested ?? unmanifestedPlugins;
     const out: QuarantineView[] = [];
     for (const home of homes) {
       for (const record of await quarantinedIn(home.dir, home.id)) {
         out.push({ homeId: home.id, homeLabel: home.label, pluginId: record.pluginId, detail: record.detail, fix: record.fix });
       }
-      const installed = await installedNamesFor(home.dir);
+      const installed = await installedNamesFor(home.dir, home.id);
       for (const name of unmanifested(home.dir, installed)) {
         out.push({
           homeId: home.id,

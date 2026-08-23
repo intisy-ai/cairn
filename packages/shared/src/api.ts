@@ -1,4 +1,4 @@
-﻿import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, HomeLibraries, HomePluginData, AppStorage, AppStorageResult, AppPathNames, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, MarketplaceSource, AppSummary, PluginConfigSchema, PluginScreen, ScreenData, InvokeResult, PluginSettingsSection, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec, UpdateSummary, Job, JobKind, HomeLedger, QuarantineView } from "./domain.js";
+﻿import type { Result, OverviewSummary, AccountView, ProviderRow, ProxyStatus, ProxyView, RoutingState, RoutingApp, Chain, AppPresence, HostApp, AppConnection, RepoMeta, CliResult, HomePlugins, HomeLibraries, HomePluginData, AppStorage, AppStorageResult, AppPathNames, PluginVersion, UsageSnapshot, ImportableApp, ImportSummary, ImportPreview, ImportSelection, CatalogResult, MarketplaceSource, AppSummary, PluginConfigSchema, PluginScreen, ScreenData, InvokeResult, PluginSettingsSection, CustomEndpoint, CustomEndpointView, InstallManyResult, DownloadProgress, BusEvent, EngineView, LoginBegin, LoginComplete, GithubStatus, ActivityRecord, ActivityQuery, ActivityStats, FieldSpec, Job, JobKind, HomeLedger, QuarantineView } from "./domain.js";
 export interface CairnAPI {
   getConfig(name: string, key: string): Promise<Result<unknown>>;
   setConfig(name: string, key: string, value: unknown): Promise<Result<void>>;
@@ -65,8 +65,8 @@ export interface CairnAPI {
   activityRead(query: ActivityQuery): Promise<Result<{ records: ActivityRecord[]; nextCursor?: string }>>;
   activityStats(): Promise<Result<ActivityStats>>;
   updatesCheck(homeId: string): Promise<Result<{ checkedAt: string; available: string[] }>>;
-  updatesOne(homeId: string, name: string): Promise<Result<UpdateSummary>>;
-  updatesAll(homeId: string): Promise<Result<UpdateSummary>>;
+  updatesOne(homeId: string, name: string): Promise<Result<void>>;
+  updatesAll(homeId: string): Promise<Result<void>>;
   globalSettingsRead(): Promise<Result<{ defaults: Record<string, unknown>; fields: FieldSpec[]; current: Record<string, unknown> }>>;
   usageSnapshot(): Promise<Result<UsageSnapshot>>;
   importApps(): Promise<Result<ImportableApp[]>>;

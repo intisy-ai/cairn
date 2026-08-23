@@ -6,6 +6,7 @@ import {
 import type {
   CrossAppSyncCapability,
   LibraryManagementCapability,
+  ManagedPlugin,
   PluginManagementCapability,
 } from "@core/index.js";
 import {
@@ -103,6 +104,18 @@ export function invokeCrossAppSync<R>(
   work: (capability: CrossAppSyncCapability) => Promise<R>,
 ): Promise<R> {
   return callCapabilityIn(homeDir, appId, CROSS_APP_SYNC, "sync", fallback, work, DEFAULT_INVOKE_TIMEOUT_MS);
+}
+
+/**
+ * Every plugin one home has registered, or an empty list when nothing manages that home.
+ *
+ * @remarks
+ * Read by nearly every sidecar module, so it lives here rather than being resolved per call site:
+ * a home with no manager degrades to "no plugins" once, consistently, instead of each caller
+ * inventing the same fallback.
+ */
+export function listedPlugins(homeDir: string, appId: string): Promise<ManagedPlugin[]> {
+  return readPluginManagement(homeDir, appId, "list", [], (capability) => capability.list());
 }
 
 export { CROSS_APP_SYNC, LIBRARY_MANAGEMENT, PLUGIN_MANAGEMENT };

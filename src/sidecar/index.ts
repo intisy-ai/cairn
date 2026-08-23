@@ -27,7 +27,7 @@ import { updatesCheck, updatesOne, updatesAll } from "./modules/updates.js";
 import { requirePluginUpdater, withHome } from "./modules/plugins.js";
 import { librariesList, librariesRemove } from "./modules/libraries.js";
 import { appStorageGet, appStorageSet } from "./modules/appPaths.js";
-import { loadPluginUpdaterIndex } from "./lib/optionalEngines.js";
+import { invokePluginManagement } from "./lib/pluginManager.js";
 import { stopAllHosts } from "./lib/pluginHost.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
 import type { ActivityQuery } from "@core/index.js";
@@ -67,14 +67,20 @@ export interface BackgroundUpdateDeps {
   runUpdates?: (dir: string, trigger: string) => Promise<unknown>;
 }
 
+// The trigger, not a bare "update everything": the home's own policy decides whether a dashboard
+// launch is an occasion it wants updates on, and only the manager holding that policy can say.
+const LAUNCH_TRIGGER = "cairn";
+
 // Fire and forget on purpose: the dashboard must open whether or not an update run
 // works, and must not wait on ls-remote before answering its first request.
 export function startBackgroundUpdates(deps: BackgroundUpdateDeps = {}): void {
   const home = deps.home ?? cairnHome();
   void (async () => {
     try {
-      const run = deps.runUpdates ?? requirePluginUpdater(await loadPluginUpdaterIndex()).runUpdates;
-      await withHome(home, () => run(home, "cairn"), "cairn");
+      const run = deps.runUpdates ?? ((dir: string, trigger: string) =>
+        invokePluginManagement(dir, LAUNCH_TRIGGER, "runUpdates", null, (capability) =>
+          capability.runUpdates(trigger as "cairn")));
+      await run(home, LAUNCH_TRIGGER);
     } catch { /* an update run is never worth a dashboard that will not start */ }
   })();
 }
