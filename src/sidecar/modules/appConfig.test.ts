@@ -325,10 +325,9 @@ describe("appConfig sidecar module", () => {
     expect(result).toEqual({ ok: false, error: "conflict with a concurrent sync" });
   });
 
-  // createSettingsCapability already converts a thrown error into {ok:false, message}, and
-  // callHostCapability never throws either, so a provider that throws directly (an older
-  // capability not built on createSettingsCapability, or a bug in callHostCapability's own
-  // wrapping) must land on the exact same failed-Result path, not crash the sidecar handler.
+  // A plugin's action is free to throw rather than resolve {ok:false, message}: the host bounds
+  // every capability call and callHostCapability never throws either, so both must land on the
+  // exact same failed-Result path rather than crashing the sidecar handler.
   it("fails the action the same way when run throws instead of resolving ok:false", async () => {
     const { home } = makeHome("claude", "Claude Code");
     const run = vi.fn(async () => { throw new Error("disk full"); });
