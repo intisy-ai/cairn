@@ -17,9 +17,7 @@ const PLUGIN_NAMES = [
 // named library import until that capability is complete. Nothing else may be listed here.
 const INSTALL_ENGINE = [
   "src/sidecar/lib/optionalEngines.ts",
-  "src/sidecar/lib/pluginHomes.ts",
   "src/sidecar/modules/plugins.ts",
-  "src/sidecar/modules/apps.ts",
   "src/sidecar/modules/appConfig.ts",
   "src/installer/index.ts",
   "src/renderer/lib/routes/Settings.svelte",

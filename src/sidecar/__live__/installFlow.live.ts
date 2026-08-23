@@ -102,9 +102,10 @@ describe.each(["claude", "opencode"])("installing the plugin manager into the %s
     const registered = JSON.parse(readFileSync(join(home.dir, "config", "plugins.json"), "utf8")) as Array<{ name: string }>;
     expect(registered.some((p) => p.name === manager.id), "registered in plugins.json").toBe(true);
 
-    // The bug this whole change exists to fix: the home used to report false here.
+    // The bug this whole change exists to fix: the home used to report false here. It is asked as
+    // a capability now, so this also proves the deployed manager is one a host can actually call.
     const { updaterInstalled } = await import("../lib/pluginHomes.js");
-    expect(await updaterInstalled(home.dir), "home reports the manager as installed").toBe(true);
+    expect(await updaterInstalled(home.dir, home.id), "home reports the manager as installed").toBe(true);
   }, CLONE_TIMEOUT_MS);
 });
 

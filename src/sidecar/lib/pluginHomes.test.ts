@@ -164,13 +164,13 @@ describe("loaderInstalled", () => {
   });
 
   it("is true only when the home lists that exact loader", async () => {
-    const list = async () => [{ name: "opencode-loader" }, { name: "wakatime-sync" }] as never;
-    expect(await loaderInstalled("/home/o", "opencode-loader", list)).toBe(true);
-    expect(await loaderInstalled("/home/o", "claude-code-loader", list)).toBe(false);
+    const list = async () => [{ id: "opencode-loader" }, { id: "wakatime-sync" }];
+    expect(await loaderInstalled("/home/o", "opencode-loader", "opencode", list)).toBe(true);
+    expect(await loaderInstalled("/home/o", "claude-code-loader", "opencode", list)).toBe(false);
   });
 
   // A home we cannot read is not evidence of an install, and must not throw into the caller.
   it("reads an unreadable home as not installed", async () => {
-    expect(await loaderInstalled("/gone", "opencode-loader", () => { throw new Error("ENOENT"); })).toBe(false);
+    expect(await loaderInstalled("/gone", "opencode-loader", "opencode", () => { throw new Error("ENOENT"); })).toBe(false);
   });
 });

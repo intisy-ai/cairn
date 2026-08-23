@@ -436,7 +436,7 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
     const hasUpdater = deps.hasUpdater ?? updaterInstalled;
     // Every home needs the plugin manager before it can manage anything else. The
     // manager itself is exempt: it is what is being installed.
-    if (!(await isPluginManager(name, dir)) && !(await hasUpdater(dir))) {
+    if (!(await isPluginManager(name, dir)) && !(await hasUpdater(dir, homeId))) {
       report?.("Installing the plugin manager", 10);
       // The bootstrap has to act on the very home this install targets, so it gets this
       // call's home list rather than resolving its own.

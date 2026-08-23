@@ -3,7 +3,6 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join, delimiter } from "node:path";
 import { getApps, getAppDescriptor, resolveHome } from "@core/index.js";
 import type { AppDescriptor } from "@core/index.js";
-import type { Plugin } from "@intisy-ai/plugin-updater/dist/types.js";
 import { resolveModelMap } from "@core-proxy/model-map.js";
 import { normalizeQuotas } from "../../../vendor/usage/snapshot.js";
 import { appRealHome, loaderInstalled } from "../lib/pluginHomes.js";
@@ -11,7 +10,7 @@ import { svgIconDataUri } from "../lib/pluginIcon.js";
 import { scanOrg } from "../lib/orgScan.js";
 import { discoverApps } from "../lib/appDiscovery.js";
 import { profileFor } from "../lib/proxyRegistry.js";
-import { safeGetPlugins } from "../lib/optionalEngines.js";
+import { listedPlugins } from "../lib/pluginManager.js";
 import type { AppAccountSummary, AppConnection, AppPresence, AppProviderAgg, AppSummary, CliResult, HostApp, Result } from "../../../packages/shared/src/domain.js";
 import { wrap, err } from "../result.js";
 
@@ -94,14 +93,14 @@ export function appsInstallCli(app: string, spawn: SpawnFn = realSpawn): Promise
 
 export interface AppsConnectionDeps {
   detect?: () => Promise<Result<AppPresence>>;
-  listPlugins?: (dir: string) => Plugin[] | Promise<Plugin[]>;
+  listPlugins?: (dir: string, appId: string) => Array<{ id: string }> | Promise<Array<{ id: string }>>;
   appHome?: (app: string) => string;
   getDescriptor?: (app: string) => AppDescriptor | undefined;
 }
 
 export function appsConnection(app: string, deps: AppsConnectionDeps = {}): Promise<Result<AppConnection>> {
   const detect = deps.detect ?? appsDetect;
-  const listPlugins = deps.listPlugins ?? safeGetPlugins;
+  const listPlugins = deps.listPlugins ?? listedPlugins;
   const appHome = deps.appHome ?? appRealHome;
   const getDescriptor = deps.getDescriptor ?? getAppDescriptor;
   return wrap(async () => {
@@ -110,7 +109,7 @@ export function appsConnection(app: string, deps: AppsConnectionDeps = {}): Prom
     const presence = await detect();
     const cliPresent = presence.ok ? !!presence.data[app] : false;
     const loader = desc.loader ?? null;
-    const installed = await loaderInstalled(appHome(app), loader?.id, listPlugins);
+    const installed = await loaderInstalled(appHome(app), loader?.id, app, listPlugins);
     return { app, cliPresent, loaderId: loader?.id ?? null, loaderUrl: loader?.url ?? null, loaderInstalled: installed };
   });
 }
@@ -198,6 +197,7 @@ interface AccountsStoreShape {
 export interface AppsSummaryDeps {
   appHome?: (app: string) => string;
   readJson?: (path: string) => unknown | null;
+  listPlugins?: (dir: string, appId: string) => Array<{ id: string }> | Promise<Array<{ id: string }>>;
 }
 
 export function appsSummary(app: string, deps: AppsSummaryDeps = {}): Promise<Result<AppSummary>> {
@@ -205,6 +205,7 @@ export function appsSummary(app: string, deps: AppsSummaryDeps = {}): Promise<Re
   if (!desc) return Promise.resolve(err(`unknown app: ${app}`));
   const appHome = deps.appHome ?? appRealHome;
   const readJson = deps.readJson ?? safeReadJson;
+  const listPlugins = deps.listPlugins ?? listedPlugins;
   return wrap(async () => {
     const home = appHome(app);
     const store = readJson(join(home, "config", "accounts.json")) as AccountsStoreShape | null;
@@ -219,7 +220,7 @@ export function appsSummary(app: string, deps: AppsSummaryDeps = {}): Promise<Re
         });
       }
     }
-    const pluginCount = (await safeGetPlugins(home)).length;
+    const pluginCount = (await listPlugins(home, app)).length;
 
     let routingSlots: number | null = null;
     const profile = await profileFor(app);

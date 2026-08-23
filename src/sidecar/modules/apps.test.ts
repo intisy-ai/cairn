@@ -200,20 +200,12 @@ describe("appsSummary", () => {
       }),
       "utf8",
     );
-    writeFileSync(
-      join(tempHome, "config", "plugins.json"),
-      JSON.stringify(
-        [
-          { name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true },
-          { name: "plugin-b", url: "https://github.com/intisy-ai/plugin-b", enabled: true },
-        ],
-        null,
-        2,
-      ),
-      "utf8",
-    );
-
-    const result = await appsSummary("alpha", { appHome: () => tempHome });
+    // The count comes from whatever manages the home, not from reading its list here, so the
+    // fixture states what that manager answers rather than writing a plugins.json nothing reads.
+    const result = await appsSummary("alpha", {
+      appHome: () => tempHome,
+      listPlugins: () => [{ id: "plugin-a" }, { id: "plugin-b" }],
+    });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data.configDir).toBe(tempHome);
@@ -285,7 +277,7 @@ describe("appsSummary", () => {
       getDescriptor: () => descWithLoader("app1-loader"),
       detect: async () => ({ ok: true, data: { app1: true } }),
       appHome: (app) => `/home/${app}`,
-      listPlugins: (dir) => (dir === "/home/app1" ? [{ name: "app1-loader" } as never] : []),
+      listPlugins: (dir) => (dir === "/home/app1" ? [{ id: "app1-loader" }] : []),
     });
     expect(result).toEqual({ ok: true, data: { app: "app1", cliPresent: true, loaderId: "app1-loader", loaderUrl: loaderUrl("app1-loader"), loaderInstalled: true } });
   });
@@ -305,7 +297,7 @@ describe("appsSummary", () => {
       getDescriptor: () => ({} as unknown as AppDescriptor),
       detect: async () => ({ ok: true, data: { app1: true } }),
       appHome: () => "/home/app1",
-      listPlugins: () => [{ name: "unrelated" } as never],
+      listPlugins: () => [{ id: "unrelated" }],
     });
     expect(result).toEqual({ ok: true, data: { app: "app1", cliPresent: true, loaderId: null, loaderUrl: null, loaderInstalled: false } });
   });

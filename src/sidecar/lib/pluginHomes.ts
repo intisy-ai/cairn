@@ -4,9 +4,8 @@ import { resolveStoreDir } from "../../main/lib/storeDir.js";
 import { appsDetect } from "../modules/apps.js";
 import { renderCairnMark } from "../../../packages/shared/src/logo.js";
 import { svgIconDataUri } from "./pluginIcon.js";
-import type { Plugin } from "@intisy-ai/plugin-updater/dist/types.js";
 import type { AppPresence, PluginHome, PluginHomeId, Result } from "../../../packages/shared/src/domain.js";
-import { safeGetPlugins, loadPluginUpdaterConfig } from "./optionalEngines.js";
+import { hasCapability, listedPlugins, PLUGIN_MANAGEMENT } from "./pluginManager.js";
 
 export function appRealHome(app: string, env: NodeJS.ProcessEnv = process.env, home: string = homedir()): string {
   const desc = getAppDescriptor(app, env, home);
@@ -30,16 +29,19 @@ export function cairnHome(): string {
   return forced || resolveStoreDir(process.env, process.platform, homedir());
 }
 
-// "Has the updater" means plugin-updater is actually installed in this home (a git
-// entry or opencode's npm plugin list), NOT merely that a plugins.json exists. The
-// gate and the download source label both hinge on this being accurate. When
-// plugin-updater itself is not part of this build, no home can have it installed.
-export async function updaterInstalled(dir: string): Promise<boolean> {
+/**
+ * Whether this home can install and update plugins at all, which is what the gate and the download
+ * source label both hinge on.
+ *
+ * @remarks
+ * Asked as a capability rather than by looking for a particular plugin in the home's lists. That is
+ * both the agnostic question and the more accurate one: a manager present but not loadable here
+ * cannot be called, so a list saying it is installed would gate the UI open on a home where nothing
+ * would answer.
+ */
+export async function updaterInstalled(dir: string, appId: string): Promise<boolean> {
   try {
-    if ((await safeGetPlugins(dir)).some((p) => p.name === "plugin-updater")) return true;
-    const config = await loadPluginUpdaterConfig();
-    if (!config) return false;
-    return config.readOpencodeJson(dir).plugins.some((p) => p.includes("plugin-updater"));
+    return await hasCapability(dir, appId, PLUGIN_MANAGEMENT);
   } catch {
     return false;
   }
@@ -51,11 +53,12 @@ export async function updaterInstalled(dir: string): Promise<boolean> {
 export async function loaderInstalled(
   dir: string,
   loaderId?: string,
-  listPlugins: (dir: string) => Plugin[] | Promise<Plugin[]> = safeGetPlugins,
+  appId = "",
+  listPlugins: (dir: string, app: string) => Array<{ id: string }> | Promise<Array<{ id: string }>> = listedPlugins,
 ): Promise<boolean> {
   if (!loaderId) return false;
   try {
-    return (await listPlugins(dir)).some((p) => p.name === loaderId);
+    return (await listPlugins(dir, appId)).some((plugin) => plugin.id === loaderId);
   } catch {
     return false;
   }
@@ -64,8 +67,8 @@ export async function loaderInstalled(
 export interface PluginHomesDeps {
   detect?: () => Promise<Result<AppPresence>>;
   cairnDir?: string;
-  hasUpdater?: (dir: string) => boolean | Promise<boolean>;
-  hasLoader?: (dir: string, loaderId?: string) => boolean | Promise<boolean>;
+  hasUpdater?: (dir: string, appId: string) => boolean | Promise<boolean>;
+  hasLoader?: (dir: string, loaderId?: string, appId?: string) => boolean | Promise<boolean>;
   appHome?: (app: string) => string;
 }
 
@@ -86,16 +89,16 @@ export async function pluginHomes(deps: PluginHomesDeps = {}): Promise<PluginHom
         icon: desc.icon ? svgIconDataUri(desc.icon) : undefined,
         dir,
         present: !!present[desc.id],
-        hasUpdater: await hasUpdater(dir),
+        hasUpdater: await hasUpdater(dir, desc.id),
         loaderId: desc.loader?.id,
-        loaderInstalled: await hasLoader(dir, desc.loader?.id),
+        loaderInstalled: await hasLoader(dir, desc.loader?.id, desc.id),
       };
     }),
   );
   return [
     // Cairn bundles the updater to perform installs, but it ships with no plugins:
     // until plugin-updater is installed here too, only engines can be added.
-    { id: "cairn", label: "Cairn", icon: renderCairnMark(), dir: cairnDir, present: true, hasUpdater: await hasUpdater(cairnDir) },
+    { id: "cairn", label: "Cairn", icon: renderCairnMark(), dir: cairnDir, present: true, hasUpdater: await hasUpdater(cairnDir, "cairn") },
     ...appHomes,
   ];
 }
