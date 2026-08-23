@@ -41,7 +41,7 @@ describe("pluginsData", () => {
       declaredPaths: async () => ["state/mirror"],
       read,
     });
-    expect(read).toHaveBeenCalledWith("/cairn", "sync-bridge", ["state/mirror"]);
+    expect(read).toHaveBeenCalledWith("/cairn", "sync-bridge", ["state/mirror"], "cairn");
   });
 });
 
@@ -50,7 +50,7 @@ describe("pluginsRemoveData", () => {
     const remove = vi.fn(async () => ["config/p.json"]);
     const result = await pluginsRemoveData("claude", ["config/p.json"], { homes: HOMES, remove });
 
-    expect(remove).toHaveBeenCalledWith("/claude", ["config/p.json"]);
+    expect(remove).toHaveBeenCalledWith("/claude", ["config/p.json"], "claude");
     expect(result.ok && result.data).toEqual(["config/p.json"]);
   });
 

@@ -203,7 +203,7 @@ export interface PluginsDeps {
   // Called at each phase boundary so a download row can show live progress;
   // percent is coarse phase-based progress 0..100.
   report?: (step: string, percent: number) => void;
-  prune?: (dir: string) => Promise<string[]>;
+  prune?: (dir: string, appId: string) => Promise<string[]>;
 }
 
 async function resolveHomes(deps: PluginsDeps): Promise<PluginHome[]> {
@@ -555,7 +555,7 @@ export function pluginsUninstall(homeId: string, name: string, deps: PluginsDeps
       const uninstall = deps.uninstallPlugin ?? requirePluginUpdater(await loadPluginUpdaterIndex()).uninstallPlugin;
       await withHome(dir, async () => uninstall(dir, name), homeId);
       // The plugin is gone, so anything only it declared is now dead weight in the shared store.
-      await (deps.prune ?? pruneUnusedLibraries)(dir);
+      await (deps.prune ?? pruneUnusedLibraries)(dir, homeId);
       return;
     }
     const npmList = deps.npmPlugins ?? getNpmPlugins;

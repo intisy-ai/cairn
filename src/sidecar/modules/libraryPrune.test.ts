@@ -4,23 +4,23 @@ import { pruneUnusedLibraries } from "./libraryPrune.js";
 describe("pruneUnusedLibraries", () => {
   it("removes every library no installed plugin declares", async () => {
     const remove = vi.fn();
-    const removed = await pruneUnusedLibraries("/home", {
+    const removed = await pruneUnusedLibraries("/home", "claude", {
       enabled: () => true,
-      orphans: () => ["@intisy-ai/left-behind", "@intisy-ai/also-unused"],
+      orphans: async () => ["@intisy-ai/left-behind", "@intisy-ai/also-unused"],
       remove,
     });
 
     expect(removed).toEqual(["@intisy-ai/left-behind", "@intisy-ai/also-unused"]);
     expect(remove).toHaveBeenCalledTimes(2);
-    expect(remove).toHaveBeenCalledWith("/home", "@intisy-ai/left-behind");
+    expect(remove).toHaveBeenCalledWith("/home", "@intisy-ai/left-behind", "claude");
   });
 
   // The toggle is the whole point: a home that installs libraries by hand must keep them.
   it("removes nothing when the setting is off", async () => {
     const remove = vi.fn();
-    const removed = await pruneUnusedLibraries("/home", {
+    const removed = await pruneUnusedLibraries("/home", "claude", {
       enabled: () => false,
-      orphans: () => ["@intisy-ai/left-behind"],
+      orphans: async () => ["@intisy-ai/left-behind"],
       remove,
     });
 
@@ -30,7 +30,7 @@ describe("pruneUnusedLibraries", () => {
 
   it("leaves a library still declared by something alone", async () => {
     const remove = vi.fn();
-    expect(await pruneUnusedLibraries("/home", { enabled: () => true, orphans: () => [], remove })).toEqual([]);
+    expect(await pruneUnusedLibraries("/home", "claude", { enabled: () => true, orphans: async () => [], remove })).toEqual([]);
     expect(remove).not.toHaveBeenCalled();
   });
 
@@ -41,9 +41,9 @@ describe("pruneUnusedLibraries", () => {
       if (specifier === "@intisy-ai/held-open") throw new Error("EBUSY");
     });
 
-    const removed = await pruneUnusedLibraries("/home", {
+    const removed = await pruneUnusedLibraries("/home", "claude", {
       enabled: () => true,
-      orphans: () => ["@intisy-ai/held-open", "@intisy-ai/fine"],
+      orphans: async () => ["@intisy-ai/held-open", "@intisy-ai/fine"],
       remove,
     });
 
