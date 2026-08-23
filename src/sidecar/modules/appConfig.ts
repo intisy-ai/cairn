@@ -1,17 +1,14 @@
-import { existsSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { setConfigValue, resolveLayout } from "@core/index.js";
 import type { ManagedNpmPlugin } from "@core/index.js";
 import type { PluginConfigSchema, PluginHome, PluginHomeId, Result, FieldSpec, ActionSpec, SectionSpec, DataSpec } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir, homeById } from "../lib/pluginHomes.js";
 import { hasCapability, listedPlugins, readPluginManagement, PLUGIN_MANAGEMENT } from "../lib/pluginManager.js";
-import { deployedManifests, isDeployedPlugin } from "../lib/capabilityOwner.js";
+import { deployedManifests, isDeployedPlugin, npmPackageManifest } from "../lib/capabilityOwner.js";
 import type { DeployedManifest } from "../lib/capabilityOwner.js";
-import { probeDeclarations, readCurrentValues } from "../lib/schemaProbe.js";
-import type { Bundle, Declaration } from "../lib/schemaProbe.js";
+import { readCurrentValues } from "../lib/configValues.js";
 import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS, DEFAULT_INVOKE_TIMEOUT_MS } from "../lib/pluginHost.js";
 import { wrap } from "../result.js";
-import { pluginDir } from "../lib/storagePaths.js";
 
 /** What a plugin's `settings` capability declares about itself, beyond its defaults. */
 interface CapabilityDeclaration {
@@ -35,63 +32,58 @@ async function realSettingsProviders(homeDir: string, appId: string): Promise<Se
 }
 
 /**
- * Every file in a home that can be asked to declare itself.
+ * Every manifest a home holds: the sidecars its deploys wrote, plus the package manifest of each
+ * npm plugin its manager resolved.
  *
  * @remarks
- * A cloned plugin deploys a bundle; an npm one has only the package it resolves to, which the
- * home's manager is the one thing that knows how to find. Deployed bundles come first so a plugin
- * present both ways is read as the copy this home actually deploys.
+ * An npm plugin deploys no bundle and writes no sidecar, and where its package resolves is the
+ * manager's knowledge rather than a surface's. Deployed sidecars come first so a plugin present
+ * both ways is read as the copy this home actually deploys.
  */
-async function realBundles(home: PluginHome): Promise<Bundle[]> {
-  const deployed = (await listedPlugins(home.dir, home.id))
-    .map((plugin) => ({ plugin: plugin.id, path: join(pluginDir(home.dir), `${plugin.id}.js`) }))
-    .filter((bundle) => existsSync(bundle.path));
+async function realManifests(home: PluginHome): Promise<DeployedManifest[]> {
+  const deployed = deployedManifests(home.dir);
+  const seen = new Set(deployed.map((plugin) => plugin.id));
   const fromNpm = (await readPluginManagement(home.dir, home.id, "listNpm", [] as ManagedNpmPlugin[],
     (capability) => capability.listNpm()))
-    .flatMap((plugin) => (plugin.entryPath ? [{ plugin: plugin.name, path: plugin.entryPath }] : []));
+    .flatMap((plugin) => (plugin.entryPath ? [npmPackageManifest(plugin.entryPath)] : []))
+    .filter((manifest): manifest is DeployedManifest => manifest !== null && !seen.has(manifest.id));
   return [...deployed, ...fromNpm];
 }
 
 export interface ConfigSchemasDeps {
   homes?: PluginHome[];
-  manifests?: (homeDir: string) => DeployedManifest[];
-  bundles?: (home: PluginHome) => Promise<Bundle[]>;
-  declarations?: (bundles: Bundle[]) => Promise<Map<string, Declaration>>;
+  manifests?: (home: PluginHome) => Promise<DeployedManifest[]>;
   values?: (dir: string, plugin: string) => Record<string, unknown>;
   settingsProviders?: (homeDir: string, appId: string) => Promise<SettingsProvider[]>;
 }
 
 /**
- * Resolves a home's plugin declarations from the manifests it deploys, asking each plugin's
+ * Resolves a home's plugin declarations from the manifests it holds, asking each plugin's
  * `settings` capability for what a manifest cannot state.
  *
  * @remarks
- * `defaults` come from the deployed manifest, which states them as data and costs nothing to read.
- * A bundle whose manifest declares none is probed instead, which runs it as a process: that is the
- * only channel left for one built before settings became a declaration, and it disappears with the
- * last such bundle. `fields`, `actions`, `sections` and `data` come from the capability where it
- * answers, since those are the plugin's own live declaration; `current` always comes from disk, so
- * a write is visible on the very next read with nothing to invalidate.
+ * `defaults` come from the manifest, which states them as data and costs nothing to read: nothing
+ * is spawned and a plugin that cannot even be built still has readable settings. `fields`,
+ * `actions`, `sections` and `data` come from the capability where it answers, since those are the
+ * plugin's own live declaration; `current` always comes from disk, so a write is visible on the
+ * very next read with nothing to invalidate.
  */
 export function configSchemas(homeId: string, deps: ConfigSchemasDeps = {}): Promise<Result<PluginConfigSchema[]>> {
   return wrap(async () => {
     const homes = deps.homes ?? (await pluginHomes());
     const home = homeById(homeId as PluginHomeId, homes);
-    const declare = deps.declarations ?? probeDeclarations;
     const values = deps.values ?? readCurrentValues;
     const settingsProviders = deps.settingsProviders ?? realSettingsProviders;
 
-    const manifests = (deps.manifests ?? deployedManifests)(home.dir);
+    const manifests = await (deps.manifests ?? realManifests)(home);
     const declaredDefaults = new Map(manifests.flatMap((plugin) => (plugin.configDefaults ? [[plugin.id, plugin.configDefaults] as const] : [])));
     // A plugin whose settings file predates its repository name reads a file its id does not
     // spell, and a surface that guesses the id writes where that plugin never looks.
     const configNames = new Map(manifests.map((plugin) => [plugin.id, plugin.configName]));
     const valuesOf = (plugin: string): Record<string, unknown> => values(home.dir, configNames.get(plugin) ?? plugin);
 
-    const bundles: Bundle[] = await (deps.bundles ?? realBundles)(home);
-    const declared = await declare(bundles.filter((bundle) => !declaredDefaults.has(bundle.plugin)));
     const capabilities = await settingsProviders(home.dir, home.id);
-    const defaultsFor = (plugin: string): Record<string, unknown> => declaredDefaults.get(plugin) ?? declared.get(plugin)?.defaults ?? {};
+    const defaultsFor = (plugin: string): Record<string, unknown> => declaredDefaults.get(plugin) ?? {};
 
     const schemas: PluginConfigSchema[] = [];
     const resolved = new Set<string>();
@@ -116,17 +108,14 @@ export function configSchemas(homeId: string, deps: ConfigSchemasDeps = {}): Pro
       schemas.push(schema);
     }
 
-    // A plugin with no `settings` capability still has settings to show: its manifest states them,
-    // and a bundle whose manifest does not is where the probe's answer is used. A manifest is
-    // enough on its own, so a plugin deployed into a home that lists no entry for it is reached
-    // here rather than being invisible to a screen that can still write to it.
-    for (const plugin of [...bundles.map((bundle) => bundle.plugin), ...declaredDefaults.keys()]) {
+    // A plugin with no `settings` capability still has settings to show, because its manifest
+    // states them. A manifest is enough on its own, so a plugin deployed into a home that lists no
+    // entry for it is reached here rather than being invisible to a screen that can still write to
+    // it.
+    for (const [plugin, defaults] of declaredDefaults) {
       if (resolved.has(plugin)) continue;
-      const manifestDefaults = declaredDefaults.get(plugin);
-      const declaration: Declaration | undefined = manifestDefaults ? { defaults: manifestDefaults } : declared.get(plugin);
-      if (!declaration) continue;
       resolved.add(plugin);
-      schemas.push({ plugin, ...declaration, current: valuesOf(plugin) });
+      schemas.push({ plugin, defaults, current: valuesOf(plugin) });
     }
 
     // Split every declaration here, once, so the renderer receives sections and leftovers

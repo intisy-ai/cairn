@@ -17,16 +17,15 @@ const MAIN_HANDLED = new Set(["proxy:status", "proxy:start", "proxy:stop"]);
 // Channels that do real work (git clone + npm install + build, a full usage scan,
 // a cross-app sync) need deadlines far wider than the supervisor's 15s default.
 const LONG_MS = 600000;
-// Resolving a home's plugin declarations spawns each plugin's bundle. That is cached by
-// bundle identity and bounded (MAX_PARALLEL x PROBE_TIMEOUT_MS in the sidecar's schemaProbe),
-// but a cold cache across several homes still outlasts the 15s default.
-const PROBING_MS = 60000;
+// Resolving a home's plugin declarations asks every plugin providing settings, each under its own
+// capability-call deadline, across every home at once. That still outlasts the 15s default.
+const DECLARATIONS_MS = 60000;
 // A channel that calls into a plugin's own capability must give that call's own
 // timeout room to fire and report a real error first; racing it with an equal or
 // shorter IPC deadline would surface a generic timeout instead.
 const RPC_HEADROOM_MS = 15000;
 const CHANNEL_TIMEOUTS: Record<string, number> = {
-  "config:schemas": PROBING_MS,
+  "config:schemas": DECLARATIONS_MS,
   "usage:snapshot": 120000,
   "plugins:versionsAll": 120000,
   "repo:meta": 60000,

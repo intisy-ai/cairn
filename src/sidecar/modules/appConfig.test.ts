@@ -34,61 +34,44 @@ function manifestOf(id: string, configDefaults: Record<string, unknown> | null, 
   return { id, capabilities: [], permissions: [], configName, configDefaults, dataPaths: [], entryPath: null };
 }
 
-function bundlesFromSeed(dir: string) {
-  return async () => (await listedFromSeed(dir)())
-    .map((entry) => ({ plugin: entry.id, path: join(dir, "plugin", `${entry.id}.js`) }))
-    .filter((bundle) => existsSync(bundle.path));
-}
 
 describe("appConfig sidecar module", () => {
-  it("returns schemas only for plugins with a deployed bundle, skipping missing ones without probing", async () => {
-    const { dir, home } = makeHome("claude", "Claude Code");
-    writeFileSync(join(dir, "plugin", "plugin-a.js"), "// bundle placeholder", "utf8");
-    seedPlugins(dir, [
-      { name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true },
-      { name: "plugin-b", url: "https://github.com/intisy-ai/plugin-b", enabled: true },
-    ]);
-
-    // Only the plugin with a deployed bundle is offered for declaration resolution at all,
-    // so a plugin with nothing to run is skipped without paying for a probe.
-    const declarations = vi.fn(async (bundles: { plugin: string; path: string }[]) => {
-      expect(bundles.map((b) => b.plugin)).toEqual(["plugin-a"]);
-      expect(bundles[0].path.replaceAll("\\", "/")).toContain("/plugin/plugin-a.js");
-      return new Map([["plugin-a", { defaults: { logging: true } }]]);
-    });
+  it("returns a schema for every plugin whose manifest declares settings, and none for one that does not", async () => {
+    const { home } = makeHome("claude", "Claude Code");
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir), declarations, settingsProviders: async () => [] });
+    const result = await configSchemas("claude", { homes: [home],
+      manifests: async () => [manifestOf("plugin-a", { logging: true }), manifestOf("plugin-b", null)],
+      settingsProviders: async () => [],
+    });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data).toEqual([
       { plugin: "plugin-a", defaults: { logging: true }, current: {}, capabilities: [], layout: { sections: [], fields: [], actions: [] } },
     ]);
-    expect(declarations).toHaveBeenCalledTimes(1);
   });
 
   it("resolves each declaration into its contributed sections and what no section claimed", async () => {
-    const { dir, home } = makeHome("claude", "Claude Code");
-    writeFileSync(join(dir, "plugin", "sync-bridge.js"), "// bundle placeholder", "utf8");
-    seedPlugins(dir, [{ name: "sync-bridge", url: "https://github.com/intisy-ai/sync-bridge", enabled: true }]);
+    const { home } = makeHome("claude", "Claude Code");
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir),
-      settingsProviders: async () => [],
-      declarations: async () =>
-        new Map([[
-          "sync-bridge",
-          {
-            defaults: { enabled: true, logging: true },
+    const result = await configSchemas("claude", { homes: [home],
+      manifests: async () => [manifestOf("sync-bridge", { enabled: true, logging: true })],
+      settingsProviders: async () => [{
+        pluginId: "sync-bridge",
+        implementation: {
+          schema: async () => ({
             fields: [
               { key: "enabled", type: "boolean" as const },
               { key: "logging", type: "boolean" as const },
             ],
             actions: [{ id: "sync", label: "Sync now" }],
             sections: [{ id: "sync", label: "Sync", fields: ["enabled"], actions: ["sync"] }],
-          },
-        ]]),
+          }),
+          run: vi.fn(),
+        },
+      }],
     });
 
     if (!result.ok) throw new Error("unreachable");
@@ -100,35 +83,17 @@ describe("appConfig sidecar module", () => {
     expect(layout?.actions).toEqual([]);
   });
 
-  it("omits a plugin when the probe returns null", async () => {
-    const { dir, home } = makeHome("claude", "Claude Code");
-    writeFileSync(join(dir, "plugin", "plugin-a.js"), "// bundle placeholder", "utf8");
-    seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
-
-    const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir), declarations: async () => new Map(), settingsProviders: async () => [] });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("unreachable");
-    expect(result.data).toEqual([]);
-  });
-
   it("returns ok:false for an unknown home id", async () => {
     const { home } = makeHome("claude", "Claude Code");
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("nope", { homes: [home], declarations: async () => new Map(), settingsProviders: async () => [] });
+    const result = await configSchemas("nope", { homes: [home], manifests: async () => [], settingsProviders: async () => [] });
     expect(result.ok).toBe(false);
   });
 
-  it("prefers a plugin's settings capability for its declaration, but the probe for its defaults", async () => {
+  it("takes the values from the manifest and the rest from the plugin's own live declaration", async () => {
     const { dir, home } = makeHome("claude", "Claude Code");
-    writeFileSync(join(dir, "plugin", "historian.js"), "// bundle placeholder", "utf8");
-    seedPlugins(dir, [{ name: "historian", url: "https://github.com/intisy-ai/historian", enabled: true }]);
     writeFileSync(join(dir, "config", "historian.json"), JSON.stringify({ verbose: false }), "utf8");
 
-    // The capability answers with the LIVE declaration; the probe answers with what defineConfig
-    // registered in the bundle's own module instance. Each value differs from its counterpart on
-    // the other side, so a fixture that silently swapped the two sources would fail this.
     const schema = vi.fn(async () => ({
       fields: [{ key: "verbose", type: "boolean" as const, label: "Verbose" }],
       actions: [{ id: "sync", label: "Sync now" }],
@@ -140,12 +105,11 @@ describe("appConfig sidecar module", () => {
     });
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir),
-      declarations: async () => new Map([["historian", { defaults: { verbose: true } }]]),
+    const result = await configSchemas("claude", { homes: [home],
+      manifests: async () => [manifestOf("historian", { verbose: true })],
       settingsProviders,
     });
 
-    expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data).toHaveLength(1);
     expect(result.data[0].plugin).toBe("historian");
@@ -156,74 +120,6 @@ describe("appConfig sidecar module", () => {
     expect(schema).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to the probe entirely for a plugin with no settings capability", async () => {
-    const { dir, home } = makeHome("claude", "Claude Code");
-    writeFileSync(join(dir, "plugin", "legacy.js"), "// bundle placeholder", "utf8");
-    seedPlugins(dir, [{ name: "legacy", url: "https://github.com/intisy-ai/legacy", enabled: true }]);
-
-    const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir),
-      settingsProviders: async () => [],
-      declarations: async () => new Map([["legacy", { defaults: { b: 2 }, fields: [{ key: "b", type: "number" as const }] }]]),
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error("unreachable");
-    expect(result.data.map((s) => s.plugin)).toEqual(["legacy"]);
-    expect(result.data[0].defaults).toEqual({ b: 2 });
-    expect(result.data[0].fields).toEqual([{ key: "b", type: "number" }]);
-  });
-
-  it("takes a plugin's defaults from its deployed manifest, and never probes its bundle", async () => {
-    const { dir, home } = makeHome("claude", "Claude Code");
-    writeFileSync(join(dir, "plugin", "declared.js"), "// bundle placeholder", "utf8");
-    writeFileSync(join(dir, "plugin", "legacy.js"), "// bundle placeholder", "utf8");
-    seedPlugins(dir, [
-      { name: "declared", url: "https://github.com/intisy-ai/declared", enabled: true },
-      { name: "legacy", url: "https://github.com/intisy-ai/legacy", enabled: true },
-    ]);
-
-    // A manifest states the settings as data, so only the bundle that declares none is worth
-    // running: the probe is offered exactly one target here, and it is the undeclared plugin.
-    const declarations = vi.fn(async (bundles: { plugin: string }[]) => {
-      expect(bundles.map((b) => b.plugin)).toEqual(["legacy"]);
-      return new Map([["legacy", { defaults: { b: 2 } }]]);
-    });
-
-    const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir),
-      manifests: () => [manifestOf("declared", { interval: 60 })],
-      settingsProviders: async () => [],
-      declarations,
-    });
-
-    if (!result.ok) throw new Error("unreachable");
-    expect(result.data.map((s) => ({ plugin: s.plugin, defaults: s.defaults }))).toEqual([
-      { plugin: "declared", defaults: { interval: 60 } },
-      { plugin: "legacy", defaults: { b: 2 } },
-    ]);
-  });
-
-  it("takes the manifest's defaults for a plugin whose settings capability answers", async () => {
-    const { dir, home } = makeHome("claude", "Claude Code");
-    writeFileSync(join(dir, "plugin", "historian.js"), "// bundle placeholder", "utf8");
-    seedPlugins(dir, [{ name: "historian", url: "https://github.com/intisy-ai/historian", enabled: true }]);
-
-    const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir),
-      manifests: () => [manifestOf("historian", { verbose: true })],
-      declarations: async () => new Map(),
-      settingsProviders: async () => [{
-        pluginId: "historian",
-        implementation: { schema: async () => ({ fields: [{ key: "verbose", type: "boolean" as const, label: "Verbose" }] }), run: vi.fn() },
-      }],
-    });
-
-    if (!result.ok) throw new Error("unreachable");
-    expect(result.data[0].defaults).toEqual({ verbose: true });
-    expect(result.data[0].fields).toEqual([{ key: "verbose", type: "boolean", label: "Verbose" }]);
-  });
-
   it("serves a plugin its manifest declares even where the home lists no entry for it", async () => {
     // configWrite already accepts a deployed plugin the home's list does not carry, so reading its
     // settings has to reach it too or a screen can write what it cannot show.
@@ -231,9 +127,8 @@ describe("appConfig sidecar module", () => {
     writeFileSync(join(dir, "config", "unlisted.json"), JSON.stringify({ interval: 30 }), "utf8");
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], bundles: async () => [],
-      manifests: () => [manifestOf("unlisted", { interval: 60 })],
-      declarations: async () => new Map(),
+    const result = await configSchemas("claude", { homes: [home],
+      manifests: async () => [manifestOf("unlisted", { interval: 60 })],
       settingsProviders: async () => [],
     });
 
@@ -247,27 +142,26 @@ describe("appConfig sidecar module", () => {
   it("reads and writes the settings file the manifest names, not the plugin id", async () => {
     const { dir, home } = makeHome("claude", "Claude Code");
     writeFileSync(join(dir, "config", "legacy-name.json"), JSON.stringify({ interval: 30 }), "utf8");
-    const manifests = () => [manifestOf("renamed", { interval: 60 }, "legacy-name")];
+    const declared = [manifestOf("renamed", { interval: 60 }, "legacy-name")];
 
     const { configSchemas, configWrite } = await import("./appConfig.js");
-    const read = await configSchemas("claude", { homes: [home], bundles: async () => [], manifests,
-      declarations: async () => new Map(), settingsProviders: async () => [] });
+    const read = await configSchemas("claude", { homes: [home], manifests: async () => declared, settingsProviders: async () => [] });
 
     if (!read.ok) throw new Error("unreachable");
     expect(read.data[0]).toMatchObject({ plugin: "renamed", defaults: { interval: 60 }, current: { interval: 30 } });
 
-    const written = await configWrite("claude", "renamed", "interval", 90, { homes: [home], manifests, listPlugins: async () => [{ id: "renamed" }] });
+    const written = await configWrite("claude", "renamed", "interval", 90, { homes: [home], manifests: () => declared, listPlugins: async () => [{ id: "renamed" }] });
     expect(written.ok).toBe(true);
     expect(JSON.parse(readFileSync(join(dir, "config", "legacy-name.json"), "utf8"))).toEqual({ interval: 90 });
     expect(existsSync(join(dir, "config", "renamed.json"))).toBe(false);
   });
 
-  it("defaults to an empty object when the probe has no declaration for a capability-only plugin", async () => {
+  it("defaults to an empty object for a capability-only plugin whose manifest declares no settings", async () => {
     const { home } = makeHome("claude", "Claude Code");
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir),
-      declarations: async () => new Map(),
+    const result = await configSchemas("claude", { homes: [home],
+      manifests: async () => [],
       settingsProviders: async () => [{ pluginId: "historian", implementation: { schema: async () => ({}), run: vi.fn() } }],
     });
 
@@ -282,8 +176,8 @@ describe("appConfig sidecar module", () => {
     const { home } = makeHome("claude", "Claude Code");
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir),
-      declarations: async () => new Map([["broken", { defaults: { x: 1 } }]]),
+    const result = await configSchemas("claude", { homes: [home],
+      manifests: async () => [manifestOf("broken", { x: 1 })],
       settingsProviders: async () => [
         { pluginId: "broken", implementation: { schema: async () => { throw new Error("boom"); }, run: vi.fn() } },
         { pluginId: "fine", implementation: { schema: async () => ({ fields: [{ key: "y", type: "boolean" as const }] }), run: vi.fn() } },
@@ -494,26 +388,26 @@ describe("appConfig sidecar module", () => {
     expect(result.error).toContain("plugin not found");
   });
 
-  it("the probe still carries a plugin's fields and actions through when it has no settings capability", async () => {
-    const { dir, home } = makeHome("claude", "Claude Code");
-    writeFileSync(join(dir, "plugin", "plugin-a.js"), "// bundle", "utf8");
-    seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
-
-    const declarations = async () => new Map([["plugin-a", {
-      defaults: { x: 1 }, fields: [{ key: "x", type: "number" as const }], actions: [{ id: "go", label: "Go" }],
-    }]]);
+  // A manifest carries VALUES only, by design: what a setting is CALLED belongs to the settings
+  // capability. A plugin that ships settings but provides no capability therefore gets a screen
+  // with its values and no labels, rather than no screen at all.
+  it("shows a plugin's values with no field specs when it provides no settings capability", async () => {
+    const { home } = makeHome("claude", "Claude Code");
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir), declarations, settingsProviders: async () => [] });
+    const result = await configSchemas("claude", { homes: [home],
+      manifests: async () => [manifestOf("plugin-a", { x: 1 })],
+      settingsProviders: async () => [],
+    });
+
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
-    expect(result.data[0].fields).toEqual([{ key: "x", type: "number" }]);
-    expect(result.data[0].actions).toEqual([{ id: "go", label: "Go" }]);
+    expect(result.data[0].defaults).toEqual({ x: 1 });
+    expect(result.data[0].fields).toBeUndefined();
+    expect(result.data[0].actions).toBeUndefined();
   });
 });
 
-// An engine can be installed in a home without a bundle to probe there: an npm-registered
-// updater, or a home with nothing deployed yet. Its settings have to be reachable anyway,
 describe("what each schema declares it provides", () => {
   it("carries the deployed manifest's capabilities, so a surface finds a plugin by what it does", async () => {
     const { dir, home } = makeHome("claude", "Claude Code");
@@ -526,9 +420,11 @@ describe("what each schema declares it provides", () => {
     ]);
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir),
-      declarations: async () => new Map([["manager", { defaults: {} }], ["other", { defaults: {} }]]),
-      settingsProviders: async () => [] });
+    const result = await configSchemas("claude", { homes: [home], settingsProviders: async () => [],
+      manifests: async () => [
+        { id: "manager", capabilities: ["plugin-management", "settings"], permissions: [], configName: "manager", configDefaults: {}, dataPaths: [], entryPath: null },
+        manifestOf("other", {}),
+      ] });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
@@ -539,7 +435,8 @@ describe("what each schema declares it provides", () => {
   });
 });
 
-// which is what makes the update controls configurable per app.
+// An engine can be installed in a home as an npm package rather than a deployed clone, and its
+// settings have to be reachable there too: that is what makes the update controls per-app.
 describe("engine-contributed settings", () => {
   it("reads the values that home has on disk, not another home's", async () => {
     const { dir, home } = makeHome("cairn", "Cairn");
@@ -548,38 +445,36 @@ describe("engine-contributed settings", () => {
     writeFileSync(join(dir, "config", "manager.json"), JSON.stringify({ auto_update_mode: "check" }), "utf8");
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("cairn", { homes: [home], bundles: bundlesFromSeed(home.dir),
-      declarations: async () => new Map([["manager", { defaults: { auto_update_mode: "update" } }]]),
-      settingsProviders: async () => [] });
+    const result = await configSchemas("cairn", { homes: [home], settingsProviders: async () => [],
+      manifests: async () => [manifestOf("manager", { auto_update_mode: "update" })] });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data.find((s) => s.plugin === "manager")!.current.auto_update_mode).toBe("check");
   });
 
-  it("prefers the deployed bundle's answer, which is the copy that home runs", async () => {
-    const { dir, home } = makeHome("claude", "Claude Code");
-    writeFileSync(join(dir, "plugin", "plugin-updater.js"), "// bundle", "utf8");
-    seedPlugins(dir, [{ name: "plugin-updater", url: "https://github.com/intisy-ai/plugin-updater", enabled: true }]);
+  // A plugin present both as a deployed clone and as an npm package is ONE row: the deployed copy
+  // is the one this home runs, so its manifest is the one that answers.
+  it("lists a plugin once, from the copy that home deploys", async () => {
+    const { home } = makeHome("claude", "Claude Code");
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir),
-      declarations: async () => new Map([["plugin-updater", { defaults: { probed: true } }]]),
-      settingsProviders: async () => [],
+    const result = await configSchemas("claude", { homes: [home], settingsProviders: async () => [],
+      manifests: async () => [manifestOf("plugin-updater", { deployed: true })],
     });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     const found = result.data.filter((s) => s.plugin === "plugin-updater");
     expect(found).toHaveLength(1);
-    expect(found[0].defaults).toEqual({ probed: true });
+    expect(found[0].defaults).toEqual({ deployed: true });
   });
 
   it("contributes nothing to a home that does not have the engine", async () => {
     const { home } = makeHome("claude", "Claude Code");
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [{ ...home, managesPlugins: false }], declarations: async () => new Map(), settingsProviders: async () => [] });
+    const result = await configSchemas("claude", { homes: [{ ...home, managesPlugins: false }], manifests: async () => [], settingsProviders: async () => [] });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
@@ -611,9 +506,8 @@ describe("engine-contributed settings", () => {
     const { configWrite, configSchemas } = await import("./appConfig.js");
     expect((await configWrite("cairn", "plugin-updater", "auto_update_triggers.app", false, { homes: [home], listPlugins: listedFromSeed(home.dir) })).ok).toBe(true);
 
-    const result = await configSchemas("cairn", { homes: [home], bundles: bundlesFromSeed(home.dir),
-      declarations: async () => new Map([["plugin-updater", { defaults: {} }]]),
-      settingsProviders: async () => [] });
+    const result = await configSchemas("cairn", { homes: [home], settingsProviders: async () => [],
+      manifests: async () => [manifestOf("plugin-updater", {})] });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data.find((s) => s.plugin === "plugin-updater")!.current.auto_update_triggers).toEqual({

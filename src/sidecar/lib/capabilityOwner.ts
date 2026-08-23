@@ -1,7 +1,8 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { readDeployedManifests } from "@intisy-ai/plugin-host";
 import { configNameFor } from "@core/index.js";
+import type { PluginManifest } from "@intisy-ai/api";
 import { pluginDir, reposDir } from "./storagePaths.js";
 
 /** One plugin deployed in a home, as its manifest sidecar describes it. */
@@ -43,6 +44,32 @@ export function deployedManifests(homeDir: string): DeployedManifest[] {
     }));
   } catch {
     return [];
+  }
+}
+
+/**
+ * One npm plugin's own manifest, read from the package its entry file lives in.
+ *
+ * @remarks
+ * An npm plugin deploys no bundle and writes no sidecar, so `deployedManifests` cannot see it at
+ * all. Its package still carries the same `plugin.json`, which is what keeps its settings reachable
+ * without running it. Null when the package has none or it cannot be read.
+ */
+export function npmPackageManifest(entryPath: string): DeployedManifest | null {
+  try {
+    const manifest = JSON.parse(readFileSync(join(dirname(entryPath), "..", "plugin.json"), "utf-8")) as PluginManifest;
+    if (typeof manifest?.id !== "string" || !manifest.id) return null;
+    return {
+      id: manifest.id,
+      capabilities: manifest.capabilities ?? [],
+      permissions: manifest.permissions ?? [],
+      configName: configNameFor(manifest),
+      configDefaults: manifest.config?.defaults ?? null,
+      dataPaths: manifest.data?.paths ?? [],
+      entryPath,
+    };
+  } catch {
+    return null;
   }
 }
 
