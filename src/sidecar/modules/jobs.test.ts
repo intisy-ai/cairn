@@ -57,8 +57,8 @@ afterEach(() => {
 
 function homesIn(root: string) {
   return [
-    { id: "cairn", label: "Cairn", dir: join(root, "cairn"), present: true, hasUpdater: false },
-    { id: "app-a", label: "App A", dir: join(root, "app-a"), present: true, hasUpdater: false },
+    { id: "cairn", label: "Cairn", dir: join(root, "cairn"), present: true, managesPlugins: false },
+    { id: "app-a", label: "App A", dir: join(root, "app-a"), present: true, managesPlugins: false },
   ];
 }
 

@@ -21,6 +21,6 @@ export function prerequisiteInstalls(
   if (!manager) return [];
   const byId = Object.fromEntries(homes.map((h) => [h.id, h]));
   return homeIds
-    .filter((id) => byId[id] && !byId[id].hasUpdater)
+    .filter((id) => byId[id] && !byId[id].managesPlugins)
     .map((homeId) => ({ homeId, id: manager.id, url: manager.url }));
 }

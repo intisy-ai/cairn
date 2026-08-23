@@ -31,7 +31,7 @@
     onSetChannel,
   }: {
     plugin: UnifiedPlugin;
-    homes: { id: string; label: string; icon?: string; hasUpdater?: boolean }[];
+    homes: { id: string; label: string; icon?: string; managesPlugins?: boolean }[];
     // Homes where the plugin is installed but only partly built.
     brokenHomes?: string[];
     activity?: import("../downloads.js").DownloadRow | null;
@@ -61,7 +61,7 @@
   const fullyInstalled = $derived(installedCount === homes.length && homes.length > 0);
   const installedHomes = $derived(homes.filter((h) => plugin.homes[h.id]?.installed));
   // Updates are only actionable where an updater manages this plugin.
-  const updatesEnabled = $derived(homes.some((h) => h.hasUpdater));
+  const updatesEnabled = $derived(homes.some((h) => h.managesPlugins));
 
   let versions = $state<Record<string, PluginVersion>>({});
   let ledgerGroups = $state<HomeLedger[]>([]);
@@ -70,7 +70,7 @@
     installedHomes.map((h) => versions[h.id]?.label).find((v): v is string => !!v) ?? "",
   );
   const behindHomes = $derived(
-    installedHomes.filter((h) => h.hasUpdater && versions[h.id]?.updateState === "behind").map((h) => h.id),
+    installedHomes.filter((h) => h.managesPlugins && versions[h.id]?.updateState === "behind").map((h) => h.id),
   );
 
   // A home's own live job, so a row can say "queued here, installing there" instead of
@@ -280,7 +280,7 @@
                 <span class="src">{v?.kind}</span>
                 {#if v?.label}<span class="num">{v.label}</span>{:else}<span class="num unknown">unknown</span>{/if}
               </span>
-              {#if v?.kind === "git" && h.hasUpdater}
+              {#if v?.kind === "git" && h.managesPlugins}
                 <SegmentedControl
                   label={`Auto-update ${h.label}`}
                   value={autoUpdateState(h.id)}

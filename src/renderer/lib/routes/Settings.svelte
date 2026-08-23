@@ -222,7 +222,7 @@
       <CollapsibleGroup label={group.home.label} bind:open={openHomes[group.home.id]}>
         {#snippet body()}
           <Card>
-            {#if group.home.hasUpdater}
+            {#if group.home.managesPlugins}
               <div class="updates">
                 <AutoUpdateSettings homeId={group.home.id} schema={updaterSchemaFor(group.home.id)} />
               </div>

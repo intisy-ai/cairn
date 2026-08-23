@@ -67,8 +67,8 @@ describe("PluginMenu", () => {
       pluginsList: async () => ({
         ok: true,
         data: [
-          { home: { id: "claude", label: "Claude", dir: "/c", present: true, hasUpdater: true }, rows: [] },
-          { home: { id: "opencode", label: "OpenCode", dir: "/o", present: true, hasUpdater: true }, rows: [] },
+          { home: { id: "claude", label: "Claude", dir: "/c", present: true, managesPlugins: true }, rows: [] },
+          { home: { id: "opencode", label: "OpenCode", dir: "/o", present: true, managesPlugins: true }, rows: [] },
         ],
       }),
       screenData: async (_plugin: string, _screenId: string, homeId: string) => ({
@@ -92,8 +92,8 @@ describe("PluginMenu", () => {
       pluginsList: async () => ({
         ok: true,
         data: [
-          { home: { id: "claude", label: "Claude", dir: "/c", present: true, hasUpdater: true }, rows: [] },
-          { home: { id: "opencode", label: "OpenCode", dir: "/o", present: true, hasUpdater: true }, rows: [] },
+          { home: { id: "claude", label: "Claude", dir: "/c", present: true, managesPlugins: true }, rows: [] },
+          { home: { id: "opencode", label: "OpenCode", dir: "/o", present: true, managesPlugins: true }, rows: [] },
         ],
       }),
       screenData: async (_plugin: string, _screenId: string, homeId: string) =>

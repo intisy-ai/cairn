@@ -4,7 +4,7 @@ import type { PluginHome } from "../../../packages/shared/src/domain.js";
 import type { ActivityRecord } from "@core/index.js";
 
 function home(id: string, dir: string, present = true): PluginHome {
-  return { id, label: id, dir, present, hasUpdater: true };
+  return { id, label: id, dir, present, managesPlugins: true };
 }
 
 function record(id: string, home: string): ActivityRecord {

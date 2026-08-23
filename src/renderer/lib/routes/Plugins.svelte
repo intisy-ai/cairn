@@ -354,9 +354,9 @@
   function homesById(): Record<string, PluginHome> {
     return Object.fromEntries(homes.map((h) => [h.id, h]));
   }
-  function applicableHomesFor(p: UnifiedPlugin): { id: string; label: string; icon?: string; hasUpdater?: boolean }[] {
+  function applicableHomesFor(p: UnifiedPlugin): { id: string; label: string; icon?: string; managesPlugins?: boolean }[] {
     const by = homesById();
-    return Object.keys(p.homes).map((id) => ({ id, label: by[id]?.label ?? id, icon: by[id]?.icon, hasUpdater: by[id]?.hasUpdater }));
+    return Object.keys(p.homes).map((id) => ({ id, label: by[id]?.label ?? id, icon: by[id]?.icon, managesPlugins: by[id]?.managesPlugins }));
   }
   function installedMap(p: UnifiedPlugin): Record<string, boolean> {
     return Object.fromEntries(Object.entries(p.homes).map(([id, s]) => [id, s.installed]));
@@ -387,7 +387,7 @@
   // Which homes report this plugin as behind, from each home's own row.
   function behindHomesFor(p: UnifiedPlugin): string[] {
     return sections
-      .filter((s) => s.home.hasUpdater && s.rows.some((r) => r.name === p.name && r.updateAvailable))
+      .filter((s) => s.home.managesPlugins && s.rows.some((r) => r.name === p.name && r.updateAvailable))
       .map((s) => s.home.id);
   }
 
@@ -528,9 +528,9 @@
   let updatingAll = $state(false);
 
   // Only a home with an updater can check or pull, so nothing here is offered without one.
-  const updatesEnabled = $derived(homes.some((h) => h.hasUpdater));
+  const updatesEnabled = $derived(homes.some((h) => h.managesPlugins));
   function updatableHomes(): PluginHome[] {
-    return homes.filter((h) => h.hasUpdater && (h.id === "cairn" || h.present));
+    return homes.filter((h) => h.managesPlugins && (h.id === "cairn" || h.present));
   }
 
   // A check refreshes the update cache every badge is read from, so the rows are

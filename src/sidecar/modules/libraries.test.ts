@@ -3,7 +3,7 @@ import { librariesList } from "./libraries.js";
 import type { PluginHome } from "../../../packages/shared/src/domain.js";
 
 function home(id: string, dir: string): PluginHome {
-  return { id, label: id, dir, present: true, hasUpdater: true };
+  return { id, label: id, dir, present: true, managesPlugins: true };
 }
 
 const HOMES = [home("cairn", "/cairn"), home("claude", "/claude")];

@@ -25,7 +25,7 @@ function makeHome(): { dir: string; home: PluginHome } {
   const dir = mkdtempSync(join(tmpdir(), "dash-bundles-"));
   mkdirSync(join(dir, "config"), { recursive: true });
   mkdirSync(join(dir, "plugin"), { recursive: true });
-  return { dir, home: { id: "claude", label: "Claude Code", dir, present: true, hasUpdater: true } };
+  return { dir, home: { id: "claude", label: "Claude Code", dir, present: true, managesPlugins: true } };
 }
 
 async function probedBundles(home: PluginHome): Promise<{ plugin: string; path: string }[]> {

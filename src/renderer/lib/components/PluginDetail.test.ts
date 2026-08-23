@@ -32,7 +32,7 @@ function version(overrides: Partial<PluginVersion> = {}): PluginVersion {
   };
 }
 
-function props(homes: { id: string; label: string; hasUpdater?: boolean }[]) {
+function props(homes: { id: string; label: string; managesPlugins?: boolean }[]) {
   return {
     plugin: PLUGIN,
     homes,
@@ -52,7 +52,7 @@ async function openMenuIn(label: string) {
   return scope;
 }
 
-async function openAvailability(homes: { id: string; label: string; hasUpdater?: boolean }[]): Promise<void> {
+async function openAvailability(homes: { id: string; label: string; managesPlugins?: boolean }[]): Promise<void> {
   render(PluginDetail, { props: props(homes) });
   await fireEvent.click(await screen.findByRole("button", { name: "Availability" }));
 }
@@ -71,7 +71,7 @@ describe("PluginDetail availability", () => {
     stubCairn({
       pluginVersions: async () => ({ ok: true, data: { claude: version({ updateState: "behind" }), opencode: version() } }),
     });
-    await openAvailability([{ id: "claude", label: "Claude Code", hasUpdater: true }, { id: "opencode", label: "OpenCode", hasUpdater: true }]);
+    await openAvailability([{ id: "claude", label: "Claude Code", managesPlugins: true }, { id: "opencode", label: "OpenCode", managesPlugins: true }]);
 
     // A behind home leads with Update and says so; Remove stays reachable in its dropdown.
     await waitFor(() => expect(within(row("Claude Code")).getByRole("button", { name: "Update" })).toBeInTheDocument());
@@ -83,7 +83,7 @@ describe("PluginDetail availability", () => {
 
   it("keeps Remove for a home that is up to date", async () => {
     stubCairn({ pluginVersions: async () => ({ ok: true, data: { claude: version(), opencode: version() } }) });
-    await openAvailability([{ id: "claude", label: "Claude Code", hasUpdater: true }, { id: "opencode", label: "OpenCode", hasUpdater: true }]);
+    await openAvailability([{ id: "claude", label: "Claude Code", managesPlugins: true }, { id: "opencode", label: "OpenCode", managesPlugins: true }]);
 
     await waitFor(() => expect(within(row("Claude Code")).getByRole("button", { name: "Remove" })).toBeInTheDocument());
     expect(within(row("Claude Code")).queryByRole("button", { name: "Update" })).toBeNull();
@@ -94,7 +94,7 @@ describe("PluginDetail availability", () => {
     stubCairn({
       pluginVersions: async () => ({ ok: true, data: { claude: version({ updateState: "behind" }), opencode: version({ updateState: "behind" }) } }),
     });
-    await openAvailability([{ id: "claude", label: "Claude Code", hasUpdater: false }, { id: "opencode", label: "OpenCode", hasUpdater: false }]);
+    await openAvailability([{ id: "claude", label: "Claude Code", managesPlugins: false }, { id: "opencode", label: "OpenCode", managesPlugins: false }]);
 
     await waitFor(() => expect(within(row("Claude Code")).getByRole("button", { name: "Remove" })).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Update" })).toBeNull();
@@ -103,7 +103,7 @@ describe("PluginDetail availability", () => {
 
   it("offers the auto-update control where an updater manages the plugin", async () => {
     stubCairn({ pluginVersions: async () => ({ ok: true, data: { claude: version() } }) });
-    await openAvailability([{ id: "claude", label: "Claude Code", hasUpdater: true }]);
+    await openAvailability([{ id: "claude", label: "Claude Code", managesPlugins: true }]);
 
     const group = await screen.findByRole("group", { name: "Auto-update Claude Code" });
     expect(within(group).getByRole("button", { name: "Auto-update Claude Code on" })).toBeInTheDocument();
@@ -121,7 +121,7 @@ describe("PluginDetail developer tab", () => {
       pluginLedger: async () => ({
         ok: true,
         data: [{
-          home: { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true },
+          home: { id: "claude", label: "Claude Code", dir: "/c", present: true, managesPlugins: true },
           rows: [{
             pluginId: "wakatime-sync-host-id", status: "active",
             capabilitiesDeclared: [], capabilities: [], provides: [], consumes: [], unresolved: [], topics: [], permissions: [],
@@ -130,7 +130,7 @@ describe("PluginDetail developer tab", () => {
       }),
     });
     render(PluginDetail, {
-      props: { ...props([{ id: "claude", label: "Claude Code", hasUpdater: true }]), plugin: { ...PLUGIN, pluginId: "wakatime-sync-host-id" } },
+      props: { ...props([{ id: "claude", label: "Claude Code", managesPlugins: true }]), plugin: { ...PLUGIN, pluginId: "wakatime-sync-host-id" } },
     });
     await fireEvent.click(await screen.findByRole("button", { name: "Developer" }));
     expect(await screen.findByText("No capabilities declared.")).toBeInTheDocument();
@@ -143,7 +143,7 @@ describe("PluginDetail developer tab", () => {
       pluginLedger: async () => ({
         ok: true,
         data: [{
-          home: { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true },
+          home: { id: "claude", label: "Claude Code", dir: "/c", present: true, managesPlugins: true },
           rows: [{
             pluginId: "some-other-plugin", status: "active",
             capabilitiesDeclared: [], capabilities: [], provides: [], consumes: [], unresolved: [], topics: [], permissions: [],
@@ -152,7 +152,7 @@ describe("PluginDetail developer tab", () => {
       }),
     });
     render(PluginDetail, {
-      props: { ...props([{ id: "claude", label: "Claude Code", hasUpdater: true }]), plugin: { ...PLUGIN, pluginId: "wakatime-sync-host-id" } },
+      props: { ...props([{ id: "claude", label: "Claude Code", managesPlugins: true }]), plugin: { ...PLUGIN, pluginId: "wakatime-sync-host-id" } },
     });
     await fireEvent.click(await screen.findByRole("button", { name: "Developer" }));
     expect(await screen.findByText(/not loaded in any home/i)).toBeInTheDocument();
@@ -163,7 +163,7 @@ describe("PluginDetail settings loading", () => {
   it("fetches no schema while the Configure tab is closed", async () => {
     const configSchemas = vi.fn(async () => ({ ok: true as const, data: [] }));
     stubCairn({ pluginVersions: async () => ({ ok: true, data: { claude: version() } }), configSchemas });
-    render(PluginDetail, { props: props([{ id: "claude", label: "Claude Code", hasUpdater: true }]) });
+    render(PluginDetail, { props: props([{ id: "claude", label: "Claude Code", managesPlugins: true }]) });
 
     await screen.findByRole("button", { name: "Availability" });
     await new Promise((r) => setTimeout(r, 20));
@@ -173,7 +173,7 @@ describe("PluginDetail settings loading", () => {
   it("fetches the schema once the Configure tab is opened", async () => {
     const configSchemas = vi.fn(async () => ({ ok: true as const, data: [] }));
     stubCairn({ pluginVersions: async () => ({ ok: true, data: { claude: version() } }), configSchemas });
-    render(PluginDetail, { props: props([{ id: "claude", label: "Claude Code", hasUpdater: true }]) });
+    render(PluginDetail, { props: props([{ id: "claude", label: "Claude Code", managesPlugins: true }]) });
 
     await fireEvent.click(await screen.findByRole("button", { name: "Configure" }));
     await waitFor(() => expect(configSchemas).toHaveBeenCalledWith("claude"));
@@ -185,7 +185,7 @@ describe("PluginDetail settings loading", () => {
       status: "queued", phase: "", percent: -1, phases: [], samples: [], queuedAt: 0,
     }]);
     stubCairn({ pluginVersions: async () => ({ ok: true, data: { claude: version(), opencode: version() } }) });
-    await openAvailability([{ id: "claude", label: "Claude Code", hasUpdater: true }, { id: "opencode", label: "OpenCode", hasUpdater: true }]);
+    await openAvailability([{ id: "claude", label: "Claude Code", managesPlugins: true }, { id: "opencode", label: "OpenCode", managesPlugins: true }]);
 
     await waitFor(() => expect(within(row("OpenCode")).getByTestId("job-opencode")).toHaveTextContent("queued"));
     expect(within(row("Claude Code")).queryByTestId("job-claude")).toBeNull();
@@ -197,7 +197,7 @@ describe("PluginDetail settings loading", () => {
 
   it("says the update state is unknown rather than implying it is current", async () => {
     stubCairn({ pluginVersions: async () => ({ ok: true, data: { claude: version({ updateState: "unknown", checkedAt: null }), opencode: version() } }) });
-    await openAvailability([{ id: "claude", label: "Claude Code", hasUpdater: true }, { id: "opencode", label: "OpenCode", hasUpdater: true }]);
+    await openAvailability([{ id: "claude", label: "Claude Code", managesPlugins: true }, { id: "opencode", label: "OpenCode", managesPlugins: true }]);
 
     await waitFor(() => expect(within(row("Claude Code")).getByText("update state unknown")).toBeInTheDocument());
     expect(within(row("OpenCode")).queryByText("update state unknown")).toBeNull();
@@ -213,7 +213,7 @@ describe("PluginDetail settings loading", () => {
       { id: "j2", kind: "install", plugin: "wakatime-sync", url: "u", home: "opencode", status: "queued", phase: "", percent: -1, phases: [], samples: [], queuedAt: 1 },
     ]);
     stubCairn({ pluginVersions: async () => ({ ok: true, data: {} }) });
-    await openAvailability([{ id: "claude", label: "Claude Code", hasUpdater: true }, { id: "opencode", label: "OpenCode", hasUpdater: true }]);
+    await openAvailability([{ id: "claude", label: "Claude Code", managesPlugins: true }, { id: "opencode", label: "OpenCode", managesPlugins: true }]);
 
     await waitFor(() => expect(within(row("Claude Code")).getByTestId("job-claude")).toHaveTextContent("installing"));
     expect(within(row("OpenCode")).getByTestId("job-opencode")).toHaveTextContent("queued");

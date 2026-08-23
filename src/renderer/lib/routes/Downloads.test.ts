@@ -17,7 +17,7 @@ vi.mock("../ipc.js", () => ({
     activityRead: async () => ({ ok: true, data: { records: historyRecords } }),
     pluginsList: async () => ({
       ok: true,
-      data: [{ home: { id: "claude", label: "Claude", dir: "/c", present: true, hasUpdater: true }, rows: installedNames.map((name) => ({ name, kind: "git", enabled: true, updateAvailable: false, description: "" })) }],
+      data: [{ home: { id: "claude", label: "Claude", dir: "/c", present: true, managesPlugins: true }, rows: installedNames.map((name) => ({ name, kind: "git", enabled: true, updateAvailable: false, description: "" })) }],
     }),
   },
 }));

@@ -13,7 +13,7 @@ import { applyThemeSetting } from "../theme.js";
 import Settings from "./Settings.svelte";
 
 function cairnHome(): HomePlugins {
-  return { home: { id: "cairn", label: "Cairn", dir: "/store", present: true, hasUpdater: true }, rows: [] };
+  return { home: { id: "cairn", label: "Cairn", dir: "/store", present: true, managesPlugins: true }, rows: [] };
 }
 
 // A plugin declaring one contributed section plus a setting it left to its own group. The
@@ -208,9 +208,9 @@ describe("Settings screen", () => {
 describe("per-app settings loading", () => {
   function homes() {
     return [
-      { home: { id: "cairn", label: "Cairn", dir: "/c", present: true, hasUpdater: false }, rows: [] },
-      { home: { id: "claude", label: "Claude Code", dir: "/cc", present: true, hasUpdater: false }, rows: [] },
-      { home: { id: "opencode", label: "OpenCode", dir: "/oc", present: true, hasUpdater: false }, rows: [] },
+      { home: { id: "cairn", label: "Cairn", dir: "/c", present: true, managesPlugins: false }, rows: [] },
+      { home: { id: "claude", label: "Claude Code", dir: "/cc", present: true, managesPlugins: false }, rows: [] },
+      { home: { id: "opencode", label: "OpenCode", dir: "/oc", present: true, managesPlugins: false }, rows: [] },
     ];
   }
 

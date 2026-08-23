@@ -3,8 +3,8 @@ import { enginesList, ensureEngineIn, pluginOwningCapability } from "./engines.j
 import type { PluginHome } from "../../../packages/shared/src/domain.js";
 
 const homes: PluginHome[] = [
-  { id: "cairn", label: "Cairn", dir: "/homes/cairn", present: true, hasUpdater: true },
-  { id: "app-a", label: "App A", dir: "/homes/a", present: true, hasUpdater: true },
+  { id: "cairn", label: "Cairn", dir: "/homes/cairn", present: true, managesPlugins: true },
+  { id: "app-a", label: "App A", dir: "/homes/a", present: true, managesPlugins: true },
 ];
 
 const catalog = [

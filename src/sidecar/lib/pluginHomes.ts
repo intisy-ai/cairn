@@ -39,7 +39,7 @@ export function cairnHome(): string {
  * cannot be called, so a list saying it is installed would gate the UI open on a home where nothing
  * would answer.
  */
-export async function updaterInstalled(dir: string, appId: string): Promise<boolean> {
+export async function managerInstalled(dir: string, appId: string): Promise<boolean> {
   try {
     return await hasCapability(dir, appId, PLUGIN_MANAGEMENT);
   } catch {
@@ -67,14 +67,14 @@ export async function loaderInstalled(
 export interface PluginHomesDeps {
   detect?: () => Promise<Result<AppPresence>>;
   cairnDir?: string;
-  hasUpdater?: (dir: string, appId: string) => boolean | Promise<boolean>;
+  managesPlugins?: (dir: string, appId: string) => boolean | Promise<boolean>;
   hasLoader?: (dir: string, loaderId?: string, appId?: string) => boolean | Promise<boolean>;
   appHome?: (app: string) => string;
 }
 
 export async function pluginHomes(deps: PluginHomesDeps = {}): Promise<PluginHome[]> {
   const detect = deps.detect ?? appsDetect;
-  const hasUpdater = deps.hasUpdater ?? updaterInstalled;
+  const managesPlugins = deps.managesPlugins ?? managerInstalled;
   const hasLoader = deps.hasLoader ?? loaderInstalled;
   const cairnDir = deps.cairnDir ?? cairnHome();
   const appHomeForId = deps.appHome ?? appRealHome;
@@ -89,16 +89,16 @@ export async function pluginHomes(deps: PluginHomesDeps = {}): Promise<PluginHom
         icon: desc.icon ? svgIconDataUri(desc.icon) : undefined,
         dir,
         present: !!present[desc.id],
-        hasUpdater: await hasUpdater(dir, desc.id),
+        managesPlugins: await managesPlugins(dir, desc.id),
         loaderId: desc.loader?.id,
         loaderInstalled: await hasLoader(dir, desc.loader?.id, desc.id),
       };
     }),
   );
   return [
-    // Cairn bundles the updater to perform installs, but it ships with no plugins:
-    // until plugin-updater is installed here too, only engines can be added.
-    { id: "cairn", label: "Cairn", icon: renderCairnMark(), dir: cairnDir, present: true, hasUpdater: await hasUpdater(cairnDir, "cairn") },
+    // Cairn's own home is a home like any other: until something providing plugin-management is
+    // installed into it, the only plugin it can gain is one that provides a capability itself.
+    { id: "cairn", label: "Cairn", icon: renderCairnMark(), dir: cairnDir, present: true, managesPlugins: await managesPlugins(cairnDir, "cairn") },
     ...appHomes,
   ];
 }

@@ -3,7 +3,7 @@ import { busDrain } from "./bus.js";
 import type { PluginHome } from "../../../packages/shared/src/domain.js";
 
 function home(id: string, dir: string, present = true): PluginHome {
-  return { id, label: id, dir, present, hasUpdater: true };
+  return { id, label: id, dir, present, managesPlugins: true };
 }
 
 describe("sidecar bus module", () => {

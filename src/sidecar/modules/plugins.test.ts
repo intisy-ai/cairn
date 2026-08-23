@@ -46,9 +46,9 @@ beforeEach(() => {
   mkdirSync(join(opencodeDir, "config"), { recursive: true });
   process.env.HUB_CONFIG_DIR = cairnDir;
   fakeHomes = [
-    { id: "cairn", label: "Cairn", dir: cairnDir, present: true, hasUpdater: true },
-    { id: "claude", label: "Claude Code", dir: claudeDir, present: true, hasUpdater: true },
-    { id: "opencode", label: "OpenCode", dir: opencodeDir, present: true, hasUpdater: false },
+    { id: "cairn", label: "Cairn", dir: cairnDir, present: true, managesPlugins: true },
+    { id: "claude", label: "Claude Code", dir: claudeDir, present: true, managesPlugins: true },
+    { id: "opencode", label: "OpenCode", dir: opencodeDir, present: true, managesPlugins: false },
   ];
 });
 
@@ -148,7 +148,7 @@ describe("plugins sidecar module", () => {
     const homesWithAbsentOpencode: PluginHome[] = [
       fakeHomes[0],
       fakeHomes[1],
-      { id: "opencode", label: "OpenCode", dir: join(opencodeDir, "does-not-exist"), present: false, hasUpdater: false },
+      { id: "opencode", label: "OpenCode", dir: join(opencodeDir, "does-not-exist"), present: false, managesPlugins: false },
     ];
     const { pluginsList } = await import("./plugins.js");
     const result = await pluginsList({ ...fromSeed, homes: homesWithAbsentOpencode });
@@ -242,7 +242,7 @@ describe("plugins sidecar module", () => {
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
-      hasUpdater: () => true,
+      managesPlugins: () => true,
     });
 
     expect(result.ok).toBe(true);
@@ -258,7 +258,7 @@ describe("plugins sidecar module", () => {
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps,
-      hasUpdater: () => true,
+      managesPlugins: () => true,
     });
     expect(syncPluginsAcrossApps).toHaveBeenCalledWith(claudeDir, "claude");
 
@@ -268,7 +268,7 @@ describe("plugins sidecar module", () => {
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps,
-      hasUpdater: () => true,
+      managesPlugins: () => true,
     });
     expect(syncPluginsAcrossApps).not.toHaveBeenCalled();
   });
@@ -303,7 +303,7 @@ describe("plugins sidecar module", () => {
       const { pluginsSetChannel } = await import("./plugins.js");
       const result = await pluginsSetChannel("claude", "demo", "experimental", {
         ...fromSeed,
-        homes: [{ id: "claude", label: "Claude", dir: "/homes/claude", present: true, hasUpdater: true }],
+        homes: [{ id: "claude", label: "Claude", dir: "/homes/claude", present: true, managesPlugins: true }],
         setPluginChannel: (dir, name, channel) => { calls.push([dir, name, channel]); return true; },
       });
 
@@ -315,7 +315,7 @@ describe("plugins sidecar module", () => {
       const { pluginsSetChannel } = await import("./plugins.js");
       const result = await pluginsSetChannel("claude", "nope", "experimental", {
         ...fromSeed,
-        homes: [{ id: "claude", label: "Claude", dir: "/homes/claude", present: true, hasUpdater: true }],
+        homes: [{ id: "claude", label: "Claude", dir: "/homes/claude", present: true, managesPlugins: true }],
         setPluginChannel: () => false,
       });
 
@@ -366,7 +366,7 @@ describe("plugins sidecar module", () => {
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
-      hasUpdater: () => true,
+      managesPlugins: () => true,
     });
     expect(result.ok).toBe(true);
 
@@ -384,7 +384,7 @@ describe("plugins sidecar module", () => {
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
-      hasUpdater: () => true,
+      managesPlugins: () => true,
       report: (step) => steps.push(step),
     });
     expect(steps).toEqual(["Downloading and building", "Registering", "Syncing to other apps"]);
@@ -398,7 +398,7 @@ describe("plugins sidecar module", () => {
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
-      hasUpdater: () => false,
+      managesPlugins: () => false,
       registerWithApp: () => {},
       report: (step) => steps.push(step),
     } as never);
@@ -415,7 +415,7 @@ describe("plugins sidecar module", () => {
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
-      hasUpdater: () => false,
+      managesPlugins: () => false,
       ensureUpdater: async (homeId) => { order.push("updater:" + homeId); return { ok: true, data: undefined }; },
       report: (step) => steps.push(step),
     });
@@ -431,7 +431,7 @@ describe("plugins sidecar module", () => {
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
-      hasUpdater: () => false,
+      managesPlugins: () => false,
       ensureUpdater: async () => ({ ok: false, error: "no network" }),
     });
     expect(result).toEqual({ ok: false, error: "no network" });
@@ -445,7 +445,7 @@ describe("plugins sidecar module", () => {
       installPlugin: async () => {},
       ...fromSeed,
       homes: fakeHomes,
-      hasUpdater: () => false,
+      managesPlugins: () => false,
       ensureUpdater: async () => { bootstraps++; return { ok: true, data: undefined }; },
     });
     expect(result.ok).toBe(true);
@@ -461,7 +461,7 @@ describe("plugins sidecar module", () => {
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
-      hasUpdater: () => true,
+      managesPlugins: () => true,
     });
     expect(result.ok).toBe(true);
 
@@ -477,7 +477,7 @@ describe("plugins sidecar module", () => {
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
-      hasUpdater: () => true,
+      managesPlugins: () => true,
     });
     expect(result.ok).toBe(false);
     expect(existsSync(join(claudeDir, "config", "plugins.json"))).toBe(false);
@@ -545,7 +545,7 @@ describe("plugins sidecar module", () => {
     const result = await pluginsInstall("cairn", "plugin-updater", "https://github.com/intisy-ai/plugin-updater", {
       ...fromSeed,
       homes: fakeHomes,
-      hasUpdater: () => false,
+      managesPlugins: () => false,
       registerWithApp: (_dir: string, app: string) => { registrations.push(app); },
       installPlugin: async () => { installed.push("plugin-updater"); },
       syncPluginsAcrossApps: async () => {},
@@ -561,7 +561,7 @@ describe("plugins sidecar module", () => {
     const result = await pluginsInstall("cairn", "some-provider", "u", {
       ...fromSeed,
       homes: fakeHomes,
-      hasUpdater: () => false,
+      managesPlugins: () => false,
       ensureUpdater: async (homeId) => { order.push("updater:" + homeId); return { ok: true, data: undefined }; },
       installPlugin: async (_dir, name) => { order.push("install:" + name); },
       syncPluginsAcrossApps: async () => {},
@@ -582,7 +582,7 @@ describe("plugins sidecar module", () => {
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
-      hasUpdater: () => true,
+      managesPlugins: () => true,
     });
     expect(result.ok).toBe(true);
 
@@ -615,7 +615,7 @@ describe("plugins sidecar module", () => {
     const repo = join(dir, "repos", "demo");
     mkdirSync(repo, { recursive: true });
     writeFileSync(join(repo, "package.json"), JSON.stringify({ name: "demo", description: "A demo plugin" }));
-    const homes = [{ id: "claude", label: "Claude", dir, present: true, hasUpdater: true }];
+    const homes = [{ id: "claude", label: "Claude", dir, present: true, managesPlugins: true }];
     const { pluginsList } = await import("./plugins.js");
     const res = await pluginsList({ homes, getPlugins: async () => [{ id: "demo", url: "u", enabled: true, version: "" }] } as never);
     expect(res.ok).toBe(true);
@@ -626,7 +626,7 @@ describe("plugins sidecar module", () => {
   });
 });
 
-const HOME = { id: "claude", label: "Claude", dir: "/homes/claude", present: true, hasUpdater: true };
+const HOME = { id: "claude", label: "Claude", dir: "/homes/claude", present: true, managesPlugins: true };
 
 function cacheWith(experimentalAvailable: boolean | null) {
   return () => ({
@@ -878,7 +878,7 @@ describe("pluginsInstall for the plugin manager", () => {
     const res = await pluginsInstall("claude", "plugin-updater", "https://example/plugin-updater", {
       ...fromSeed,
       homes: fakeHomes,
-      hasUpdater: () => false,
+      managesPlugins: () => false,
       installPlugin: async () => { order.push("clone"); },
       registerWithApp: (dir: string, app: string) => { order.push(`register-with-app:${dir}:${app}`); },
       syncPluginsAcrossApps: async () => { order.push("sync"); },
@@ -895,7 +895,7 @@ describe("pluginsInstall for the plugin manager", () => {
     const res = await pluginsInstall("cairn", "plugin-updater", "https://example/plugin-updater", {
       ...fromSeed,
       homes: fakeHomes,
-      hasUpdater: () => false,
+      managesPlugins: () => false,
       installPlugin: async () => {},
       registerWithApp: (dir: string, app: string) => { calls.push(`${dir}:${app}`); },
     } as never);
@@ -908,7 +908,7 @@ describe("pluginsInstall for the plugin manager", () => {
     const res = await pluginsInstall("claude", "plugin-updater", "https://example/plugin-updater", {
       ...fromSeed,
       homes: fakeHomes,
-      hasUpdater: () => false,
+      managesPlugins: () => false,
       installPlugin: async () => {},
       registerWithApp: () => { throw new Error("settings.json is read-only"); },
       syncPluginsAcrossApps: async () => {},
@@ -924,7 +924,7 @@ describe("pluginsInstall for the plugin manager", () => {
     await pluginsInstall("claude", "plugin-updater", "https://example/plugin-updater", {
       ...fromSeed,
       homes: fakeHomes,
-      hasUpdater: () => false,
+      managesPlugins: () => false,
       installPlugin: async () => {},
       registerWithApp: () => {},
       syncPluginsAcrossApps: async () => {},
@@ -945,7 +945,7 @@ describe("pluginsInstall when the marketplace catalog is unreachable", () => {
     const result = await pluginsInstall("cairn", "plugin-updater", "https://example/plugin-updater", {
       ...fromSeed,
       homes: fakeHomes,
-      hasUpdater: () => false,
+      managesPlugins: () => false,
       installPlugin: async () => {},
       ensureUpdater,
     } as never);
@@ -961,7 +961,7 @@ describe("pluginsInstall when the marketplace catalog is unreachable", () => {
     const result = await pluginsInstall("claude", "custom-auth", "https://github.com/intisy-ai/custom-auth", {
       ...fromSeed,
       homes: fakeHomes,
-      hasUpdater: () => true,
+      managesPlugins: () => true,
       installPlugin: async () => {},
       syncPluginsAcrossApps: async () => {},
     });
@@ -978,7 +978,7 @@ describe("the record that starts an install", () => {
     const res = await pluginsInstall("claude", "wakatime-sync", "https://example/wakatime-sync", {
       ...fromSeed,
       homes: fakeHomes,
-      hasUpdater: () => true,
+      managesPlugins: () => true,
       installPlugin: async () => { order.push("clone"); },
       syncPluginsAcrossApps: async () => {},
     } as never);
@@ -993,7 +993,7 @@ describe("the record that starts an install", () => {
     const res = await pluginsInstall("claude", "wakatime-sync", "https://example/wakatime-sync", {
       ...fromSeed,
       homes: fakeHomes,
-      hasUpdater: () => true,
+      managesPlugins: () => true,
       installPlugin: async () => { throw new Error("clone refused"); },
       syncPluginsAcrossApps: async () => {},
     } as never);

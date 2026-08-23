@@ -16,8 +16,8 @@ function account(provider: string, enabled: boolean, remaining: number | null): 
 }
 
 const homes: PluginHome[] = [
-  { id: "cairn", label: "Cairn", dir: "/cairn", present: true, hasUpdater: true },
-  { id: "claude", label: "Claude", dir: "/claude", present: true, hasUpdater: true },
+  { id: "cairn", label: "Cairn", dir: "/cairn", present: true, managesPlugins: true },
+  { id: "claude", label: "Claude", dir: "/claude", present: true, managesPlugins: true },
 ];
 
 const deps = {

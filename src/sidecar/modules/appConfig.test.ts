@@ -9,7 +9,7 @@ function makeHome(id: "cairn" | "claude" | "opencode", label: string): { dir: st
   const dir = mkdtempSync(join(tmpdir(), `dash-appconfig-${id}-`));
   mkdirSync(join(dir, "config"), { recursive: true });
   mkdirSync(join(dir, "plugin"), { recursive: true });
-  return { dir, home: { id, label, dir, present: true, hasUpdater: true } };
+  return { dir, home: { id, label, dir, present: true, managesPlugins: true } };
 }
 
 function seedPlugins(dir: string, entries: Plugin[]): void {
@@ -462,7 +462,7 @@ describe("engine-contributed settings", () => {
     const { home } = makeHome("claude", "Claude Code");
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [{ ...home, hasUpdater: false }], declarations: async () => new Map(), settingsProviders: async () => [] });
+    const result = await configSchemas("claude", { homes: [{ ...home, managesPlugins: false }], declarations: async () => new Map(), settingsProviders: async () => [] });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
@@ -522,7 +522,7 @@ describe("configWrite accepts a plugin the home deployed but never listed", () =
     mkdirSync(join(home, "plugin"), { recursive: true });
     writeFileSync(join(home, "plugin", "engine.json"), JSON.stringify({ id: "engine", api: 1, entry: "dist/index.js", capabilities: [] }));
     writeFileSync(join(home, "plugin", "engine.js"), "export default {};");
-    const homes = [{ id: "cairn", label: "Cairn", dir: home, present: true, hasUpdater: true }];
+    const homes = [{ id: "cairn", label: "Cairn", dir: home, present: true, managesPlugins: true }];
     const { configWrite } = await import("./appConfig.js");
     const result = await configWrite("cairn", "engine", "flag", true, { homes });
     expect(result.ok).toBe(true);
@@ -530,7 +530,7 @@ describe("configWrite accepts a plugin the home deployed but never listed", () =
 
   it("refuses a plugin that is neither listed nor deployed", async () => {
     const home = mkdtempSync(join(tmpdir(), "cairn-cw-"));
-    const homes = [{ id: "cairn", label: "Cairn", dir: home, present: true, hasUpdater: true }];
+    const homes = [{ id: "cairn", label: "Cairn", dir: home, present: true, managesPlugins: true }];
     const { configWrite } = await import("./appConfig.js");
     const result = await configWrite("cairn", "ghost", "flag", true, { homes, managed: async () => true });
     expect(result).toEqual({ ok: false, error: "plugin not found: ghost" });

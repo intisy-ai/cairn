@@ -46,9 +46,9 @@ let manager: { id: string; url: string };
 beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), "cairn-install-flow-"));
   homes = [
-    { id: "cairn", label: "Cairn", dir: join(root, "cairn"), present: true, hasUpdater: false },
-    { id: "claude", label: "Claude Code", dir: join(root, "claude"), present: true, hasUpdater: false },
-    { id: "opencode", label: "OpenCode", dir: join(root, "opencode"), present: true, hasUpdater: false },
+    { id: "cairn", label: "Cairn", dir: join(root, "cairn"), present: true, managesPlugins: false },
+    { id: "claude", label: "Claude Code", dir: join(root, "claude"), present: true, managesPlugins: false },
+    { id: "opencode", label: "OpenCode", dir: join(root, "opencode"), present: true, managesPlugins: false },
   ];
   // Every ambient resolution must land inside the temp root, never a real home.
   process.env.HUB_CONFIG_DIR = homes[0].dir;
@@ -104,8 +104,8 @@ describe.each(["claude", "opencode"])("installing the plugin manager into the %s
 
     // The bug this whole change exists to fix: the home used to report false here. It is asked as
     // a capability now, so this also proves the deployed manager is one a host can actually call.
-    const { updaterInstalled } = await import("../lib/pluginHomes.js");
-    expect(await updaterInstalled(home.dir, home.id), "home reports the manager as installed").toBe(true);
+    const { managerInstalled } = await import("../lib/pluginHomes.js");
+    expect(await managerInstalled(home.dir, home.id), "home reports the manager as installed").toBe(true);
   }, CLONE_TIMEOUT_MS);
 });
 

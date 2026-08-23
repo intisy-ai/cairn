@@ -3,9 +3,9 @@ import { buildUnifiedPlugins, applicableHomeIds } from "./unifiedPlugins.js";
 import type { HomePlugins, CatalogEntry, PluginHome } from "@cairn/shared";
 
 const homes: PluginHome[] = [
-  { id: "cairn", label: "Cairn", dir: "/cairn", present: true, hasUpdater: true },
-  { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true },
-  { id: "opencode", label: "OpenCode", dir: "/o", present: true, hasUpdater: true },
+  { id: "cairn", label: "Cairn", dir: "/cairn", present: true, managesPlugins: true },
+  { id: "claude", label: "Claude Code", dir: "/c", present: true, managesPlugins: true },
+  { id: "opencode", label: "OpenCode", dir: "/o", present: true, managesPlugins: true },
 ];
 const row = (name: string, extra: Partial<HomePlugins["rows"][number]> = {}) =>
   ({ name, kind: "git" as const, enabled: true, updateAvailable: false, description: "", ...extra });
@@ -153,9 +153,9 @@ describe("a declared but absent plugin", () => {
 // One app's plugins ending up installed in another is what this declaration prevents.
 describe("a plugin that declares which apps it suits", () => {
   const withLoaders: PluginHome[] = [
-    { id: "cairn", label: "Cairn", dir: "/k", present: true, hasUpdater: true },
-    { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true, loaderId: "claude-code-loader" },
-    { id: "opencode", label: "OpenCode", dir: "/o", present: true, hasUpdater: true, loaderId: "opencode-loader" },
+    { id: "cairn", label: "Cairn", dir: "/k", present: true, managesPlugins: true },
+    { id: "claude", label: "Claude Code", dir: "/c", present: true, managesPlugins: true, loaderId: "claude-code-loader" },
+    { id: "opencode", label: "OpenCode", dir: "/o", present: true, managesPlugins: true, loaderId: "opencode-loader" },
   ];
 
   it("is offered only to the apps it names", () => {
@@ -180,9 +180,9 @@ describe("a plugin that declares which apps it suits", () => {
 // An app is reached through its loader, so an app without one cannot run what is installed there.
 describe("an app whose loader is not installed", () => {
   const homes: PluginHome[] = [
-    { id: "cairn", label: "Cairn", dir: "/k", present: true, hasUpdater: true },
-    { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true, loaderId: "claude-code-loader", loaderInstalled: true },
-    { id: "opencode", label: "OpenCode", dir: "/o", present: true, hasUpdater: true, loaderId: "opencode-loader", loaderInstalled: false },
+    { id: "cairn", label: "Cairn", dir: "/k", present: true, managesPlugins: true },
+    { id: "claude", label: "Claude Code", dir: "/c", present: true, managesPlugins: true, loaderId: "claude-code-loader", loaderInstalled: true },
+    { id: "opencode", label: "OpenCode", dir: "/o", present: true, managesPlugins: true, loaderId: "opencode-loader", loaderInstalled: false },
   ];
 
   it("is not offered as a target for other plugins", () => {
@@ -207,16 +207,16 @@ describe("an app whose loader is not installed", () => {
   // A sidecar predating this field sends no answer, and reading that as "absent" would
   // empty the list for anyone who has not caught up.
   it("treats a home that says nothing as reachable", () => {
-    const older: PluginHome[] = [{ id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true, loaderId: "claude-code-loader" }];
+    const older: PluginHome[] = [{ id: "claude", label: "Claude Code", dir: "/c", present: true, managesPlugins: true, loaderId: "claude-code-loader" }];
     expect(applicableHomeIds("plugin", older, "some-plugin")).toEqual(["claude"]);
   });
 });
 
 describe("a loader's applicable homes", () => {
   const withLoaders: PluginHome[] = [
-    { id: "cairn", label: "Cairn", dir: "/k", present: true, hasUpdater: true },
-    { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true, loaderId: "claude-code-loader" },
-    { id: "opencode", label: "OpenCode", dir: "/o", present: true, hasUpdater: true, loaderId: "opencode-loader" },
+    { id: "cairn", label: "Cairn", dir: "/k", present: true, managesPlugins: true },
+    { id: "claude", label: "Claude Code", dir: "/c", present: true, managesPlugins: true, loaderId: "claude-code-loader" },
+    { id: "opencode", label: "OpenCode", dir: "/o", present: true, managesPlugins: true, loaderId: "opencode-loader" },
   ];
 
   it("offers a loader only to the app that names it", () => {

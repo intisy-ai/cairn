@@ -7,7 +7,7 @@ import { join } from "node:path";
 import type { PluginHome } from "../../packages/shared/src/domain.js";
 
 function home(id: "cairn" | "claude", dir: string): PluginHome {
-  return { id, label: id, dir, present: true, hasUpdater: true };
+  return { id, label: id, dir, present: true, managesPlugins: true };
 }
 
 function homes(): { cairnHome: string; appHome: string; list: PluginHome[] } {

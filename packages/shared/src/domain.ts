@@ -245,7 +245,7 @@ export type PluginHome = {
   icon?: string;
   dir: string;
   present: boolean;
-  hasUpdater: boolean;
+  managesPlugins: boolean;
   // The loader plugin that connects this app, straight from the app registry. A loader only
   // ever serves the one app that names it, so this is how a home claims its own loader.
   loaderId?: string;

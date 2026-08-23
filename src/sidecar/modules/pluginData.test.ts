@@ -3,7 +3,7 @@ import { pluginsData, pluginsRemoveData } from "./pluginData.js";
 import type { PluginHome } from "../../../packages/shared/src/domain.js";
 
 function home(id: string, label: string, overrides: Partial<PluginHome> = {}): PluginHome {
-  return { id, label, dir: `/${id}`, present: true, hasUpdater: true, ...overrides };
+  return { id, label, dir: `/${id}`, present: true, managesPlugins: true, ...overrides };
 }
 
 const HOMES = [home("cairn", "Cairn"), home("claude", "Claude Code"), home("opencode", "OpenCode", { present: false })];

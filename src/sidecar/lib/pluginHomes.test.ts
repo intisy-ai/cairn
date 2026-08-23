@@ -84,7 +84,7 @@ describe("pluginHomes", () => {
     const homes = await pluginHomes({
       detect: async () => ({ ok: true, data: {} }),
       appHome: () => "/home/app",
-      hasUpdater: () => false,
+      managesPlugins: () => false,
     });
     expect(homes[0].id).toBe("cairn");
     expect(homes[0].dir).toBe(join(tmpdir(), "cairn-store"));
@@ -98,35 +98,35 @@ describe("pluginHomes", () => {
     const homes = await pluginHomes({
       detect: async () => ({ ok: true, data: {} }),
       appHome: () => "/home/app",
-      hasUpdater: () => false,
+      managesPlugins: () => false,
     });
     expect(homes[0].dir).toBe(resolveStoreDir(process.env, process.platform, homedir()));
     expect(homes[0].dir).not.toBe("/home/app");
     expect(homes[0].dir).not.toBe(dirname(process.env.HUB_APPS_FILE!));
   });
 
-  it("always lists cairn first (present, hasUpdater), then only detected apps", async () => {
+  it("always lists cairn first (present, managesPlugins), then only detected apps", async () => {
     const homes = await pluginHomes({
       detect: async () => ({ ok: true, data: { claude: true, opencode: false } }),
       cairnDir: "/store",
       appHome: (app) => (app === "claude" ? "/home/claude" : "/home/opencode"),
-      hasUpdater: () => true,
+      managesPlugins: () => true,
     });
-    expect(homes[0]).toMatchObject({ id: "cairn", present: true, hasUpdater: true, dir: "/store" });
+    expect(homes[0]).toMatchObject({ id: "cairn", present: true, managesPlugins: true, dir: "/store" });
     expect(homes.map((h) => h.id)).toEqual(["cairn", "claude", "opencode"]);
     expect(homes.find((h) => h.id === "opencode")?.present).toBe(false);
   });
 
-  it("hasUpdater reflects whether plugin-updater is actually installed in a home", async () => {
+  it("managesPlugins reflects whether plugin-updater is actually installed in a home", async () => {
     const homes = await pluginHomes({
       detect: async () => ({ ok: true, data: { claude: true, opencode: true } }),
       cairnDir: "/store",
       appHome: (app) => (app === "claude" ? "/home/claude/.claude" : "/home/opencode"),
-      hasUpdater: (dir) => dir.replaceAll("\\", "/").includes("/.claude"),
+      managesPlugins: (dir) => dir.replaceAll("\\", "/").includes("/.claude"),
     });
-    expect(homes.find((h) => h.id === "cairn")?.hasUpdater).toBe(false);
-    expect(homes.find((h) => h.id === "claude")?.hasUpdater).toBe(true);
-    expect(homes.find((h) => h.id === "opencode")?.hasUpdater).toBe(false);
+    expect(homes.find((h) => h.id === "cairn")?.managesPlugins).toBe(false);
+    expect(homes.find((h) => h.id === "claude")?.managesPlugins).toBe(true);
+    expect(homes.find((h) => h.id === "opencode")?.managesPlugins).toBe(false);
   });
 
   // The app list offers a home as an install target only when its loader can load what lands there.
@@ -139,7 +139,7 @@ describe("pluginHomes", () => {
       detect: async () => ({ ok: true, data: { claude: true, opencode: true } }),
       cairnDir: "/store",
       appHome: (app) => "/home/" + app,
-      hasUpdater: () => true,
+      managesPlugins: () => true,
       hasLoader: (dir, loaderId) => !!loaderId && dir === "/home/claude",
     });
     expect(homes.find((h) => h.id === "claude")?.loaderInstalled).toBe(true);
@@ -153,7 +153,7 @@ describe("homeById", () => {
   // A shared lookup every module resolving a home id (screens, config, providers) relies
   // on to reject an id nothing carries rather than silently proceeding with `undefined`.
   it("throws for a home id nothing in the list carries", () => {
-    const homes = [{ id: "app-a", label: "App A", dir: "/homes/a", present: true, hasUpdater: true }];
+    const homes = [{ id: "app-a", label: "App A", dir: "/homes/a", present: true, managesPlugins: true }];
     expect(() => homeById("nope", homes)).toThrow("unknown plugin home: nope");
   });
 });

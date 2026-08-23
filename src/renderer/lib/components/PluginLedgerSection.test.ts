@@ -12,7 +12,7 @@ const row = {
 
 describe("PluginLedgerSection", () => {
   it("shows the capabilities, services, topics and permissions of one home", () => {
-    render(PluginLedgerSection, { groups: [{ home: { id: "app-a", label: "App A", dir: "/a", present: true, hasUpdater: true }, rows: [row] }], plugin: "historian" });
+    render(PluginLedgerSection, { groups: [{ home: { id: "app-a", label: "App A", dir: "/a", present: true, managesPlugins: true }, rows: [row] }], plugin: "historian" });
     expect(screen.getByText("App A")).toBeInTheDocument();
     expect(screen.getByText("config-history")).toBeInTheDocument();
     expect(screen.getByText("historian:history")).toBeInTheDocument();
@@ -21,7 +21,7 @@ describe("PluginLedgerSection", () => {
   });
 
   it("marks a consumed service nothing provides", () => {
-    render(PluginLedgerSection, { groups: [{ home: { id: "app-a", label: "App A", dir: "/a", present: true, hasUpdater: true }, rows: [row] }], plugin: "historian" });
+    render(PluginLedgerSection, { groups: [{ home: { id: "app-a", label: "App A", dir: "/a", present: true, managesPlugins: true }, rows: [row] }], plugin: "historian" });
     expect(screen.getByText(/nothing in this home provides it/i)).toBeInTheDocument();
   });
 
@@ -30,13 +30,13 @@ describe("PluginLedgerSection", () => {
   // real check against `unresolved` leaves it unmarked.
   it("does not mark a consumed service the home already provides", () => {
     const mixed = { ...row, consumes: ["accounts", "screens"], unresolved: ["accounts"] };
-    render(PluginLedgerSection, { groups: [{ home: { id: "app-a", label: "App A", dir: "/a", present: true, hasUpdater: true }, rows: [mixed] }], plugin: "historian" });
+    render(PluginLedgerSection, { groups: [{ home: { id: "app-a", label: "App A", dir: "/a", present: true, managesPlugins: true }, rows: [mixed] }], plugin: "historian" });
     expect(screen.getAllByText(/nothing in this home provides it/i)).toHaveLength(1);
   });
 
   it("shows a declared capability the plugin never provided", () => {
     const broken = { ...row, capabilities: ["screens"], status: "broken", error: { detail: "activate threw", fix: "fix the error" } };
-    render(PluginLedgerSection, { groups: [{ home: { id: "app-a", label: "App A", dir: "/a", present: true, hasUpdater: true }, rows: [broken] }], plugin: "historian" });
+    render(PluginLedgerSection, { groups: [{ home: { id: "app-a", label: "App A", dir: "/a", present: true, managesPlugins: true }, rows: [broken] }], plugin: "historian" });
     expect(screen.getByText(/declared but not provided/i)).toBeInTheDocument();
     expect(screen.getByText("fix the error")).toBeInTheDocument();
   });
@@ -48,7 +48,7 @@ describe("PluginLedgerSection", () => {
 
   it("renders a quarantined home alongside a healthy one, each under its own label and reason", () => {
     render(PluginLedgerSection, {
-      groups: [{ home: { id: "opencode-runtime", label: "OpenCode", dir: "/o", present: true, hasUpdater: true }, rows: [row] }],
+      groups: [{ home: { id: "opencode-runtime", label: "OpenCode", dir: "/o", present: true, managesPlugins: true }, rows: [row] }],
       plugin: "historian",
       quarantine: [{
         homeId: "cairn-desktop", homeLabel: "Cairn",

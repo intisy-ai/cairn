@@ -3,7 +3,7 @@ import { buildUnifiedLibraries, isOrphan, orphanHomeIds } from "./unifiedLibrari
 import type { HomeLibraries, InstalledLibrary, PluginHome } from "@cairn/shared";
 
 function home(id: string, label: string): PluginHome {
-  return { id, label, dir: `/${id}`, present: true, hasUpdater: true };
+  return { id, label, dir: `/${id}`, present: true, managesPlugins: true };
 }
 
 function lib(specifier: string, version: string, usedBy: string[] = []): InstalledLibrary {

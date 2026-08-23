@@ -5,7 +5,7 @@ const claudeDir = "/tmp/updates-claude";
 const cairnDir = "/tmp/updates-cairn";
 
 function home(id: string, dir: string, present = true): PluginHome {
-  return { id, label: id, dir, present, hasUpdater: true } as PluginHome;
+  return { id, label: id, dir, present, managesPlugins: true } as PluginHome;
 }
 
 const fakeHomes: PluginHome[] = [home("cairn", cairnDir), home("claude", claudeDir)];

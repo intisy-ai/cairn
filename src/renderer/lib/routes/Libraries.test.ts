@@ -9,7 +9,7 @@ import Libraries from "./Libraries.svelte";
 import type { HomeLibraries, PluginHome } from "@cairn/shared";
 
 function home(id: string, label: string): PluginHome {
-  return { id, label, dir: `/${id}`, present: true, hasUpdater: true };
+  return { id, label, dir: `/${id}`, present: true, managesPlugins: true };
 }
 
 // The same library in two homes, one library used by a plugin, and one used by nothing.

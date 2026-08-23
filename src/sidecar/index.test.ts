@@ -91,7 +91,7 @@ describe("activity home", () => {
     const { getActivityContext } = await import("@core/index.js");
     const { pluginHomes } = await import("./lib/pluginHomes.js");
 
-    const homes = await pluginHomes({ detect: async () => ({ ok: true, data: {} }), hasUpdater: () => false });
+    const homes = await pluginHomes({ detect: async () => ({ ok: true, data: {} }), managesPlugins: () => false });
     const cairnHome = homes.find((h) => h.id === "cairn");
     if (!cairnHome) throw new Error("unreachable");
 

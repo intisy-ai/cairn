@@ -19,8 +19,8 @@ let homes: PluginHome[];
 beforeAll(() => {
   root = mkdtempSync(join(tmpdir(), "cairn-jobs-"));
   homes = [
-    { id: "cairn", label: "Cairn", dir: join(root, "cairn"), present: true, hasUpdater: false },
-    { id: "claude", label: "Claude Code", dir: join(root, "claude"), present: true, hasUpdater: false },
+    { id: "cairn", label: "Cairn", dir: join(root, "cairn"), present: true, managesPlugins: false },
+    { id: "claude", label: "Claude Code", dir: join(root, "claude"), present: true, managesPlugins: false },
   ];
   process.env.HUB_CONFIG_DIR = homes[0].dir;
   // Running from source, the built worker is not a sibling of this module.

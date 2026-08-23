@@ -11,7 +11,7 @@ import { readPluginManifest } from "../lib/pluginManifest.js";
 import { pluginIdFromClone } from "../lib/capabilityOwner.js";
 import { emitCairnAction } from "../activity.js";
 import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, PluginVersion, UpdateState, Result, InstallManyResult, InstallOutcome } from "../../../packages/shared/src/domain.js";
-import { pluginHomes, homeDir, homeById, updaterInstalled } from "../lib/pluginHomes.js";
+import { pluginHomes, homeDir, homeById, managerInstalled } from "../lib/pluginHomes.js";
 import { readNamespace, writeCacheMany } from "../lib/cache.js";
 import { installPluginRepo } from "../lib/pluginBootstrap.js";
 import { repoProvidingCapability } from "../lib/capabilityCatalog.js";
@@ -175,7 +175,7 @@ export interface PluginsDeps {
   npmPlugins?: (dir: string, appId: string) => Promise<ManagedNpmPlugin[]>;
   uninstallPlugin?: (name: string, appId: string) => Promise<ActionResult | null>;
   uninstallNpmPlugin?: (name: string, appId: string) => Promise<ActionResult | null>;
-  hasUpdater?: HasUpdaterFn;
+  managesPlugins?: HasUpdaterFn;
   registerWithApp?: RegisterWithAppFn;
   ensureUpdater?: (homeId: string) => Promise<Result<void>>;
   // Symmetric with setPluginChannel: the write itself belongs to the home's manager, so these are
@@ -421,10 +421,10 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
     }, homes);
 
     const report = deps.report;
-    const hasUpdater = deps.hasUpdater ?? updaterInstalled;
+    const managesPlugins = deps.managesPlugins ?? managerInstalled;
     // Every home needs the plugin manager before it can manage anything else. The
     // manager itself is exempt: it is what is being installed.
-    if (!(await isPluginManager(name, dir)) && !(await hasUpdater(dir, homeId))) {
+    if (!(await isPluginManager(name, dir)) && !(await managesPlugins(dir, homeId))) {
       report?.("Installing the plugin manager", 10);
       // The bootstrap has to act on the very home this install targets, so it gets this
       // call's home list rather than resolving its own.

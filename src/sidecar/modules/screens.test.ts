@@ -11,7 +11,7 @@ vi.mock("../lib/pluginHost.js", () => ({
   },
 }));
 
-const homes = [{ id: "app-a", label: "App A", dir: "/homes/a", present: true, hasUpdater: true }];
+const homes = [{ id: "app-a", label: "App A", dir: "/homes/a", present: true, managesPlugins: true }];
 
 describe("screenData", () => {
   it("reads through the screens capability, naming the screen and the home", async () => {

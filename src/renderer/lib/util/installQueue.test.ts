@@ -8,8 +8,8 @@ const engines = [
   { id: "custom-auth", capability: "custom-endpoints", url: "https://example/custom-auth", homes: {} },
 ];
 const homes = [
-  { id: "claude", label: "Claude", dir: "/c", present: true, hasUpdater: false },
-  { id: "opencode", label: "OpenCode", dir: "/o", present: true, hasUpdater: true },
+  { id: "claude", label: "Claude", dir: "/c", present: true, managesPlugins: false },
+  { id: "opencode", label: "OpenCode", dir: "/o", present: true, managesPlugins: true },
 ];
 
 describe("prerequisiteInstalls", () => {
@@ -24,7 +24,7 @@ describe("prerequisiteInstalls", () => {
   });
 
   it("skips homes that already have it and keeps the order of the rest", () => {
-    const lacking = [...homes, { id: "extra", label: "Extra", dir: "/e", present: true, hasUpdater: false }];
+    const lacking = [...homes, { id: "extra", label: "Extra", dir: "/e", present: true, managesPlugins: false }];
     const result = prerequisiteInstalls("wakatime-sync", ["extra", "opencode", "claude"], lacking, engines);
     expect(result.map((p) => p.homeId)).toEqual(["extra", "claude"]);
   });

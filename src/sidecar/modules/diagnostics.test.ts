@@ -5,8 +5,8 @@ const quarantinedIn = vi.fn();
 vi.mock("../lib/pluginHost.js", () => ({ ledgerFor, quarantinedIn }));
 
 const homes = [
-  { id: "cairn", label: "Cairn", dir: "/homes/cairn", present: true, hasUpdater: true },
-  { id: "app-a", label: "App A", dir: "/homes/a", present: true, hasUpdater: true },
+  { id: "cairn", label: "Cairn", dir: "/homes/cairn", present: true, managesPlugins: true },
+  { id: "app-a", label: "App A", dir: "/homes/a", present: true, managesPlugins: true },
 ];
 
 describe("pluginLedger", () => {

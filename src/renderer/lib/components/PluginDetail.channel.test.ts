@@ -22,7 +22,7 @@ const PLUGIN: UnifiedPlugin = {
 function baseProps(extra: Partial<Record<string, unknown>> = {}) {
   return {
     plugin: PLUGIN,
-    homes: [{ id: "claude", label: "Claude Code", hasUpdater: true }],
+    homes: [{ id: "claude", label: "Claude Code", managesPlugins: true }],
     onClose: vi.fn(),
     onInstallAll: vi.fn(),
     onRemoveEverywhere: vi.fn(),

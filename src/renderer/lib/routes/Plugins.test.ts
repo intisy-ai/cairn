@@ -18,7 +18,7 @@ function enqueueSpy() {
 }
 
 function home(id: string, label: string, overrides: Partial<PluginHome> = {}): PluginHome {
-  return { id, label, dir: `/${id}`, present: true, hasUpdater: true, ...overrides };
+  return { id, label, dir: `/${id}`, present: true, managesPlugins: true, ...overrides };
 }
 
 const CAIRN = home("cairn", "Cairn");
@@ -129,8 +129,8 @@ describe("Plugins screen", () => {
 
   it("hides every update control when no home has an updater to run them", async () => {
     const noUpdater = [
-      { home: home("cairn", "Cairn", { hasUpdater: false }), rows: [] },
-      { home: home("claude", "Claude Code", { hasUpdater: false }), rows: [{ name: "wakatime-sync", kind: "git" as const, enabled: true, updateAvailable: true, description: "Tracks time" }] },
+      { home: home("cairn", "Cairn", { managesPlugins: false }), rows: [] },
+      { home: home("claude", "Claude Code", { managesPlugins: false }), rows: [{ name: "wakatime-sync", kind: "git" as const, enabled: true, updateAvailable: true, description: "Tracks time" }] },
     ];
     stubCairn({
       pluginsList: async () => ({ ok: true, data: noUpdater }),
@@ -149,7 +149,7 @@ describe("Plugins screen", () => {
   it("offers Update all only when something behind sits in a home with an updater", async () => {
     const behindWhereUnmanaged = [
       { home: home("cairn", "Cairn"), rows: [] },
-      { home: home("claude", "Claude Code", { hasUpdater: false }), rows: [{ name: "wakatime-sync", kind: "git" as const, enabled: true, updateAvailable: true, description: "Tracks time" }] },
+      { home: home("claude", "Claude Code", { managesPlugins: false }), rows: [{ name: "wakatime-sync", kind: "git" as const, enabled: true, updateAvailable: true, description: "Tracks time" }] },
     ];
     stubCairn({
       pluginsList: async () => ({ ok: true, data: behindWhereUnmanaged }),
@@ -191,7 +191,7 @@ describe("Plugins screen", () => {
 
   it("checks only the homes that actually have an updater", async () => {
     const mixed = [
-      { home: home("cairn", "Cairn", { hasUpdater: false }), rows: [] },
+      { home: home("cairn", "Cairn", { managesPlugins: false }), rows: [] },
       { home: home("claude", "Claude Code"), rows: [{ name: "wakatime-sync", kind: "git" as const, enabled: true, updateAvailable: false, description: "Tracks time" }] },
     ];
     const checked: string[] = [];
@@ -411,8 +411,8 @@ describe("Plugins screen", () => {
         ok: true,
         data: [
           { home: CAIRN, rows: [] },
-          { home: home("claude", "Claude Code", { hasUpdater: false }), rows: [] },
-          { home: home("opencode", "OpenCode", { hasUpdater: true }), rows: [] },
+          { home: home("claude", "Claude Code", { managesPlugins: false }), rows: [] },
+          { home: home("opencode", "OpenCode", { managesPlugins: true }), rows: [] },
         ],
       }),
       catalogList: async () => ({
@@ -607,7 +607,7 @@ describe("Plugins screen", () => {
       pluginsData: async () => ({
         ok: true,
         data: [{
-          home: { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true },
+          home: { id: "claude", label: "Claude Code", dir: "/c", present: true, managesPlugins: true },
           entries: [{ path: "config/wakatime-sync.json", bytes: 120 }, { path: "logs/2026-08-11/wakatime-sync-09-00-00.log", bytes: 400 }],
         }],
       }),
@@ -638,7 +638,7 @@ describe("Plugins screen", () => {
       pluginsData: async () => ({
         ok: true,
         data: [{
-          home: { id: "claude", label: "Claude Code", dir: "/c", present: true, hasUpdater: true },
+          home: { id: "claude", label: "Claude Code", dir: "/c", present: true, managesPlugins: true },
           entries: [{ path: "config/wakatime-sync.json", bytes: 120 }],
         }],
       }),

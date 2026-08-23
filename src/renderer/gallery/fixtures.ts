@@ -23,11 +23,11 @@ export const LOREM =
 
 export const LONG_NAME = "a-very-long-plugin-name-that-has-to-truncate-somewhere";
 
-const HOME_ALPHA: PluginHome = { id: "alpha", label: "Alpha", dir: "/alpha", present: true, hasUpdater: true };
-const HOME_BETA: PluginHome = { id: "beta", label: "Beta", dir: "/beta", present: true, hasUpdater: true };
+const HOME_ALPHA: PluginHome = { id: "alpha", label: "Alpha", dir: "/alpha", present: true, managesPlugins: true };
+const HOME_BETA: PluginHome = { id: "beta", label: "Beta", dir: "/beta", present: true, managesPlugins: true };
 
 function home(id: string, label: string): PluginHome {
-  return { id, label, dir: `/${id}`, present: true, hasUpdater: true };
+  return { id, label, dir: `/${id}`, present: true, managesPlugins: true };
 }
 
 const SECTIONS: HomePlugins[] = [
@@ -186,8 +186,8 @@ export const PLUGIN_DETAIL: UnifiedPlugin = {
   deprecated: false,
 };
 export const PLUGIN_DETAIL_HOMES = [
-  { id: "alpha", label: "Alpha", hasUpdater: true },
-  { id: "beta", label: "Beta", hasUpdater: true },
+  { id: "alpha", label: "Alpha", managesPlugins: true },
+  { id: "beta", label: "Beta", managesPlugins: true },
 ];
 
 // Enough of the API for the real screens to render populated in the gallery.
