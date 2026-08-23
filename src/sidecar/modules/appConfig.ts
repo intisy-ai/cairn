@@ -6,6 +6,7 @@ import type { PluginConfigSchema, PluginHome, PluginHomeId, Result, FieldSpec, A
 import { pluginHomes, homeDir, homeById } from "../lib/pluginHomes.js";
 import { hasCapability, listedPlugins, readPluginManagement, PLUGIN_MANAGEMENT } from "../lib/pluginManager.js";
 import { deployedManifests, isDeployedPlugin } from "../lib/capabilityOwner.js";
+import type { DeployedManifest } from "../lib/capabilityOwner.js";
 import { probeDeclarations, readCurrentValues } from "../lib/schemaProbe.js";
 import type { Bundle, Declaration } from "../lib/schemaProbe.js";
 import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS, DEFAULT_INVOKE_TIMEOUT_MS } from "../lib/pluginHost.js";
@@ -39,7 +40,7 @@ async function realSettingsProviders(homeDir: string, appId: string): Promise<Se
  * @remarks
  * A cloned plugin deploys a bundle; an npm one has only the package it resolves to, which the
  * home's manager is the one thing that knows how to find. Deployed bundles come first so a plugin
- * present both ways is probed as the copy this home actually deploys.
+ * present both ways is read as the copy this home actually deploys.
  */
 async function realBundles(home: PluginHome): Promise<Bundle[]> {
   const deployed = (await listedPlugins(home.dir, home.id))
@@ -53,6 +54,7 @@ async function realBundles(home: PluginHome): Promise<Bundle[]> {
 
 export interface ConfigSchemasDeps {
   homes?: PluginHome[];
+  manifests?: (homeDir: string) => DeployedManifest[];
   bundles?: (home: PluginHome) => Promise<Bundle[]>;
   declarations?: (bundles: Bundle[]) => Promise<Map<string, Declaration>>;
   values?: (dir: string, plugin: string) => Record<string, unknown>;
@@ -60,17 +62,16 @@ export interface ConfigSchemasDeps {
 }
 
 /**
- * Resolves a home's plugin declarations, preferring each plugin's `settings` capability where one
- * answers and falling back to the probe for everything else.
+ * Resolves a home's plugin declarations from the manifests it deploys, asking each plugin's
+ * `settings` capability for what a manifest cannot state.
  *
  * @remarks
- * A deployed bundle inlines its own copy of core, so `defineConfig`'s defaults live in THAT
- * module instance, unreachable from the capability's answer or from Cairn's own core. The probe
- * runs inside the bundle itself and stays the only source that can read them, so it is kept as a
- * standing `defaults` channel for every plugin, not merely a fallback for one with no capability.
- * `fields`, `actions`, `sections` and `data` come from the capability where it answers, since that
- * is the plugin's own live declaration; `current` always comes from disk, so a write is visible on
- * the very next read with nothing to invalidate.
+ * `defaults` come from the deployed manifest, which states them as data and costs nothing to read.
+ * A bundle whose manifest declares none is probed instead, which runs it as a process: that is the
+ * only channel left for one built before settings became a declaration, and it disappears with the
+ * last such bundle. `fields`, `actions`, `sections` and `data` come from the capability where it
+ * answers, since those are the plugin's own live declaration; `current` always comes from disk, so
+ * a write is visible on the very next read with nothing to invalidate.
  */
 export function configSchemas(homeId: string, deps: ConfigSchemasDeps = {}): Promise<Result<PluginConfigSchema[]>> {
   return wrap(async () => {
@@ -80,15 +81,19 @@ export function configSchemas(homeId: string, deps: ConfigSchemasDeps = {}): Pro
     const values = deps.values ?? readCurrentValues;
     const settingsProviders = deps.settingsProviders ?? realSettingsProviders;
 
+    const manifests = (deps.manifests ?? deployedManifests)(home.dir);
+    const declaredDefaults = new Map(manifests.flatMap((plugin) => (plugin.configDefaults ? [[plugin.id, plugin.configDefaults] as const] : [])));
+
     const bundles: Bundle[] = await (deps.bundles ?? realBundles)(home);
-    const declared = await declare(bundles);
+    const declared = await declare(bundles.filter((bundle) => !declaredDefaults.has(bundle.plugin)));
     const capabilities = await settingsProviders(home.dir, home.id);
+    const defaultsFor = (plugin: string): Record<string, unknown> => declaredDefaults.get(plugin) ?? declared.get(plugin)?.defaults ?? {};
 
     const schemas: PluginConfigSchema[] = [];
     const resolved = new Set<string>();
     // What each plugin declares it provides, so a surface with a screen for a capability finds the
     // plugin behind it without knowing its name.
-    const declaredBy = new Map(deployedManifests(home.dir).map((plugin) => [plugin.id, plugin.capabilities]));
+    const declaredBy = new Map(manifests.map((plugin) => [plugin.id, plugin.capabilities]));
 
     for (const { pluginId, implementation } of capabilities) {
       if (resolved.has(pluginId)) continue;
@@ -97,7 +102,7 @@ export function configSchemas(homeId: string, deps: ConfigSchemasDeps = {}): Pro
       const capabilitySchema = answer.ok ? answer.value : {};
       const schema: PluginConfigSchema = {
         plugin: pluginId,
-        defaults: declared.get(pluginId)?.defaults ?? {},
+        defaults: defaultsFor(pluginId),
         current: values(home.dir, pluginId),
       };
       if (capabilitySchema.fields) schema.fields = capabilitySchema.fields;
@@ -107,14 +112,17 @@ export function configSchemas(homeId: string, deps: ConfigSchemasDeps = {}): Pro
       schemas.push(schema);
     }
 
-    // The probe is the only channel left for a plugin with no `settings` capability: an older
-    // bundle that has not been rebuilt, or one whose entry never declares the capability.
-    for (const bundle of bundles) {
-      if (resolved.has(bundle.plugin)) continue;
-      const declaration = declared.get(bundle.plugin);
+    // A plugin with no `settings` capability still has settings to show: its manifest states them,
+    // and a bundle whose manifest does not is where the probe's answer is used. A manifest is
+    // enough on its own, so a plugin deployed into a home that lists no entry for it is reached
+    // here rather than being invisible to a screen that can still write to it.
+    for (const plugin of [...bundles.map((bundle) => bundle.plugin), ...declaredDefaults.keys()]) {
+      if (resolved.has(plugin)) continue;
+      const manifestDefaults = declaredDefaults.get(plugin);
+      const declaration: Declaration | undefined = manifestDefaults ? { defaults: manifestDefaults } : declared.get(plugin);
       if (!declaration) continue;
-      resolved.add(bundle.plugin);
-      schemas.push({ plugin: bundle.plugin, ...declaration, current: values(home.dir, bundle.plugin) });
+      resolved.add(plugin);
+      schemas.push({ plugin, ...declaration, current: values(home.dir, plugin) });
     }
 
     // Split every declaration here, once, so the renderer receives sections and leftovers

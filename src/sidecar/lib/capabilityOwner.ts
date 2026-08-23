@@ -11,6 +11,8 @@ export interface DeployedManifest {
   capabilities: string[];
   /** Permissions the manifest declares. */
   permissions: string[];
+  /** Every setting the manifest declares and what it is worth until a home changes it, or null when it declares none. */
+  configDefaults: Record<string, unknown> | null;
   /** The deployed bundle beside the sidecar, or null when none is deployed. */
   entryPath: string | null;
 }
@@ -29,6 +31,7 @@ export function deployedManifests(homeDir: string): DeployedManifest[] {
       id: plugin.manifest.id,
       capabilities: plugin.manifest.capabilities ?? [],
       permissions: plugin.manifest.permissions ?? [],
+      configDefaults: plugin.manifest.config?.defaults ?? null,
       entryPath: plugin.entryPath,
     }));
   } catch {

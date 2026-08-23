@@ -30,6 +30,10 @@ function listedFromSeed(dir: string) {
   };
 }
 
+function manifestOf(id: string, configDefaults: Record<string, unknown> | null) {
+  return { id, capabilities: [], permissions: [], configDefaults, entryPath: null };
+}
+
 function bundlesFromSeed(dir: string) {
   return async () => (await listedFromSeed(dir)())
     .map((entry) => ({ plugin: entry.id, path: join(dir, "plugin", `${entry.id}.js`) }))
@@ -168,6 +172,74 @@ describe("appConfig sidecar module", () => {
     expect(result.data.map((s) => s.plugin)).toEqual(["legacy"]);
     expect(result.data[0].defaults).toEqual({ b: 2 });
     expect(result.data[0].fields).toEqual([{ key: "b", type: "number" }]);
+  });
+
+  it("takes a plugin's defaults from its deployed manifest, and never probes its bundle", async () => {
+    const { dir, home } = makeHome("claude", "Claude Code");
+    writeFileSync(join(dir, "plugin", "declared.js"), "// bundle placeholder", "utf8");
+    writeFileSync(join(dir, "plugin", "legacy.js"), "// bundle placeholder", "utf8");
+    seedPlugins(dir, [
+      { name: "declared", url: "https://github.com/intisy-ai/declared", enabled: true },
+      { name: "legacy", url: "https://github.com/intisy-ai/legacy", enabled: true },
+    ]);
+
+    // A manifest states the settings as data, so only the bundle that declares none is worth
+    // running: the probe is offered exactly one target here, and it is the undeclared plugin.
+    const declarations = vi.fn(async (bundles: { plugin: string }[]) => {
+      expect(bundles.map((b) => b.plugin)).toEqual(["legacy"]);
+      return new Map([["legacy", { defaults: { b: 2 } }]]);
+    });
+
+    const { configSchemas } = await import("./appConfig.js");
+    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir),
+      manifests: () => [manifestOf("declared", { interval: 60 })],
+      settingsProviders: async () => [],
+      declarations,
+    });
+
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data.map((s) => ({ plugin: s.plugin, defaults: s.defaults }))).toEqual([
+      { plugin: "declared", defaults: { interval: 60 } },
+      { plugin: "legacy", defaults: { b: 2 } },
+    ]);
+  });
+
+  it("takes the manifest's defaults for a plugin whose settings capability answers", async () => {
+    const { dir, home } = makeHome("claude", "Claude Code");
+    writeFileSync(join(dir, "plugin", "historian.js"), "// bundle placeholder", "utf8");
+    seedPlugins(dir, [{ name: "historian", url: "https://github.com/intisy-ai/historian", enabled: true }]);
+
+    const { configSchemas } = await import("./appConfig.js");
+    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir),
+      manifests: () => [manifestOf("historian", { verbose: true })],
+      declarations: async () => new Map(),
+      settingsProviders: async () => [{
+        pluginId: "historian",
+        implementation: { schema: async () => ({ fields: [{ key: "verbose", type: "boolean" as const, label: "Verbose" }] }), run: vi.fn() },
+      }],
+    });
+
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data[0].defaults).toEqual({ verbose: true });
+    expect(result.data[0].fields).toEqual([{ key: "verbose", type: "boolean", label: "Verbose" }]);
+  });
+
+  it("serves a plugin its manifest declares even where the home lists no entry for it", async () => {
+    // configWrite already accepts a deployed plugin the home's list does not carry, so reading its
+    // settings has to reach it too or a screen can write what it cannot show.
+    const { dir, home } = makeHome("claude", "Claude Code");
+    writeFileSync(join(dir, "config", "unlisted.json"), JSON.stringify({ interval: 30 }), "utf8");
+
+    const { configSchemas } = await import("./appConfig.js");
+    const result = await configSchemas("claude", { homes: [home], bundles: async () => [],
+      manifests: () => [manifestOf("unlisted", { interval: 60 })],
+      declarations: async () => new Map(),
+      settingsProviders: async () => [],
+    });
+
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data).toHaveLength(1);
+    expect(result.data[0]).toMatchObject({ plugin: "unlisted", defaults: { interval: 60 }, current: { interval: 30 } });
   });
 
   it("defaults to an empty object when the probe has no declaration for a capability-only plugin", async () => {

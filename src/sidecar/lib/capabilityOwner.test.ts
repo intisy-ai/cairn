@@ -58,8 +58,18 @@ describe("capability ownership from the deployed sidecars", () => {
   it("carries each manifest's declared permissions", () => {
     const home = homeWith({ beta: { id: "beta", api: 1, entry: "dist/index.js", capabilities: ["custom-endpoints"], permissions: ["network"] } });
     expect(deployedManifests(home)).toEqual([
-      { id: "beta", capabilities: ["custom-endpoints"], permissions: ["network"], entryPath: join(home, "plugin", "beta.js") },
+      { id: "beta", capabilities: ["custom-endpoints"], permissions: ["network"], configDefaults: null, entryPath: join(home, "plugin", "beta.js") },
     ]);
+  });
+
+  it("carries the settings a manifest declares, and null for one declaring none", () => {
+    const home = homeWith({
+      bare: { id: "bare", api: 1, entry: "dist/index.js" },
+      settled: { id: "settled", api: 1, entry: "dist/index.js", config: { defaults: { interval: 60, logging: true } } },
+    });
+    const byId = new Map(deployedManifests(home).map((plugin) => [plugin.id, plugin.configDefaults]));
+    expect(byId.get("settled")).toEqual({ interval: 60, logging: true });
+    expect(byId.get("bare")).toBeNull();
   });
 
   it("answers null for a capability nothing declares and for an unreadable home", () => {
