@@ -1,5 +1,6 @@
 import { setDiagnosticSink } from "@intisy-ai/api/engine";
 import { createPluginRuntime } from "@core/index.js";
+import { PROVIDER_SUPPORT, providerSupport } from "@core-auth/index.js";
 import {
   callCapability,
   ledgerRows,
@@ -60,6 +61,9 @@ export function hostFor(homeDir: string, appId: string, deps: PluginHostDeps = {
     app: appId,
     pluginDir: pluginDir(homeDir),
     surfaces: ["cairn"],
+    // Behaviour a plugin may not link for itself: core-auth's provider helpers, linked once here
+    // rather than copied into every provider bundle.
+    services: [{ id: PROVIDER_SUPPORT, implementation: providerSupport() }],
     runtimeFor: (manifest) => createPluginRuntime(manifest.id, homeDir),
   }).catch((error: unknown) => {
     process.stderr.write(`[plugin-api] host for ${homeDir} failed to start: ${String(error)}\n`);
