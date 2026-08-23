@@ -27,9 +27,9 @@ vi.mock("../lib/capabilityCatalog.js", () => ({
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getAppConfigDir, getAppName } from "@intisy-ai/plugin-updater/dist/env.js";
-import type { Plugin } from "@intisy-ai/plugin-updater/dist/types.js";
-import type { UpdateCache } from "@intisy-ai/plugin-updater/dist/cache.js";
+import type { PluginUpdateCache as UpdateCache } from "@core/index.js";
+
+interface Plugin { name: string; url: string; enabled: boolean; autoUpdate?: boolean; branch?: string }
 import type { PluginHome } from "../../../packages/shared/src/domain.js";
 
 let cairnDir: string;
@@ -230,15 +230,15 @@ describe("plugins sidecar module", () => {
     expect(rows.find((r) => r.name === "npm-plugin-x")?.missingArtifacts).toBeUndefined();
   });
 
-  it("install targets the requested home's dir via the write scope", async () => {
+  it("install acts on the requested home's dir, not an ambient one", async () => {
     const scopes: string[] = [];
-    const fakeUpdate = async () => {
-      scopes.push(getAppConfigDir(getAppName()));
+    const fakeUpdate = async (dir: string) => {
+      scopes.push(dir);
     };
 
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("claude", "plugin-b", "https://github.com/intisy-ai/plugin-b", {
-      updatePluginPublic: fakeUpdate,
+      installPlugin: fakeUpdate,
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
@@ -254,7 +254,7 @@ describe("plugins sidecar module", () => {
     const { pluginsInstall } = await import("./plugins.js");
 
     await pluginsInstall("claude", "plugin-b", "https://github.com/intisy-ai/plugin-b", {
-      updatePluginPublic: async () => {},
+      installPlugin: async () => {},
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps,
@@ -264,7 +264,7 @@ describe("plugins sidecar module", () => {
 
     syncPluginsAcrossApps.mockClear();
     await pluginsInstall("cairn", "plugin-c", "https://github.com/intisy-ai/plugin-c", {
-      updatePluginPublic: async () => {},
+      installPlugin: async () => {},
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps,
@@ -362,7 +362,7 @@ describe("plugins sidecar module", () => {
   it("install registers a new plugin in plugins.json when none exists yet", async () => {
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("claude", "plugin-new", "https://github.com/intisy-ai/plugin-new", {
-      updatePluginPublic: async () => {},
+      installPlugin: async () => {},
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
@@ -380,7 +380,7 @@ describe("plugins sidecar module", () => {
     const steps: string[] = [];
     const { pluginsInstall } = await import("./plugins.js");
     await pluginsInstall("claude", "plugin-p", "https://github.com/intisy-ai/plugin-p", {
-      updatePluginPublic: async () => {},
+      installPlugin: async () => {},
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
@@ -394,7 +394,7 @@ describe("plugins sidecar module", () => {
     const steps: string[] = [];
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("claude", "plugin-updater", "https://github.com/intisy-ai/plugin-updater", {
-      updatePluginPublic: async () => {},
+      installPlugin: async () => {},
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
@@ -411,7 +411,7 @@ describe("plugins sidecar module", () => {
     const steps: string[] = [];
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("claude", "custom-auth", "https://github.com/intisy-ai/custom-auth", {
-      updatePluginPublic: async (name) => { order.push("install:" + name); },
+      installPlugin: async (_dir, name) => { order.push("install:" + name); },
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
@@ -427,7 +427,7 @@ describe("plugins sidecar module", () => {
   it("stops at a failed bootstrap instead of installing into a home that cannot manage it", async () => {
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("claude", "custom-auth", "https://github.com/intisy-ai/custom-auth", {
-      updatePluginPublic: async () => { throw new Error("must not run"); },
+      installPlugin: async () => { throw new Error("must not run"); },
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
@@ -442,7 +442,7 @@ describe("plugins sidecar module", () => {
     let bootstraps = 0;
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("cairn", "plugin-updater", "https://github.com/intisy-ai/plugin-updater", {
-      updatePluginPublic: async () => {},
+      installPlugin: async () => {},
       ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => false,
@@ -457,7 +457,7 @@ describe("plugins sidecar module", () => {
 
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("claude", "plugin-a", "https://github.com/intisy-ai/plugin-a-fork", {
-      updatePluginPublic: async () => {},
+      installPlugin: async () => {},
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
@@ -470,10 +470,10 @@ describe("plugins sidecar module", () => {
     expect(entries[0]).toEqual({ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a-fork", enabled: false, autoUpdate: false });
   });
 
-  it("install leaves plugins.json unwritten when updatePluginPublic fails", async () => {
+  it("install leaves plugins.json unwritten when the download fails", async () => {
     const { pluginsInstall } = await import("./plugins.js");
     const result = await pluginsInstall("claude", "plugin-fail", "https://github.com/intisy-ai/plugin-fail", {
-      updatePluginPublic: async () => { throw new Error("clone failed"); },
+      installPlugin: async () => { throw new Error("clone failed"); },
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
@@ -547,7 +547,7 @@ describe("plugins sidecar module", () => {
       homes: fakeHomes,
       hasUpdater: () => false,
       registerWithApp: (_dir: string, app: string) => { registrations.push(app); },
-      updatePluginPublic: async () => { installed.push("plugin-updater"); },
+      installPlugin: async () => { installed.push("plugin-updater"); },
       syncPluginsAcrossApps: async () => {},
     } as never);
     expect(result.ok).toBe(true);
@@ -563,7 +563,7 @@ describe("plugins sidecar module", () => {
       homes: fakeHomes,
       hasUpdater: () => false,
       ensureUpdater: async (homeId) => { order.push("updater:" + homeId); return { ok: true, data: undefined }; },
-      updatePluginPublic: async (name) => { order.push("install:" + name); },
+      installPlugin: async (_dir, name) => { order.push("install:" + name); },
       syncPluginsAcrossApps: async () => {},
     });
     expect(result.ok).toBe(true);
@@ -578,7 +578,7 @@ describe("plugins sidecar module", () => {
     process.env.HUB_CONFIG_DIR = cairnDir;
 
     const result = await pluginsInstall("claude", "plugin-new", "https://github.com/intisy-ai/plugin-new", {
-      updatePluginPublic: async () => {},
+      installPlugin: async () => {},
       ...fromSeed,
       homes: fakeHomes,
       syncPluginsAcrossApps: async () => {},
@@ -879,7 +879,7 @@ describe("pluginsInstall for the plugin manager", () => {
       ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => false,
-      updatePluginPublic: async () => { order.push("clone"); },
+      installPlugin: async () => { order.push("clone"); },
       registerWithApp: (dir: string, app: string) => { order.push(`register-with-app:${dir}:${app}`); },
       syncPluginsAcrossApps: async () => { order.push("sync"); },
     } as never);
@@ -896,7 +896,7 @@ describe("pluginsInstall for the plugin manager", () => {
       ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => false,
-      updatePluginPublic: async () => {},
+      installPlugin: async () => {},
       registerWithApp: (dir: string, app: string) => { calls.push(`${dir}:${app}`); },
     } as never);
     expect(res.ok).toBe(true);
@@ -909,7 +909,7 @@ describe("pluginsInstall for the plugin manager", () => {
       ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => false,
-      updatePluginPublic: async () => {},
+      installPlugin: async () => {},
       registerWithApp: () => { throw new Error("settings.json is read-only"); },
       syncPluginsAcrossApps: async () => {},
     } as never);
@@ -925,7 +925,7 @@ describe("pluginsInstall for the plugin manager", () => {
       ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => false,
-      updatePluginPublic: async () => {},
+      installPlugin: async () => {},
       registerWithApp: () => {},
       syncPluginsAcrossApps: async () => {},
       ensureUpdater,
@@ -946,7 +946,7 @@ describe("pluginsInstall when the marketplace catalog is unreachable", () => {
       ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => false,
-      updatePluginPublic: async () => {},
+      installPlugin: async () => {},
       ensureUpdater,
     } as never);
 
@@ -962,7 +962,7 @@ describe("pluginsInstall when the marketplace catalog is unreachable", () => {
       ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => true,
-      updatePluginPublic: async () => {},
+      installPlugin: async () => {},
       syncPluginsAcrossApps: async () => {},
     });
 
@@ -979,7 +979,7 @@ describe("the record that starts an install", () => {
       ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => true,
-      updatePluginPublic: async () => { order.push("clone"); },
+      installPlugin: async () => { order.push("clone"); },
       syncPluginsAcrossApps: async () => {},
     } as never);
     expect(res.ok).toBe(true);
@@ -994,7 +994,7 @@ describe("the record that starts an install", () => {
       ...fromSeed,
       homes: fakeHomes,
       hasUpdater: () => true,
-      updatePluginPublic: async () => { throw new Error("clone refused"); },
+      installPlugin: async () => { throw new Error("clone refused"); },
       syncPluginsAcrossApps: async () => {},
     } as never);
     expect(res.ok).toBe(false);

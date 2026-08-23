@@ -12,13 +12,10 @@ const PLUGIN_NAMES = [
   "claude-code-proxy", "opencode-proxy", "claude-code-loader", "opencode-loader",
 ];
 
-// The install-engine seam, deferred to the Java-first rework: Cairn calls fifteen plugin-updater
-// entry points and the plugin-management capability covers five, so the ten uncovered ones keep the
-// named library import until that capability is complete. Nothing else may be listed here.
+// The auto-update settings screen, which still finds the manager's own settings row by name rather
+// than by asking which plugin provides plugin-management. Nothing else may be listed here: the
+// sidecar reaches every plugin through a capability.
 const INSTALL_ENGINE = [
-  "src/sidecar/lib/optionalEngines.ts",
-  "src/sidecar/modules/plugins.ts",
-  "src/installer/index.ts",
   "src/renderer/lib/routes/Settings.svelte",
   "src/renderer/lib/components/AutoUpdateSettings.svelte",
 ];

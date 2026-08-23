@@ -1,6 +1,6 @@
 import { describe, it } from "vitest";
 import { pluginHomes } from "../lib/pluginHomes.js";
-import { safeGetPlugins, safeMissingArtifacts } from "../lib/optionalEngines.js";
+import { listedPlugins, readPluginManagement } from "../lib/pluginManager.js";
 import { pluginsList } from "../modules/plugins.js";
 
 async function timed<T>(label: string, run: () => Promise<T>): Promise<T> {
@@ -19,10 +19,13 @@ describe("plugins:list timing", () => {
 
     for (const home of homes) {
       if (!home.present) continue;
-      const plugins = await timed(`  safeGetPlugins(${home.id})`, () => safeGetPlugins(home.dir));
+      const plugins = await timed(`  listedPlugins(${home.id})`, () => listedPlugins(home.dir, home.id));
       console.log(`    plugins: ${plugins.length}`);
       await timed(`  missingArtifacts x${plugins.length} (${home.id})`, async () => {
-        for (const p of plugins) await safeMissingArtifacts(home.dir, p.name);
+        for (const plugin of plugins) {
+          await readPluginManagement(home.dir, home.id, "missingArtifacts", [] as string[],
+            (capability) => capability.missingArtifacts(plugin.id));
+        }
       });
     }
 

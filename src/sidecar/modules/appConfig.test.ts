@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Plugin } from "@intisy-ai/plugin-updater/dist/types.js";
+interface Plugin { name: string; url: string; enabled: boolean }
 import type { PluginHome } from "../../../packages/shared/src/domain.js";
 
 function makeHome(id: "cairn" | "claude" | "opencode", label: string): { dir: string; home: PluginHome } {

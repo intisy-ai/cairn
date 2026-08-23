@@ -6,19 +6,14 @@ const execFileAsync = promisify(execFile);
 import { join } from "node:path";
 import { getConfigDir } from "@core-auth/index.js";
 import { getConfigValue, activityEnv, getAppDescriptor, registerPluginWithApp } from "@core/index.js";
-import type { ActionResult, ManagedNpmPlugin, ManagedPlugin, PluginManagementCapability } from "@core/index.js";
+import type { ActionResult, ManagedNpmPlugin, ManagedPlugin, PluginManagementCapability, PluginUpdateCache } from "@core/index.js";
 import { readPluginManifest } from "../lib/pluginManifest.js";
 import { pluginIdFromClone } from "../lib/capabilityOwner.js";
 import { emitCairnAction } from "../activity.js";
-import type { UpdateCache } from "@intisy-ai/plugin-updater/dist/cache.js";
-import type { Plugin, NpmPlugin } from "@intisy-ai/plugin-updater/dist/types.js";
 import type { HomePlugins, PluginHome, PluginHomeId, PluginRow, PluginVersion, UpdateState, Result, InstallManyResult, InstallOutcome } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir, homeById, updaterInstalled } from "../lib/pluginHomes.js";
 import { readNamespace, writeCacheMany } from "../lib/cache.js";
-import {
-  loadPluginUpdaterEnv,
-  loadPluginUpdaterIndex,
-} from "../lib/optionalEngines.js";
+import { installPluginRepo } from "../lib/pluginBootstrap.js";
 import { repoProvidingCapability } from "../lib/capabilityCatalog.js";
 import { pluginOwningCapability } from "./engines.js";
 import { pruneUnusedLibraries } from "./libraryPrune.js";
@@ -46,21 +41,13 @@ async function isPluginManager(name: string, homeDir: string): Promise<boolean> 
 }
 
 type PluginChannel = "inherit" | "stable" | "experimental";
-type UpdatePluginPublicFn = (name: string, url: string, branch?: string, commitHash?: string) => Promise<void | object>;
+type InstallPluginFn = (dir: string, name: string, url: string, appId: string, report?: (step: string, percent: number) => void) => Promise<void>;
 type SyncPluginsAcrossAppsFn = (configDir: string, appId: string) => Promise<void>;
 type DowngradeFn = (name: string, commitHash: string, appId: string) => Promise<ActionResult | null>;
 type HasUpdaterFn = (dir: string, appId: string) => boolean | Promise<boolean>;
 type RegisterWithAppFn = (dir: string, app: string, plugin: string) => void | Promise<void>;
 
-const EMPTY_UPDATE_CACHE: UpdateCache = { checkedAt: new Date(0).toISOString(), plugins: {} };
-
-// Every plugin-updater call below is a soft reference: with the sibling repo absent from
-// this build, reads degrade to empty results and writes fail with a clear, catchable error
-// (via wrap()) instead of an unhandled module-resolution crash.
-export function requirePluginUpdater<T>(mod: T | null): T {
-  if (!mod) throw new Error("the plugin manager is not part of this build");
-  return mod;
-}
+const EMPTY_UPDATE_CACHE: PluginUpdateCache = { checkedAt: new Date(0).toISOString(), plugins: {} };
 
 async function realRegisterPlugin(dir: string, name: string, url: string, appId: string): Promise<void> {
   const registered = await invokePluginManagement(dir, appId, "register", null, (capability) => capability.register(url));
@@ -91,7 +78,7 @@ function realSetPluginChannel(dir: string, name: string, channel: PluginChannel,
   return wrote(dir, appId, "setChannel", (capability) => capability.setChannel(name, channel));
 }
 
-function realReadUpdateCache(dir: string, appId: string): Promise<UpdateCache> {
+function realReadUpdateCache(dir: string, appId: string): Promise<PluginUpdateCache> {
   return readPluginManagement(dir, appId, "updateCache", EMPTY_UPDATE_CACHE, (capability) => capability.updateCache());
 }
 
@@ -109,10 +96,6 @@ async function realSyncPluginsAcrossApps(dir: string, appId: string): Promise<vo
   await invokeCrossAppSync(dir, appId, null, (capability) => capability.sync());
 }
 
-async function realSetEarlyLaunchConfigDir(dir: string): Promise<void> {
-  (await loadPluginUpdaterEnv())?.setEarlyLaunchConfigDir(dir);
-}
-
 // The app declares how it auto-loads a plugin, so this asks the registry rather than a plugin.
 // An app that declares no mechanism auto-loads nothing, which is not an install failure.
 function realRegisterWithApp(dir: string, app: string, plugin: string): void {
@@ -123,26 +106,21 @@ function getNpmPlugins(configDir: string, appId: string): Promise<ManagedNpmPlug
   return readPluginManagement(configDir, appId, "listNpm", [], (capability) => capability.listNpm());
 }
 
-// Sidecar RPCs run concurrently, but plugin-updater resolves its write target
-// ambiently via getAppConfigDir(getAppName()). This chain serializes writes so
-// each one sees only its own home's dir, then restores the Cairn scope.
+// A separately-bundled plugin has its own async-context store and cannot see the cause scope this
+// dispatch is running in. The environment is the one channel both bundles share: exporting the
+// cause and the app id here lets its records say who asked and which app they belong to instead of
+// "unknown" and "no app". Safe to touch process-wide only because this chain serializes the calls.
 let writeChain: Promise<unknown> = Promise.resolve();
 
-// plugin-updater bundles its own core, so it has its own async-context store and cannot
-// see the cause scope this dispatch is running in. The environment is the one channel
-// both bundles share: exporting the cause and the app id here lets its records say who
-// asked and which app they belong to instead of "unknown" and "no app". Safe to touch
-// process-wide because writeChain serializes these calls.
 const ACTIVITY_ENV_KEYS = ["HUB_ACTIVITY_TRACE", "HUB_ACTIVITY_CAUSE", "HUB_ACTIVITY_PARENT", "CORE_APP"];
 
-export function withHome<T>(dir: string, fn: () => Promise<T>, appId?: string): Promise<T> {
+export function withAttribution<T>(appId: string, fn: () => Promise<T>): Promise<T> {
   const run = writeChain.then(async () => {
     const saved: Record<string, string | undefined> = {};
     for (const key of ACTIVITY_ENV_KEYS) saved[key] = process.env[key];
-    await realSetEarlyLaunchConfigDir(dir);
     try {
       Object.assign(process.env, activityEnv());
-      if (appId) process.env.CORE_APP = appId;
+      process.env.CORE_APP = appId;
     } catch { /* attribution is never worth failing the operation */ }
     try {
       return await fn();
@@ -151,7 +129,6 @@ export function withHome<T>(dir: string, fn: () => Promise<T>, appId?: string): 
         if (saved[key] === undefined) delete process.env[key];
         else process.env[key] = saved[key];
       }
-      await realSetEarlyLaunchConfigDir(getConfigDir());
     }
   });
   writeChain = run.catch(() => undefined);
@@ -167,7 +144,7 @@ function readDescription(homeDirPath: string, name: string): string {
   }
 }
 
-function rowFor(name: string, kind: "git" | "npm", enabled: boolean, url: string | undefined, cache: UpdateCache, homeDirPath: string): PluginRow {
+function rowFor(name: string, kind: "git" | "npm", enabled: boolean, url: string | undefined, cache: PluginUpdateCache, homeDirPath: string): PluginRow {
   const entry = cache.plugins[name];
   const manifest = readPluginManifest(name, homeDirPath);
   return {
@@ -192,7 +169,7 @@ export interface PluginsDeps {
   homes?: PluginHome[];
   cacheDir?: string;
   missingArtifacts?: (dir: string, name: string, appId: string) => Promise<string[]>;
-  updatePluginPublic?: UpdatePluginPublicFn;
+  installPlugin?: InstallPluginFn;
   syncPluginsAcrossApps?: SyncPluginsAcrossAppsFn;
   downgrade?: DowngradeFn;
   npmPlugins?: (dir: string, appId: string) => Promise<ManagedNpmPlugin[]>;
@@ -204,7 +181,7 @@ export interface PluginsDeps {
   // Symmetric with setPluginChannel: the write itself belongs to the home's manager, so these are
   // the seam a test observes the delegation through rather than by reading a file this no longer
   // writes.
-  readCache?: (dir: string, appId: string) => UpdateCache | Promise<UpdateCache>;
+  readCache?: (dir: string, appId: string) => PluginUpdateCache | Promise<PluginUpdateCache>;
   registerPlugin?: (dir: string, name: string, url: string, appId: string) => Promise<void>;
   setPluginEnabled?: (dir: string, name: string, on: boolean, appId: string) => boolean | null | Promise<boolean | null>;
   setPluginAutoUpdate?: (dir: string, name: string, on: boolean, appId: string) => boolean | null | Promise<boolean | null>;
@@ -277,7 +254,7 @@ export function formatGitVersion(describe: string | null): string | null {
 
 export interface PluginVersionsDeps {
   homes?: PluginHome[];
-  readCache?: (dir: string) => UpdateCache | Promise<UpdateCache>;
+  readCache?: (dir: string) => PluginUpdateCache | Promise<PluginUpdateCache>;
   describe?: (dir: string) => string | null | Promise<string | null>;
   exists?: (path: string) => boolean;
   getPlugins?: (dir: string, appId: string) => ManagedPlugin[] | Promise<ManagedPlugin[]>;
@@ -301,7 +278,7 @@ export function pluginVersionsCached(deps: PluginVersionsDeps = {}): Promise<Res
 
 // An entry with no local head was never successfully read, so its remote comparison says
 // nothing: report that rather than letting a missing side pass for "up to date".
-export function gitUpdateState(entry: UpdateCache["plugins"][string] | undefined): UpdateState {
+export function gitUpdateState(entry: PluginUpdateCache["plugins"][string] | undefined): UpdateState {
   if (!entry) return "unknown";
   if (entry.updateAvailable) return "behind";
   return entry.localHead ? "current" : "unknown";
@@ -309,7 +286,7 @@ export function gitUpdateState(entry: UpdateCache["plugins"][string] | undefined
 
 async function gitVersionFor(
   repoDir: string,
-  entry: UpdateCache["plugins"][string] | undefined,
+  entry: PluginUpdateCache["plugins"][string] | undefined,
   describe: (dir: string) => string | null | Promise<string | null>,
   autoUpdate: boolean,
   checkedAt: string | null,
@@ -457,19 +434,19 @@ export function pluginsInstall(homeId: PluginHomeId, name: string, url: string, 
       if (!result.ok) throw new Error(result.error);
     }
 
-    const updatePluginPublic = deps.updatePluginPublic ?? requirePluginUpdater(await loadPluginUpdaterIndex()).updatePluginPublic;
+    const installPlugin = deps.installPlugin ?? installPluginRepo;
     let autoUpdateDefault = true;
     const val = getConfigValue("cairn", "autoUpdateDefault");
     if (typeof val === "boolean") autoUpdateDefault = val;
     report?.("Downloading and building", 40);
-    await withHome(dir, async () => {
-      await updatePluginPublic(name, url);
+    await withAttribution(homeId, async () => {
+      await installPlugin(dir, name, url, homeId, report);
       report?.("Registering", 90);
       await (deps.registerPlugin ?? realRegisterPlugin)(dir, name, url, homeId);
       // register records the entry; the home's default for auto-updates is Cairn's own setting, so
       // it is applied as a second call rather than smuggled into the contract's register.
       if (!autoUpdateDefault) await (deps.setPluginAutoUpdate ?? realSetPluginAutoUpdate)(dir, name, false, homeId);
-    }, homeId);
+    });
 
     // An app loads the manager through its own config, so a clone alone would leave a
     // manager that is installed but never runs.
