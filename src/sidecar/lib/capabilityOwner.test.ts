@@ -58,7 +58,7 @@ describe("capability ownership from the deployed sidecars", () => {
   it("carries each manifest's declared permissions", () => {
     const home = homeWith({ beta: { id: "beta", api: 1, entry: "dist/index.js", capabilities: ["custom-endpoints"], permissions: ["network"] } });
     expect(deployedManifests(home)).toEqual([
-      { id: "beta", capabilities: ["custom-endpoints"], permissions: ["network"], configDefaults: null, entryPath: join(home, "plugin", "beta.js") },
+      { id: "beta", capabilities: ["custom-endpoints"], permissions: ["network"], configDefaults: null, dataPaths: [], entryPath: join(home, "plugin", "beta.js") },
     ]);
   });
 
@@ -70,6 +70,13 @@ describe("capability ownership from the deployed sidecars", () => {
     const byId = new Map(deployedManifests(home).map((plugin) => [plugin.id, plugin.configDefaults]));
     expect(byId.get("settled")).toEqual({ interval: 60, logging: true });
     expect(byId.get("bare")).toBeNull();
+  });
+
+  it("carries the paths a manifest declares this plugin writes to", () => {
+    const home = homeWith({
+      spread: { id: "spread", api: 1, entry: "dist/index.js", data: { paths: ["state/mirror", "cache/tiles"] } },
+    });
+    expect(deployedManifests(home)[0].dataPaths).toEqual(["state/mirror", "cache/tiles"]);
   });
 
   it("answers null for a capability nothing declares and for an unreadable home", () => {

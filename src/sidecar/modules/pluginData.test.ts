@@ -12,7 +12,7 @@ describe("pluginsData", () => {
   it("reports what the plugin left in each home, leaving out the homes holding nothing", async () => {
     const result = await pluginsData("wakatime-sync", {
       homes: HOMES,
-      declaredPaths: async () => [],
+      declaredPaths: () => [],
       read: async (dir) => (dir === "/claude" ? [{ path: "config/wakatime-sync.json", bytes: 12 }] : []),
     });
 
@@ -26,19 +26,19 @@ describe("pluginsData", () => {
     const asked: string[] = [];
     await pluginsData("p", {
       homes: HOMES,
-      declaredPaths: async () => [],
+      declaredPaths: () => [],
       read: async (dir) => { asked.push(dir); return []; },
     });
     expect(asked).toEqual(["/cairn", "/claude"]);
   });
 
-  // The declaration lives in the plugin's own bundle, so it has to be read while the plugin
-  // is still installed: that is why the paths are gathered before an uninstall, not after.
+  // The declaration lives in the deployed sidecar, so it has to be read while the plugin is
+  // still installed: that is why the paths are gathered before an uninstall, not after.
   it("passes the plugin's declared paths through to the reader", async () => {
     const read = vi.fn(async () => []);
     await pluginsData("sync-bridge", {
       homes: [HOMES[0]],
-      declaredPaths: async () => ["state/mirror"],
+      declaredPaths: () => ["state/mirror"],
       read,
     });
     expect(read).toHaveBeenCalledWith("/cairn", "sync-bridge", ["state/mirror"], "cairn");

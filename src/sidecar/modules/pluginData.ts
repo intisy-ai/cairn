@@ -1,30 +1,20 @@
-import { join } from "node:path";
-import { existsSync } from "node:fs";
 import type { HomePluginData, PluginDataEntry, PluginHome, Result } from "../../../packages/shared/src/domain.js";
 import { pluginHomes } from "../lib/pluginHomes.js";
 import { invokePluginManagement, readPluginManagement } from "../lib/pluginManager.js";
-import { probeDeclarations } from "../lib/schemaProbe.js";
-import { pluginDir } from "../lib/storagePaths.js";
+import { deployedManifests } from "../lib/capabilityOwner.js";
 import { wrap } from "../result.js";
 
 export interface PluginDataDeps {
   homes?: PluginHome[];
   read?: (dir: string, plugin: string, declared: string[], appId: string) => Promise<PluginDataEntry[]>;
-  declaredPaths?: (dir: string, plugin: string) => Promise<string[]>;
+  declaredPaths?: (dir: string, plugin: string) => string[];
 }
 
 // Most of what a plugin leaves behind is found by name, but a plugin writing outside that
-// convention says where; that declaration rides on the same `config schema` probe as its
-// settings, so reading it costs nothing a settings screen has not already paid for.
-async function realDeclaredPaths(dir: string, plugin: string): Promise<string[]> {
-  const bundle = join(pluginDir(dir), `${plugin}.js`);
-  if (!existsSync(bundle)) return [];
-  try {
-    const declarations = await probeDeclarations([{ plugin, path: bundle }]);
-    return declarations.get(plugin)?.data?.paths ?? [];
-  } catch {
-    return [];
-  }
+// convention says where in its manifest. Read from the deployed sidecar rather than asked of the
+// plugin, because an uninstall is the surface that needs it most and the plugin is on its way out.
+function realDeclaredPaths(dir: string, plugin: string): string[] {
+  return deployedManifests(dir).find((deployed) => deployed.id === plugin)?.dataPaths ?? [];
 }
 
 // Finding and deleting a plugin's data belongs to whatever put it there, for the same reason
@@ -45,7 +35,7 @@ export function pluginsData(name: string, deps: PluginDataDeps = {}): Promise<Re
     const found: HomePluginData[] = [];
     for (const home of homes) {
       if (home.id !== "cairn" && !home.present) continue;
-      const entries = await read(home.dir, name, await declaredPaths(home.dir, name), home.id);
+      const entries = await read(home.dir, name, declaredPaths(home.dir, name), home.id);
       if (entries.length > 0) found.push({ home, entries });
     }
     return found;
