@@ -35,10 +35,15 @@ afterEach(() => {
   else process.env.HUB_APPS_FILE = savedHubAppsFile;
 });
 
+// The clone layout is what these tests are about; the registered list is what the home's manager
+// answers, so it is stated as `listed(names)` and injected rather than written to a file nothing
+// reads any more.
+function listed(names: string[]) {
+  return async () => names.map((id) => ({ id, enabled: true }));
+}
+
 function seedStore(storeDir: string, names: string[]): void {
   mkdirSync(join(storeDir, "config"), { recursive: true });
-  const plugins = names.map((name) => ({ name, url: `https://github.com/intisy-ai/${name}`, enabled: true }));
-  writeFileSync(join(storeDir, "config", "plugins.json"), JSON.stringify(plugins));
   for (const name of names) {
     const distDir = join(storeDir, "repos", name, "dist");
     mkdirSync(distDir, { recursive: true });
@@ -66,6 +71,7 @@ describe("loadInstalledProxyDefs", () => {
       importFn: async (url) =>
         url.includes("fake-proxy") ? { proxyDef: { app: "claude", label: "Claude Code", profile: () => ({}) } } : {},
       providesFrontDoor: (_dir, name) => name === "fake-proxy",
+      listPlugins: listed(["fake-proxy", "stub-auth"]),
     });
     expect(defs).toHaveLength(1);
     expect(defs[0].app).toBe("claude");
@@ -77,6 +83,7 @@ describe("loadInstalledProxyDefs", () => {
     const defs = await loadInstalledProxyDefs(tempDir, {
       importFn: async () => ({ proxyDef: { app: "claude" } }),
       providesFrontDoor: (_dir, name) => name === "bad-proxy",
+      listPlugins: listed(["bad-proxy"]),
     });
     expect(defs).toEqual([]);
   });
@@ -92,12 +99,13 @@ describe("loadInstalledProxyDefs", () => {
       return { proxyDef: { app: "claude", label: "C", profile: () => ({}) } };
     };
     const providesFrontDoor = (_dir: string, name: string) => name === "fake-proxy";
-    await loadInstalledProxyDefs(tempDir, { importFn, providesFrontDoor });
-    await loadInstalledProxyDefs(tempDir, { importFn, providesFrontDoor });
+    const listPlugins = listed(["fake-proxy"]);
+    await loadInstalledProxyDefs(tempDir, { importFn, providesFrontDoor, listPlugins });
+    await loadInstalledProxyDefs(tempDir, { importFn, providesFrontDoor, listPlugins });
     expect(hits).toBe(1);
 
     bumpMtime(join(tempDir, "repos", "fake-proxy", "dist", "index.js"));
-    await loadInstalledProxyDefs(tempDir, { importFn, providesFrontDoor });
+    await loadInstalledProxyDefs(tempDir, { importFn, providesFrontDoor, listPlugins });
     expect(hits).toBe(2);
     expect(urls[1]).not.toBe(urls[0]);
   });
@@ -105,10 +113,7 @@ describe("loadInstalledProxyDefs", () => {
   it("selects a proxy by its declared front-door capability, not by its name", async () => {
     const declared = new Set(["gateway"]);
     const proxies = await listInstalledProxies("/nonexistent/proxy-plugins-home", {
-      listPlugins: async () => [
-        { name: "gateway", enabled: true },
-        { name: "looks-like-a-proxy", enabled: true },
-      ],
+      listPlugins: listed(["gateway", "looks-like-a-proxy"]),
       providesFrontDoor: (_dir, name) => declared.has(name),
     });
     expect(proxies.map((p) => p.name)).toEqual(["gateway"]);
@@ -121,6 +126,7 @@ describe("loadInstalledProxyDefs", () => {
     writeFileSync(join(tempDir, "repos", "gateway", "plugin.json"), JSON.stringify({ id: "gateway", capabilities: ["front-door"] }));
     const defs = await loadInstalledProxyDefs(tempDir, {
       importFn: async () => ({ proxyDef: { app: "claude", label: "Claude Code", profile: () => ({}) } }),
+      listPlugins: listed(["gateway"]),
     });
     expect(defs).toHaveLength(1);
     expect(defs[0].app).toBe("claude");

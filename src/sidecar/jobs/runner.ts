@@ -7,7 +7,7 @@ import { newJob, nextRunnable, applyEvent, cancelJob, isEnded, noteTransfer } fr
 import type { Job, JobSpec, Rollback } from "./model.js";
 import { parseGitProgress } from "./gitProgress.js";
 import { parseWorkerPhase } from "./workerPhase.js";
-import { safeGetPlugins, loadPluginUpdaterIndex } from "../lib/optionalEngines.js";
+import { invokePluginManagement, listedPlugins } from "../lib/pluginManager.js";
 import { reposDir, pluginDir } from "../lib/storagePaths.js";
 
 // What the worker is told to do. Mirrors src/installer/index.ts's JobMessage.
@@ -35,7 +35,7 @@ export interface RunnerDeps {
   resolveHome?: (homeId: string) => { dir: string };
   isPluginManager?: (plugin: string) => boolean;
   autoUpdate?: () => boolean;
-  rollbackClone?: (homeDir: string, plugin: string) => void | Promise<void>;
+  rollbackClone?: (homeDir: string, plugin: string, appId: string) => void | Promise<void>;
 }
 
 export interface Runner {
@@ -116,12 +116,11 @@ async function removeWithRetry(path: string, wait: (ms: number) => Promise<void>
 }
 
 // A fresh install can be cancelled before it was ever registered, so removing the entry is
-// conditional: plugin-updater's uninstall throws when there is nothing registered, and it is
+// conditional: a manager's remove reports a failure when there is nothing registered, and it is
 // what prunes the clone and the deployed bundle when there is.
-async function realRollbackClone(homeDir: string, plugin: string, wait: (ms: number) => Promise<void>): Promise<void> {
-  if ((await safeGetPlugins(homeDir)).some((p) => p.name === plugin)) {
-    const mod = await loadPluginUpdaterIndex();
-    if (mod) mod.uninstallPlugin(homeDir, plugin);
+async function realRollbackClone(homeDir: string, plugin: string, appId: string, wait: (ms: number) => Promise<void>): Promise<void> {
+  if ((await listedPlugins(homeDir, appId)).some((entry) => entry.id === plugin)) {
+    await invokePluginManagement(homeDir, appId, "remove", null, (capability) => capability.remove(plugin));
   }
   for (const path of [join(reposDir(homeDir), plugin), join(pluginDir(homeDir), `${plugin}.js`), join(pluginDir(homeDir), `${plugin}.sha`)]) {
     await removeWithRetry(path, wait);
@@ -136,7 +135,7 @@ export function createRunner(deps: RunnerDeps = {}): Runner {
   const isPluginManager = deps.isPluginManager ?? (() => false);
   const autoUpdate = deps.autoUpdate ?? (() => true);
   const wait = deps.wait ?? sleep;
-  const rollbackClone = deps.rollbackClone ?? ((dir: string, plugin: string) => realRollbackClone(dir, plugin, wait));
+  const rollbackClone = deps.rollbackClone ?? ((dir: string, plugin: string, appId: string) => realRollbackClone(dir, plugin, appId, wait));
 
   let counter = 0;
   const newId = deps.newId ?? (() => `job-${++counter}-${now().toString(36)}`);
@@ -215,7 +214,7 @@ export function createRunner(deps: RunnerDeps = {}): Runner {
       }
       const needsRollback = active?.rollback === "remove-clone";
       return Promise.resolve()
-        .then(() => (needsRollback ? rollbackClone(message.homeDir, started.plugin) : undefined))
+        .then(() => (needsRollback ? rollbackClone(message.homeDir, started.plugin, message.home) : undefined))
         .then(
           () => end(started.id, "cancelled"),
           (e: unknown) => end(started.id, "cancelled", `rollback failed: ${e instanceof Error ? e.message : String(e)}`),

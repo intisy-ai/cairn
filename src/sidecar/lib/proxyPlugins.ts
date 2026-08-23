@@ -5,8 +5,11 @@ import { getConfigDir } from "@core-auth/index.js";
 import { getAppDescriptor } from "@core/index.js";
 import type { RoutingProfile } from "@core-proxy/index.js";
 import { pluginProvidesCapability, unmanifestedPlugins } from "./capabilityOwner.js";
-import { safeGetPlugins } from "./optionalEngines.js";
+import { listedPlugins } from "./pluginManager.js";
 import { reposDir } from "./storagePaths.js";
+
+// These read the dashboard's own store, so the capability is resolved against this app's own home.
+const OWN_APP = "cairn";
 
 export type LoadedProxyDef = { app: string; label: string; profile: () => RoutingProfile; setup?: string };
 
@@ -23,7 +26,7 @@ export function resetProxyDefCacheForTests(): void {
 
 export interface ProxyPluginsDeps {
   importFn?: (url: string) => Promise<unknown>;
-  listPlugins?: (storeDir: string) => Promise<{ name: string; enabled?: boolean }[]>;
+  listPlugins?: (storeDir: string, appId: string) => Promise<{ id: string; enabled?: boolean }[]>;
   providesFrontDoor?: (storeDir: string, pluginName: string) => boolean;
 }
 
@@ -52,13 +55,13 @@ async function loadProxyDef(storeDir: string, name: string, importFn: (url: stri
 
 export async function listInstalledProxies(storeDir: string = getConfigDir(), deps: ProxyPluginsDeps = {}): Promise<InstalledProxy[]> {
   const importFn = deps.importFn ?? ((url: string) => import(/* @vite-ignore */ url));
-  const listPlugins = deps.listPlugins ?? safeGetPlugins;
+  const listPlugins = deps.listPlugins ?? listedPlugins;
   const providesFrontDoor = deps.providesFrontDoor ?? ((dir: string, pluginName: string) => pluginProvidesCapability(dir, pluginName, "front-door"));
   const proxies: InstalledProxy[] = [];
-  for (const plugin of await listPlugins(storeDir)) {
-    if (!providesFrontDoor(storeDir, plugin.name)) continue;
-    const def = await loadProxyDef(storeDir, plugin.name, importFn);
-    proxies.push({ name: plugin.name, enabled: plugin.enabled !== false, def });
+  for (const plugin of await listPlugins(storeDir, OWN_APP)) {
+    if (!providesFrontDoor(storeDir, plugin.id)) continue;
+    const def = await loadProxyDef(storeDir, plugin.id, importFn);
+    proxies.push({ name: plugin.id, enabled: plugin.enabled !== false, def });
   }
   return proxies;
 }
@@ -77,7 +80,7 @@ export async function loadInstalledProxyDefs(storeDir: string = getConfigDir(), 
  * no proxy can tell "nothing installed" from "something is installed but unreadable".
  */
 export async function unresolvedProxyPlugins(storeDir: string = getConfigDir(), deps: ProxyPluginsDeps = {}): Promise<string[]> {
-  const listPlugins = deps.listPlugins ?? safeGetPlugins;
-  const names = (await listPlugins(storeDir)).map((plugin) => plugin.name);
+  const listPlugins = deps.listPlugins ?? listedPlugins;
+  const names = (await listPlugins(storeDir, OWN_APP)).map((plugin) => plugin.id);
   return unmanifestedPlugins(storeDir, names);
 }

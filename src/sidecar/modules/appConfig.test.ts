@@ -16,6 +16,26 @@ function seedPlugins(dir: string, entries: Plugin[]): void {
   writeFileSync(join(dir, "config", "plugins.json"), JSON.stringify(entries, null, 2), "utf8");
 }
 
+// The module asks the home's manager for its plugins rather than reading plugins.json itself, so
+// these stand in for that answer. They read the same seed the fixtures already write, which keeps
+// every case stating its plugins in one place.
+function listedFromSeed(dir: string) {
+  return async () => {
+    try {
+      return (JSON.parse(readFileSync(join(dir, "config", "plugins.json"), "utf8")) as Plugin[])
+        .map((entry) => ({ id: entry.name }));
+    } catch {
+      return [];
+    }
+  };
+}
+
+function bundlesFromSeed(dir: string) {
+  return async () => (await listedFromSeed(dir)())
+    .map((entry) => ({ plugin: entry.id, path: join(dir, "plugin", `${entry.id}.js`) }))
+    .filter((bundle) => existsSync(bundle.path));
+}
+
 describe("appConfig sidecar module", () => {
   it("returns schemas only for plugins with a deployed bundle, skipping missing ones without probing", async () => {
     const { dir, home } = makeHome("claude", "Claude Code");
@@ -34,7 +54,7 @@ describe("appConfig sidecar module", () => {
     });
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], declarations, engineSchemas: async () => [], settingsProviders: async () => [] });
+    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir), declarations, engineSchemas: async () => [], settingsProviders: async () => [] });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
@@ -50,8 +70,7 @@ describe("appConfig sidecar module", () => {
     seedPlugins(dir, [{ name: "sync-bridge", url: "https://github.com/intisy-ai/sync-bridge", enabled: true }]);
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", {
-      homes: [home],
+    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir),
       engineSchemas: async () => [],
       settingsProviders: async () => [],
       declarations: async () =>
@@ -84,7 +103,7 @@ describe("appConfig sidecar module", () => {
     seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], declarations: async () => new Map(), engineSchemas: async () => [], settingsProviders: async () => [] });
+    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir), declarations: async () => new Map(), engineSchemas: async () => [], settingsProviders: async () => [] });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
@@ -118,8 +137,7 @@ describe("appConfig sidecar module", () => {
     });
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", {
-      homes: [home],
+    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir),
       engineSchemas: async () => [],
       declarations: async () => new Map([["historian", { defaults: { verbose: true } }]]),
       settingsProviders,
@@ -142,8 +160,7 @@ describe("appConfig sidecar module", () => {
     seedPlugins(dir, [{ name: "legacy", url: "https://github.com/intisy-ai/legacy", enabled: true }]);
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", {
-      homes: [home],
+    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir),
       engineSchemas: async () => [],
       settingsProviders: async () => [],
       declarations: async () => new Map([["legacy", { defaults: { b: 2 }, fields: [{ key: "b", type: "number" as const }] }]]),
@@ -160,8 +177,7 @@ describe("appConfig sidecar module", () => {
     const { home } = makeHome("claude", "Claude Code");
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", {
-      homes: [home],
+    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir),
       engineSchemas: async () => [],
       declarations: async () => new Map(),
       settingsProviders: async () => [{ pluginId: "historian", implementation: { schema: async () => ({}), run: vi.fn() } }],
@@ -178,8 +194,7 @@ describe("appConfig sidecar module", () => {
     const { home } = makeHome("claude", "Claude Code");
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", {
-      homes: [home],
+    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir),
       engineSchemas: async () => [],
       declarations: async () => new Map([["broken", { defaults: { x: 1 } }]]),
       settingsProviders: async () => [
@@ -201,7 +216,7 @@ describe("appConfig sidecar module", () => {
     seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
 
     const { configWrite } = await import("./appConfig.js");
-    const result = await configWrite("claude", "plugin-a", "logging", false, { homes: [home] });
+    const result = await configWrite("claude", "plugin-a", "logging", false, { homes: [home], listPlugins: listedFromSeed(home.dir) });
 
     expect(result.ok).toBe(true);
     const onDisk = JSON.parse(readFileSync(join(dir, "config", "plugin-a.json"), "utf8"));
@@ -216,7 +231,7 @@ describe("appConfig sidecar module", () => {
     vi.stubEnv("HUB_CONFIG_DIR", cairnHome);
     try {
       const { configWrite } = await import("./appConfig.js");
-      const result = await configWrite("claude", "plugin-a", "logging", false, { homes: [home] });
+      const result = await configWrite("claude", "plugin-a", "logging", false, { homes: [home], listPlugins: listedFromSeed(home.dir) });
       expect(result.ok).toBe(true);
 
       const { readActivity } = await import("@core/index.js");
@@ -236,7 +251,7 @@ describe("appConfig sidecar module", () => {
     writeFileSync(join(dir, "config", "plugin-a.json"), JSON.stringify({ logging: true, otherKey: "keep-me" }, null, 2), "utf8");
 
     const { configWrite } = await import("./appConfig.js");
-    const result = await configWrite("claude", "plugin-a", "logging", false, { homes: [home] });
+    const result = await configWrite("claude", "plugin-a", "logging", false, { homes: [home], listPlugins: listedFromSeed(home.dir) });
 
     expect(result.ok).toBe(true);
     const onDisk = JSON.parse(readFileSync(join(dir, "config", "plugin-a.json"), "utf8"));
@@ -256,7 +271,7 @@ describe("appConfig sidecar module", () => {
     seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
 
     const { configWrite } = await import("./appConfig.js");
-    const result = await configWrite("claude", "../escape", "logging", false, { homes: [home] });
+    const result = await configWrite("claude", "../escape", "logging", false, { homes: [home], listPlugins: listedFromSeed(home.dir), managed: async () => true });
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
@@ -271,7 +286,7 @@ describe("appConfig sidecar module", () => {
     seedPlugins(dir, [{ name: "../escape", url: "https://github.com/intisy-ai/escape", enabled: true }]);
 
     const { configWrite } = await import("./appConfig.js");
-    const result = await configWrite("claude", "../escape", "logging", false, { homes: [home] });
+    const result = await configWrite("claude", "../escape", "logging", false, { homes: [home], listPlugins: listedFromSeed(home.dir), managed: async () => true });
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
@@ -284,7 +299,7 @@ describe("appConfig sidecar module", () => {
     seedPlugins(dir, [{ name: "plugin-a", url: "https://github.com/intisy-ai/plugin-a", enabled: true }]);
 
     const { configWrite } = await import("./appConfig.js");
-    const result = await configWrite("claude", "plugin-a", "__proto__", { malicious: true }, { homes: [home] });
+    const result = await configWrite("claude", "plugin-a", "__proto__", { malicious: true }, { homes: [home], listPlugins: listedFromSeed(home.dir) });
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
@@ -402,7 +417,7 @@ describe("appConfig sidecar module", () => {
     }]]);
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", { homes: [home], declarations, engineSchemas: async () => [], settingsProviders: async () => [] });
+    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir), declarations, engineSchemas: async () => [], settingsProviders: async () => [] });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data[0].fields).toEqual([{ key: "x", type: "number" }]);
@@ -418,7 +433,7 @@ describe("engine-contributed settings", () => {
     const { home } = makeHome("cairn", "Cairn");
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("cairn", { homes: [home], declarations: async () => new Map(), settingsProviders: async () => [] });
+    const result = await configSchemas("cairn", { homes: [home], bundles: bundlesFromSeed(home.dir), declarations: async () => new Map(), settingsProviders: async () => [] });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
@@ -433,7 +448,7 @@ describe("engine-contributed settings", () => {
     writeFileSync(join(dir, "config", "plugin-updater.json"), JSON.stringify({ auto_update_mode: "check" }), "utf8");
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("cairn", { homes: [home], declarations: async () => new Map(), settingsProviders: async () => [] });
+    const result = await configSchemas("cairn", { homes: [home], bundles: bundlesFromSeed(home.dir), declarations: async () => new Map(), settingsProviders: async () => [] });
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
@@ -446,8 +461,7 @@ describe("engine-contributed settings", () => {
     seedPlugins(dir, [{ name: "plugin-updater", url: "https://github.com/intisy-ai/plugin-updater", enabled: true }]);
 
     const { configSchemas } = await import("./appConfig.js");
-    const result = await configSchemas("claude", {
-      homes: [home],
+    const result = await configSchemas("claude", { homes: [home], bundles: bundlesFromSeed(home.dir),
       declarations: async () => new Map([["plugin-updater", { defaults: { probed: true } }]]),
       settingsProviders: async () => [],
     });
@@ -475,7 +489,7 @@ describe("engine-contributed settings", () => {
     writeFileSync(join(dir, "plugin", "plugin-updater.json"), JSON.stringify({ id: "plugin-updater", api: 1, entry: "dist/index.js", capabilities: ["plugin-management"] }));
 
     const { configWrite } = await import("./appConfig.js");
-    const result = await configWrite("cairn", "plugin-updater", "auto_update_mode", "check", { homes: [home] });
+    const result = await configWrite("cairn", "plugin-updater", "auto_update_mode", "check", { homes: [home], listPlugins: listedFromSeed(home.dir) });
 
     expect(result.ok).toBe(true);
     const onDisk = JSON.parse(readFileSync(join(dir, "config", "plugin-updater.json"), "utf8"));
@@ -490,9 +504,9 @@ describe("engine-contributed settings", () => {
     writeFileSync(join(dir, "config", "plugin-updater.json"), JSON.stringify({ auto_update_triggers: { loader: true, app: true, cairn: true } }), "utf8");
 
     const { configWrite, configSchemas } = await import("./appConfig.js");
-    expect((await configWrite("cairn", "plugin-updater", "auto_update_triggers.app", false, { homes: [home] })).ok).toBe(true);
+    expect((await configWrite("cairn", "plugin-updater", "auto_update_triggers.app", false, { homes: [home], listPlugins: listedFromSeed(home.dir) })).ok).toBe(true);
 
-    const result = await configSchemas("cairn", { homes: [home], declarations: async () => new Map(), settingsProviders: async () => [] });
+    const result = await configSchemas("cairn", { homes: [home], bundles: bundlesFromSeed(home.dir), declarations: async () => new Map(), settingsProviders: async () => [] });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("unreachable");
     expect(result.data.find((s) => s.plugin === "plugin-updater")!.current.auto_update_triggers).toEqual({
@@ -504,7 +518,7 @@ describe("engine-contributed settings", () => {
     const { home } = makeHome("cairn", "Cairn");
 
     const { configWrite } = await import("./appConfig.js");
-    const result = await configWrite("cairn", "not-a-thing", "k", 1, { homes: [home] });
+    const result = await configWrite("cairn", "not-a-thing", "k", 1, { homes: [home], listPlugins: listedFromSeed(home.dir), managed: async () => true });
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
@@ -528,7 +542,7 @@ describe("configWrite accepts a plugin the home deployed but never listed", () =
     const home = mkdtempSync(join(tmpdir(), "cairn-cw-"));
     const homes = [{ id: "cairn", label: "Cairn", dir: home, present: true, hasUpdater: true }];
     const { configWrite } = await import("./appConfig.js");
-    const result = await configWrite("cairn", "ghost", "flag", true, { homes });
+    const result = await configWrite("cairn", "ghost", "flag", true, { homes, managed: async () => true });
     expect(result).toEqual({ ok: false, error: "plugin not found: ghost" });
   });
 });

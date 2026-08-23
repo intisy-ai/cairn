@@ -129,7 +129,7 @@ describe("job runner", () => {
     expect(rollbackClone).not.toHaveBeenCalled();
 
     await made[0].exit(null);
-    expect(rollbackClone).toHaveBeenCalledWith("/homes/claude", "wakatime-sync");
+    expect(rollbackClone).toHaveBeenCalledWith("/homes/claude", "wakatime-sync", "claude");
     expect(runner.list()[0].status).toBe("cancelled");
   });
 

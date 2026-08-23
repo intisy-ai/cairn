@@ -18,7 +18,6 @@ const PLUGIN_NAMES = [
 const INSTALL_ENGINE = [
   "src/sidecar/lib/optionalEngines.ts",
   "src/sidecar/modules/plugins.ts",
-  "src/sidecar/modules/appConfig.ts",
   "src/installer/index.ts",
   "src/renderer/lib/routes/Settings.svelte",
   "src/renderer/lib/components/AutoUpdateSettings.svelte",

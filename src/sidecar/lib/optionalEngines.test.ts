@@ -51,12 +51,12 @@ describe("optionalEngines: plugin-updater absent", () => {
     expect(res.error).not.toMatch(/plugin not found/);
   });
 
-  it("configWrite fails with a message naming the engine, not a misleading 'plugin not found'", async () => {
+  it("configWrite says the home has no manager, not a misleading 'plugin not found'", async () => {
     const { configWrite } = await import("../modules/appConfig.js");
     const res = await configWrite("claude", "some-plugin", "key", "value", { homes: [fakeHome("claude", dir)] });
     expect(res.ok).toBe(false);
     if (res.ok) return;
-    expect(res.error).toMatch(/plugin-updater is not available/);
+    expect(res.error).toMatch(/nothing manages the plugins of claude/);
     expect(res.error).not.toMatch(/plugin not found/);
   });
 });
