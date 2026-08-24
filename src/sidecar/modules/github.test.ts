@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, afterEach, beforeEach } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,10 +6,28 @@ import { getConfigValue, setConfigValue } from "@intisy-ai/core";
 import { resetOrgScanCache, resolveToken } from "../lib/orgScan.js";
 import { githubStatus, githubAddAccount, githubSwitchAccount, githubRemoveAccount, githubConnectGhCli, githubSetStar, githubStarCairn, githubDeviceStart, githubDevicePoll, resetDeviceFlowState } from "./github.js";
 
+// A developer's shell usually carries a real GITHUB_TOKEN, and resolveToken prefers the
+// environment over a stored account, so a test that does not pass an explicit `env` would
+// assert against whatever token happens to be exported. Cleared here rather than per call, so
+// the next test written without one is isolated too.
+const AMBIENT_TOKEN_VARS = ["GITHUB_TOKEN", "GH_TOKEN"] as const;
+const savedTokens: Record<string, string | undefined> = {};
+
 beforeEach(() => {
   resetOrgScanCache();
   resetDeviceFlowState();
+  for (const name of AMBIENT_TOKEN_VARS) {
+    savedTokens[name] = process.env[name];
+    delete process.env[name];
+  }
   process.env.HUB_CONFIG_DIR = mkdtempSync(join(tmpdir(), "dash-github-"));
+});
+
+afterEach(() => {
+  for (const name of AMBIENT_TOKEN_VARS) {
+    if (savedTokens[name] === undefined) delete process.env[name];
+    else process.env[name] = savedTokens[name];
+  }
 });
 
 const userFetch = (login: string, extra: { name?: string | null; avatar_url?: string | null } = {}) =>
