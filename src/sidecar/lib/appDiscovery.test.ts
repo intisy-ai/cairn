@@ -3,8 +3,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { discoverApps } from "./appDiscovery.js";
-import { getApps, registerApp } from "@core/index.js";
-import type { AppDescriptor } from "@core/index.js";
+import { getApps, registerApp } from "@intisy-ai/core";
+import type { AppDescriptor } from "@intisy-ai/core";
 import type { CatalogResult } from "../../../packages/shared/src/domain.js";
 
 const gammaApp: AppDescriptor = {

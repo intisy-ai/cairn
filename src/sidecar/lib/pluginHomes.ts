@@ -1,5 +1,5 @@
 import { homedir } from "node:os";
-import { getApps, getAppDescriptor, resolveHome } from "@core/index.js";
+import { getApps, getAppDescriptor, resolveHome } from "@intisy-ai/core";
 import { resolveStoreDir } from "../../main/lib/storeDir.js";
 import { appsDetect } from "../modules/apps.js";
 import { renderCairnMark } from "../../../packages/shared/src/logo.js";

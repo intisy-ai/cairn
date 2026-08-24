@@ -1,4 +1,4 @@
-import { ECOSYSTEM_ORG, getConfigValue, setConfigValue } from "@core/index.js";
+import { ECOSYSTEM_ORG, getConfigValue, setConfigValue } from "@intisy-ai/core";
 import { realExec, resetOrgScanCache, resolveToken } from "../lib/orgScan.js";
 import { parseRepoRef } from "../../../packages/shared/src/repoRef.js";
 import type { GithubAccountView, GithubStatus, Result } from "../../../packages/shared/src/domain.js";

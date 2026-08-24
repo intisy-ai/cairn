@@ -1,4 +1,4 @@
-import { openBrowser } from "@core-auth/index.js";
+import { openBrowser } from "@intisy-ai/core-auth";
 import type { LoginBegin, LoginComplete, Result } from "../../../packages/shared/src/domain.js";
 import { importProviderHandler } from "../lib/providerHandler.js";
 import { ok, err } from "../result.js";

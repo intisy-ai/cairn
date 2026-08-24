@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createProxyServer, makeDynamicResolver } from "@core-proxy/index.js";
-import type { RoutingProfile } from "@core-proxy/index.js";
-import type { StartedLoaderProxy } from "@core-loader/proxy-runner.js";
+import { createProxyServer, makeDynamicResolver } from "@intisy-ai/core-proxy";
+import type { RoutingProfile } from "@intisy-ai/core-proxy";
+import type { StartedLoaderProxy } from "@intisy-ai/core-loader/dist/proxy-runner.js";
 import type { LoadedProxyDef } from "../../sidecar/lib/proxyPlugins.js";
 import { buildStartOptions, onStatusChange, resolveProxyProfile, start, status, stop } from "./proxyDaemon.js";
 

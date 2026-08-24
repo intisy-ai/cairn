@@ -1,4 +1,4 @@
-import { getConfigValue, setConfigValue } from "@core/index.js";
+import { getConfigValue, setConfigValue } from "@intisy-ai/core";
 import type { Result } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
 

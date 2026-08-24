@@ -2,7 +2,7 @@ import { fork, execFile } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { activityEnv } from "@core/index.js";
+import { activityEnv } from "@intisy-ai/core";
 import { newJob, nextRunnable, applyEvent, cancelJob, isEnded, noteTransfer } from "./model.js";
 import type { Job, JobSpec, Rollback } from "./model.js";
 import { parseGitProgress } from "./gitProgress.js";

@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { buildRepo, deployBundle, fetchRepo, materializeLibraries, repoHead } from "@core/index.js";
+import { buildRepo, deployBundle, fetchRepo, materializeLibraries, repoHead } from "@intisy-ai/core";
 import { hasCapability, invokePluginManagement, PLUGIN_MANAGEMENT } from "./pluginManager.js";
 import { pluginDir, reposDir } from "./storagePaths.js";
 

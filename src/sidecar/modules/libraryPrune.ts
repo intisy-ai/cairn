@@ -1,4 +1,4 @@
-import { getConfigValue } from "@core/index.js";
+import { getConfigValue } from "@intisy-ai/core";
 import { invokeLibraryManagement, readLibraryManagement } from "../lib/pluginManager.js";
 
 const CONFIG_NAME = "cairn";

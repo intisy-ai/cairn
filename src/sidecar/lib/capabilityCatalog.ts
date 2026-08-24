@@ -1,7 +1,7 @@
-import { catalogFor, queryCapability } from "@core-loader/capability-catalog.js";
-import type { CatalogDeps, CatalogEntry } from "@core-loader/capability-catalog.js";
-import { readMarketplaceSources, builtInSource } from "@core-loader/catalog-sources.js";
-import type { MarketplaceSource } from "@core-loader/catalog-sources.js";
+import { catalogFor, queryCapability } from "@intisy-ai/core-loader/dist/capability-catalog.js";
+import type { CatalogDeps, CatalogEntry } from "@intisy-ai/core-loader/dist/capability-catalog.js";
+import { readMarketplaceSources, builtInSource } from "@intisy-ai/core-loader/dist/catalog-sources.js";
+import type { MarketplaceSource } from "@intisy-ai/core-loader/dist/catalog-sources.js";
 import { pathsForHome } from "./storagePaths.js";
 import { resolveToken } from "./orgScan.js";
 

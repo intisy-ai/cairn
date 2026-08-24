@@ -2,7 +2,7 @@
 // plus sessions and models (from buildSessionsWithCosts/buildModelSummary),
 // bucketed by day.
 import { join } from "path";
-import { configFolder } from "@core-auth/index.js";
+import { configFolder } from "@intisy-ai/core-auth";
 import { readJSON } from "./db.js";
 import { buildSessionsWithCosts, buildModelSummary } from "./sessions.js";
 import type { AccountSummary, DayUsage, QuotaInfo, RateLimitInfo, UsageSnapshotData } from "./types.js";

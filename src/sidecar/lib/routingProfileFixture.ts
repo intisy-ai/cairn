@@ -2,7 +2,7 @@
 // routing/model-map logic must not import a specific app-proxy's RoutingProfile
 // (e.g. claude-code-proxy's anthropicProfile). This is a synthetic, generic profile
 // carrying just enough shape for the routing/model-map code paths under test.
-import type { RoutingProfile } from "@core-proxy/index.js";
+import type { RoutingProfile } from "@intisy-ai/core-proxy";
 
 export function fixtureRoutingProfile(overrides: Partial<RoutingProfile> = {}): RoutingProfile {
   return {

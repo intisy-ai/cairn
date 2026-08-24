@@ -58,7 +58,7 @@ describe("scanOrg", () => {
   });
 
   it("prefers a configured token over an anonymous scan when there is no env token", async () => {
-    const { setConfigValue } = await import("@core/index.js");
+    const { setConfigValue } = await import("@intisy-ai/core");
     setConfigValue("cairn", "githubToken", "cfg-token");
     const result = await scanOrg({
       fetchFn: okFetch([]),

@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { catalogEntriesFor, repoProvidingCapability } from "./capabilityCatalog.js";
-import { CATALOG_CACHE_FILE } from "@core-loader/capability-catalog.js";
+import { CATALOG_CACHE_FILE } from "@intisy-ai/core-loader/dist/capability-catalog.js";
 import { pathsForHome } from "./storagePaths.js";
 
 // Pinned so the registry lookup behind pathsForHome() cannot read the developer's real apps.json.

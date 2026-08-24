@@ -11,7 +11,7 @@ beforeEach(() => {
 describe("modelMapWrite", () => {
   it("persists a chain to a slot, then removes the slot when written empty", async () => {
     const { modelMapWrite } = await import("./modelMapWrite.js");
-    const { readModelMap } = await import("@core-proxy/model-map.js");
+    const { readModelMap } = await import("@intisy-ai/core-proxy/dist/model-map.js");
     const configDir = process.env.HUB_CONFIG_DIR as string;
     const profile = fixtureRoutingProfile();
 

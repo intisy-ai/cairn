@@ -1,4 +1,4 @@
-import { getApps, getConfigValue, setConfigValue } from "@core/index.js";
+import { getApps, getConfigValue, setConfigValue } from "@intisy-ai/core";
 
 const EXPOSURE_CONFIG_NAME = "dashboard-exposure";
 const EXPOSURE_CONFIG_KEY = "map";

@@ -1,4 +1,4 @@
-import type { AccountController } from "@core-auth/index.js";
+import type { AccountController } from "@intisy-ai/core-auth";
 import type { AccountView, Result } from "../../../packages/shared/src/domain.js";
 import { importProviderHandler } from "../lib/providerHandler.js";
 import { ok, err } from "../result.js";

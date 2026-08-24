@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { getApps, registerApp, resolveHome, DEFAULT_PATH_NAMES, appPaths } from "@core/index.js";
-import type { AppDescriptor } from "@core/index.js";
+import { getApps, registerApp, resolveHome, DEFAULT_PATH_NAMES, appPaths } from "@intisy-ai/core";
+import type { AppDescriptor } from "@intisy-ai/core";
 import { scanOrg } from "./orgScan.js";
 import type { OrgScanDeps } from "./orgScan.js";
 import type { CatalogResult } from "../../../packages/shared/src/domain.js";

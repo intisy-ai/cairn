@@ -2,7 +2,7 @@
 // subset of its API the usage engine consumes so imports through the @core/* alias
 // type-check. The usage engine discovers apps from the registry and resolves each
 // app's home to find its session-storage.
-declare module "@core/index.js" {
+declare module "@intisy-ai/core" {
   export interface AppDescriptor {
     id: string;
     usage?: { formats: string[] };

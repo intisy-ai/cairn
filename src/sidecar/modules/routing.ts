@@ -1,7 +1,7 @@
-import { getConfigDir, reposDir } from "@core-auth/index.js";
-import { readDeployedProviders } from "@core-loader/loader-runtime.js";
-import { resolveModelMap, claudeTiers, catalogEntries, normalizeChain } from "@core-proxy/model-map.js";
-import type { Chain } from "@core-proxy/index.js";
+import { getConfigDir, reposDir } from "@intisy-ai/core-auth";
+import { readDeployedProviders } from "@intisy-ai/core-loader/dist/loader-runtime.js";
+import { resolveModelMap, claudeTiers, catalogEntries, normalizeChain } from "@intisy-ai/core-proxy/dist/model-map.js";
+import type { Chain } from "@intisy-ai/core-proxy";
 import type { AppPresence, RoutingState, Result } from "../../../packages/shared/src/domain.js";
 import type { RoutingApp } from "../lib/proxyRegistry.js";
 import { availableRoutingApps, profileFor } from "../lib/proxyRegistry.js";

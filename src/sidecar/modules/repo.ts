@@ -1,6 +1,6 @@
 import { resolveToken, realExec } from "../lib/orgScan.js";
 import { readCache, writeCache } from "../lib/cache.js";
-import { getConfigDir } from "@core-auth/index.js";
+import { getConfigDir } from "@intisy-ai/core-auth";
 import type { RepoMeta, Result } from "../../../packages/shared/src/domain.js";
 import { wrap, err } from "../result.js";
 

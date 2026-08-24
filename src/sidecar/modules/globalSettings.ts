@@ -1,4 +1,4 @@
-import { globalSettingsSchema, loadConfig, type FieldSpec } from "@core/index.js";
+import { globalSettingsSchema, loadConfig, type FieldSpec } from "@intisy-ai/core";
 import type { Result } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";
 

@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { addAccount, getConfigDir, listAccounts, reposDir } from "@core-auth/index.js";
-import { readDeployedProviders } from "@core-loader/loader-runtime.js";
-import { resolveModelMap } from "@core-proxy/model-map.js";
-import { getApps, getAppDescriptor } from "@core/index.js";
+import { addAccount, getConfigDir, listAccounts, reposDir } from "@intisy-ai/core-auth";
+import { readDeployedProviders } from "@intisy-ai/core-loader/dist/loader-runtime.js";
+import { resolveModelMap } from "@intisy-ai/core-proxy/dist/model-map.js";
+import { getApps, getAppDescriptor } from "@intisy-ai/core";
 import type { AppPresence, ImportableApp, ImportPreview, ImportSelection, ImportSummary, Result } from "../../../packages/shared/src/domain.js";
 import { appRealHome } from "../lib/pluginHomes.js";
 import { profileFor } from "../lib/proxyRegistry.js";

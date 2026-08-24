@@ -1,6 +1,6 @@
-import { readDeployedProviders } from "@core-loader/loader-runtime.js";
-import { listAccounts, getConfigDir } from "@core-auth/index.js";
-import { getApps } from "@core/index.js";
+import { readDeployedProviders } from "@intisy-ai/core-loader/dist/loader-runtime.js";
+import { listAccounts, getConfigDir } from "@intisy-ai/core-auth";
+import { getApps } from "@intisy-ai/core";
 import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS } from "../lib/pluginHost.js";
 import { pluginIdFromClone } from "../lib/capabilityOwner.js";
 import { reposDir } from "../lib/storagePaths.js";

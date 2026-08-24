@@ -1,6 +1,6 @@
 ﻿import type { Result } from "../../packages/shared/src/domain.js";
 import { isReadOnlyChannel } from "../../packages/shared/src/ipc.js";
-import { initCoreProxy } from "@core-proxy/index.js";
+import { initCoreProxy } from "@intisy-ai/core-proxy";
 import { ok, err } from "./result.js";
 import { configGet, configSet } from "./modules/config.js";
 import { overviewSummary } from "./modules/overview.js";
@@ -29,8 +29,8 @@ import { appStorageGet, appStorageSet } from "./modules/appPaths.js";
 import { invokePluginManagement } from "./lib/pluginManager.js";
 import { stopAllHosts } from "./lib/pluginHost.js";
 import type { PluginHomeId } from "../../packages/shared/src/domain.js";
-import type { ActivityQuery } from "@core/index.js";
-import { setActivityContext, withCause } from "@core/index.js";
+import type { ActivityQuery } from "@intisy-ai/core";
+import { setActivityContext, withCause } from "@intisy-ai/core";
 import { cairnHome } from "./lib/pluginHomes.js";
 import { usageSnapshot } from "./modules/usage.js";
 import { discoverApps } from "./lib/appDiscovery.js";

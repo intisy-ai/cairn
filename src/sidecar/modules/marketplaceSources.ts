@@ -1,4 +1,4 @@
-import { setConfigValue } from "@core/index.js";
+import { setConfigValue } from "@intisy-ai/core";
 import { resolveSources, parseSources } from "../lib/marketplaces.js";
 import type { MarketplaceSource, Result } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";

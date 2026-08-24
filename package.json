@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "npm run build:deps && electron-vite build",
+    "build": "electron-vite build",
     "typecheck": "tsc -b",
     "check:svelte": "svelte-check --tsconfig ./src/renderer/tsconfig.json",
     "check": "tsc -b && npm run check:svelte && npm run check:css",
@@ -22,8 +22,14 @@
     "gallery:shots": "npm run gallery:build && electron scripts/gallery-shots.cjs --disable-gpu --force-device-scale-factor=1",
     "test": "vitest run",
     "test:live": "vitest run --config vitest.live.config.ts",
-    "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "build:deps": "npm --prefix core install && npm --prefix core run build && npm --prefix core-auth install && npm --prefix core-auth run build && npm --prefix core-loader install && npm --prefix core-loader run build && npm --prefix core-proxy install && npm --prefix core-proxy run build"
+    "test:e2e": "vitest run --config vitest.e2e.config.ts"
+  },
+  "dependencies": {
+    "@intisy-ai/api": "^1.0.2",
+    "@intisy-ai/core": "^1.1.0",
+    "@intisy-ai/core-auth": "^1.1.0",
+    "@intisy-ai/core-loader": "^2.0.1",
+    "@intisy-ai/core-proxy": "^1.1.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

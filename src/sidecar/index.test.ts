@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { dispatch, registerHandler } from "./index.js";
 import { ok } from "./result.js";
-import { currentCause } from "@core/index.js";
+import { currentCause } from "@intisy-ai/core";
 
 describe("dispatch", () => {
   it("resolves to {ok:false} when the handler throws", async () => {
@@ -88,7 +88,7 @@ describe("activity home", () => {
   it("stamps the same home pluginHomes reports for cairn's own entry", async () => {
     vi.resetModules();
     await import("./index.js");
-    const { getActivityContext } = await import("@core/index.js");
+    const { getActivityContext } = await import("@intisy-ai/core");
     const { pluginHomes } = await import("./lib/pluginHomes.js");
 
     const homes = await pluginHomes({ detect: async () => ({ ok: true, data: {} }), managesPlugins: () => false });

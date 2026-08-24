@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 // newly-added app inherits every existing provider.
 const state: { apps: { id: string }[]; store: Record<string, unknown> } = { apps: [], store: {} };
 
-vi.mock("@core/index.js", () => ({
+vi.mock("@intisy-ai/core", () => ({
   getApps: () => state.apps,
   getConfigValue: (name: string, key: string) => state.store[name + ":" + key],
   setConfigValue: (name: string, key: string, value: unknown) => { state.store[name + ":" + key] = value; },

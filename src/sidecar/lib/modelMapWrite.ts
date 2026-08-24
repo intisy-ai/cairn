@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Chain, RoutingProfile } from "@core-proxy/index.js";
+import type { Chain, RoutingProfile } from "@intisy-ai/core-proxy";
 
 export function modelMapWrite(configDir: string, profile: RoutingProfile, slot: string, chain: Chain): void {
   const configFolder = join(configDir, "config");

@@ -1,7 +1,7 @@
 // Runs ONE plugin job, in its own process, then exits. A manager does its git, npm and deploy
 // work synchronously, so running it anywhere else would stop the sidecar answering.
-import { getAppDescriptor, registerPluginWithApp } from "@core/index.js";
-import type { ActionResult, PluginManagementCapability } from "@core/index.js";
+import { getAppDescriptor, registerPluginWithApp } from "@intisy-ai/core";
+import type { ActionResult, PluginManagementCapability } from "@intisy-ai/core";
 import { invokePluginManagement } from "../sidecar/lib/pluginManager.js";
 import { installPluginRepo } from "../sidecar/lib/pluginBootstrap.js";
 

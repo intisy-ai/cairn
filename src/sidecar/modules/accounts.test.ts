@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, mkdirSync, writeFileSync, copyFileSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { materializeLibraries } from "@core/index.js";
+import { materializeLibraries } from "@intisy-ai/core";
 
 const stubHandlerPath = fileURLToPath(new URL("../../../../../providers/stub-auth/dist/handler.js", import.meta.url));
 
@@ -83,7 +83,7 @@ describe("accounts sidecar module", () => {
 // what this asserts against, and no stand-in would be asserting the same thing.
   it.skipIf(!stubIsCheckedOut)("lists, enables, and removes accounts via the provider's controller", async () => {
     seedStubProvider();
-    const { addAccount } = await import("@core-auth/index.js");
+    const { addAccount } = await import("@intisy-ai/core-auth");
     addAccount("stub", { id: "a1", email: "a1@example.com", refresh: "r1", enabled: true });
     addAccount("stub", { id: "a2", email: "a2@example.com", refresh: "r2", enabled: true });
 

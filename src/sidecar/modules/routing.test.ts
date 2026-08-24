@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { initCoreProxy } from "@core-proxy/index.js";
+import { initCoreProxy } from "@intisy-ai/core-proxy";
 import type { LoadedProxyDef } from "../lib/proxyPlugins.js";
 import { fixtureRoutingProfile } from "../lib/routingProfileFixture.js";
 

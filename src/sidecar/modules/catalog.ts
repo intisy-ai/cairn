@@ -4,7 +4,7 @@ import { reposDir } from "../lib/storagePaths.js";
 import type { MarketplaceDeps } from "../lib/marketplaces.js";
 import type { CatalogResult, Result } from "../../../packages/shared/src/domain.js";
 import { readCache, writeCache } from "../lib/cache.js";
-import { getConfigDir } from "@core-auth/index.js";
+import { getConfigDir } from "@intisy-ai/core-auth";
 import { wrap } from "../result.js";
 
 const CATALOG_NS = "catalog";

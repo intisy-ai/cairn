@@ -27,7 +27,7 @@ vi.mock("../lib/capabilityCatalog.js", () => ({
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { PluginUpdateCache as UpdateCache } from "@core/index.js";
+import type { PluginUpdateCache as UpdateCache } from "@intisy-ai/core";
 
 interface Plugin { name: string; url: string; enabled: boolean; autoUpdate?: boolean; branch?: string }
 import type { PluginHome } from "../../../packages/shared/src/domain.js";

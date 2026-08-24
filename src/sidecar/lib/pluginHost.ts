@@ -1,6 +1,6 @@
 import { setDiagnosticSink } from "@intisy-ai/api/engine";
-import { createPluginRuntime } from "@core/index.js";
-import { PROVIDER_SUPPORT, providerSupport } from "@core-auth/index.js";
+import { createPluginRuntime } from "@intisy-ai/core";
+import { PROVIDER_SUPPORT, providerSupport } from "@intisy-ai/core-auth";
 import {
   callCapability,
   ledgerRows,

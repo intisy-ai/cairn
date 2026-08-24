@@ -1,4 +1,4 @@
-import { getAppDescriptor, setAppPaths, appPaths, resolveHome, moveAppPaths, movesFailed, validatePathNames, DEFAULT_PATH_NAMES } from "@core/index.js";
+import { getAppDescriptor, setAppPaths, appPaths, resolveHome, moveAppPaths, movesFailed, validatePathNames, DEFAULT_PATH_NAMES } from "@intisy-ai/core";
 import type { AppPathNames, AppStorage, AppStorageResult, Result } from "../../../packages/shared/src/domain.js";
 import { ok, err } from "../result.js";
 

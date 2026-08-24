@@ -2,13 +2,13 @@ import {
   CROSS_APP_SYNC,
   LIBRARY_MANAGEMENT,
   PLUGIN_MANAGEMENT,
-} from "@core/index.js";
+} from "@intisy-ai/core";
 import type {
   CrossAppSyncCapability,
   LibraryManagementCapability,
   ManagedPlugin,
   PluginManagementCapability,
-} from "@core/index.js";
+} from "@intisy-ai/core";
 import {
   callHostCapability,
   capabilityProviders,

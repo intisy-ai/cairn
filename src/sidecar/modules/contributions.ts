@@ -1,7 +1,7 @@
 import type { PluginConfigSchema, PluginHome, PluginScreen, PluginSettingsSection, Result } from "../../../packages/shared/src/domain.js";
 import { pluginHomes } from "../lib/pluginHomes.js";
 import { readCache, writeCache } from "../lib/cache.js";
-import { getConfigDir } from "@core-auth/index.js";
+import { getConfigDir } from "@intisy-ai/core-auth";
 import { configSchemas } from "./appConfig.js";
 import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS } from "../lib/pluginHost.js";
 import { wrap } from "../result.js";

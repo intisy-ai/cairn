@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { readDeployedManifests } from "@intisy-ai/api/host";
-import { configNameFor } from "@core/index.js";
+import { configNameFor } from "@intisy-ai/core";
 import type { PluginManifest } from "@intisy-ai/api";
 import { pluginDir, reposDir } from "./storagePaths.js";
 

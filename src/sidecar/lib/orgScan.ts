@@ -2,8 +2,8 @@ import { execFile } from "node:child_process";
 import { svgIconDataUri } from "./pluginIcon.js";
 import { classifyRepoTopics } from "../../../packages/shared/src/repoRef.js";
 import type { CatalogEntry, CatalogResult } from "../../../packages/shared/src/domain.js";
-import { ECOSYSTEM_ORG, getConfigValue } from "@core/index.js";
-import type { AppDescriptor } from "@core/index.js";
+import { ECOSYSTEM_ORG, getConfigValue } from "@intisy-ai/core";
+import type { AppDescriptor } from "@intisy-ai/core";
 
 const TTL_MS = 60_000;
 

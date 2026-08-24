@@ -1,4 +1,4 @@
-import { getConfigDir } from "@core-auth/index.js";
+import { getConfigDir } from "@intisy-ai/core-auth";
 import { listInstalledProxies as realListInstalledProxies } from "../lib/proxyPlugins.js";
 import type { InstalledProxy } from "../lib/proxyPlugins.js";
 import { pluginsSetEnabled as realPluginsSetEnabled } from "./plugins.js";

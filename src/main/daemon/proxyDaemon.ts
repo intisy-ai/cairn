@@ -1,8 +1,8 @@
 import { homedir } from "node:os";
-import { startLoaderProxy } from "@core-loader/proxy-runner.js";
-import type { StartLoaderProxyOptions, StartedLoaderProxy } from "@core-loader/proxy-runner.js";
-import { createProxyServer, makeDynamicResolver } from "@core-proxy/index.js";
-import type { RoutingProfile } from "@core-proxy/index.js";
+import { startLoaderProxy } from "@intisy-ai/core-loader/dist/proxy-runner.js";
+import type { StartLoaderProxyOptions, StartedLoaderProxy } from "@intisy-ai/core-loader/dist/proxy-runner.js";
+import { createProxyServer, makeDynamicResolver } from "@intisy-ai/core-proxy";
+import type { RoutingProfile } from "@intisy-ai/core-proxy";
 import { loadInstalledProxyDefs, unresolvedProxyPlugins } from "../../sidecar/lib/proxyPlugins.js";
 import type { LoadedProxyDef } from "../../sidecar/lib/proxyPlugins.js";
 import type { ProxyStatus } from "../../../packages/shared/src/domain.js";

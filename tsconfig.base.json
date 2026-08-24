@@ -9,16 +9,5 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    // An alias exists only for a sibling repo Cairn imports CODE from. custom-auth has none
-    // on purpose: Cairn reads that plugin's config, located by capability, never its code.
-    "paths": {
-      "@intisy-ai/api/engine": ["./core/node_modules/@intisy-ai/api/generated/engine.d.ts"],
-      "@intisy-ai/api": ["./core/node_modules/@intisy-ai/api/generated/api.keys.d.ts"],
-      "@intisy-ai/api/host": ["./core/node_modules/@intisy-ai/api/dist/host/index.d.ts"],
-      "@core/*": ["./core/dist/*"],
-      "@core-auth/*": ["./core-auth/dist/*"],
-      "@core-loader/*": ["./core-loader/dist/*"],
-      "@core-proxy/*": ["./core-proxy/dist/*"]
-    }
   }
 }

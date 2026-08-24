@@ -1,9 +1,9 @@
 import { statSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { getConfigDir } from "@core-auth/index.js";
-import { getAppDescriptor } from "@core/index.js";
-import type { RoutingProfile } from "@core-proxy/index.js";
+import { getConfigDir } from "@intisy-ai/core-auth";
+import { getAppDescriptor } from "@intisy-ai/core";
+import type { RoutingProfile } from "@intisy-ai/core-proxy";
 import { pluginProvidesCapability, unmanifestedPlugins } from "./capabilityOwner.js";
 import { listedPlugins } from "./pluginManager.js";
 import { reposDir } from "./storagePaths.js";

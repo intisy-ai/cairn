@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { appsDetect, appsInstallCli, appsUninstallCli, appsSummary, appsConnection, appsInstallLoader } from "./apps.js";
-import type { AppDescriptor } from "@core/index.js";
+import type { AppDescriptor } from "@intisy-ai/core";
 
 function descWithLoader(loaderId: string): AppDescriptor {
   return { loader: { id: loaderId, url: `org/${loaderId}` } } as unknown as AppDescriptor;

@@ -1,6 +1,6 @@
-export type { AccountView, AccountQuota, AccountStatus } from "@core-auth/index.js";
-export type { Impact, ActivityRecord, ActivityQuery, ActivityStats, ActivityHomeStats, FieldType, FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec } from "@core/index.js";
-import type { FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec } from "@core/index.js";
+export type { AccountView, AccountQuota, AccountStatus } from "@intisy-ai/core-auth";
+export type { Impact, ActivityRecord, ActivityQuery, ActivityStats, ActivityHomeStats, FieldType, FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec } from "@intisy-ai/core";
+import type { FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec } from "@intisy-ai/core";
 
 /**
  * The capability whose provider manages a home's plugins.
@@ -19,9 +19,9 @@ export interface UpdateSummary {
   failed: string[];
   checkedAt: string;
 }
-export type { Chain, ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/index.js";
-import type { ModelMap, CatalogEntry as ModelCatalogEntry } from "@core-proxy/index.js";
-import type { AppDescriptor } from "@core/index.js";
+export type { Chain, ModelMap, CatalogEntry as ModelCatalogEntry } from "@intisy-ai/core-proxy";
+import type { ModelMap, CatalogEntry as ModelCatalogEntry } from "@intisy-ai/core-proxy";
+import type { AppDescriptor } from "@intisy-ai/core";
 // A translator is installable in its own right, not only a library a plugin vendors: a
 // provider that speaks a vendor wire format resolves it from the home's shared store.
 export type CatalogKind = "provider" | "proxy" | "plugin" | "loader" | "translator";

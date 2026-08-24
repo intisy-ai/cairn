@@ -30,7 +30,7 @@ describe("dashboard activity", () => {
         details: { message: "Enabled plugin-a" },
       }, list);
 
-      const { readActivity } = await import("@core/index.js");
+      const { readActivity } = await import("@intisy-ai/core");
       const { records } = readActivity([cairnHome]);
       expect(records).toHaveLength(1);
       expect(records[0].source).toBe("cairn");
@@ -53,7 +53,7 @@ describe("dashboard activity", () => {
       const { emitCairnAction } = await import("./activity.js");
       await emitCairnAction({ action: "plugin_enabled", subject: { kind: "plugin", id: "x" }, homeId: "cairn" }, list);
 
-      const { readActivity } = await import("@core/index.js");
+      const { readActivity } = await import("@intisy-ai/core");
       const [rec] = readActivity([cairnHome]).records;
       expect(rec.target).toBeUndefined();
     } finally {
@@ -71,7 +71,7 @@ describe("dashboard activity", () => {
       await expect(emitCairnAction({ action: "plugin_enabled", subject: { kind: "plugin", id: "x" }, homeId: "nope" }, list))
         .resolves.toBeUndefined();
 
-      const { readActivity } = await import("@core/index.js");
+      const { readActivity } = await import("@intisy-ai/core");
       const [rec] = readActivity([cairnHome]).records;
       expect(rec.target).toBeUndefined();
     } finally {

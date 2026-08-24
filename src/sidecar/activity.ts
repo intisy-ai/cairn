@@ -1,7 +1,7 @@
 // What the dashboard itself reports. Its records live in the dashboard's own home
 // (already stated as the activity context at sidecar startup) and name the home they
 // affected as the target, resolved the one way pluginHomes resolves a home.
-import { emitEvent } from "@core/index.js";
+import { emitEvent } from "@intisy-ai/core";
 import { pluginHomes, homeDir } from "./lib/pluginHomes.js";
 import type { PluginHome, PluginHomeId } from "../../packages/shared/src/domain.js";
 

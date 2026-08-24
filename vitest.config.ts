@@ -1,23 +1,11 @@
 import { defineConfig } from "vitest/config";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { svelteTesting } from "@testing-library/svelte/vite";
-import { fileURLToPath } from "node:url";
 
 export default defineConfig({
   plugins: [svelte(), svelteTesting()],
   resolve: {
     conditions: process.env.VITEST ? ["browser"] : [],
-    alias: {
-      // First, because a string alias is a prefix match: without this, "@intisy-ai/api/engine"
-      // rewrites to ".../dist/index.js/engine".
-      "@intisy-ai/api/engine": fileURLToPath(new URL("./core/node_modules/@intisy-ai/api/generated/engine.js", import.meta.url)),
-      "@intisy-ai/api/host": fileURLToPath(new URL("./core/node_modules/@intisy-ai/api/dist/host/index.js", import.meta.url)),
-      "@intisy-ai/api": fileURLToPath(new URL("./core/node_modules/@intisy-ai/api/generated/api.keys.js", import.meta.url)),
-      "@core": fileURLToPath(new URL("./core/dist", import.meta.url)),
-      "@core-auth": fileURLToPath(new URL("./core-auth/dist", import.meta.url)),
-      "@core-loader": fileURLToPath(new URL("./core-loader/dist", import.meta.url)),
-      "@core-proxy": fileURLToPath(new URL("./core-proxy/dist", import.meta.url)),
-    },
   },
   test: {
     // The default "forks" pool crashes serializing IPC results back to the parent, which

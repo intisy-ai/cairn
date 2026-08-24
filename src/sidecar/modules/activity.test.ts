@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { activityRead } from "./activity.js";
 import type { PluginHome } from "../../../packages/shared/src/domain.js";
-import type { ActivityRecord } from "@core/index.js";
+import type { ActivityRecord } from "@intisy-ai/core";
 
 function home(id: string, dir: string, present = true): PluginHome {
   return { id, label: id, dir, present, managesPlugins: true };
