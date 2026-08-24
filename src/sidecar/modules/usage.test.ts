@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AppDescriptor } from "@core/index.js";
 
 const stubHandlerPath = fileURLToPath(new URL("../../../../../providers/stub-auth/dist/handler.js", import.meta.url));
+const stubIsCheckedOut = existsSync(stubHandlerPath);
 
 const ENV_KEYS = [
   "OPENCODE_DIR",
@@ -144,7 +145,10 @@ function seedMultiModelClaudeSession(): { day1: number; day2: number } {
 }
 
 describe("usage sidecar module", () => {
-  it("returns real sessions and models from the vendored snapshot layer alongside deployed-provider accounts", async () => {
+// The sibling provider checkout is there in the workspace and absent when this repo is cloned on
+// its own, which is what CI does. Skipped rather than failed there: a deployed provider bundle is
+// what this asserts against, and no stand-in would be asserting the same thing.
+  it.skipIf(!stubIsCheckedOut)("returns real sessions and models from the vendored snapshot layer alongside deployed-provider accounts", async () => {
     seedStubProvider();
     seedClaudeSession();
     const { addAccount } = await import("@core-auth/index.js");
