@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { existsSync, mkdtempSync, mkdirSync, writeFileSync, copyFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,6 +13,19 @@ beforeEach(() => {
 
 const stubCloneDir = fileURLToPath(new URL("../../../../../providers/stub-auth", import.meta.url));
 const stubIsCheckedOut = existsSync(stubHandlerPath);
+
+// Stands in for `npm install --prefix <home>`, copying out of the sibling checkouts this
+// workspace already has rather than reaching the registry.
+function localInstaller(configDir: string): void {
+  const manifest = JSON.parse(readFileSync(join(configDir, "package.json"), "utf8")) as {
+    dependencies?: Record<string, string>;
+  };
+  for (const specifier of Object.keys(manifest.dependencies ?? {})) {
+    const from = join(stubCloneDir, "node_modules", ...specifier.split("/"));
+    if (!existsSync(from)) continue;
+    cpSync(from, join(configDir, "node_modules", ...specifier.split("/")), { recursive: true });
+  }
+}
 
 function seedStubProvider(): void {
   const configDir = process.env.HUB_CONFIG_DIR as string;
@@ -29,7 +42,7 @@ function seedStubProvider(): void {
   // A provider's bundle imports its libraries by name rather than inlining them, so a
   // home without the shared store cannot load one. Installing materialises the store;
   // seeding a home by hand has to do the same or this tests a state that never exists.
-  materializeLibraries(stubCloneDir, configDir);
+  materializeLibraries(stubCloneDir, configDir, () => {}, localInstaller);
 }
 
 function seedProvider(repo: string, providerId: string, handlerSource: string): void {
