@@ -1,6 +1,7 @@
 import type { PluginConfigSchema, PluginHome, PluginScreen, PluginSettingsSection, Result } from "../../../packages/shared/src/domain.js";
 import { pluginHomes } from "../lib/pluginHomes.js";
 import { readCache, writeCache } from "../lib/cache.js";
+import { byOrderThenLabel } from "@intisy-ai/core";
 import { getConfigDir } from "@intisy-ai/core-auth";
 import { configSchemas } from "./appConfig.js";
 import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS } from "../lib/pluginHost.js";
@@ -55,10 +56,6 @@ async function realScreensOf(homeDir: string, appId: string): Promise<PluginScre
     }
   }
   return screens;
-}
-
-function byOrderThenLabel(a: { order?: number; label: string }, b: { order?: number; label: string }): number {
-  return (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) || a.label.localeCompare(b.label);
 }
 
 // A plugin asks for UI of its own through two capabilities: `screens` (a nav entry plus a
