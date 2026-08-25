@@ -106,8 +106,45 @@ describe("PluginControls", () => {
     await fireEvent.click(await screen.findByRole("button", { name: "Ping" }));
     expect(action).not.toHaveBeenCalled();
     await fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
-    await waitFor(() => expect(action).toHaveBeenCalledWith("claude", "p", "ping"));
+    await waitFor(() => expect(action).toHaveBeenCalledWith("claude", "p", "ping", undefined));
     await waitFor(() => expect(screen.getByText("pinged")).toBeInTheDocument());
+  });
+
+  // An action that declares args asked for them before it ran, so the button that used to fail
+  // immediately now collects first.
+  it("asks for a declared arg before running, and runs with what was typed", async () => {
+    const action = vi.fn(async () => ({ ok: true, data: { stdout: "created", stderr: "" } }) as const);
+    stubCairn({ configAction: action });
+    const schema: PluginConfigSchema = {
+      plugin: "p", defaults: {}, current: {},
+      actions: [{ id: "profileCreate", label: "Create", args: [{ key: "name", type: "string", label: "Profile name" }] }],
+    };
+    render(PluginControls, { homeId: "claude", schema });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Create" }));
+    expect(action).not.toHaveBeenCalled();
+
+    const field = await screen.findByLabelText("Profile name");
+    await fireEvent.change(field, { target: { value: "work" } });
+    await fireEvent.click(await screen.findByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(action).toHaveBeenCalledWith("claude", "p", "profileCreate", { name: "work" }));
+  });
+
+  it("abandons a collection on cancel, without running", async () => {
+    const action = vi.fn(async () => ({ ok: true, data: { stdout: "", stderr: "" } }) as const);
+    stubCairn({ configAction: action });
+    const schema: PluginConfigSchema = {
+      plugin: "p", defaults: {}, current: {},
+      actions: [{ id: "profileCreate", label: "Create", args: [{ key: "name", type: "string", label: "Profile name" }] }],
+    };
+    render(PluginControls, { homeId: "claude", schema });
+
+    await fireEvent.click(await screen.findByRole("button", { name: "Create" }));
+    await fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+
+    expect(action).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Profile name")).toBeNull();
   });
 
   it("resolves a dot-path field's initial value from nested current/defaults", async () => {

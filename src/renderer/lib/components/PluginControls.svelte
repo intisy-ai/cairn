@@ -88,6 +88,10 @@
   let actionOut = $state<Record<string, string>>({});
   let actionErr = $state<Record<string, string>>({});
   let confirming = $state<string | null>(null);
+  // The action whose declared args are being collected, and the values typed so far. Transient: an
+  // arg is what one run is given, never a setting, so nothing here is saved.
+  let collecting = $state<string | null>(null);
+  let argValues = $state<Record<string, unknown>>({});
 
   $effect(() => {
     const next: Record<string, unknown> = {};
@@ -142,11 +146,13 @@
   async function runAction(action: ActionSpec): Promise<void> {
     confirming = null;
     if (actionBusy[action.id]) return;
+    const collected = collecting === action.id ? argValues : undefined;
+    collecting = null;
     actionBusy = { ...actionBusy, [action.id]: true };
     actionErr = { ...actionErr, [action.id]: "" };
     actionOut = { ...actionOut, [action.id]: "" };
     try {
-      const result = await cairn.configAction(homeId, schema.plugin, action.id);
+      const result = await cairn.configAction(homeId, schema.plugin, action.id, collected);
       if (result.ok) actionOut = { ...actionOut, [action.id]: result.data.stdout || "Done." };
       else actionErr = { ...actionErr, [action.id]: result.error };
     } finally {
@@ -156,7 +162,21 @@
 
   function onAction(action: ActionSpec): void {
     if (action.confirm) confirming = action.id;
-    else runAction(action);
+    else beginAction(action);
+  }
+
+  // An action declaring args is asked for them before it runs: running it without what it declared
+  // is how "create a profile" reached its plugin with no name to create. Confirmation comes first
+  // where an action wants both, so a destructive one is agreed to before anything is typed.
+  function beginAction(action: ActionSpec): void {
+    confirming = null;
+    if (!action.args?.length) { runAction(action); return; }
+    argValues = {};
+    collecting = action.id;
+  }
+
+  function setArg(arg: FieldSpec, value: unknown): void {
+    argValues = { ...argValues, [arg.key]: value };
   }
 
   // Visible labels stay clean; aria-labels are plugin-prefixed so a screen with
@@ -225,11 +245,36 @@
       tone="bad"
     >
       {#snippet control()}
-        {#if confirming === action.id}
+        {#if collecting === action.id}
+          <div class="args">
+            {#each action.args ?? [] as arg (arg.key)}
+              <label class="arg">
+                <span class="argname">{arg.label ?? arg.key}</span>
+                {#if arg.type === "boolean"}
+                  <input class="control" type="checkbox" disabled={busy} onchange={(e) => setArg(arg, e.currentTarget.checked)} />
+                {:else if arg.type === "number"}
+                  <input class="control sized" type="number" disabled={busy} onchange={(e) => setArg(arg, Number(e.currentTarget.value))} />
+                {:else if arg.type === "secret"}
+                  <input class="control sized" type="password" disabled={busy} onchange={(e) => setArg(arg, e.currentTarget.value)} />
+                {:else if arg.type === "select"}
+                  <select class="control sized" disabled={busy} onchange={(e) => setArg(arg, e.currentTarget.value)}>
+                    {#each arg.options ?? [] as opt (opt.value)}<option value={opt.value}>{opt.label}</option>{/each}
+                  </select>
+                {:else}
+                  <input class="control sized" type="text" disabled={busy} placeholder={arg.placeholder} onchange={(e) => setArg(arg, e.currentTarget.value)} />
+                {/if}
+              </label>
+            {/each}
+            <div class="argbuttons">
+              <Button disabled={busy} onclick={() => (collecting = null)}>Cancel</Button>
+              <Button variant={action.danger ? "danger" : "primary"} disabled={busy} onclick={() => runAction(action)}>{action.label}</Button>
+            </div>
+          </div>
+        {:else if confirming === action.id}
           <div class="confirm">
             <span>{action.confirm}</span>
             <Button disabled={busy} onclick={() => (confirming = null)}>Cancel</Button>
-            <Button variant={action.danger ? "danger" : "primary"} disabled={busy} onclick={() => runAction(action)}>Confirm</Button>
+            <Button variant={action.danger ? "danger" : "primary"} disabled={busy} onclick={() => beginAction(action)}>Confirm</Button>
           </div>
         {:else}
           <Button variant={action.danger ? "danger" : "default"} disabled={actionBusy[action.id] || busy} onclick={() => onAction(action)}>
@@ -289,6 +334,25 @@
     padding: var(--space-2xs) var(--space-md);
     font-size: var(--fs-xs);
     cursor: pointer;
+  }
+  .args {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2, 0.5rem);
+    align-items: flex-end;
+  }
+  .arg {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2, 0.5rem);
+  }
+  .argname {
+    color: var(--text-muted);
+    font-size: 0.85em;
+  }
+  .argbuttons {
+    display: flex;
+    gap: var(--space-2, 0.5rem);
   }
   .confirm {
     display: flex;

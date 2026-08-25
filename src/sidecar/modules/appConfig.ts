@@ -131,7 +131,24 @@ export interface ConfigActionDeps {
 // Invoke a plugin's declared action through its `settings` capability. The action id is
 // validated against a fresh read of the plugin's own declared actions (authoritative, never
 // trusted from the caller) before it runs.
-export function configAction(homeId: string, plugin: string, actionId: string, deps: ConfigActionDeps = {}): Promise<Result<{ stdout: string; stderr: string }>> {
+// What the action asked for, and nothing else. An absent result means the run is called the way an
+// action taking no input declares itself, rather than with an empty object.
+function declaredArgs(specs: FieldSpec[] | undefined, input: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!specs?.length || !input) return undefined;
+  const collected: Record<string, unknown> = {};
+  for (const spec of specs) {
+    if (Object.prototype.hasOwnProperty.call(input, spec.key)) collected[spec.key] = input[spec.key];
+  }
+  return Object.keys(collected).length ? collected : undefined;
+}
+
+/**
+ * Runs one of a plugin's declared settings actions.
+ *
+ * @param input - what the action declared under `args` and the surface collected. Filtered to the
+ * declared keys, so a caller cannot pass a plugin's action anything it did not ask for.
+ */
+export function configAction(homeId: string, plugin: string, actionId: string, input?: Record<string, unknown>, deps: ConfigActionDeps = {}): Promise<Result<{ stdout: string; stderr: string }>> {
   return wrap(async () => {
     const homes = deps.homes ?? (await pluginHomes());
     const home = homeById(homeId as PluginHomeId, homes);
@@ -140,10 +157,12 @@ export function configAction(homeId: string, plugin: string, actionId: string, d
     if (!provider) throw new Error(`plugin not found: ${plugin}`);
 
     const schemaAnswer = await callHostCapability(plugin, "settings.schema", DEFAULT_CALL_TIMEOUT_MS, async () => provider.implementation.schema());
-    const declared = schemaAnswer.ok && (schemaAnswer.value.actions?.some((a) => a.id === actionId) ?? false);
-    if (!declared) throw new Error(`unknown action: ${actionId}`);
+    const spec = schemaAnswer.ok ? schemaAnswer.value.actions?.find((a) => a.id === actionId) : undefined;
+    if (!spec) throw new Error(`unknown action: ${actionId}`);
 
-    const runAnswer = await callHostCapability(plugin, "settings.run", DEFAULT_INVOKE_TIMEOUT_MS, async () => provider.implementation.run(actionId));
+    const collected = declaredArgs(spec.args, input);
+    const runAnswer = await callHostCapability(plugin, "settings.run", DEFAULT_INVOKE_TIMEOUT_MS, async () =>
+      collected ? provider.implementation.run(actionId, collected) : provider.implementation.run(actionId));
     if (runAnswer.ok === false) throw new Error(runAnswer.error.detail);
     const outcome = runAnswer.value;
     // A refusal must still fail the Result: a plugin action that quietly reports success while

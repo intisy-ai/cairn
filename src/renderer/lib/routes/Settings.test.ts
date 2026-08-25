@@ -163,7 +163,7 @@ describe("Settings screen", () => {
     await waitFor(() => expect(writeCalls).toContainEqual(["cairn", "a-plugin", "on", false]));
 
     await fireEvent.click(screen.getByRole("button", { name: "Do it" }));
-    await waitFor(() => expect(runAction).toHaveBeenCalledWith("cairn", "a-plugin", "doIt"));
+    await waitFor(() => expect(runAction).toHaveBeenCalledWith("cairn", "a-plugin", "doIt", undefined));
   });
 
   it("keeps a control a section claimed out of the plugin's own per-app group", async () => {

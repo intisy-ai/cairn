@@ -305,9 +305,45 @@ describe("appConfig sidecar module", () => {
     };
 
     const { configAction } = await import("./appConfig.js");
-    const result = await configAction("claude", "historian", "snapshot", { homes: [home], settingsProviders });
+    const result = await configAction("claude", "historian", "snapshot", undefined, { homes: [home], settingsProviders });
 
     expect(result).toEqual({ ok: true, data: { stdout: "ran", stderr: "" } });
+    expect(run).toHaveBeenCalledWith("snapshot");
+  });
+
+  it("hands the action what it declared, and only that", async () => {
+    const { home } = makeHome("claude", "Claude Code");
+    const run = vi.fn(async () => ({ ok: true, message: "created" }));
+    const settingsProviders = async () => [{
+      pluginId: "historian",
+      implementation: {
+        schema: async () => ({ actions: [{ id: "profileCreate", label: "Create", args: [{ key: "name", type: "string" }] }] }),
+        run,
+      },
+    }];
+
+    const { configAction } = await import("./appConfig.js");
+    // `secret` is not among the declared args, so it must not reach the plugin: a surface cannot
+    // smuggle values into an action that never asked for them.
+    const result = await configAction("claude", "historian", "profileCreate", { name: "work", secret: "no" }, { homes: [home], settingsProviders });
+
+    expect(result).toEqual({ ok: true, data: { stdout: "created", stderr: "" } });
+    expect(run).toHaveBeenCalledWith("profileCreate", { name: "work" });
+  });
+
+  // An action taking none must be called the way it declares itself: a plugin reading `input.name`
+  // on the two-argument overload would otherwise see an empty object where it declared nothing.
+  it("passes no input at all to an action that declares no args", async () => {
+    const { home } = makeHome("claude", "Claude Code");
+    const run = vi.fn(async () => ({ ok: true, message: "ran" }));
+    const settingsProviders = async () => [{
+      pluginId: "historian",
+      implementation: { schema: async () => ({ actions: [{ id: "snapshot", label: "Snapshot" }] }), run },
+    }];
+
+    const { configAction } = await import("./appConfig.js");
+    await configAction("claude", "historian", "snapshot", { name: "ignored" }, { homes: [home], settingsProviders });
+
     expect(run).toHaveBeenCalledWith("snapshot");
   });
 
@@ -320,7 +356,7 @@ describe("appConfig sidecar module", () => {
     }];
 
     const { configAction } = await import("./appConfig.js");
-    const result = await configAction("claude", "historian", "snapshot", { homes: [home], settingsProviders });
+    const result = await configAction("claude", "historian", "snapshot", undefined, { homes: [home], settingsProviders });
 
     expect(result).toEqual({ ok: false, error: "conflict with a concurrent sync" });
   });
@@ -337,7 +373,7 @@ describe("appConfig sidecar module", () => {
     }];
 
     const { configAction } = await import("./appConfig.js");
-    const result = await configAction("claude", "historian", "snapshot", { homes: [home], settingsProviders });
+    const result = await configAction("claude", "historian", "snapshot", undefined, { homes: [home], settingsProviders });
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
@@ -356,7 +392,7 @@ describe("appConfig sidecar module", () => {
     }];
 
     const { configAction } = await import("./appConfig.js");
-    const result = await configAction("claude", "historian", "snapshot", { homes: [home], settingsProviders });
+    const result = await configAction("claude", "historian", "snapshot", undefined, { homes: [home], settingsProviders });
 
     expect(result).toEqual({ ok: false, error: "unknown action: snapshot" });
     expect(run).not.toHaveBeenCalled();
@@ -371,7 +407,7 @@ describe("appConfig sidecar module", () => {
     }];
 
     const { configAction } = await import("./appConfig.js");
-    const result = await configAction("claude", "historian", "danger", { homes: [home], settingsProviders });
+    const result = await configAction("claude", "historian", "danger", undefined, { homes: [home], settingsProviders });
 
     expect(result).toEqual({ ok: false, error: "unknown action: danger" });
     expect(run).not.toHaveBeenCalled();
@@ -380,7 +416,7 @@ describe("appConfig sidecar module", () => {
   it("configAction returns an error for a plugin with no settings capability in the home", async () => {
     const { home } = makeHome("claude", "Claude Code");
     const { configAction } = await import("./appConfig.js");
-    const result = await configAction("claude", "ghost", "ping", { homes: [home], settingsProviders: async () => [] });
+    const result = await configAction("claude", "ghost", "ping", undefined, { homes: [home], settingsProviders: async () => [] });
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
