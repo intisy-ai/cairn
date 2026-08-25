@@ -29,7 +29,7 @@
     "@intisy-ai/core": "^2.0.0",
     "@intisy-ai/core-auth": "^1.1.0",
     "@intisy-ai/core-loader": "^2.0.1",
-    "@intisy-ai/core-proxy": "^1.1.0"
+    "@intisy-ai/core-proxy": "^1.2.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
