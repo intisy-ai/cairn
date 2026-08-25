@@ -1,6 +1,7 @@
 import type { PluginHome, PluginHomeId, Result, ScreenData, InvokeResult } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeById } from "../lib/pluginHomes.js";
 import { capabilityOfPlugin, callHostCapability, DEFAULT_CALL_TIMEOUT_MS, DEFAULT_INVOKE_TIMEOUT_MS } from "../lib/pluginHost.js";
+import { SCREENS } from "@intisy-ai/core";
 import { wrap } from "../result.js";
 
 /** What a plugin providing `screens` answers with. */
@@ -16,7 +17,7 @@ export interface ScreensDeps {
 async function screensOf(plugin: string, homeId: string, deps: ScreensDeps): Promise<{ capability: ScreensCapabilityLike; home: PluginHome }> {
   const homes = deps.homes ?? (await pluginHomes());
   const home = homeById(homeId as PluginHomeId, homes);
-  const capability = (await capabilityOfPlugin(home.dir, home.id, plugin, "screens")) as ScreensCapabilityLike | undefined;
+  const capability = (await capabilityOfPlugin(home.dir, home.id, plugin, SCREENS.id)) as ScreensCapabilityLike | undefined;
   if (!capability) throw new Error(`${plugin} contributes no screens in ${home.label}`);
   return { capability, home };
 }

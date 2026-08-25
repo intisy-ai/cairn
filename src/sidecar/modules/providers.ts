@@ -1,6 +1,7 @@
 import { readDeployedProviders } from "@intisy-ai/core-loader/dist/loader-runtime.js";
 import { listAccounts, getConfigDir } from "@intisy-ai/core-auth";
 import { getApps } from "@intisy-ai/core";
+import { PROVIDER } from "@intisy-ai/core-auth";
 import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS } from "../lib/pluginHost.js";
 import { pluginIdFromClone } from "../lib/capabilityOwner.js";
 import { reposDir } from "../lib/storagePaths.js";
@@ -54,7 +55,7 @@ async function describedLanes(
 ): Promise<{ byId: Map<string, LaneDescriptor>; errorFor: Map<string, string> }> {
   const byId = new Map<string, LaneDescriptor>();
   const errorFor = new Map<string, string>();
-  for (const record of await capabilityProviders(homeDir, appId, "provider")) {
+  for (const record of await capabilityProviders(homeDir, appId, PROVIDER.id)) {
     const capability = record.implementation as ProviderCapabilityLike;
     if (typeof capability?.providers !== "function") continue;
     const answer = await callHostCapability(record.pluginId, "provider.providers", DEFAULT_CALL_TIMEOUT_MS, async () => capability.providers!());

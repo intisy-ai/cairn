@@ -1,5 +1,5 @@
 import { join, resolve, sep } from "node:path";
-import { setConfigValue, resolveLayout } from "@intisy-ai/core";
+import { setConfigValue, resolveLayout, SETTINGS } from "@intisy-ai/core";
 import type { ManagedNpmPlugin } from "@intisy-ai/core";
 import type { PluginConfigSchema, PluginHome, PluginHomeId, Result, FieldSpec, ActionSpec, SectionSpec, DataSpec } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir, homeById } from "../lib/pluginHomes.js";
@@ -27,7 +27,7 @@ interface SettingsCapabilityLike {
 type SettingsProvider = { pluginId: string; implementation: SettingsCapabilityLike };
 
 async function realSettingsProviders(homeDir: string, appId: string): Promise<SettingsProvider[]> {
-  const records = await capabilityProviders(homeDir, appId, "settings");
+  const records = await capabilityProviders(homeDir, appId, SETTINGS.id);
   return records.map((record) => ({ pluginId: record.pluginId, implementation: record.implementation as SettingsCapabilityLike }));
 }
 

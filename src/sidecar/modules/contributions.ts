@@ -1,7 +1,7 @@
 import type { PluginConfigSchema, PluginHome, PluginScreen, PluginSettingsSection, Result } from "../../../packages/shared/src/domain.js";
 import { pluginHomes } from "../lib/pluginHomes.js";
 import { readCache, writeCache } from "../lib/cache.js";
-import { byOrderThenLabel } from "@intisy-ai/core";
+import { byOrderThenLabel, SCREENS } from "@intisy-ai/core";
 import { getConfigDir } from "@intisy-ai/core-auth";
 import { configSchemas } from "./appConfig.js";
 import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS } from "../lib/pluginHost.js";
@@ -46,7 +46,7 @@ interface ScreensCapabilityLike {
 // this is the one place that stamps both on, from the provider record and the home being read.
 async function realScreensOf(homeDir: string, appId: string): Promise<PluginScreen[]> {
   const screens: PluginScreen[] = [];
-  for (const record of await capabilityProviders(homeDir, appId, "screens")) {
+  for (const record of await capabilityProviders(homeDir, appId, SCREENS.id)) {
     const capability = record.implementation as ScreensCapabilityLike;
     if (typeof capability?.screens !== "function") continue;
     const answer = await callHostCapability(record.pluginId, "screens.screens", DEFAULT_CALL_TIMEOUT_MS, async () => capability.screens!());
