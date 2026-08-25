@@ -60,7 +60,7 @@ export function hostFor(homeDir: string, appId: string, deps: PluginHostDeps = {
   const loading = start({
     app: appId,
     pluginDir: pluginDir(homeDir),
-    surfaces: ["cairn"],
+    surfaces: [SURFACE],
     // Behaviour a plugin may not link for itself: core-auth's provider helpers, linked once here
     // rather than copied into every provider bundle.
     services: [{ id: PROVIDER_SUPPORT, implementation: providerSupport() }],
@@ -72,6 +72,16 @@ export function hostFor(homeDir: string, appId: string, deps: PluginHostDeps = {
   hosts.set(homeDir, loading);
   return loading;
 }
+
+/**
+ * The surface id this dashboard renders as.
+ *
+ * @remarks
+ * Named once because it is asserted twice: the host is told which surface it is driving, and a
+ * screen's per-surface layout override is resolved against the same id. Two literals would let a
+ * plugin's override for this surface go unrendered.
+ */
+export const SURFACE = "cairn";
 
 /** Every plugin providing a capability in one home, in activation order. */
 export async function capabilityProviders(

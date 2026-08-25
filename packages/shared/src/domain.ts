@@ -1,6 +1,8 @@
 export type { AccountView, AccountQuota, AccountStatus } from "@intisy-ai/core-auth";
 export type { Impact, ActivityRecord, ActivityQuery, ActivityStats, ActivityHomeStats, FieldType, FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec } from "@intisy-ai/core";
-import type { FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec } from "@intisy-ai/core";
+// A union a plugin's contract defines is taken from core, never restated: a hand-copied one
+// type-checks on the day it is written and then silently narrows as the contract grows.
+import type { FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec, Align, Pad, Scope, Tone } from "@intisy-ai/core";
 
 /**
  * The capability whose provider manages a home's plugins.
@@ -378,8 +380,8 @@ export type PluginLayout = { sections: ResolvedSection[]; fields: FieldSpec[]; a
 export interface NodeStyle {
   width?: string;
   grow?: number;
-  align?: "start" | "center" | "end";
-  pad?: "none" | "tight" | "normal";
+  align?: Align;
+  pad?: Pad;
   tone?: string;
 }
 
@@ -393,7 +395,7 @@ export interface ScreenNode {
 export interface Column {
   key: string;
   label?: string;
-  tone?: "normal" | "muted" | "mono" | "old" | "new";
+  tone?: Tone;
   truncate?: number;
 }
 
@@ -410,7 +412,7 @@ export interface PluginScreen {
   label: string;
   glyph?: string;
   order?: number;
-  scope?: "home" | "allHomes";
+  scope?: Scope;
   refreshOn?: string[];
   layout: ScreenNode;
   homes: string[];
@@ -424,7 +426,6 @@ export interface InvokeResult {
   ok: boolean;
   message?: string;
   refresh?: boolean;
-  sources?: Record<string, unknown>;
 }
 // One contributed settings section, folded across every home that offers it. The controls
 // themselves stay in the plugin's schema; this is only what the settings screen needs to

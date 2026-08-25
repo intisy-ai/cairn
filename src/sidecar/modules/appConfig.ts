@@ -1,6 +1,6 @@
 import { join, resolve, sep } from "node:path";
 import { setConfigValue, resolveLayout, SETTINGS } from "@intisy-ai/core";
-import type { ManagedNpmPlugin } from "@intisy-ai/core";
+import type { ManagedNpmPlugin, CapabilitySchema, SettingsCapability } from "@intisy-ai/core";
 import type { PluginConfigSchema, PluginHome, PluginHomeId, Result, FieldSpec, ActionSpec, SectionSpec, DataSpec } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir, homeById } from "../lib/pluginHomes.js";
 import { hasCapability, listedPlugins, readPluginManagement, PLUGIN_MANAGEMENT } from "../lib/pluginManager.js";
@@ -10,19 +10,14 @@ import { readCurrentValues } from "../lib/configValues.js";
 import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS, DEFAULT_INVOKE_TIMEOUT_MS } from "../lib/pluginHost.js";
 import { wrap } from "../result.js";
 
-/** What a plugin's `settings` capability declares about itself, beyond its defaults. */
-interface CapabilityDeclaration {
-  fields?: FieldSpec[];
-  actions?: ActionSpec[];
-  sections?: SectionSpec[];
-  data?: DataSpec;
-}
-
-/** What a plugin providing `settings` answers with. */
-interface SettingsCapabilityLike {
-  schema: () => CapabilityDeclaration | Promise<CapabilityDeclaration>;
-  run: (actionId: string) => Promise<{ ok: boolean; message?: string }>;
-}
+/**
+ * What a plugin providing `settings` answers with, as core declares it.
+ *
+ * @remarks
+ * Taken from the contract rather than restated: the local copy had rebuilt core's `CapabilitySchema`
+ * from its own field types, which drifts the moment the contract grows a member.
+ */
+type SettingsCapabilityLike = Pick<SettingsCapability, "schema" | "run">;
 
 type SettingsProvider = { pluginId: string; implementation: SettingsCapabilityLike };
 

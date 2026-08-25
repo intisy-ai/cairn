@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { screensList, settingsSections, CONTRIBUTIONS_NS, resetContributionsForTests } from "./contributions.js";
 import type { Contributions } from "./contributions.js";
 import { writeCache, readCache, resetCacheForTests } from "../lib/cache.js";
+import { hostFor, resetPluginHostsForTests } from "../lib/pluginHost.js";
 import type { PluginConfigSchema, PluginHome, PluginScreen } from "../../../packages/shared/src/domain.js";
 
 function home(id: string, label: string, overrides: Partial<PluginHome> = {}): PluginHome {
@@ -20,6 +21,7 @@ beforeEach(() => {
   resetContributionsForTests();
   if (cacheDir) rmSync(cacheDir, { recursive: true, force: true });
   cacheDir = mkdtempSync(join(tmpdir(), "cairn-contributions-"));
+  resetPluginHostsForTests();
 });
 
 // What the `screens` capability answers with, already tagged the way `realScreensOf` tags it:
@@ -35,6 +37,56 @@ function schema(plugin: string): PluginConfigSchema {
 function withSections(plugin: string, sections: NonNullable<PluginConfigSchema["sections"]>): PluginConfigSchema {
   return { plugin, defaults: {}, current: {}, sections };
 }
+
+// A plugin may declare a layout for one surface and a different one for another. The dashboard
+// declares itself a surface to the host, so a layout meant for it must be the one that reaches the
+// renderer: this drives the REAL reader rather than injecting `screensOf`, since resolving the
+// override is that reader's job.
+describe("a screen declared for more than one surface", () => {
+  const spec = {
+    id: "s", label: "S",
+    layout: { kind: "text", text: "generic" },
+    surfaces: { cairn: { kind: "text", text: "for the dashboard" }, tui: { kind: "text", text: "for the terminal" } },
+  };
+
+  function hostServing(declaration: unknown) {
+    return async () => ({
+      started: ["p"], quarantined: [], deployed: [],
+      host: {
+        capability: (id: string) => (id === "screens" ? [{ pluginId: "p", implementation: declaration }] : []),
+        ledger: { entries: () => [] },
+        service: () => undefined,
+      },
+      stop: async () => {},
+    }) as never;
+  }
+
+  it("renders the layout the plugin declared for this surface", async () => {
+    await hostFor("/cairn", "cairn", { start: hostServing({ screens: () => [spec] }) });
+    const result = await screensList({ wait: true }, { cacheDir, homes: [home("cairn", "Cairn")], schemas: async () => [] });
+    if (!result.ok) throw new Error("unreachable");
+    const screens = result.data;
+    expect(screens).toHaveLength(1);
+    expect(screens[0].layout).toEqual({ kind: "text", text: "for the dashboard" });
+  });
+
+  // Nothing downstream should have to choose between two layouts, and the override map is answered
+  // by the time a screen leaves here.
+  it("carries no surface map onward", async () => {
+    await hostFor("/cairn", "cairn", { start: hostServing({ screens: () => [spec] }) });
+    const result = await screensList({ wait: true }, { cacheDir, homes: [home("cairn", "Cairn")], schemas: async () => [] });
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data[0]).not.toHaveProperty("surfaces");
+  });
+
+  it("falls back to the generic layout when the plugin declared none for this surface", async () => {
+    const only = { id: "s", label: "S", layout: { kind: "text", text: "generic" }, surfaces: { tui: { kind: "text", text: "terminal" } } };
+    await hostFor("/cairn", "cairn", { start: hostServing({ screens: () => [only] }) });
+    const result = await screensList({ wait: true }, { cacheDir, homes: [home("cairn", "Cairn")], schemas: async () => [] });
+    if (!result.ok) throw new Error("unreachable");
+    expect(result.data[0].layout).toEqual({ kind: "text", text: "generic" });
+  });
+});
 
 describe("screensList", () => {
   it("lists a screen per contributing plugin, with the homes that offer it", async () => {

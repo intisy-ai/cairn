@@ -1,10 +1,11 @@
 import type { PluginConfigSchema, PluginHome, PluginScreen, PluginSettingsSection, Result } from "../../../packages/shared/src/domain.js";
 import { pluginHomes } from "../lib/pluginHomes.js";
 import { readCache, writeCache } from "../lib/cache.js";
-import { byOrderThenLabel, SCREENS } from "@intisy-ai/core";
+import { byOrderThenLabel, screenLayoutFor, SCREENS } from "@intisy-ai/core";
+import type { ScreensCapability } from "@intisy-ai/core";
 import { getConfigDir } from "@intisy-ai/core-auth";
 import { configSchemas } from "./appConfig.js";
-import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS } from "../lib/pluginHost.js";
+import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS, SURFACE } from "../lib/pluginHost.js";
 import { wrap } from "../result.js";
 
 export const CONTRIBUTIONS_NS = "contributions";
@@ -38,21 +39,25 @@ async function realSchemas(homeId: string): Promise<PluginConfigSchema[]> {
 }
 
 /** What a plugin providing `screens` answers with, for the fields a screen list needs. */
-interface ScreensCapabilityLike {
-  screens?: () => Array<Omit<PluginScreen, "plugin" | "homes">> | Promise<Array<Omit<PluginScreen, "plugin" | "homes">>>;
-}
+// Partial rather than core's full capability: the implementation comes from a plugin this process
+// did not compile, so the declaration is checked at run time below.
+type ScreensDeclaration = Partial<Pick<ScreensCapability, "screens">>;
 
 // A ScreenSpec carries no plugin or home of its own (a plugin declares it once, for itself);
 // this is the one place that stamps both on, from the provider record and the home being read.
 async function realScreensOf(homeDir: string, appId: string): Promise<PluginScreen[]> {
   const screens: PluginScreen[] = [];
   for (const record of await capabilityProviders(homeDir, appId, SCREENS.id)) {
-    const capability = record.implementation as ScreensCapabilityLike;
+    const capability = record.implementation as ScreensDeclaration;
     if (typeof capability?.screens !== "function") continue;
     const answer = await callHostCapability(record.pluginId, "screens.screens", DEFAULT_CALL_TIMEOUT_MS, async () => capability.screens!());
     if (!answer.ok) continue;
     for (const spec of Array.isArray(answer.value) ? answer.value : []) {
-      if (spec && typeof spec.id === "string") screens.push({ ...spec, plugin: record.pluginId, homes: [appId] });
+      if (!spec || typeof spec.id !== "string") continue;
+      // The layout this surface gets, which is the plugin's override for it when it declared one.
+      // `surfaces` itself stays behind: it is answered now, and a resolved screen carries one layout.
+      const { surfaces: _resolved, ...rest } = spec;
+      screens.push({ ...rest, layout: screenLayoutFor(spec, SURFACE), plugin: record.pluginId, homes: [appId] });
     }
   }
   return screens;

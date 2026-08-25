@@ -2,22 +2,26 @@ import type { PluginHome, PluginHomeId, Result, ScreenData, InvokeResult } from 
 import { pluginHomes, homeById } from "../lib/pluginHomes.js";
 import { capabilityOfPlugin, callHostCapability, DEFAULT_CALL_TIMEOUT_MS, DEFAULT_INVOKE_TIMEOUT_MS } from "../lib/pluginHost.js";
 import { SCREENS } from "@intisy-ai/core";
+import type { ScreensCapability } from "@intisy-ai/core";
 import { wrap } from "../result.js";
 
-/** What a plugin providing `screens` answers with. */
-interface ScreensCapabilityLike {
-  read: (request: { screenId: string; home: string }) => Promise<ScreenData>;
-  invoke: (request: { screenId: string; actionId: string; home: string; input: Record<string, unknown> }) => Promise<InvokeResult>;
-}
+/**
+ * The half of a plugin's `screens` capability this module calls.
+ *
+ * @remarks
+ * Derived from core's contract rather than restated, so a request or result shape that changes
+ * there fails to compile here instead of being read wrongly at run time.
+ */
+type ScreensReadWrite = Pick<ScreensCapability, "read" | "invoke">;
 
 export interface ScreensDeps {
   homes?: PluginHome[];
 }
 
-async function screensOf(plugin: string, homeId: string, deps: ScreensDeps): Promise<{ capability: ScreensCapabilityLike; home: PluginHome }> {
+async function screensOf(plugin: string, homeId: string, deps: ScreensDeps): Promise<{ capability: ScreensReadWrite; home: PluginHome }> {
   const homes = deps.homes ?? (await pluginHomes());
   const home = homeById(homeId as PluginHomeId, homes);
-  const capability = (await capabilityOfPlugin(home.dir, home.id, plugin, SCREENS.id)) as ScreensCapabilityLike | undefined;
+  const capability = (await capabilityOfPlugin(home.dir, home.id, plugin, SCREENS.id)) as ScreensReadWrite | undefined;
   if (!capability) throw new Error(`${plugin} contributes no screens in ${home.label}`);
   return { capability, home };
 }

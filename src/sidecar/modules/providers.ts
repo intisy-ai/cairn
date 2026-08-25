@@ -2,6 +2,7 @@ import { readDeployedProviders } from "@intisy-ai/core-loader/dist/loader-runtim
 import { listAccounts, getConfigDir } from "@intisy-ai/core-auth";
 import { getApps } from "@intisy-ai/core";
 import { PROVIDER } from "@intisy-ai/core-auth";
+import type { Provider, ProviderDescriptor } from "@intisy-ai/core-auth";
 import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS } from "../lib/pluginHost.js";
 import { pluginIdFromClone } from "../lib/capabilityOwner.js";
 import { reposDir } from "../lib/storagePaths.js";
@@ -23,18 +24,11 @@ interface DeployedLane {
 }
 
 /** One lane as its plugin's `provider` capability describes it. */
-interface LaneDescriptor {
-  id: string;
-  label: string;
-  hasOAuth?: boolean;
-  accountPool?: string;
-  translator?: string;
-}
-
-interface ProviderCapabilityLike {
-  id: string;
-  providers?: () => LaneDescriptor[] | Promise<LaneDescriptor[]>;
-}
+// Both shapes are core-auth's, taken rather than restated. The local `LaneDescriptor` was a
+// ProviderDescriptor with `models` dropped, which reads as a lane having none rather than as this
+// module not using them.
+type LaneDescriptor = ProviderDescriptor;
+type ProviderCapabilityLike = Pick<Provider, "id" | "providers">;
 
 export interface ProvidersDeps {
   homeDir?: string;
