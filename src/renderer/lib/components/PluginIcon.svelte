@@ -1,6 +1,6 @@
 <script lang="ts" module>
-  // The one place every plugin/app logo is rendered. A logo asset (cairn.json
-  // icon.svg) is a square SVG; this renders it in a fixed square box, scaled to
+  // The one place every plugin/app logo is rendered. A logo asset (the icon.svg a
+  // manifest names) is a square SVG; this renders it in a fixed square box, scaled to
   // fit whole (never cropped), so a stray non-square or oversized source still
   // lays out cleanly. Renderers pass one of the standard sizes.
   //

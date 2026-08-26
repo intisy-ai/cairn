@@ -73,10 +73,10 @@ describe("scanOrg", () => {
     expect(result.entries.find((e) => e.name === "stub-auth")?.topics).toEqual(["intisy-ai", "ai-provider"]);
   });
 
-  it("enriches an entry with displayName + icon from cairn.json", async () => {
+  it("enriches an entry with displayName + icon from its manifest", async () => {
     const manifest = { displayName: "Sync Bridge", icon: "icon.svg" };
     const fetchFn = (async (url: string) => {
-      if (url.includes("/contents/cairn.json")) return { ok: true, status: 200, json: async () => ({ encoding: "base64", content: Buffer.from(JSON.stringify(manifest)).toString("base64") }) };
+      if (url.includes("/contents/plugin.json")) return { ok: true, status: 200, json: async () => ({ encoding: "base64", content: Buffer.from(JSON.stringify(manifest)).toString("base64") }) };
       if (url.includes("/contents/icon.svg")) return { ok: true, status: 200, json: async () => ({ encoding: "base64", content: Buffer.from("<svg/>").toString("base64") }) };
       return { ok: true, status: 200, json: async () => [repo("sync-bridge", ["plugin"])] };
     }) as unknown as typeof fetch;

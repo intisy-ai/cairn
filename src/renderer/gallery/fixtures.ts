@@ -50,7 +50,7 @@ const CATALOG = [
   { name: "gemini-translator", url: "https://example/gemini-translator", kind: "translator" as const, description: "Translates the Gemini wire format to the canonical IR.", deprecated: false, topics: ["vendor-translator", "gemini"], sourceId: "intisy-ai" },
 ];
 
-// What custom-auth's cairn.json declares: a category selected by TOPIC, so a translator
+// What custom-auth's manifest declares: a category selected by TOPIC, so a translator
 // published later joins it without custom-auth changing.
 const CONTRIBUTIONS = [
   { id: "translators", label: "Translators", match: { topics: ["vendor-translator"] }, contributedBy: "custom-auth" },

@@ -87,10 +87,10 @@ describe("discoverApps", () => {
     expect(getApps()).toEqual([]);
   });
 
-  it("refreshes a known app from its installed loader's on-disk cairn.json", async () => {
+  it("refreshes a known app from its installed loader's on-disk manifest", async () => {
     registerApp(gammaApp);
     const updated: AppDescriptor = { ...gammaApp, label: "Gamma CLI (updated)" };
-    const readFile = (path: string) => (path.endsWith("cairn.json") ? JSON.stringify({ app: updated }) : "");
+    const readFile = (path: string) => (path.endsWith("plugin.json") ? JSON.stringify({ app: updated }) : "");
     await discoverApps({ scanOrgFn: emptyScan, exists: () => true, readFile });
     expect(getApps().find((a) => a.id === "gamma")?.label).toBe("Gamma CLI (updated)");
   });
@@ -112,7 +112,7 @@ describe("discoverApps", () => {
     registerApp(gammaApp);
     const svg = "<svg viewBox=\"0 0 10 10\"><rect width=\"10\" height=\"10\"/></svg>";
     const readFile = (path: string) => {
-      if (path.endsWith("cairn.json")) return JSON.stringify({ app: gammaApp, icon: "icon.svg" });
+      if (path.endsWith("plugin.json")) return JSON.stringify({ app: gammaApp, icon: "icon.svg" });
       if (path.endsWith("icon.svg")) return svg;
       return "";
     };

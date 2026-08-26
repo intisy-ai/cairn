@@ -64,12 +64,12 @@ function rawSvgFromDataUri(uri: string | undefined): string | undefined {
   return undefined;
 }
 
-// A loader's installed clone carries its cairn.json `app` block at the same
-// "repos/<loaderId>/cairn.json" path the sidecar already reads plugin manifests
-// from (see plugins.ts's readManifest). Undefined when the clone predates the
-// app block, in which case the org-scan descriptor still stands.
+// A loader's installed clone carries its `app` block in the same
+// "repos/<loaderId>/plugin.json" the sidecar already reads plugin manifests from
+// (see plugins.ts's readManifest). Undefined when the clone declares no app
+// block, in which case the org-scan descriptor still stands.
 function readInstalledAppBlock(dir: string, exists: (p: string) => boolean, readFile: (p: string) => string): AppDescriptor | undefined {
-  const manifestPath = join(dir, "cairn.json");
+  const manifestPath = join(dir, "plugin.json");
   if (!exists(manifestPath)) return undefined;
   try {
     const manifest = JSON.parse(readFile(manifestPath)) as { app?: unknown };

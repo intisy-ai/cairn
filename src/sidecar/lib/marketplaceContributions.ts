@@ -54,7 +54,7 @@ function contributionsFrom(raw: unknown, plugin: string): MarketplaceContributio
   return out;
 }
 
-// Categories a plugin adds to the marketplace, declared in its own cairn.json.
+// Categories a plugin adds to the marketplace, declared in its own manifest.
 //
 // A contribution states a MATCH, never a list of entries. That is what keeps it dynamic: a
 // translator published tomorrow carries the topic the category matches and appears with no
@@ -70,7 +70,7 @@ export function readMarketplaceContributions(deps: ContributionDeps = {}): Marke
   const out: MarketplaceContribution[] = [];
   const claimed = new Set<string>();
   for (const plugin of list(dir)) {
-    const source = read(join(dir, plugin, "cairn.json"));
+    const source = read(join(dir, plugin, "plugin.json"));
     if (!source) continue;
     let parsed: unknown;
     try {

@@ -58,7 +58,7 @@ export function appsDetect(deps: AppsDetectDeps = {}): Promise<Result<AppPresenc
   });
 }
 
-// An app's mark is its loader's brand, sourced from the loader repo's cairn.json
+// An app's mark is its loader's brand, sourced from the loader repo's manifest
 // (via the org-scan catalog), never hardcoded. Best-effort: a failed scan just
 // yields no loader icons, so apps fall back to a lettermark.
 async function loaderIconMap(): Promise<Record<string, string>> {

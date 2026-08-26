@@ -65,9 +65,9 @@ export async function resolveToken(env: NodeJS.ProcessEnv, _execFn: (f: string, 
   return { token: null, source: "anonymous" };
 }
 
-// Fetch one repo's cairn.json manifest (displayName + icon) via the contents API,
-// so it works for private repos with the same token. Best-effort: a repo without a
-// manifest (404) returns {}. The icon SVG is base64-encoded into a data URI.
+// Fetch one repo's manifest (displayName + icon) via the contents API, so it works
+// for private repos with the same token. Best-effort: a repo without a manifest
+// (404) returns {}. The icon SVG is base64-encoded into a data URI.
 async function fetchManifest(
   fetchFn: typeof fetch,
   org: string,
@@ -100,7 +100,7 @@ async function fetchManifestUncached(
       return null;
     }
   };
-  const manifestB64 = await contents("cairn.json");
+  const manifestB64 = await contents("plugin.json");
   if (!manifestB64) return {};
   try {
     const manifest = JSON.parse(Buffer.from(manifestB64, "base64").toString("utf-8"));
