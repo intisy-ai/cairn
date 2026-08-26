@@ -24,7 +24,7 @@ let tempDir: string;
 // buildSnapshot() -> buildSessionsWithCosts() reads app.usage.formats off
 // getApps() (see sessions.test.ts), which now comes solely from the apps.json
 // registry, so claude/opencode need seeding with the same home fields and
-// usage formats as the real loader descriptors (loaders/*/cairn.json).
+// usage formats as the real loader descriptors (loaders/*/plugin.json).
 const claudeApp: AppDescriptor = {
   id: "claude",
   label: "Claude Code",

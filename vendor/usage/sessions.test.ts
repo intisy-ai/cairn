@@ -36,7 +36,7 @@ let tempDir: string;
 // buildSessionsWithCosts() reads app.usage.formats off getApps() (see
 // vendor/usage/sessions.ts), which now comes solely from the apps.json
 // registry, so every test needs claude/opencode seeded with the same home
-// fields and usage formats as the real loader descriptors (loaders/*/cairn.json),
+// fields and usage formats as the real loader descriptors (loaders/*/plugin.json),
 // matching the HUB_*_DIR overrides this file drives.
 const claudeApp: AppDescriptor = {
   id: "claude",
