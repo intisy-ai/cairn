@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/@intisy-ai/api/schema/plugin.schema.json",
+  "id": "cairn",
+  "api": 1,
+  "repo": {
+    "role": "Desktop control dashboard",
+    "category": "dashboard",
+    "tech": [
+      "typescript",
+      "electron",
+      "svelte"
+    ]
+  }
+}
