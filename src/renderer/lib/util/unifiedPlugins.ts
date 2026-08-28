@@ -52,8 +52,8 @@ export function buildUnifiedPlugins(
   const names = new Set<string>();
   for (const s of sections) for (const r of s.rows) names.add(r.name);
   for (const e of catalog) names.add(e.name);
-  // Engines are always offered even when the catalog (org scan) omits them, e.g.
-  // plugin-updater lives in a tool repo the catalog filters out.
+  // Engines are always offered even when the catalog (org scan) omits them: an engine may live in a
+  // repo the catalog filters out, and a home that already runs one must still see it.
   for (const e of engines) names.add(e.name);
 
   const out: UnifiedPlugin[] = [];
