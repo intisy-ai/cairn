@@ -28,7 +28,7 @@
     "@intisy-ai/api": "^1.0.2",
     "@intisy-ai/core": "^2.6.0",
     "@intisy-ai/core-auth": "^2.0.0",
-    "@intisy-ai/core-loader": "^2.0.1",
+    "@intisy-ai/core-loader": "^3.0.0",
     "@intisy-ai/core-proxy": "^2.0.0"
   },
   "devDependencies": {
