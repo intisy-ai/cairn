@@ -11,7 +11,7 @@ function descWithLoader(loaderId: string): AppDescriptor {
 
 const loaderUrl = (loaderId: string): string => `org/${loaderId}`;
 
-// getAppDescriptor/getApps now read solely from apps.json (see libs/core/src/apps.ts),
+// getAppDescriptor/getApps now read solely from apps.json (see libs/basekit/src/apps.ts),
 // so every test exercising a real (non-injected) descriptor lookup needs a seeded
 // registry with generic fixture apps instead of relying on a builtin app list.
 const alphaApp: AppDescriptor = {

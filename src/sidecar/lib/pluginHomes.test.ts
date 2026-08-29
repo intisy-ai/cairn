@@ -7,7 +7,7 @@ import { resolveStoreDir } from "../../main/lib/storeDir.js";
 import type { AppDescriptor } from "@intisy-ai/basekit";
 
 // getApps()/getAppDescriptor() now read solely from the apps.json registry (see
-// libs/core/src/apps.ts), so tests exercising real descriptor lookups need a
+// libs/basekit/src/apps.ts), so tests exercising real descriptor lookups need a
 // seeded registry instead of relying on a builtin claude/opencode app list.
 const claudeApp: AppDescriptor = {
   id: "claude",

@@ -10,7 +10,7 @@ import { fixtureRoutingProfile } from "../lib/routingProfileFixture.js";
 beforeAll(() => initCoreProxy());
 
 // getApps()/getAppDescriptor() now read solely from the apps.json registry (see
-// libs/core/src/apps.ts), so these tests need a seeded "claude" entry. Its home
+// libs/basekit/src/apps.ts), so these tests need a seeded "claude" entry. Its home
 // candidate points at the OS temp dir, which always exists, so appsDetect()'s
 // real (non-injected) presence check is stable across machines.
 const claudeApp: AppDescriptor = {
