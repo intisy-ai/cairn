@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, utimesSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { listInstalledProxies, loadInstalledProxyDefs, resetProxyDefCacheForTests } from "./proxyPlugins.js";
-import type { AppDescriptor } from "@intisy-ai/core";
+import type { AppDescriptor } from "@intisy-ai/basekit";
 
 // isProxyDef (see proxyPlugins.ts) validates a loaded proxyDef's `app` id against
 // getAppDescriptor(), which now reads solely from the apps.json registry, so

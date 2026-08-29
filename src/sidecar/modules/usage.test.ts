@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AppDescriptor } from "@intisy-ai/core";
+import type { AppDescriptor } from "@intisy-ai/basekit";
 
 const stubHandlerPath = fileURLToPath(new URL("../../../../../providers/stub-auth/dist/handler.js", import.meta.url));
 const stubIsCheckedOut = existsSync(stubHandlerPath);
@@ -151,7 +151,7 @@ describe("usage sidecar module", () => {
   it.skipIf(!stubIsCheckedOut)("returns real sessions and models from the vendored snapshot layer alongside deployed-provider accounts", async () => {
     seedStubProvider();
     seedClaudeSession();
-    const { addAccount } = await import("@intisy-ai/core-auth");
+    const { addAccount } = await import("@intisy-ai/basekit/auth");
     addAccount("stub", { id: "a1", email: "a1@example.com", refresh: "r1", enabled: true });
 
     const { usageSnapshot } = await import("./usage.js");

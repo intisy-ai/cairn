@@ -315,7 +315,7 @@ describe("Accounts screen", () => {
   it("reads a shared pool through the lane whose bundle loaded", async () => {
     const accountsList = vi.fn(async () => ({ ok: true, data: ACCOUNTS }) as const);
     const brokenFirst = [
-      { ...SHARED_POOL[0], defsError: "Cannot find package '@intisy-ai/core-auth'" },
+      { ...SHARED_POOL[0], defsError: "Cannot find package '@intisy-ai/basekit/auth'" },
       SHARED_POOL[1],
     ];
     stubCairn({ providersList: async () => ({ ok: true, data: brokenFirst }), accountsList });
@@ -363,7 +363,7 @@ describe("Accounts screen", () => {
     stubCairn({
       providersList: async () => ({
         ok: true,
-        data: [{ ...SHARED_POOL[0], defsError: "Cannot find package '@intisy-ai/core-auth'" }],
+        data: [{ ...SHARED_POOL[0], defsError: "Cannot find package '@intisy-ai/basekit/auth'" }],
       }),
       accountsList: async () => ({ ok: true, data: [] }),
     });

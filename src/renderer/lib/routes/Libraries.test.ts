@@ -18,14 +18,14 @@ function data(): HomeLibraries[] {
     {
       home: home("cairn", "Cairn"),
       shared: [
-        { specifier: "@intisy-ai/core", version: "2.1.0", usedBy: ["stub-auth"] },
+        { specifier: "@intisy-ai/basekit", version: "2.1.0", usedBy: ["stub-auth"] },
         { specifier: "@intisy-ai/left-behind", version: "1.0.0", usedBy: [] },
       ],
       plugins: [{ plugin: "stub-auth", dependencies: [{ specifier: "undici", version: "6.19.2", usedBy: [] }] }],
     },
     {
       home: home("claude", "Claude Code"),
-      shared: [{ specifier: "@intisy-ai/core", version: "2.1.0", usedBy: ["stub-auth"] }],
+      shared: [{ specifier: "@intisy-ai/basekit", version: "2.1.0", usedBy: ["stub-auth"] }],
       plugins: [],
     },
   ];
@@ -42,15 +42,15 @@ describe("Libraries screen", () => {
     stubCairn({ librariesList: async () => ({ ok: true, data: data() }) });
     render(Libraries);
 
-    await screen.findByText("@intisy-ai/core");
-    expect(screen.getAllByText("@intisy-ai/core")).toHaveLength(1);
+    await screen.findByText("@intisy-ai/basekit");
+    expect(screen.getAllByText("@intisy-ai/basekit")).toHaveLength(1);
   });
 
   it("names the homes a library is installed in, beside it", async () => {
     stubCairn({ librariesList: async () => ({ ok: true, data: data() }) });
     render(Libraries);
 
-    const core = await waitFor(() => row("@intisy-ai/core"));
+    const core = await waitFor(() => row("@intisy-ai/basekit"));
     expect(within(core).getByTitle("Cairn")).toBeInTheDocument();
     expect(within(core).getByTitle("Claude Code")).toBeInTheDocument();
   });
@@ -59,7 +59,7 @@ describe("Libraries screen", () => {
     stubCairn({ librariesList: async () => ({ ok: true, data: data() }) });
     render(Libraries);
 
-    expect(within(await waitFor(() => row("@intisy-ai/core"))).getByText("stub-auth")).toBeInTheDocument();
+    expect(within(await waitFor(() => row("@intisy-ai/basekit"))).getByText("stub-auth")).toBeInTheDocument();
     expect(within(row("@intisy-ai/left-behind")).getByText("used by nothing installed")).toBeInTheDocument();
   });
 
@@ -72,23 +72,23 @@ describe("Libraries screen", () => {
   it("narrows to the unused ones on demand", async () => {
     stubCairn({ librariesList: async () => ({ ok: true, data: data() }) });
     render(Libraries);
-    await screen.findByText("@intisy-ai/core");
+    await screen.findByText("@intisy-ai/basekit");
 
     await fireEvent.click(screen.getByRole("button", { name: /^Unused/ }));
 
-    await waitFor(() => expect(screen.queryByText("@intisy-ai/core")).toBeNull());
+    await waitFor(() => expect(screen.queryByText("@intisy-ai/basekit")).toBeNull());
     expect(screen.getByText("@intisy-ai/left-behind")).toBeInTheDocument();
   });
 
   it("filters by specifier and by the plugin that uses it", async () => {
     stubCairn({ librariesList: async () => ({ ok: true, data: data() }) });
     const { container } = render(Libraries);
-    await screen.findByText("@intisy-ai/core");
+    await screen.findByText("@intisy-ai/basekit");
 
     await fireEvent.input(container.querySelector("input")!, { target: { value: "stub-auth" } });
 
     await waitFor(() => expect(screen.queryByText("@intisy-ai/left-behind")).toBeNull());
-    expect(screen.getByText("@intisy-ai/core")).toBeInTheDocument();
+    expect(screen.getByText("@intisy-ai/basekit")).toBeInTheDocument();
   });
 
   // A library nothing declares is removable on its own; one in use is not, and the row offers
@@ -112,7 +112,7 @@ describe("Libraries screen", () => {
     stubCairn({ librariesList: async () => ({ ok: true, data: data() }), pluginsRemoveEverywhere });
     render(Libraries);
 
-    const core = await waitFor(() => row("@intisy-ai/core"));
+    const core = await waitFor(() => row("@intisy-ai/basekit"));
     expect(within(core).queryByRole("button", { name: "Remove" })).toBeNull();
     await fireEvent.click(within(core).getByRole("button", { name: "Uninstall users" }));
 
@@ -173,7 +173,7 @@ describe("navigating from a library to what uses it", () => {
     stubCairn({ librariesList: async () => ({ ok: true, data: data() }) });
     render(Libraries);
 
-    const core = await waitFor(() => row("@intisy-ai/core"));
+    const core = await waitFor(() => row("@intisy-ai/basekit"));
     await fireEvent.click(within(core).getByRole("button", { name: "stub-auth" }));
 
     await waitFor(() => expect(get(router).screen).toBe("plugins"));
@@ -186,14 +186,14 @@ describe("a library with more users than fit on its row", () => {
   const MANY = ["a-plugin", "b-plugin", "c-plugin", "d-plugin", "e-plugin"];
 
   function crowded(): HomeLibraries[] {
-    return [{ home: home("cairn", "Cairn"), shared: [{ specifier: "@intisy-ai/core", version: "2.1.0", usedBy: MANY }], plugins: [] }];
+    return [{ home: home("cairn", "Cairn"), shared: [{ specifier: "@intisy-ai/basekit", version: "2.1.0", usedBy: MANY }], plugins: [] }];
   }
 
   it("shows the first few and counts the rest", async () => {
     stubCairn({ librariesList: async () => ({ ok: true, data: crowded() }) });
     render(Libraries);
 
-    const core = await waitFor(() => row("@intisy-ai/core"));
+    const core = await waitFor(() => row("@intisy-ai/basekit"));
     expect(within(core).getByRole("button", { name: "a-plugin" })).toBeInTheDocument();
     expect(within(core).queryByRole("button", { name: "d-plugin" })).toBeNull();
     expect(within(core).getByRole("button", { name: "+2 more" })).toBeInTheDocument();
@@ -203,7 +203,7 @@ describe("a library with more users than fit on its row", () => {
     stubCairn({ librariesList: async () => ({ ok: true, data: crowded() }) });
     render(Libraries);
 
-    await fireEvent.click(within(await waitFor(() => row("@intisy-ai/core"))).getByRole("button", { name: "+2 more" }));
+    await fireEvent.click(within(await waitFor(() => row("@intisy-ai/basekit"))).getByRole("button", { name: "+2 more" }));
 
     const dialog = within(await screen.findByRole("dialog"));
     for (const plugin of MANY) expect(dialog.getByRole("button", { name: plugin })).toBeInTheDocument();
@@ -224,7 +224,7 @@ describe("progress for a removal started from a library", () => {
     });
     render(Libraries);
 
-    await fireEvent.click(within(await waitFor(() => row("@intisy-ai/core"))).getByRole("button", { name: "Uninstall users" }));
+    await fireEvent.click(within(await waitFor(() => row("@intisy-ai/basekit"))).getByRole("button", { name: "Uninstall users" }));
     await fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Uninstall" }));
 
     await waitFor(() => expect(get(downloadRows).some((task) => task.label === "Remove stub-auth everywhere")).toBe(true));

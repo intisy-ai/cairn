@@ -4,7 +4,7 @@ import { tmpdir, homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { appRealHome, pluginHomes, loaderInstalled, homeById } from "./pluginHomes.js";
 import { resolveStoreDir } from "../../main/lib/storeDir.js";
-import type { AppDescriptor } from "@intisy-ai/core";
+import type { AppDescriptor } from "@intisy-ai/basekit";
 
 // getApps()/getAppDescriptor() now read solely from the apps.json registry (see
 // libs/core/src/apps.ts), so tests exercising real descriptor lookups need a

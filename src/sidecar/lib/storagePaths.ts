@@ -1,5 +1,5 @@
-import { appIdForHome, getAppDescriptor, appPaths } from "@intisy-ai/core";
-import type { AppPaths } from "@intisy-ai/core";
+import { appIdForHome, getAppDescriptor, appPaths } from "@intisy-ai/basekit";
+import type { AppPaths } from "@intisy-ai/basekit";
 
 // The storage directories for one app home. Cairn manages several homes at once
 // and is handed a directory rather than an app id, so the owning app is looked up

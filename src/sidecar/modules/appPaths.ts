@@ -1,4 +1,4 @@
-import { getAppDescriptor, setAppPaths, appPaths, resolveHome, moveAppPaths, movesFailed, validatePathNames, DEFAULT_PATH_NAMES } from "@intisy-ai/core";
+import { getAppDescriptor, setAppPaths, appPaths, resolveHome, moveAppPaths, movesFailed, validatePathNames, DEFAULT_PATH_NAMES } from "@intisy-ai/basekit";
 import type { AppPathNames, AppStorage, AppStorageResult, Result } from "../../../packages/shared/src/domain.js";
 import { ok, err } from "../result.js";
 
@@ -19,7 +19,7 @@ export function appStorageGet(app: string, deps: AppPathsDeps = {}): Promise<Res
     const desc = (deps.describe ?? getAppDescriptor)(app);
     if (!desc) return err(`unknown app: ${app}`);
     const dir = (deps.homeOf ?? homeFor)(app);
-    return ok({ app, home: dir, names: desc.paths, defaults: DEFAULT_PATH_NAMES, resolved: appPaths(dir, desc) });
+    return ok({ app, home: dir, names: desc.paths ?? DEFAULT_PATH_NAMES, defaults: DEFAULT_PATH_NAMES, resolved: appPaths(dir, desc) });
   });
 }
 
@@ -38,7 +38,7 @@ export function appStorageSet(app: string, names: AppPathNames, deps: AppPathsDe
     const dir = (deps.homeOf ?? homeFor)(app);
     if (!dir) return err(`no home for app: ${app}`);
 
-    const moves = (deps.move ?? moveAppPaths)(dir, desc.paths, names);
+    const moves = (deps.move ?? moveAppPaths)(dir, desc.paths ?? DEFAULT_PATH_NAMES, names);
     const failed = movesFailed(moves);
     if (failed.length > 0) {
       const move = failed[0];

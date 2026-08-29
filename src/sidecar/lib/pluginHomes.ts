@@ -1,5 +1,5 @@
 import { homedir } from "node:os";
-import { getApps, getAppDescriptor, resolveHome } from "@intisy-ai/core";
+import { getApps, getAppDescriptor, resolveHome } from "@intisy-ai/basekit";
 import { resolveStoreDir } from "../../main/lib/storeDir.js";
 import { appsDetect } from "../modules/apps.js";
 import { renderCairnMark } from "../../../packages/shared/src/logo.js";
@@ -18,7 +18,7 @@ export function appRealHome(app: string, env: NodeJS.ProcessEnv = process.env, h
 // against) asks here, and gets the same directory `HUB_CONFIG_DIR` already points every
 // other sidecar path at.
 //
-// @implNote Neither of the two directories this used to name will do. core-auth's
+// @implNote Neither of the two directories this used to name will do. basekit/auth's
 // getConfigDir falls back to the ACTIVE APP's home when HUB_CONFIG_DIR is unset, which
 // once made "install into Cairn" write into Claude's home. The app registry's directory
 // is a fixed global path so loaders and providers inside Claude or OpenCode can find it

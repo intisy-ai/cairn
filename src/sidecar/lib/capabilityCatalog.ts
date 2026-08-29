@@ -1,7 +1,7 @@
-import { catalogFor, queryCapability } from "@intisy-ai/core-loader/dist/capability-catalog.js";
-import type { CatalogDeps, CatalogEntry } from "@intisy-ai/core-loader/dist/capability-catalog.js";
-import { readMarketplaceSources, builtInSource } from "@intisy-ai/core-loader/dist/catalog-sources.js";
-import type { MarketplaceSource } from "@intisy-ai/core-loader/dist/catalog-sources.js";
+import { catalogFor, queryCapability } from "@intisy-ai/basekit/loader/capability-catalog.js";
+import type { CatalogDeps, CatalogEntry } from "@intisy-ai/basekit/loader/capability-catalog.js";
+import { readMarketplaceSources, builtInSource } from "@intisy-ai/basekit/loader/catalog-sources.js";
+import type { MarketplaceSource } from "@intisy-ai/basekit/loader/catalog-sources.js";
 import { pathsForHome } from "./storagePaths.js";
 import { resolveToken } from "./orgScan.js";
 
@@ -10,7 +10,7 @@ export type { CatalogEntry };
 /** How long a home's fetched catalog stands before it is read again. */
 const CATALOG_WINDOW_MS = 3_600_000;
 
-// core-loader's own homePaths derives its subdirectory names from the ACTIVE home's environment
+// basekit/loader's own homePaths derives its subdirectory names from the ACTIVE home's environment
 // overrides, which is wrong for a dashboard reading three foreign homes at once. pathsForHome looks
 // the owning app up from the directory instead, so each home answers with its own names.
 function pathsOf(homeDir: string) {
@@ -28,7 +28,7 @@ function pathsOf(homeDir: string) {
  * A GitHub read carrying whatever credential this machine has connected.
  *
  * @remarks
- * core-loader's own default sends a User-Agent and nothing else, so every catalog build queried
+ * basekit/loader's own default sends a User-Agent and nothing else, so every catalog build queried
  * GitHub anonymously against its 60-per-hour budget while the marketplace list beside it used a
  * token. One catalog build fans a manifest read out across every repository in the org, so the
  * anonymous budget is exhausted by a single build and the capability lookup then answers "no plugin

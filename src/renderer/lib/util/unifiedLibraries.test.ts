@@ -15,12 +15,12 @@ describe("buildUnifiedLibraries", () => {
   // libraries rather than one installed in two places.
   it("lists a library installed in two homes once, naming both homes", () => {
     const rows = buildUnifiedLibraries([
-      { home: home("alpha", "Alpha"), shared: [lib("@intisy-ai/core", "1.2.0", ["antigravity-auth"])], plugins: [] },
-      { home: home("beta", "Beta"), shared: [lib("@intisy-ai/core", "1.1.0", ["claude-code-auth"])], plugins: [] },
+      { home: home("alpha", "Alpha"), shared: [lib("@intisy-ai/basekit", "1.2.0", ["antigravity-auth"])], plugins: [] },
+      { home: home("beta", "Beta"), shared: [lib("@intisy-ai/basekit", "1.1.0", ["claude-code-auth"])], plugins: [] },
     ]);
 
     expect(rows).toHaveLength(1);
-    expect(rows[0].specifier).toBe("@intisy-ai/core");
+    expect(rows[0].specifier).toBe("@intisy-ai/basekit");
     expect(Object.keys(rows[0].homes).sort()).toEqual(["alpha", "beta"]);
   });
 
@@ -28,8 +28,8 @@ describe("buildUnifiedLibraries", () => {
   // data does not support.
   it("keeps each home's own version", () => {
     const rows = buildUnifiedLibraries([
-      { home: home("alpha", "Alpha"), shared: [lib("@intisy-ai/core", "1.2.0")], plugins: [] },
-      { home: home("beta", "Beta"), shared: [lib("@intisy-ai/core", "1.1.0")], plugins: [] },
+      { home: home("alpha", "Alpha"), shared: [lib("@intisy-ai/basekit", "1.2.0")], plugins: [] },
+      { home: home("beta", "Beta"), shared: [lib("@intisy-ai/basekit", "1.1.0")], plugins: [] },
     ]);
     expect(rows[0].homes.alpha.version).toBe("1.2.0");
     expect(rows[0].homes.beta.version).toBe("1.1.0");
@@ -37,8 +37,8 @@ describe("buildUnifiedLibraries", () => {
 
   it("merges the plugins that use it across homes, without repeating one", () => {
     const rows = buildUnifiedLibraries([
-      { home: home("alpha", "Alpha"), shared: [lib("@intisy-ai/core-auth", "1.0.0", ["antigravity-auth", "claude-code-auth"])], plugins: [] },
-      { home: home("beta", "Beta"), shared: [lib("@intisy-ai/core-auth", "1.0.0", ["claude-code-auth"])], plugins: [] },
+      { home: home("alpha", "Alpha"), shared: [lib("@intisy-ai/basekit/auth", "1.0.0", ["antigravity-auth", "claude-code-auth"])], plugins: [] },
+      { home: home("beta", "Beta"), shared: [lib("@intisy-ai/basekit/auth", "1.0.0", ["claude-code-auth"])], plugins: [] },
     ]);
     expect(rows[0].usedBy).toEqual(["antigravity-auth", "claude-code-auth"]);
   });
@@ -76,12 +76,12 @@ describe("isOrphan", () => {
     const rows = buildUnifiedLibraries([
       {
         home: home("alpha", "Alpha"),
-        shared: [lib("@intisy-ai/left-behind", "1.0.0"), lib("@intisy-ai/core", "1.0.0", ["antigravity-auth"])],
+        shared: [lib("@intisy-ai/left-behind", "1.0.0"), lib("@intisy-ai/basekit", "1.0.0", ["antigravity-auth"])],
         plugins: [],
       },
     ]);
     const orphan = rows.find((r) => r.specifier === "@intisy-ai/left-behind")!;
-    const used = rows.find((r) => r.specifier === "@intisy-ai/core")!;
+    const used = rows.find((r) => r.specifier === "@intisy-ai/basekit")!;
     expect(isOrphan(orphan)).toBe(true);
     expect(isOrphan(used)).toBe(false);
   });

@@ -1,4 +1,4 @@
-import { getConfigValue } from "@intisy-ai/core";
+import { getConfigValue } from "@intisy-ai/basekit";
 import { PROXY_PORT } from "../../../packages/shared/src/proxy.js";
 
 // The local API port is user-configurable (cairn config `localApiPort`); every

@@ -4,9 +4,9 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 import { join } from "node:path";
-import { getConfigDir } from "@intisy-ai/core-auth";
-import { getConfigValue, activityEnv, getAppDescriptor, registerPluginWithApp } from "@intisy-ai/core";
-import type { ActionResult, ManagedNpmPlugin, ManagedPlugin, PluginManagementCapability, PluginUpdateCache } from "@intisy-ai/core";
+import { getConfigDir } from "@intisy-ai/basekit/auth";
+import { getConfigValue, activityEnv, getAppDescriptor, registerPluginWithApp } from "@intisy-ai/basekit";
+import type { ActionResult, ManagedNpmPlugin, ManagedPlugin, PluginManagementCapability, PluginUpdateCache } from "@intisy-ai/basekit";
 import { readPluginManifest } from "../lib/pluginManifest.js";
 import { pluginIdFromClone } from "../lib/capabilityOwner.js";
 import { emitCairnAction } from "../activity.js";

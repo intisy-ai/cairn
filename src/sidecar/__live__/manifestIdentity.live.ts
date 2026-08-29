@@ -3,7 +3,7 @@
 // are the visible symptoms of a manifest a home cannot read.
 import { readdirSync } from "node:fs";
 import { describe, it, expect } from "vitest";
-import { getApps } from "@intisy-ai/core";
+import { getApps } from "@intisy-ai/basekit";
 import { readPluginManifest, providerIcon } from "../lib/pluginManifest.js";
 import { readMarketplaceContributions } from "../lib/marketplaceContributions.js";
 import { pluginHomes } from "../lib/pluginHomes.js";

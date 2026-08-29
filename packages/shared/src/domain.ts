@@ -1,8 +1,8 @@
-export type { AccountView, AccountQuota, AccountStatus } from "@intisy-ai/core-auth";
-export type { Impact, ActivityRecord, ActivityQuery, ActivityStats, ActivityHomeStats, FieldType, FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec } from "@intisy-ai/core";
+export type { AccountView, AccountQuota, AccountStatus } from "@intisy-ai/basekit/auth";
+export type { Impact, ActivityRecord, ActivityQuery, ActivityStats, ActivityHomeStats, FieldType, FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec } from "@intisy-ai/basekit";
 // A union a plugin's contract defines is taken from core, never restated: a hand-copied one
 // type-checks on the day it is written and then silently narrows as the contract grows.
-import type { FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec, Align, Pad, Scope, Tone } from "@intisy-ai/core";
+import type { FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec, Align, Pad, Scope, Tone } from "@intisy-ai/basekit";
 
 /**
  * The capability whose provider manages a home's plugins.
@@ -21,9 +21,9 @@ export interface UpdateSummary {
   failed: string[];
   checkedAt: string;
 }
-export type { Chain, ModelMap, CatalogEntry as ModelCatalogEntry } from "@intisy-ai/core-proxy";
-import type { ModelMap, CatalogEntry as ModelCatalogEntry } from "@intisy-ai/core-proxy";
-import type { AppDescriptor } from "@intisy-ai/core";
+export type { Chain, ModelMap, CatalogEntry as ModelCatalogEntry } from "@intisy-ai/basekit/proxy";
+import type { ModelMap, CatalogEntry as ModelCatalogEntry } from "@intisy-ai/basekit/proxy";
+import type { AppDescriptor } from "@intisy-ai/basekit";
 // A translator is installable in its own right, not only a library a plugin vendors: a
 // provider that speaks a vendor wire format resolves it from the home's shared store.
 export type CatalogKind = "provider" | "proxy" | "plugin" | "loader" | "translator";

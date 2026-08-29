@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { readCloneManifest } from "@intisy-ai/core";
+import { readCloneManifest } from "@intisy-ai/basekit";
 import { reposDir } from "./storagePaths.js";
 import { svgIconDataUri } from "./pluginIcon.js";
 

@@ -1,6 +1,6 @@
 import { join, resolve, sep } from "node:path";
-import { setConfigValue, resolveLayout, SETTINGS } from "@intisy-ai/core";
-import type { ManagedNpmPlugin, CapabilitySchema, SettingsCapability } from "@intisy-ai/core";
+import { setConfigValue, resolveLayout, SETTINGS } from "@intisy-ai/basekit";
+import type { ManagedNpmPlugin, CapabilitySchema, SettingsCapability } from "@intisy-ai/basekit";
 import type { PluginConfigSchema, PluginHome, PluginHomeId, Result, FieldSpec, ActionSpec, SectionSpec, DataSpec } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeDir, homeById } from "../lib/pluginHomes.js";
 import { hasCapability, listedPlugins, readPluginManagement, PLUGIN_MANAGEMENT } from "../lib/pluginManager.js";

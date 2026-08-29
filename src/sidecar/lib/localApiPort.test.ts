@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const store: Record<string, unknown> = {};
-vi.mock("@intisy-ai/core", () => ({
+vi.mock("@intisy-ai/basekit", () => ({
   getConfigValue: (name: string, key: string) => store[name + ":" + key],
 }));
 

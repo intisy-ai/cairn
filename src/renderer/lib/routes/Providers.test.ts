@@ -281,7 +281,7 @@ describe("Providers screen", () => {
       providersList: async () => ({
         ok: true,
         data: [
-          { id: "half-built", label: "half-built", accountPool: "half-built", sharedWith: [], pluginName: "half-built-auth", authKind: "api-key", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false }, defsError: "Cannot find package '@intisy-ai/core-auth'" },
+          { id: "half-built", label: "half-built", accountPool: "half-built", sharedWith: [], pluginName: "half-built-auth", authKind: "api-key", accountCount: 0, enabled: false, exposure: { claude: false, opencode: false }, defsError: "Cannot find package '@intisy-ai/basekit/auth'" },
         ],
       }),
     });
@@ -289,7 +289,7 @@ describe("Providers screen", () => {
     const { findByText } = render(Providers);
     const pill = await findByText("Won't load");
     expect(pill.getAttribute("title")).toContain("half-built-auth failed to load");
-    expect(pill.getAttribute("title")).toContain("@intisy-ai/core-auth");
+    expect(pill.getAttribute("title")).toContain("@intisy-ai/basekit/auth");
   });
 
   it("opens the custom endpoints dialog from the toolbar", async () => {

@@ -2,9 +2,9 @@ import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { initCoreProxy } from "@intisy-ai/core-proxy";
+import { initCoreProxy } from "@intisy-ai/basekit/proxy";
 import type { LoadedProxyDef } from "../lib/proxyPlugins.js";
-import type { AppDescriptor } from "@intisy-ai/core";
+import type { AppDescriptor } from "@intisy-ai/basekit";
 import { fixtureRoutingProfile } from "../lib/routingProfileFixture.js";
 
 beforeAll(() => initCoreProxy());
@@ -98,18 +98,18 @@ describe("import", () => {
     expect(result.data.providers).toBe(1);
     expect(result.data.routingImported).toBe(true);
 
-    const { listAccounts, getConfigDir } = await import("@intisy-ai/core-auth");
+    const { listAccounts, getConfigDir } = await import("@intisy-ai/basekit/auth");
     const imported = listAccounts("stub", undefined) as { id: string }[];
     expect(imported.some((a) => a.id === "acc-1")).toBe(true);
 
-    const { resolveModelMap } = await import("@intisy-ai/core-proxy/dist/model-map.js");
+    const { resolveModelMap } = await import("@intisy-ai/basekit/proxy");
     const { profileFor } = await import("../lib/proxyRegistry.js");
     const profile = await profileFor("claude", proxyDeps);
     if (!profile) throw new Error("unreachable");
     const map = resolveModelMap(getConfigDir(), profile);
     expect(map.opus).toEqual([{ provider: "stub", model: "m-opus", name: "m-opus", derived: false }]);
 
-    const { getConfigValue } = await import("@intisy-ai/core");
+    const { getConfigValue } = await import("@intisy-ai/basekit");
     const exposure = getConfigValue("dashboard-exposure", "map") as Record<string, { claude: boolean }>;
     expect(exposure.stub.claude).toBe(true);
   });

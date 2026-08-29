@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getAccountsData, normalizeQuotas, buildSnapshot } from "./snapshot.js";
-import type { AppDescriptor } from "@intisy-ai/core";
+import type { AppDescriptor } from "@intisy-ai/basekit";
 
 const ENV_KEYS = [
   "OPENCODE_DIR",

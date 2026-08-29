@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { addAccount, getConfigDir, listAccounts, reposDir } from "@intisy-ai/core-auth";
-import { readDeployedProviders } from "@intisy-ai/core-loader/dist/loader-runtime.js";
-import { resolveModelMap } from "@intisy-ai/core-proxy/dist/model-map.js";
-import { getApps, getAppDescriptor } from "@intisy-ai/core";
+import { addAccount, getConfigDir, listAccounts, reposDir } from "@intisy-ai/basekit/auth";
+import { readDeployedProviders } from "@intisy-ai/basekit/loader/loader-runtime.js";
+import { resolveModelMap } from "@intisy-ai/basekit/proxy";
+import { getApps, getAppDescriptor } from "@intisy-ai/basekit";
 import type { AppPresence, ImportableApp, ImportPreview, ImportSelection, ImportSummary, Result } from "../../../packages/shared/src/domain.js";
 import { appRealHome } from "../lib/pluginHomes.js";
 import { profileFor } from "../lib/proxyRegistry.js";
@@ -68,7 +68,7 @@ export async function importRun(app: string, selection: ImportSelection = ALL_SE
     if (selection.accounts) {
       const accountsOpts = { dir: join(home, "config") };
       for (const p of providers) {
-        const imported = listAccounts(p.provider, accountsOpts) as unknown[];
+        const imported = listAccounts(p.provider, accountsOpts);
         for (const account of imported) addAccount(p.provider, account, undefined);
         accounts += imported.length;
       }

@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, beforeEach } from "vitest";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getConfigValue, setConfigValue } from "@intisy-ai/core";
+import { getConfigValue, setConfigValue } from "@intisy-ai/basekit";
 import { resetOrgScanCache, resolveToken } from "../lib/orgScan.js";
 import { githubStatus, githubAddAccount, githubSwitchAccount, githubRemoveAccount, githubConnectGhCli, githubSetStar, githubStarCairn, githubDeviceStart, githubDevicePoll, resetDeviceFlowState } from "./github.js";
 

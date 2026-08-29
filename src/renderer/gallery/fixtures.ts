@@ -80,7 +80,7 @@ const PROVIDERS: ProviderRow[] = [
   { id: "stub", label: "Stub", accountPool: "stub", sharedWith: [], pluginName: "stub-auth", authKind: "api-key", accountCount: 0, enabled: false, exposure: { alpha: false, beta: false } },
   // Falls back to its raw id because its plugin bundle never loaded, the state the
   // Providers and Accounts screens both have to say out loud.
-  { id: "half-built", label: "half-built", accountPool: "half-built", sharedWith: [], pluginName: "half-built-auth", authKind: "api-key", accountCount: 0, enabled: false, exposure: { alpha: false, beta: false }, defsError: "Cannot find package '@intisy-ai/core-auth' imported from dist/handler.js" },
+  { id: "half-built", label: "half-built", accountPool: "half-built", sharedWith: [], pluginName: "half-built-auth", authKind: "api-key", accountCount: 0, enabled: false, exposure: { alpha: false, beta: false }, defsError: "Cannot find package '@intisy-ai/basekit/auth' imported from dist/handler.js" },
 ];
 
 const ACCOUNTS: AccountView[] = [
@@ -159,7 +159,7 @@ const MANY_USERS = [
 ];
 
 const MANY_LIBRARIES = [
-  { specifier: "@intisy-ai/core", version: "2.1.0", usedBy: MANY_USERS },
+  { specifier: "@intisy-ai/basekit", version: "2.1.0", usedBy: MANY_USERS },
   { specifier: "@intisy-ai/half-used", version: "0.1.1", usedBy: [] },
   { specifier: "@intisy-ai/left-behind", version: "0.9.0", usedBy: [] },
   ...Array.from({ length: 20 }, (_, index) => ({
@@ -207,7 +207,7 @@ export function screenFixtures(): Partial<CairnAPI> {
     librariesList: async () => ({ ok: true, data: [
       { home: HOME_ALPHA, shared: MANY_LIBRARIES, plugins: [{ plugin: "antigravity-auth", dependencies: [{ specifier: "@openauthjs/openauth", version: "0.4.3", usedBy: ["antigravity-auth"] }] }] },
       { home: HOME_BETA, shared: [
-        { specifier: "@intisy-ai/core", version: "2.0.4", usedBy: ["claude-code-auth"] },
+        { specifier: "@intisy-ai/basekit", version: "2.0.4", usedBy: ["claude-code-auth"] },
         { specifier: "@intisy-ai/half-used", version: "0.1.1", usedBy: ["claude-code-auth"] },
       ], plugins: [] },
     ] }),

@@ -1,4 +1,4 @@
-import { drainHomes, type EventEnvelope } from "@intisy-ai/core";
+import { drainHomes, type EventEnvelope } from "@intisy-ai/basekit";
 import type { Result, BusEvent, PluginHome } from "../../../packages/shared/src/domain.js";
 import { pluginHomes } from "../lib/pluginHomes.js";
 import { wrap } from "../result.js";

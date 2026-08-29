@@ -1,8 +1,8 @@
-// Local snapshot assembly: accounts (from core-auth's unified account store)
+// Local snapshot assembly: accounts (from basekit/auth's unified account store)
 // plus sessions and models (from buildSessionsWithCosts/buildModelSummary),
 // bucketed by day.
 import { join } from "path";
-import { configFolder } from "@intisy-ai/core-auth";
+import { configFolder } from "@intisy-ai/basekit/auth";
 import { readJSON } from "./db.js";
 import { buildSessionsWithCosts, buildModelSummary } from "./sessions.js";
 import type { AccountSummary, DayUsage, QuotaInfo, RateLimitInfo, UsageSnapshotData } from "./types.js";

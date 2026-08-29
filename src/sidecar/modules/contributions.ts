@@ -1,9 +1,9 @@
 import type { PluginConfigSchema, PluginHome, PluginScreen, PluginSettingsSection, Result } from "../../../packages/shared/src/domain.js";
 import { pluginHomes } from "../lib/pluginHomes.js";
 import { readCache, writeCache } from "../lib/cache.js";
-import { byOrderThenLabel, screenLayoutFor, SCREENS } from "@intisy-ai/core";
-import type { ScreensCapability } from "@intisy-ai/core";
-import { getConfigDir } from "@intisy-ai/core-auth";
+import { byOrderThenLabel, screenLayoutFor, SCREENS } from "@intisy-ai/basekit";
+import type { ScreensCapability } from "@intisy-ai/basekit";
+import { getConfigDir } from "@intisy-ai/basekit/auth";
 import { configSchemas } from "./appConfig.js";
 import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS, SURFACE } from "../lib/pluginHost.js";
 import { wrap } from "../result.js";

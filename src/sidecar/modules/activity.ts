@@ -1,4 +1,4 @@
-import { readActivity, activityStats, type ActivityRecord, type ActivityQuery, type ActivityStats } from "@intisy-ai/core";
+import { readActivity, activityStats, type ActivityRecord, type ActivityQuery, type ActivityStats } from "@intisy-ai/basekit";
 import type { Result, PluginHome } from "../../../packages/shared/src/domain.js";
 import { pluginHomes } from "../lib/pluginHomes.js";
 import { wrap } from "../result.js";

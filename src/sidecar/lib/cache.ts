@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { getConfigDir } from "@intisy-ai/core-auth";
+import { getConfigDir } from "@intisy-ai/basekit/auth";
 import { cacheDir } from "./storagePaths.js";
 
 // A generic, persistent, namespaced key/value cache for anything Cairn wants to

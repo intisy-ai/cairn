@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join, delimiter } from "node:path";
-import { getApps, getAppDescriptor, resolveHome } from "@intisy-ai/core";
-import type { AppDescriptor } from "@intisy-ai/core";
-import { resolveModelMap } from "@intisy-ai/core-proxy/dist/model-map.js";
+import { getApps, getAppDescriptor, resolveHome } from "@intisy-ai/basekit";
+import type { AppDescriptor } from "@intisy-ai/basekit";
+import { resolveModelMap } from "@intisy-ai/basekit/proxy";
 import { normalizeQuotas } from "../../../vendor/usage/snapshot.js";
 import { appRealHome, loaderInstalled } from "../lib/pluginHomes.js";
 import { svgIconDataUri } from "../lib/pluginIcon.js";

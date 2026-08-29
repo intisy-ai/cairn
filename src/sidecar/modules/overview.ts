@@ -1,5 +1,5 @@
-import { readDeployedProviders } from "@intisy-ai/core-loader/dist/loader-runtime.js";
-import { reposDir } from "@intisy-ai/core-auth";
+import { readDeployedProviders } from "@intisy-ai/basekit/loader/loader-runtime.js";
+import { reposDir } from "@intisy-ai/basekit/auth";
 import { getAccountsData } from "../../../vendor/usage/snapshot.js";
 import { pluginHomes } from "../lib/pluginHomes.js";
 import { listedPlugins } from "../lib/pluginManager.js";

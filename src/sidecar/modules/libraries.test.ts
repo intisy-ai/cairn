@@ -11,7 +11,7 @@ const HOMES = [home("cairn", "/cairn"), home("claude", "/claude")];
 describe("librariesList", () => {
   it("reports each home's shared store and per-plugin dependencies", async () => {
     const read = vi.fn(async (dir: string) => ({
-      shared: [{ specifier: "@intisy-ai/core", version: dir === "/cairn" ? "2.1.0" : "2.0.0", usedBy: ["stub-auth"] }],
+      shared: [{ specifier: "@intisy-ai/basekit", version: dir === "/cairn" ? "2.1.0" : "2.0.0", usedBy: ["stub-auth"] }],
       plugins: [{ plugin: "stub-auth", dependencies: [{ specifier: "undici", version: "6.19.2", usedBy: [] }] }],
     }));
 
@@ -20,7 +20,7 @@ describe("librariesList", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.map((h) => h.home.id)).toEqual(["cairn", "claude"]);
-    expect(result.data[0].shared[0]).toMatchObject({ specifier: "@intisy-ai/core", version: "2.1.0" });
+    expect(result.data[0].shared[0]).toMatchObject({ specifier: "@intisy-ai/basekit", version: "2.1.0" });
     expect(result.data[1].shared[0]).toMatchObject({ version: "2.0.0" });
     expect(result.data[0].plugins[0].plugin).toBe("stub-auth");
   });

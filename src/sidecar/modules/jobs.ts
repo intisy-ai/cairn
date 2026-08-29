@@ -1,4 +1,4 @@
-import { getConfigValue } from "@intisy-ai/core";
+import { getConfigValue } from "@intisy-ai/basekit";
 import { createRunner } from "../jobs/runner.js";
 import type { Job, JobKind, JobSpec } from "../jobs/model.js";
 import { pluginHomes } from "../lib/pluginHomes.js";

@@ -1,6 +1,6 @@
 import { setDiagnosticSink } from "@intisy-ai/api/engine";
-import { createPluginRuntime } from "@intisy-ai/core";
-import { PROVIDER_SUPPORT, providerSupport } from "@intisy-ai/core-auth";
+import { createPluginRuntime } from "@intisy-ai/basekit";
+import { PROVIDER_SUPPORT, providerSupport } from "@intisy-ai/basekit/auth";
 import {
   callCapability,
   ledgerRows,
@@ -61,7 +61,7 @@ export function hostFor(homeDir: string, appId: string, deps: PluginHostDeps = {
     app: appId,
     pluginDir: pluginDir(homeDir),
     surfaces: [SURFACE],
-    // Behaviour a plugin may not link for itself: core-auth's provider helpers, linked once here
+    // Behaviour a plugin may not link for itself: basekit/auth's provider helpers, linked once here
     // rather than copied into every provider bundle.
     services: [{ id: PROVIDER_SUPPORT, implementation: providerSupport() }],
     runtimeFor: (manifest) => createPluginRuntime(manifest.id, homeDir),

@@ -1,8 +1,8 @@
 import { homedir } from "node:os";
-import { startLoaderProxy } from "@intisy-ai/core-loader/dist/proxy-runner.js";
-import type { StartLoaderProxyOptions, StartedLoaderProxy } from "@intisy-ai/core-loader/dist/proxy-runner.js";
-import { createProxyServer, makeDynamicResolver } from "@intisy-ai/core-proxy";
-import type { RoutingProfile } from "@intisy-ai/core-proxy";
+import { startLoaderProxy } from "@intisy-ai/basekit/loader/proxy-runner.js";
+import type { StartLoaderProxyOptions, StartedLoaderProxy } from "@intisy-ai/basekit/loader/proxy-runner.js";
+import { createProxyServer, makeDynamicResolver } from "@intisy-ai/basekit/proxy";
+import type { RoutingProfile } from "@intisy-ai/basekit/proxy";
 import { loadInstalledProxyDefs, unresolvedProxyPlugins } from "../../sidecar/lib/proxyPlugins.js";
 import type { LoadedProxyDef } from "../../sidecar/lib/proxyPlugins.js";
 import type { ProxyStatus } from "../../../packages/shared/src/domain.js";
@@ -60,11 +60,11 @@ export async function resolveProxyProfile(
 
 export function buildStartOptions(configDir: string, profile: RoutingProfile): StartLoaderProxyOptions<RoutingProfile> {
   return {
-    // core-loader's generic StartLoaderProxyOptions type-erases the handler-resolution
-    // pipeline to `unknown` (it never depends on core-proxy's concrete ProxyHandler type,
+    // basekit/loader's generic StartLoaderProxyOptions type-erases the handler-resolution
+    // pipeline to `unknown` (it never depends on basekit/proxy's concrete ProxyHandler type,
     // per the core-libs-stay-generic rule); this cast bridges that intentional boundary,
     // the runtime pairing (makeDynamicResolver's output feeding createProxyServer's
-    // resolveHandler) is exact since both come from core-proxy itself.
+    // resolveHandler) is exact since both come from the proxy module itself.
     createProxyServer: createProxyServer as StartLoaderProxyOptions<RoutingProfile>["createProxyServer"],
     makeDynamicResolver,
     profile,

@@ -1,7 +1,7 @@
-import { getConfigDir, reposDir } from "@intisy-ai/core-auth";
-import { readDeployedProviders } from "@intisy-ai/core-loader/dist/loader-runtime.js";
-import { resolveModelMap, claudeTiers, catalogEntries, normalizeChain } from "@intisy-ai/core-proxy/dist/model-map.js";
-import type { Chain } from "@intisy-ai/core-proxy";
+import { getConfigDir, reposDir } from "@intisy-ai/basekit/auth";
+import { readDeployedProviders } from "@intisy-ai/basekit/loader/loader-runtime.js";
+import { resolveModelMap, profileTiers, catalogEntries, normalizeChain } from "@intisy-ai/basekit/proxy";
+import type { Chain } from "@intisy-ai/basekit/proxy";
 import type { AppPresence, RoutingState, Result } from "../../../packages/shared/src/domain.js";
 import type { RoutingApp } from "../lib/proxyRegistry.js";
 import { availableRoutingApps, profileFor } from "../lib/proxyRegistry.js";
@@ -29,7 +29,7 @@ export async function routingGet(app: string, deps: ProxyRegistryDeps = {}): Pro
   return wrap(() => {
     const configDir = getConfigDir();
     return {
-      tiers: claudeTiers(configDir, profile),
+      tiers: profileTiers(configDir, profile),
       map: resolveModelMap(configDir, profile),
       catalog: catalogEntries(configDir),
     };

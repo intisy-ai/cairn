@@ -2,7 +2,7 @@
 // subset of its API the usage engine consumes so imports through the @core/* alias
 // type-check. The usage engine discovers apps from the registry and resolves each
 // app's home to find its session-storage.
-declare module "@intisy-ai/core" {
+declare module "@intisy-ai/basekit" {
   export interface AppDescriptor {
     id: string;
     usage?: { formats: string[] };

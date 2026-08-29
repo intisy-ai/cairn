@@ -1,6 +1,6 @@
 import { join, basename } from "node:path";
 import { existsSync } from "node:fs";
-import { getConfigDir } from "@intisy-ai/core-auth";
+import { getConfigDir } from "@intisy-ai/basekit/auth";
 import { pluginOwningCapability } from "./engines.js";
 import type { CustomEndpoint, CustomEndpointView, Result } from "../../../packages/shared/src/domain.js";
 import { wrap } from "../result.js";

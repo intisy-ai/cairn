@@ -6,7 +6,7 @@
 import { createReadStream, existsSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 import { createInterface } from "readline";
-import { getApps, resolveHome } from "@intisy-ai/core";
+import { getApps, resolveHome } from "@intisy-ai/basekit";
 import { openDB, readJSON } from "./db.js";
 import type { DayUsage, ModelSummary, ModelUsage, Session, SessionData, TokenUsage } from "./types.js";
 

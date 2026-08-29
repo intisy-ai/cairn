@@ -1,8 +1,8 @@
-import { readDeployedProviders } from "@intisy-ai/core-loader/dist/loader-runtime.js";
-import { listAccounts, getConfigDir } from "@intisy-ai/core-auth";
-import { getApps } from "@intisy-ai/core";
-import { PROVIDER } from "@intisy-ai/core-auth";
-import type { Provider, ProviderDescriptor } from "@intisy-ai/core-auth";
+import { readDeployedProviders } from "@intisy-ai/basekit/loader/loader-runtime.js";
+import { listAccounts, getConfigDir } from "@intisy-ai/basekit/auth";
+import { getApps } from "@intisy-ai/basekit";
+import { PROVIDER } from "@intisy-ai/basekit/auth";
+import type { Provider, ProviderDescriptor } from "@intisy-ai/basekit/auth";
 import { capabilityProviders, callHostCapability, DEFAULT_CALL_TIMEOUT_MS } from "../lib/pluginHost.js";
 import { pluginIdFromClone } from "../lib/capabilityOwner.js";
 import { reposDir } from "../lib/storagePaths.js";
@@ -24,7 +24,7 @@ interface DeployedLane {
 }
 
 /** One lane as its plugin's `provider` capability describes it. */
-// Both shapes are core-auth's, taken rather than restated. The local `LaneDescriptor` was a
+// Both shapes are basekit/auth's, taken rather than restated. The local `LaneDescriptor` was a
 // ProviderDescriptor with `models` dropped, which reads as a lane having none rather than as this
 // module not using them.
 type LaneDescriptor = ProviderDescriptor;

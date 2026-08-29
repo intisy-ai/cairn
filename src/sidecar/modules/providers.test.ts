@@ -13,7 +13,7 @@ vi.mock("../lib/pluginHost.js", () => ({
 // registry and the config store to the same in-memory fake exposure.ts itself reads through,
 // so providersSetEnabled/providersSetExposure can be asserted without touching real config files.
 const exposureState: { apps: { id: string }[]; store: Record<string, unknown> } = { apps: [], store: {} };
-vi.mock("@intisy-ai/core", () => ({
+vi.mock("@intisy-ai/basekit", () => ({
   getApps: () => exposureState.apps,
   getConfigValue: (name: string, key: string) => exposureState.store[name + ":" + key],
   setConfigValue: (name: string, key: string, value: unknown) => { exposureState.store[name + ":" + key] = value; },

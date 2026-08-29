@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { availableRoutingApps, profileFor } from "./proxyRegistry.js";
 import type { LoadedProxyDef } from "./proxyPlugins.js";
-import type { RoutingProfile } from "@intisy-ai/core-proxy";
+import type { RoutingProfile } from "@intisy-ai/basekit/proxy";
 
 const fakeProfile = {} as RoutingProfile;
 

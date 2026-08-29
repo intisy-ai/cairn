@@ -1,4 +1,4 @@
-import { subscribeHomes, normalizeActivity, type ActivityRecord, type EventEnvelope } from "@intisy-ai/core";
+import { subscribeHomes, normalizeActivity, type ActivityRecord, type EventEnvelope } from "@intisy-ai/basekit";
 import { pluginHomes } from "../../sidecar/lib/pluginHomes.js";
 import type { PluginHome } from "../../../packages/shared/src/domain.js";
 

@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { catalogEntriesFor, repoProvidingCapability } from "./capabilityCatalog.js";
-import { CATALOG_CACHE_FILE } from "@intisy-ai/core-loader/dist/capability-catalog.js";
+import { CATALOG_CACHE_FILE } from "@intisy-ai/basekit/loader/capability-catalog.js";
 import { pathsForHome } from "./storagePaths.js";
 
 // Pinned so the registry lookup behind pathsForHome() cannot read the developer's real apps.json.
@@ -18,7 +18,7 @@ const entry = (id: string, capabilities: string[]) => ({
 });
 
 // catalogFor's freshness check reads the cache file from real disk unconditionally
-// (core-loader's readJson, not deps.readFileFn, which only backs a "local" marketplace
+// (basekit/loader's readJson, not deps.readFileFn, which only backs a "local" marketplace
 // source). A fixture catalog is staged the same way, at the same path.
 function homeWithCache(entries: ReturnType<typeof entry>[]): string {
   const home = mkdtempSync(join(tmpdir(), "cairn-cat-"));

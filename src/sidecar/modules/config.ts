@@ -1,4 +1,4 @@
-import { getConfigValue, setConfigValue } from "@intisy-ai/core";
+import { getConfigValue, setConfigValue } from "@intisy-ai/basekit";
 import { wrap } from "../result.js";
 
 export const configGet = (name: string, key: string) => wrap(() => getConfigValue(name, key));

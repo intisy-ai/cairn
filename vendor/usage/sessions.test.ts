@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { createRequire } from "node:module";
 import { buildSessionsWithCosts, buildModelSummary } from "./sessions.js";
 import type { Session } from "./types.js";
-import type { AppDescriptor } from "@intisy-ai/core";
+import type { AppDescriptor } from "@intisy-ai/basekit";
 
 // See db.test.ts for why node:sqlite is loaded via createRequire instead of a
 // static import.

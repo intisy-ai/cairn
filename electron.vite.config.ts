@@ -10,7 +10,7 @@ export default defineConfig({
           sidecar: "src/sidecar/index.ts",
           installer: "src/installer/index.ts",
         },
-        // core-loader's loadUpdater() dynamically imports plugin-updater, a package the
+        // basekit/loader's loadUpdater() dynamically imports plugin-updater, a package the
         // dashboard never installs (readDeployedProviders, the only export it uses, does
         // not reach that path); externalizing lets Rollup leave the unreached import as-is.
         external: ["plugin-updater"],

@@ -215,7 +215,7 @@ describe("appConfig sidecar module", () => {
       const result = await configWrite("claude", "plugin-a", "logging", false, { homes: [home], listPlugins: listedFromSeed(home.dir) });
       expect(result.ok).toBe(true);
 
-      const { readActivity } = await import("@intisy-ai/core");
+      const { readActivity } = await import("@intisy-ai/basekit");
       const { records } = readActivity([cairnHome], { topics: ["config.changed"] });
       const rec = records.find((r) => r.details.key === "logging");
       expect(rec).toBeDefined();

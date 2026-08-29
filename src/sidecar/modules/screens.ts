@@ -1,8 +1,8 @@
 import type { PluginHome, PluginHomeId, Result, ScreenData, InvokeResult } from "../../../packages/shared/src/domain.js";
 import { pluginHomes, homeById } from "../lib/pluginHomes.js";
 import { capabilityOfPlugin, callHostCapability, DEFAULT_CALL_TIMEOUT_MS, DEFAULT_INVOKE_TIMEOUT_MS } from "../lib/pluginHost.js";
-import { SCREENS } from "@intisy-ai/core";
-import type { ScreensCapability } from "@intisy-ai/core";
+import { SCREENS } from "@intisy-ai/basekit";
+import type { ScreensCapability } from "@intisy-ai/basekit";
 import { wrap } from "../result.js";
 
 /**

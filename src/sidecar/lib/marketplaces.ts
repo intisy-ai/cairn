@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join, isAbsolute } from "node:path";
-import { ECOSYSTEM_ORG, getConfigValue } from "@intisy-ai/core";
+import { ECOSYSTEM_ORG, getConfigValue } from "@intisy-ai/basekit";
 import { scanOrg, type OrgScanDeps } from "./orgScan.js";
 import type {
   CatalogEntry,

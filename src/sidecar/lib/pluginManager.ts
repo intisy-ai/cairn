@@ -2,13 +2,13 @@ import {
   CROSS_APP_SYNC,
   LIBRARY_MANAGEMENT,
   PLUGIN_MANAGEMENT,
-} from "@intisy-ai/core";
+} from "@intisy-ai/basekit";
 import type {
   CrossAppSyncCapability,
   LibraryManagementCapability,
   ManagedPlugin,
   PluginManagementCapability,
-} from "@intisy-ai/core";
+} from "@intisy-ai/basekit";
 import {
   callHostCapability,
   capabilityProviders,

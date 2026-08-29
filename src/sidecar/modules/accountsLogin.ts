@@ -1,4 +1,4 @@
-import { openBrowser } from "@intisy-ai/core-auth";
+import { openBrowser } from "@intisy-ai/basekit/auth";
 import type { LoginBegin, LoginComplete, Result } from "../../../packages/shared/src/domain.js";
 import { importProviderHandler } from "../lib/providerHandler.js";
 import { ok, err } from "../result.js";
@@ -52,7 +52,7 @@ export async function accountsLoginBegin(provider: string, deps: AccountsLoginDe
       () => { /* a closed or timed-out listener is not a failure of this call */ },
     );
     // The browser is the primary path, so it opens here rather than behind a button, the same
-    // way core-auth's loader input does. It is a silent no-op where no browser exists, which is
+    // way basekit/auth's loader input does. It is a silent no-op where no browser exists, which is
     // what leaves the paste fallback as the only way in on a headless host.
     (deps.openUrl ?? openBrowser)(flow.url);
     return ok({ url: flow.url, instructions: flow.instructions ?? "", loopback: !!flow.loopback });

@@ -1,7 +1,7 @@
 import { statSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import { readDeployedProviders } from "@intisy-ai/core-loader/dist/loader-runtime.js";
-import { reposDir, getConfigDir } from "@intisy-ai/core-auth";
+import { readDeployedProviders } from "@intisy-ai/basekit/loader/loader-runtime.js";
+import { reposDir, getConfigDir } from "@intisy-ai/basekit/auth";
 
 export interface DeployedHandler {
   repo: string;

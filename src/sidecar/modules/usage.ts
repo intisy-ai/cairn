@@ -1,5 +1,5 @@
-import { readDeployedProviders } from "@intisy-ai/core-loader/dist/loader-runtime.js";
-import { reposDir, listAccounts } from "@intisy-ai/core-auth";
+import { readDeployedProviders } from "@intisy-ai/basekit/loader/loader-runtime.js";
+import { reposDir, listAccounts } from "@intisy-ai/basekit/auth";
 import { buildSnapshot } from "../../../vendor/usage/snapshot.js";
 import type { Session, ModelSummary, DayUsage, ModelUsage } from "../../../vendor/usage/types.js";
 import type {

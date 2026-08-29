@@ -1,4 +1,4 @@
-import type { AccountController } from "@intisy-ai/core-auth";
+import type { AccountController } from "@intisy-ai/basekit/auth";
 import type { AccountView, Result } from "../../../packages/shared/src/domain.js";
 import { importProviderHandler } from "../lib/providerHandler.js";
 import { ok, err } from "../result.js";
