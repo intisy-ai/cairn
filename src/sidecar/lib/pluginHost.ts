@@ -1,4 +1,4 @@
-import { setDiagnosticSink } from "@intisy-ai/api/engine";
+import { setDiagnosticSink } from "@intisy/bayonet/engine";
 import { createPluginRuntime } from "@intisy-ai/basekit";
 import { PROVIDER_SUPPORT, providerSupport } from "@intisy-ai/basekit/auth";
 import {
@@ -7,8 +7,8 @@ import {
   startPlugins,
   DEFAULT_CALL_TIMEOUT_MS,
   DEFAULT_INVOKE_TIMEOUT_MS,
-} from "@intisy-ai/api/host";
-import type { LoadedHost, PluginHostOptions, PluginLedgerRow } from "@intisy-ai/api/host";
+} from "@intisy/bayonet/host";
+import type { LoadedHost, PluginHostOptions, PluginLedgerRow } from "@intisy/bayonet/host";
 import { pluginDir } from "./storagePaths.js";
 
 export { DEFAULT_CALL_TIMEOUT_MS, DEFAULT_INVOKE_TIMEOUT_MS };

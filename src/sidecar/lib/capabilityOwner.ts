@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { readDeployedManifests } from "@intisy-ai/api/host";
+import { readDeployedManifests } from "@intisy/bayonet/host";
 import { configNameFor } from "@intisy-ai/basekit";
-import type { PluginManifest } from "@intisy-ai/api";
+import type { PluginManifest } from "@intisy/bayonet";
 import { pluginDir, reposDir } from "./storagePaths.js";
 
 /** One plugin deployed in a home, as its manifest sidecar describes it. */
