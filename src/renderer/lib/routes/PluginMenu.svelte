@@ -45,8 +45,7 @@
       const result = await cairn.screenInvoke(plugin, screenId, actionId, homeId, args);
       if (!result.ok) { loadError = result.error; return; }
       notice = result.data.message ?? "";
-      if (result.data.sources) sources = result.data.sources;
-      else if (result.data.refresh) await loadData();
+      if (result.data.refresh) await loadData();
     } finally {
       busy = false;
     }
