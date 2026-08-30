@@ -25,7 +25,7 @@
     "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
-    "@intisy/bayonet": "^1.7.0",
+    "@intisy/bayonet": "^1.8.0",
     "@intisy-ai/basekit": "^4.2.0"
   },
   "devDependencies": {
